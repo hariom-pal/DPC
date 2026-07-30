@@ -311,3 +311,67 @@ Raised at design stage (pre-implementation). Each has a safe recommendation; non
 
 ### Final M2 master set (locked)
 District (LGD, EN+HI) · Designation (title only) · PayScale · Cadre (dept-specific, owns Service Class) · ReviewReason · VacancyType · DpcType · ReservationCategory · ReservationPolicy · ReservationRoster · ReservationRosterPoint · CommitteeType · CommitteeConfiguration · RecruitmentRule (+ feeders, versioned, GO + S3 PDF) · User Management · Activity Timeline. **Service Class = enum.** **No Promotion Category.**
+
+---
+
+## Milestone 2 — Closeout Questions (arising during implementation)
+
+### CQ1 — District LGD numeric codes
+**Title:** Populate real LGD district codes now, or on live LGD sync?
+
+**Background:** The 28 Chhattisgarh districts are seeded with authoritative English + Hindi names and `state_lgd_code=22`, but each district's numeric `lgd_code` is left null (the `SeedDirectoryProvider` does not hand-enter them to avoid asserting unverified official codes).
+
+**Why this decision is required:** Downstream reporting/integration may key on the numeric LGD code.
+
+**Available options:**
+1. Populate `lgd_code` when the live `DirectoryProvider` (LGD API) is integrated.
+2. Hand-enter the numeric codes now from an official LGD export you provide.
+
+**Pros:** (1) Authoritative, no transcription risk. (2) Codes available immediately.
+**Cons:** (1) Codes null until live sync. (2) Manual entry risks stale/incorrect codes.
+
+**Recommendation:** Option 1 — populate on live LGD sync; keep names authoritative now.
+
+**Future impact:** Adding the live provider fills the codes with no schema change.
+
+**Default action if you approve the recommendation:** Leave `lgd_code` null until the live LGD provider is wired.
+
+### CQ2 — Seeded reservation percentages
+**Title:** Confirm the default reservation percentages (SC 12 / ST 32 / OBC 14 / EWS 10).
+
+**Background:** `ReservationPolicySeeder` seeds provisional, **editable** default percentages effective 2020-01-01. These are configuration data, not hardcoded rules.
+
+**Why this decision is required:** They influence category-wise vacancy computation in later milestones.
+
+**Available options:**
+1. Keep these defaults; admin amends as needed.
+2. Replace with figures from an official CG reservation notification you provide.
+
+**Pros:** (1) Working defaults now. (2) Guaranteed-correct statutory figures.
+**Cons:** (1) May not match the exact current notification. (2) Needs the source document.
+
+**Recommendation:** Option 1 now; amend when the official notification is supplied.
+
+**Future impact:** Values are effective-dated, so corrections create a new policy row without losing history.
+
+**Default action if you approve the recommendation:** Retain the seeded defaults as editable values.
+
+### CQ3 — Per-master authorization policies
+**Title:** Are per-master Laravel Policies required, or is the `role:admin` gate sufficient for M2?
+
+**Background:** The entire `/admin` area is gated by `auth` + password-changed + `role:admin`. No per-model Policies were added, since only the Admin role reaches these screens.
+
+**Why this decision is required:** Determines whether finer-grained authorization (e.g., separate roles for specific masters) is needed.
+
+**Available options:**
+1. Keep the single `role:admin` gate for all masters.
+2. Add per-master Policies/Gates for finer-grained delegation.
+
+**Pros:** (1) Simple, matches current single-admin model. (2) Supports delegating specific masters to specific roles later.
+**Cons:** (1) All-or-nothing admin access. (2) More surface to maintain now with no current requirement.
+
+**Recommendation:** Option 1 for M2; introduce Policies if/when master administration is delegated to sub-roles.
+
+**Future impact:** Policies can be layered without changing controllers materially.
+
+**Default action if you approve the recommendation:** Retain the `role:admin` gate; revisit if delegation is required.
