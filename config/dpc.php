@@ -59,6 +59,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Administrative-area Directory (LG Directory)
+    |--------------------------------------------------------------------------
+    |
+    | "seed" serves a static Chhattisgarh district list in dev; a live LGD-API
+    | provider replaces it later without changing calling code.
+    |
+    */
+
+    'directory' => [
+        'provider' => env('DPC_DIRECTORY_PROVIDER', 'seed'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Seeded CGPSC Admin
     |--------------------------------------------------------------------------
     |

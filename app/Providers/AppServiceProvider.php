@@ -8,11 +8,13 @@ use App\Domain\Authentication\Events\CredentialsIssued;
 use App\Domain\Authentication\Events\OtpRequested;
 use App\Domain\Authentication\Listeners\SendCredentialNotification;
 use App\Domain\Authentication\Listeners\SendOtpNotification;
+use App\Integrations\Contracts\DirectoryProvider;
 use App\Integrations\Contracts\SignatureProvider;
 use App\Integrations\Contracts\SmsSender;
 use App\Integrations\CSC\CscDigiSignProvider;
 use App\Integrations\Mock\LogSmsSender;
 use App\Integrations\Mock\MockSignatureProvider;
+use App\Integrations\Mock\SeedDirectoryProvider;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 
@@ -32,6 +34,13 @@ class AppServiceProvider extends ServiceProvider
                 'mock' => new MockSignatureProvider,
                 'csc_digisign' => new CscDigiSignProvider,
                 default => throw new \RuntimeException('Unsupported signature provider ['.config('dpc.signature.provider').'].'),
+            };
+        });
+
+        $this->app->bind(DirectoryProvider::class, function (): DirectoryProvider {
+            return match ((string) config('dpc.directory.provider')) {
+                'seed' => new SeedDirectoryProvider,
+                default => throw new \RuntimeException('Unsupported directory provider ['.config('dpc.directory.provider').'].'),
             };
         });
     }

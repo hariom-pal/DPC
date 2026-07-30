@@ -8,7 +8,10 @@ use App\Domain\Authentication\Requests\RegisterDepartmentRequest;
 use App\Domain\Authentication\Services\RegistrationService;
 use App\Domain\Authentication\Services\VerificationService;
 use App\Domain\Department\Models\Department;
+use App\Domain\Master\Models\Designation;
+use App\Domain\Master\Models\District;
 use App\Enums\DepartmentStatus;
+use App\Enums\MasterStatus;
 use App\Enums\OtpPurpose;
 use App\Http\Controllers\Controller;
 use Illuminate\Contracts\View\View;
@@ -28,12 +31,16 @@ class RegistrationController extends Controller
             ->orderBy('name')
             ->get();
 
-        return view('auth.register', ['departments' => $departments]);
+        return view('auth.register', [
+            'departments' => $departments,
+            'districts' => District::query()->where('status', MasterStatus::Active->value)->orderBy('name_en')->get(),
+            'designations' => Designation::query()->where('status', MasterStatus::Active->value)->orderBy('name')->get(),
+        ]);
     }
 
     public function store(RegisterDepartmentRequest $request): RedirectResponse
     {
-        /** @var array{department_id:int,district:string,place:string,pin:string,department_email:string,ao_name:string,ao_designation:string,ao_mobile:string,ao_email:string,ah_name:string,ah_designation:string,ah_mobile:string,ah_email:string} $data */
+        /** @var array{department_id:int,district_id:int,place:string,pin:string,department_email:string,ao_name:string,ao_designation_id:int,ao_mobile:string,ao_email:string,ah_name:string,ah_designation_id:int,ah_mobile:string,ah_email:string} $data */
         $data = $request->validated();
 
         $authorizedOfficer = $this->registration->register($data);

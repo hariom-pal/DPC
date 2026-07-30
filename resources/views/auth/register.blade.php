@@ -30,8 +30,13 @@
 
                         <div class="row">
                             <div class="col-md-4 mb-3">
-                                <label for="district" class="form-label">जिला / District</label>
-                                <input type="text" class="form-control" id="district" name="district" value="{{ old('district') }}" required>
+                                <label for="district_id" class="form-label">जिला / District</label>
+                                <select class="form-select @error('district_id') is-invalid @enderror" id="district_id" name="district_id" required>
+                                    <option value="">— Select —</option>
+                                    @foreach ($districts as $district)
+                                        <option value="{{ $district->id }}" @selected(old('district_id') == $district->id)>{{ $district->name_en }} / {{ $district->name_hi }}</option>
+                                    @endforeach
+                                </select>
                             </div>
                             <div class="col-md-4 mb-3">
                                 <label for="place" class="form-label">स्थान / Place</label>
@@ -58,8 +63,13 @@
                                 <input type="text" class="form-control" id="ah_name" name="ah_name" value="{{ old('ah_name') }}" required>
                             </div>
                             <div class="col-md-3 mb-3">
-                                <label for="ah_designation" class="form-label">पदनाम / Designation</label>
-                                <input type="text" class="form-control" id="ah_designation" name="ah_designation" value="{{ old('ah_designation') }}" required>
+                                <label for="ah_designation_id" class="form-label">पदनाम / Designation</label>
+                                <select class="form-select @error('ah_designation_id') is-invalid @enderror" id="ah_designation_id" name="ah_designation_id" required>
+                                    <option value="">— Select —</option>
+                                    @foreach ($designations as $designation)
+                                        <option value="{{ $designation->id }}" @selected(old('ah_designation_id') == $designation->id)>{{ $designation->name }}</option>
+                                    @endforeach
+                                </select>
                             </div>
                             <div class="col-md-3 mb-3">
                                 <label for="ah_mobile" class="form-label">मोबाइल / Mobile</label>
@@ -79,8 +89,13 @@
                                 <input type="text" class="form-control" id="ao_name" name="ao_name" value="{{ old('ao_name') }}" required>
                             </div>
                             <div class="col-md-3 mb-3">
-                                <label for="ao_designation" class="form-label">पदनाम / Designation</label>
-                                <input type="text" class="form-control" id="ao_designation" name="ao_designation" value="{{ old('ao_designation') }}" required>
+                                <label for="ao_designation_id" class="form-label">पदनाम / Designation</label>
+                                <select class="form-select @error('ao_designation_id') is-invalid @enderror" id="ao_designation_id" name="ao_designation_id" required>
+                                    <option value="">— Select —</option>
+                                    @foreach ($designations as $designation)
+                                        <option value="{{ $designation->id }}" @selected(old('ao_designation_id') == $designation->id)>{{ $designation->name }}</option>
+                                    @endforeach
+                                </select>
                             </div>
                             <div class="col-md-3 mb-3">
                                 <label for="ao_mobile" class="form-label">मो. न. / Mobile</label>

@@ -23,7 +23,6 @@ class AdminUserSeeder extends Seeder
             ['email' => (string) config('dpc.admin.email')],
             [
                 'name' => (string) config('dpc.admin.name'),
-                'designation' => 'System Administrator',
                 'mobile' => (string) config('dpc.admin.mobile'),
                 'password' => Hash::make((string) config('dpc.admin.password')),
                 'is_active' => true,

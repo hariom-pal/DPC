@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 use App\Enums\Role;
 use App\Http\Controllers\Admin\AdminDashboardController;
+use App\Http\Controllers\Admin\DesignationController;
+use App\Http\Controllers\Admin\DistrictController;
+use App\Http\Controllers\Admin\PayScaleController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\PasswordChangeController;
 use App\Http\Controllers\Auth\RegistrationController;
@@ -56,6 +59,11 @@ Route::middleware('auth')->group(function (): void {
             ->name('admin.')
             ->group(function (): void {
                 Route::get('/', [AdminDashboardController::class, 'index'])->name('dashboard');
+                Route::resource('districts', DistrictController::class)->except(['show']);
+                Route::resource('designations', DesignationController::class)->except(['show']);
+                Route::resource('pay-scales', PayScaleController::class)
+                    ->parameters(['pay-scales' => 'payScale'])
+                    ->except(['show']);
             });
     });
 });

@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace App\Domain\Department\Models;
 
 use App\Domain\Authentication\Models\User;
+use App\Domain\Master\Models\District;
 use App\Enums\DepartmentStatus;
 use App\Support\Concerns\Blameable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
@@ -18,7 +20,7 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property int $id
  * @property string $code
  * @property string $name
- * @property string|null $district
+ * @property int|null $district_id
  * @property string|null $place
  * @property string|null $pin
  * @property string|null $email
@@ -37,7 +39,7 @@ class Department extends Model implements Auditable
     protected $fillable = [
         'code',
         'name',
-        'district',
+        'district_id',
         'place',
         'pin',
         'email',
@@ -54,6 +56,14 @@ class Department extends Model implements Auditable
     public function users(): HasMany
     {
         return $this->hasMany(User::class);
+    }
+
+    /**
+     * @return BelongsTo<District, $this>
+     */
+    public function district(): BelongsTo
+    {
+        return $this->belongsTo(District::class);
     }
 
     /**

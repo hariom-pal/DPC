@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Authentication\Models;
 
 use App\Domain\Department\Models\Department;
+use App\Domain\Master\Models\Designation;
 use App\Domain\Signature\Models\Signature;
 use App\Enums\UserLevel;
 use Database\Factories\UserFactory;
@@ -42,7 +43,7 @@ class User extends Authenticatable implements Auditable
      */
     protected $fillable = [
         'name',
-        'designation',
+        'designation_id',
         'email',
         'mobile',
         'password',
@@ -70,6 +71,14 @@ class User extends Authenticatable implements Auditable
     public function department(): BelongsTo
     {
         return $this->belongsTo(Department::class);
+    }
+
+    /**
+     * @return BelongsTo<Designation, $this>
+     */
+    public function designation(): BelongsTo
+    {
+        return $this->belongsTo(Designation::class);
     }
 
     /**

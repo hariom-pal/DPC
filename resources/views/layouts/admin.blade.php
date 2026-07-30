@@ -30,9 +30,12 @@
                 <div class="list-group list-group-flush">
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.dashboard') ? 'active' : '' }}"
                        href="{{ route('admin.dashboard') }}">Dashboard</a>
-                    @isset($masterNav)
-                        {{ $masterNav }}
-                    @endisset
+                    <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.districts.*') ? 'active' : '' }}"
+                       href="{{ route('admin.districts.index') }}">Districts</a>
+                    <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.designations.*') ? 'active' : '' }}"
+                       href="{{ route('admin.designations.index') }}">Designations</a>
+                    <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.pay-scales.*') ? 'active' : '' }}"
+                       href="{{ route('admin.pay-scales.index') }}">Pay Scales</a>
                 </div>
             </aside>
             <main class="col-12 col-md-9 col-lg-10 py-4">

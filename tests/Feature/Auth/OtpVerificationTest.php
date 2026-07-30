@@ -5,8 +5,12 @@ declare(strict_types=1);
 namespace Tests\Feature\Auth;
 
 use App\Domain\Department\Models\Department;
+use App\Domain\Master\Models\Designation;
+use App\Domain\Master\Models\District;
 use App\Enums\DepartmentStatus;
 use Database\Seeders\DepartmentMasterSeeder;
+use Database\Seeders\DesignationSeeder;
+use Database\Seeders\DistrictSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -18,7 +22,7 @@ class OtpVerificationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->seed([RolesAndPermissionsSeeder::class, DepartmentMasterSeeder::class]);
+        $this->seed([RolesAndPermissionsSeeder::class, DepartmentMasterSeeder::class, DistrictSeeder::class, DesignationSeeder::class]);
     }
 
     /**
@@ -28,16 +32,16 @@ class OtpVerificationTest extends TestCase
     {
         return [
             'department_id' => $department->id,
-            'district' => 'Raipur',
+            'district_id' => (int) District::query()->where('name_en', 'Raipur')->value('id'),
             'place' => 'Raipur',
             'pin' => '492001',
             'department_email' => 'h_edu@cg.gov.in',
             'ah_name' => 'A. B. Cdef',
-            'ah_designation' => 'Secretary',
+            'ah_designation_id' => (int) Designation::query()->where('name', 'Secretary')->value('id'),
             'ah_mobile' => '9826195455',
             'ah_email' => 'ah.hedu@cg.gov.in',
             'ao_name' => 'P. Q. Rstuv',
-            'ao_designation' => 'Deputy Secretary',
+            'ao_designation_id' => (int) Designation::query()->where('name', 'Deputy Secretary')->value('id'),
             'ao_mobile' => '9407938480',
             'ao_email' => 'ao.hedu@cg.gov.in',
         ];

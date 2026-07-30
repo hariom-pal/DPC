@@ -10,7 +10,7 @@
             <div class="card border-0 shadow-sm">
                 <div class="card-body p-4">
                     <h1 class="h4 mb-1">Welcome, {{ $user->name }}</h1>
-                    <p class="text-muted mb-3">{{ $user->designation }}</p>
+                    <p class="text-muted mb-3">{{ $user->designation?->name }}</p>
 
                     <dl class="row mb-0">
                         <dt class="col-sm-3">Role</dt>

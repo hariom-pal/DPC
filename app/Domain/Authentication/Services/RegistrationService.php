@@ -31,7 +31,7 @@ class RegistrationService
      * Returns the Authorized Officer (registrant) so the caller can start
      * OTP verification.
      *
-     * @param  array{department_id:int,district:string,place:string,pin:string,department_email:string,ao_name:string,ao_designation:string,ao_mobile:string,ao_email:string,ah_name:string,ah_designation:string,ah_mobile:string,ah_email:string}  $data
+     * @param  array{department_id:int,district_id:int,place:string,pin:string,department_email:string,ao_name:string,ao_designation_id:int,ao_mobile:string,ao_email:string,ah_name:string,ah_designation_id:int,ah_mobile:string,ah_email:string}  $data
      */
     public function register(array $data): User
     {
@@ -39,7 +39,7 @@ class RegistrationService
             $department = Department::query()->findOrFail($data['department_id']);
 
             $department->forceFill([
-                'district' => $data['district'],
+                'district_id' => $data['district_id'],
                 'place' => $data['place'],
                 'pin' => $data['pin'],
                 'email' => $data['department_email'],
@@ -49,14 +49,14 @@ class RegistrationService
 
             $ao = $this->createOfficer($department, [
                 'name' => $data['ao_name'],
-                'designation' => $data['ao_designation'],
+                'designation_id' => $data['ao_designation_id'],
                 'mobile' => $data['ao_mobile'],
                 'email' => $data['ao_email'],
             ], UserLevel::AuthorizedOfficer, Role::AuthorizedOfficer);
 
             $ah = $this->createOfficer($department, [
                 'name' => $data['ah_name'],
-                'designation' => $data['ah_designation'],
+                'designation_id' => $data['ah_designation_id'],
                 'mobile' => $data['ah_mobile'],
                 'email' => $data['ah_email'],
             ], UserLevel::AdministrativeHead, Role::AdministrativeHead);
@@ -66,7 +66,7 @@ class RegistrationService
     }
 
     /**
-     * @param  array{name:string,designation:string,mobile:string,email:string}  $attributes
+     * @param  array{name:string,designation_id:int,mobile:string,email:string}  $attributes
      */
     private function createOfficer(Department $department, array $attributes, UserLevel $level, Role $role): User
     {
@@ -74,7 +74,7 @@ class RegistrationService
 
         $user = new User([
             'name' => $attributes['name'],
-            'designation' => $attributes['designation'],
+            'designation_id' => $attributes['designation_id'],
             'mobile' => $attributes['mobile'],
             'email' => $attributes['email'],
             'level' => $level->value,
