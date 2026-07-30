@@ -36,6 +36,12 @@
                        href="{{ route('admin.designations.index') }}">Designations</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.pay-scales.*') ? 'active' : '' }}"
                        href="{{ route('admin.pay-scales.index') }}">Pay Scales</a>
+                    <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.cadres.*') ? 'active' : '' }}"
+                       href="{{ route('admin.cadres.index') }}">Cadres</a>
+                    <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.reservation-policies.*') ? 'active' : '' }}"
+                       href="{{ route('admin.reservation-policies.index') }}">Reservation Policies</a>
+                    <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.reservation-rosters.*') ? 'active' : '' }}"
+                       href="{{ route('admin.reservation-rosters.index') }}">Reservation Rosters</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.reservation-categories.*') ? 'active' : '' }}"
                        href="{{ route('admin.reservation-categories.index') }}">Reservation Categories</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.vacancy-types.*') ? 'active' : '' }}"

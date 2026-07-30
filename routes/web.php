@@ -4,11 +4,15 @@ declare(strict_types=1);
 
 use App\Enums\Role;
 use App\Http\Controllers\Admin\AdminDashboardController;
+use App\Http\Controllers\Admin\CadreController;
 use App\Http\Controllers\Admin\DesignationController;
 use App\Http\Controllers\Admin\DistrictController;
 use App\Http\Controllers\Admin\DpcTypeController;
 use App\Http\Controllers\Admin\PayScaleController;
 use App\Http\Controllers\Admin\ReservationCategoryController;
+use App\Http\Controllers\Admin\ReservationPolicyController;
+use App\Http\Controllers\Admin\ReservationRosterController;
+use App\Http\Controllers\Admin\ReservationRosterPointController;
 use App\Http\Controllers\Admin\ReviewReasonController;
 use App\Http\Controllers\Admin\VacancyTypeController;
 use App\Http\Controllers\Auth\LoginController;
@@ -80,6 +84,17 @@ Route::middleware('auth')->group(function (): void {
                 Route::resource('dpc-types', DpcTypeController::class)
                     ->parameters(['dpc-types' => 'dpcType'])
                     ->except(['show']);
+                Route::resource('cadres', CadreController::class)->except(['show']);
+                Route::resource('reservation-policies', ReservationPolicyController::class)
+                    ->parameters(['reservation-policies' => 'reservationPolicy'])
+                    ->except(['show']);
+                Route::resource('reservation-rosters', ReservationRosterController::class)
+                    ->parameters(['reservation-rosters' => 'reservationRoster'])
+                    ->except(['show']);
+                Route::post('reservation-rosters/{reservationRoster}/points', [ReservationRosterPointController::class, 'store'])
+                    ->name('reservation-rosters.points.store');
+                Route::delete('reservation-rosters/{reservationRoster}/points/{point}', [ReservationRosterPointController::class, 'destroy'])
+                    ->name('reservation-rosters.points.destroy');
             });
     });
 });
