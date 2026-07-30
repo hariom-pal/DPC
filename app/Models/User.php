@@ -4,31 +4,90 @@ declare(strict_types=1);
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Enums\UserLevel;
 use Database\Factories\UserFactory;
-use Illuminate\Database\Eloquent\Attributes\Fillable;
-use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use OwenIt\Auditing\Auditable as AuditableTrait;
+use OwenIt\Auditing\Contracts\Auditable;
+use Spatie\Permission\Traits\HasRoles;
 
-#[Fillable(['name', 'email', 'password'])]
-#[Hidden(['password', 'remember_token'])]
-class User extends Authenticatable
+class User extends Authenticatable implements Auditable
 {
+    use AuditableTrait;
+
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable;
+    use HasFactory;
+
+    use HasRoles;
+    use Notifiable;
+    use SoftDeletes;
 
     /**
-     * Get the attributes that should be cast.
+     * @var list<string>
+     */
+    protected $fillable = [
+        'name',
+        'designation',
+        'email',
+        'mobile',
+        'password',
+        'department_id',
+        'level',
+        'is_active',
+        'email_verified_at',
+        'mobile_verified_at',
+    ];
+
+    /**
+     * @var list<string>
+     */
+    protected $hidden = [
+        'password',
+        'remember_token',
+    ];
+
+    /**
+     * The department this account belongs to (null for CGPSC roles).
      *
+     * @return BelongsTo<Department, $this>
+     */
+    public function department(): BelongsTo
+    {
+        return $this->belongsTo(Department::class);
+    }
+
+    /**
+     * @return HasMany<SignEvent, $this>
+     */
+    public function signEvents(): HasMany
+    {
+        return $this->hasMany(SignEvent::class);
+    }
+
+    /**
+     * Both channels (email + mobile) verified per the registration policy.
+     */
+    public function isFullyVerified(): bool
+    {
+        return $this->email_verified_at !== null && $this->mobile_verified_at !== null;
+    }
+
+    /**
      * @return array<string, string>
      */
     protected function casts(): array
     {
         return [
             'email_verified_at' => 'datetime',
+            'mobile_verified_at' => 'datetime',
             'password' => 'hashed',
+            'is_active' => 'boolean',
+            'level' => UserLevel::class,
         ];
     }
 }

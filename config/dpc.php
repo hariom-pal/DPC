@@ -1,0 +1,60 @@
+<?php
+
+declare(strict_types=1);
+
+return [
+
+    /*
+    |--------------------------------------------------------------------------
+    | One-Time Password (OTP)
+    |--------------------------------------------------------------------------
+    |
+    | OTP is used to verify email + mobile at registration and as the
+    | step-up "signature" on legally significant actions. Values are
+    | configuration-driven so they can be tuned without code changes.
+    |
+    */
+
+    'otp' => [
+        'length' => (int) env('DPC_OTP_LENGTH', 6),
+        'ttl_seconds' => (int) env('DPC_OTP_TTL', 600),
+        'max_attempts' => (int) env('DPC_OTP_MAX_ATTEMPTS', 5),
+
+        // When set (test/dev only), the generated code is forced to this
+        // value so flows can be asserted deterministically. Never set in prod.
+        'fake_code' => env('DPC_OTP_FAKE_CODE'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | SMS
+    |--------------------------------------------------------------------------
+    |
+    | Delivery driver for SMS (OTP + credential issuance). "log" writes to
+    | the application log for local/dev; a real gateway is pluggable later.
+    |
+    */
+
+    'sms' => [
+        'driver' => env('DPC_SMS_DRIVER', 'log'),
+        'sender_id' => env('DPC_SMS_SENDER_ID', 'CGPSC'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Seeded CGPSC Admin
+    |--------------------------------------------------------------------------
+    |
+    | Bootstrap credentials for the CGPSC Admin account. Change the password
+    | immediately in any non-local environment.
+    |
+    */
+
+    'admin' => [
+        'name' => env('DPC_ADMIN_NAME', 'CGPSC Administrator'),
+        'email' => env('DPC_ADMIN_EMAIL', 'admin@cgpsc.gov.in'),
+        'mobile' => env('DPC_ADMIN_MOBILE', '9990000000'),
+        'password' => env('DPC_ADMIN_PASSWORD', 'ChangeMe@12345'),
+    ],
+
+];

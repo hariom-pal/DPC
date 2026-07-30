@@ -16,11 +16,18 @@ return new class extends Migration
         Schema::create('users', function (Blueprint $table) {
             $table->id();
             $table->string('name');
-            $table->string('email')->unique();
+            $table->string('designation')->nullable();
+            $table->string('email')->nullable()->unique();
+            $table->string('mobile', 15)->nullable()->unique();
             $table->timestamp('email_verified_at')->nullable();
+            $table->timestamp('mobile_verified_at')->nullable();
             $table->string('password');
+            $table->unsignedBigInteger('department_id')->nullable()->index();
+            $table->unsignedTinyInteger('level')->nullable()->comment('1 = Authorized Officer, 2 = Administrative Head');
+            $table->boolean('is_active')->default(true)->index();
             $table->rememberToken();
             $table->timestamps();
+            $table->softDeletes();
         });
 
         Schema::create('password_reset_tokens', function (Blueprint $table) {

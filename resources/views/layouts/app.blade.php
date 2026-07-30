@@ -15,7 +15,17 @@
                 {{ __('messages.app_name') }}
             </a>
             <div class="ms-auto d-flex align-items-center gap-2">
-                <span class="text-white-50 small d-none d-md-inline">{{ __('messages.language') }}:</span>
+                @auth
+                    <span class="text-white small d-none d-md-inline">{{ auth()->user()->name }}</span>
+                    <form method="POST" action="{{ route('logout') }}" class="m-0">
+                        @csrf
+                        <button type="submit" class="btn btn-sm btn-outline-light">Logout</button>
+                    </form>
+                @else
+                    <a class="btn btn-sm btn-outline-light" href="{{ route('login') }}">Login</a>
+                    <a class="btn btn-sm btn-light" href="{{ route('register') }}">Register</a>
+                @endauth
+                <span class="vr text-white-50 mx-1"></span>
                 <a class="btn btn-sm {{ app()->getLocale() === 'en' ? 'btn-light' : 'btn-outline-light' }}"
                    href="{{ route('lang.switch', 'en') }}">EN</a>
                 <a class="btn btn-sm {{ app()->getLocale() === 'hi' ? 'btn-light' : 'btn-outline-light' }}"
