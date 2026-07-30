@@ -11,6 +11,7 @@ use App\Http\Controllers\Admin\DesignationController;
 use App\Http\Controllers\Admin\DistrictController;
 use App\Http\Controllers\Admin\DpcTypeController;
 use App\Http\Controllers\Admin\PayScaleController;
+use App\Http\Controllers\Admin\RecruitmentRuleController;
 use App\Http\Controllers\Admin\ReservationCategoryController;
 use App\Http\Controllers\Admin\ReservationPolicyController;
 use App\Http\Controllers\Admin\ReservationRosterController;
@@ -103,6 +104,13 @@ Route::middleware('auth')->group(function (): void {
                 Route::resource('committee-configurations', CommitteeConfigurationController::class)
                     ->parameters(['committee-configurations' => 'committeeConfiguration'])
                     ->except(['show']);
+                Route::resource('recruitment-rules', RecruitmentRuleController::class)
+                    ->parameters(['recruitment-rules' => 'recruitmentRule'])
+                    ->except(['show']);
+                Route::post('recruitment-rules/{recruitmentRule}/version', [RecruitmentRuleController::class, 'newVersion'])
+                    ->name('recruitment-rules.version');
+                Route::get('recruitment-rules/{recruitmentRule}/download', [RecruitmentRuleController::class, 'download'])
+                    ->name('recruitment-rules.download');
             });
     });
 });

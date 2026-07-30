@@ -73,6 +73,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Document Storage
+    |--------------------------------------------------------------------------
+    |
+    | Disk for uploaded documents (e.g. recruitment-rule Government Orders).
+    | "local" in dev; "s3" in production. Only metadata is stored in MySQL.
+    |
+    */
+
+    'documents' => [
+        'disk' => env('DPC_DOCUMENTS_DISK', 'local'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Seeded CGPSC Admin
     |--------------------------------------------------------------------------
     |
