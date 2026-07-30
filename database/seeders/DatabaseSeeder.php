@@ -16,7 +16,6 @@ class DatabaseSeeder extends Seeder
             DesignationSeeder::class,
             PayScaleSeeder::class,
             LookupMasterSeeder::class,
-            ReservationPolicySeeder::class,
             DepartmentMasterSeeder::class,
             CadreSeeder::class,
             AdminUserSeeder::class,
