@@ -1,0 +1,4002 @@
+
+===== SLIDE 1 =====
+OdpcOnline departmental promotion committee
+Chhattisgarh Public Service Commission
+
+===== SLIDE 2 =====
+Introduction (6 stages of odpc)
+Online DPC
+2
+ONLINE DEPARTMENTAL PROMOTION की प्रक्रिया छह  चरणों में पूरी की जाएगी 
+विभागों का पंजीयन - ONLINE DPC हेतु छत्तीसगढ़ शासन के समस्त विभागों को आयोग की OFFICIAL WEBSITE के माध्यम से पंजीयन करना होगा.
+PRE DPC PROPOSAL – इस खंड में अधिकृत अधिकारी विभाग में उपलब्ध पदोन्नति के पदों का विवरण (वेतनमान, पदोन्नति से भर्ती का प्रतिशत, संवर्ग जिनसे पदोन्नति हो सकती है का विवरण प्रविष्ट करेंगे तथा विभाग  के प्रशासकीय प्रमुख  प्रविष्ठी का अनुमोदन करेंगे.
+
+===== SLIDE 3 =====
+Introduction (6 stages of odpc)
+Online DPC
+3
+DPC प्रस्ताव – पंजीयन के पश्चात् विभागों को संक्षिप्त DPC प्रस्ताव निम्न जानकारियों के साथ प्रेषित करना होगा – 
+पदनाम/संवर्ग जिस पर पदोन्नति होनी है तथा उस पद/संवर्ग का वर्ग(CLASS).
+पदनाम/संवर्ग जिससे पदोन्नति होनी है तथा उस पद/संवर्ग का वर्ग(CLASS)।
+प्रस्तावित पदोन्नति में किसी प्रकार का विधिक स्थगन/ रोक न होने संबंधी घोषणा।
+DPC हेतु नामित सदस्यों का विवरण. 
+उस पदनाम/संवर्ग पर कार्यरत अधिकारियों का विवरण, जिस पर पदोन्नति होनी है। 
+पदनाम/संवर्ग जिस पर पदोन्नति होनी है, हेतु स्वीकृत पद संख्या।
+पदनाम/संवर्ग जिससे पदोन्नति होनी है पर कार्यरत अधिकारियों की अंतिम पदक्रम सूची.
+पदनाम/संवर्ग जिससे पदोन्नति होनी है पर कार्यरत अधिकारियों का मूल्यांकन पत्रक
+
+===== SLIDE 4 =====
+Introduction (6 stages of odpc)
+Online DPC
+4
+WORK FLOW MANAGEMENT - जिसके माध्यम से आयोग को प्राप्त पदोन्नति प्रस्ताव माननीय अध्यक्ष महोदय के ACCOUNT में प्राप्त होंगे तथा माननीय अध्यक्ष महोदय उक्त प्रस्तावों के आधार पर ONLINE DPC की प्रक्रिया हेतु स्वयं अथवा माननीय सदस्य गणों में से किसी एक को नामित करेंगे.
+DPC प्रस्ताव के आधार पर आयोग द्वारा ONLINE DPC हेतु तिथि व समय का निर्धारण – माननीय अध्यक्ष महोदय अथवा माननीय सदस्य महोदय जिन्हें  DPC हेतु नामित किया गया हो, द्वारा ONLINE DPC हेतु तिथि व समय का निर्धारण किया जाएगा.
+ONLINE DPC की कार्यवाही – निर्धारित तिथि व समय को DPC की कार्यवाही कर कार्यवाही विवरण जारी किया जाएगा. 
+
+===== SLIDE 5 =====
+REGISTRATION OF DEPARTMENTS
+Online DPC
+आयोग की वेबसाईट पर उपलब्ध लिंक के माध्यम से विभाग द्वारा अधिकृत (अवर सचिव अथवा वरिष्ठ अधिकारी) अधिकारी ONLINE DPC हेतु रजिस्ट्रेशन की प्रक्रिया कर सकेंगे. रजिस्ट्रेशन की प्रक्रिया हेतु विभाग एवं प्रशासकीय प्रमुख संबंधी विवरण एवं ONLINE DPC हेतु अधिकृत अधिकारी के संबंध में विवरण दर्ज करना होगा। 
+रजिस्ट्रेशन की प्रक्रिया संपन्न होने पर डी.पी.सी. हेतु अधिकृत अधिकारी एवं प्रशासकीय प्रमुख को क्रमशः प्रथम एवं द्वितीय स्तर के आई.डी. एवं पासवर्ड उनके मोबाईल नम्बर एवं ई-मेल आई.डी. पर प्राप्त होंगे।
+5
+
+===== SLIDE 6 =====
+REGISTRATIONOF DEPARTMENTS
+Online DPC
+6
+PROPOSED AND DESIGNED BY – G. RATHOD, OFFICER IN-CHARGE, IT SECTION, CGPSC
+SELECT NAME OF DEPARTMENT
+MR. A. B. CDEF
+REGISTER
+विभाग का नाम - 
+CHHATTISGARH PUBLIC SERVICE COMMISSION
+GENERAL ADMINISTRATION DEPARTMENT
+SCHOOL EDUCAION DEPARTMENT
+HIGHER EDUCATION DEPARTMENT 
+FINANCE DEPARTMENT
+AGRICULTURE DEPARTMENT
+HIGHER  EDUCATION DEPARTMENT
+जिला – रायपुर 
+स्थान – रायपुर
+पिन –  492001
+प्रशासकीय प्रमुख का नाम - 
+प्रशासकीय प्रमुख का पदनाम - 
+SECRETARY
+प्रशासकीय प्रमुख का मोबाइल नंबर(FOR ID AND PASSWORD)  - 
+9826195455
+विभाग का EMAIL (ONLY .GOV ID )  - 
+H_edu.cg@gov.in
+MR. P.Q. RSTUV
+DPC हेतु अधिकृत अधिकारी का नाम - 
+DPC हेतु अधिकृत अधिकारी का पदनाम - 
+DEPUTY SECRETARY
+DPC हेतु अधिकृत अधिकारी का मो. न. - 
+9407938480
+EDIT
+SAVE
+
+===== SLIDE 7 =====
+DETAILS REGARDING ALL THE POSTS SENCTIONED FOR PROMOTION
+Online DPC
+इस चरण में अधिकृत अधिकारी को विभाग में उपलब्ध पदोन्नति के पदों का विवरण (वेतनमान, पदोन्नति से भर्ती का प्रतिशत, संवर्ग जिनसे पदोन्नति हो सकती है, पृथक-पृथक पदों से पदोन्नति हेतु निर्धारित प्रतिशत एवं पदोन्नति हेतु आवश्यक अनुभव अवधि) की प्रविष्ठी करनी होगी.
+	उक्त विवरण के आधार पर PRE DPC PROPOSAL  की प्रक्रिया संपन्न होगी यह प्रविष्ठी डी.पी.सी. हेतु अधिकृत अधिकारी द्वारा की जाएगी एवं प्रशासकीय प्रमुख द्वारा प्रविष्ठी का अनुमोदन किया जाएगा.
+7
+
+===== SLIDE 8 =====
+POSTS SANCTIONED FOR PROMOTIONPROPOSAL
+Online DPC
+8
+LOGIN PAGE FOR OFFICER AUTHORISED FOR DPC 
+AADHAR  NO
+OTP
+999048447606
+**********
+AH_HEdu
+**************
+By providing Aadhar No. And Aadhar OTP you are digitally signing  the content.
+
+===== SLIDE 9 =====
+POSTS SENCTIONED FOR PROMOTIONPROPOSAL
+Online DPC
+9
+विभाग में स्वीकृत ऐसे पदों के प्रकार जिनपर पदोन्नति से भर्ती का प्रावधान है -  
+NEXT
+3
+विभागीय भर्ती नियम की अनुसूची-4 के अनुसार ही जानकारी प्रविष्ट/ अपलोड करें 
+क्र.
+पद नाम 
+वेतन-मान 
+सीधी  भर्ती का प्रतिशत 
+पदोन्नति से भर्ती का प्रतिशत 
+संवर्ग जिससे पदोन्नत किया जाना है 
+संवर्ग - 1
+%
+अनुभव वर्षों में 
+संवर्ग - 2
+%
+अनुभव वर्षों  में 
+1
+DEPUTY SECRETARY
+0
+100
+UNDER SECRETARY
+100
+5
+2
+UNDER SECRETARY
+0
+100
+SECTION OFFICER
+50
+5
+LAW OFFICER
+50
+5
+3
+SECTION OFFICER
+0 
+100
+ASSISTANT GRADE - 1
+60
+5
+LIBRARIAN
+40
+5
+1
+DEPUTY SECRETARY
+0
+100
+UNDER SECRETARY
+100
+5
+2
+UNDER SECRETARY
+0
+100
+SECTION OFFICER
+50
+5
+LAW OFFICER
+50
+5
+3
+SECTION OFFICER
+0 
+100
+ASSISTANT GRADE - 1
+60
+5
+LIBRARIAN
+40
+5
+SAVE
+CLEAR
+EDIT
+
+===== SLIDE 10 =====
+POSTS SENCTIONED FOR PROMOTIONAPPROVAL
+Online DPC
+10
+LOGIN PAGE FOR AH (ADMINISTRATIVE HEAD)
+AADHAR  NO
+OTP
+999048447606
+**********
+AH_HEdu
+**************
+By providing Aadhar No. And Aadhar OTP you are digitally signing  the content.
+
+===== SLIDE 11 =====
+POSTS SENCTIONED FOR PROMOTIONAPPROVAL
+Online DPC
+11
+विभाग में स्वीकृत ऐसे पदों के प्रकार जिनपर पदोन्नति से भर्ती का प्रावधान है -  
+3
+विभागीय भर्ती नियम की अनुसूची-4 के अनुसार ही APPROVE करें 
+क्र.
+पद नाम 
+वेतन-मान 
+सीधी  भर्ती का प्रतिशत 
+पदोन्नति से भर्ती का प्रतिशत 
+संवर्ग जिससे पदोन्नत किया जाना है 
+संवर्ग - 1
+%
+अनुभव वर्षों में 
+संवर्ग - 2
+%
+अनुभव वर्षों  में 
+1
+DEPUTY SECRETARY
+0
+100
+UNDER SECRETARY
+100
+5
+2
+UNDER SECRETARY
+0
+100
+SECTION OFFICER
+50
+5
+LAW OFFICER
+50
+5
+3
+SECTION OFFICER
+0 
+100
+ASSISTANT GRADE - 1
+60
+5
+LIBRARIAN
+40
+5
+1
+DEPUTY SECRETARY
+0
+100
+UNDER SECRETARY
+100
+5
+2
+UNDER SECRETARY
+0
+100
+SECTION OFFICER
+50
+5
+LAW OFFICER
+50
+5
+3
+SECTION OFFICER
+0 
+100
+ASSISTANT GRADE - 1
+60
+5
+LIBRARIAN
+40
+5
+APPROVE
+
+===== SLIDE 12 =====
+DPC PROPOSAL
+Online DPC
+DPC प्रस्ताव तैयार करने हेतु प्रथम स्तर के आई.डी. एवं पासवर्ड से लॉग इन कर ONLINE DPC हेतु अधिकृत अधिकारी निम्न प्रविष्टियां करेंगे 
+पदनाम/संवर्ग जिस पर पदोन्नति होनी है तथा उस पद/संवर्ग का वर्ग(CLASS).
+पदनाम/संवर्ग जिससे पदोन्नति होनी है तथा उस पद/संवर्ग का वर्ग(CLASS)।
+प्रस्तावित पदोन्नति में किसी प्रकार का विधिक स्थगन न होने संबंधी घोषणा।
+DPC हेतु नामित सदस्यों का विवरण. 
+उस पदनाम/संवर्ग पर कार्यरत अधिकारियों का विवरण, जिस पर पदोन्नति होनी है। 
+संवर्ग जिस पर पदोन्नति होनी है, हेतु स्वीकृत पद संख्या।
+संवर्ग जिससे पदोन्नति होनी है पर कार्यरत अधिकारियों की अंतिम पदक्रम सूची.
+पदनाम/संवर्ग जिससे पदोन्नति होनी है पर कार्यरत अधिकारियों का मूल्यांकन पत्रक
+12
+
+===== SLIDE 13 =====
+DPC PROPOSAL BY AUTHORISED OFFICERLOGIN
+Online DPC
+13
+LOGIN PAGE FOR OFFICER AUTHORISED FOR DPC 
+AADHAR  NO
+OTP
+999048447606
+**********
+AH_HEdu
+**************
+By providing Aadhar No. And Aadhar OTP you are digitally signing  the content.
+
+===== SLIDE 14 =====
+DPC PROPOSAL BY AUTHORISED OFFICERSELECTION OF POSTS
+Online DPC
+14
+पद नाम जिस हेतु पदोन्नति प्रस्ताव प्रस्तुत किया जाना है -  
+NEXT
+SAVE
+EDIT
+RESET
+POST
+DEPUTY SECRETARY
+UNDER SECRETARY
+SECTION OFFICER
+DEPUTY SECRETARY 
+क्या प्रस्ताव सम्बन्धी किसी प्रकार का विधिक स्थगन अथवा रोक प्रभावशील है  - नहीं 
+TYPE OF DPC
+FRSH DPC
+REVIEW DPC
+CIRCULATION(I. PROPERTY OR CR<=4) 
+FRESH DPC
+पदोन्नति प्रस्ताव तिथि -  
+25 June 2026
+पद नाम जिससे पदोन्नति हेतु प्रस्ताव प्रस्तुत किया जाना है -  
+POST
+DEPUTY SECRETARY
+UNDER SECRETARY
+SECTION OFFICER
+UNDER SECRETARY 
+वर्ग (CLASS) -  
+वर्ग (CLASS) -  
+I
+II
+III
+I
+II
+III
+
+===== SLIDE 15 =====
+DPC PROPOSAL BY AUTHORISED OFFICERDPC COMMITEE
+Online DPC
+15
+SAVE AND NEXT
+DPC PROPOSAL DATE –  25/06/2026  
+विभागीय पदोन्नति समिति का विवरण 
+SN
+NAME
+DESIGNATION
+MO. NO.
+EMAIL
+CAPACITY
+1 
+HON’BLE K.R. PISDA
+CHAIRMAN,CGPSC
+-
+-
+CHAIRMAN
+2 
+3 
+4 
+
+===== SLIDE 16 =====
+DPC PROPOSAL BY AUTHORISED OFFICERUPLOADING OFFICERS UNDER CONSIDERATION
+Online DPC
+16
+स्पष्ट रिक्ति – 01 (UR-1)
+पदोन्नति से संभावित रिक्ति – 0
+सेवानिवृत्ति से संभावित रिक्ति –  01 (ST-1)
+प्रतिनियुक्ति से संभावित रिक्ति – 0   
+2026 की स्थिति में उप सचिव पद पर कार्यरत अधिकारीयों का विवरण प्रविष्ट करें अथवा विवरण अपलोड करें 
+SAVE AND NEXT
+CALCULATE
+CLEAR 
+2026 की स्थिति में स्वीकृत उप सचिव पद संख्या - 
+4
+UPLOAD
+S.N.
+NAME OF DS
+DOB
+QUAL.
+DATE OF JOINING IN SERVICE
+DATE OF POSTING ON DS
+CAT
+ROSTER POSITION
+DEPUTATION DATE
+1
+DS1
+20-03-1972
+BSC
+01-04-1993
+01-01-2012
+UR
+1
+ 
+2
+DS2
+12-05-1976
+BCOM
+13-03-1994
+01-01-2012
+SC
+4
+15-11-2025
+3
+DS3
+09-04-1969
+BA
+04-07-1994
+01-01-2012
+ST
+2
+ 
+
+===== SLIDE 17 =====
+DPC PROPOSAL BY AUTHORISED OFFICERUPLOADING SENIORITY LIST
+Online DPC
+17
+2026 की स्थिति में अवर सचिव की अंतिम पदक्रम सूचि की प्रविष्टि/UPLOAD  करें  
+SAVE AND NEXT
+CALCULATE
+UPLOAD
+CLEAR
+पदोन्नति हेतु कुल विचार्य संख्या – 2 X 2 + 4 = 8
+S.N.
+NAME OF US
+DOB
+QUAL.
+DATE OF JOINING IN SERVICE
+DATE OF POSTING ON US
+CAT
+1
+US1
+20-03-1964
+11TH
+01-04-1985
+01-01-2012
+UR
+2
+US2
+12-05-1968
+11TH
+13-03-1986
+01-01-2012
+OBC
+3
+US3
+09-04-1967
+BA
+04-07-1986
+01-01-2012
+ST
+4
+US4
+11-07-1964
+MSC
+12-09-1987
+01-01-2012
+SC
+5
+US5
+22-05-1971
+11TH
+10-11-1987
+10-05-2010
+ST
+6
+US6
+16-09-1972
+BA
+04-05-1988
+10-05-2010
+UR
+7
+US7
+22-06-1969
+BA
+04-05-1988
+10-05-2010
+OBC
+8
+US8
+13-01-1970
+MCOM
+12-07-1988
+12-09-2011
+UR
+9
+US9
+07-12-1969
+BSC
+22-07-1989
+12-09-2011
+ST
+10
+US10
+21-08-1971
+BCOM
+10-01-1990
+12-09-2011
+ST
+S.N.
+NAME OF US
+DOB
+QUAL.
+DATE OF JOINING IN SERVICE
+DATE OF POSTING ON US
+CAT
+1
+US1
+20-03-1972
+11TH
+01-04-1993
+01-01-2020
+UR
+2
+US2
+12-05-1976
+11TH
+13-03-1994
+01-01-2020
+OBC
+3
+US3
+09-04-1975
+BA
+04-07-1994
+01-01-2020
+ST
+4
+US4
+11-07-1972
+MSC
+12-09-1995
+01-01-2020
+SC
+5
+US5
+22-05-1979
+11TH
+10-11-1995
+10-05-2018
+ST
+6
+US6
+16-09-1980
+BA
+04-05-1996
+10-05-2018
+UR
+7
+US7
+22-06-1977
+BA
+04-05-1996
+10-05-2018
+OBC
+8
+US8
+13-01-1978
+MCOM
+12-07-1996
+12-09-2019
+UR
+9
+US9
+07-12-1977
+BSC
+22-07-1997
+12-09-2019
+ST
+10
+US10
+21-08-1979
+BCOM
+10-01-1998
+12-09-2019
+ST
+
+===== SLIDE 18 =====
+DPC PROPOSAL BY AUTHORISED OFFICERUPLOADING TABULATION CHART
+Online DPC
+18
+2026 की स्थिति में अवर सचिवों के मूल्यान्कन पत्रक अपलोड/प्रविष्ट करें
+पदोन्नति हेतु कुल विचार्य संख्या – 2 X 2 + 4 = 8
+SN
+NAME OF US
+DOB
+QUAL
+DOP
+CAT
+LOYALTY
+IMMOVABLE PROPERTY DETAILS
+YEAR WISE CR
+NOTE
+ 
+MARK
+ 
+REMARK
+ 
+2013
+2014
+2015
+1016
+2017
+2012
+2013
+2014
+2015
+1016
+2017
+1
+US1
+20-03-1964
+11TH
+01-01-2012
+UR
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+ख
+क
+क
+क+
+ 
+ 
+2
+US2
+12-05-1968
+11TH
+01-01-2012
+OBC
+Y
+Y
+Y
+Y
+Y
+Y
+क
+क
+क
+क
+क
+क
+PUNISHMENT
+ 
+ 
+3
+US3
+09-04-1967
+BA
+01-01-2012
+ST
+Y
+Y
+Y
+Y
+Y
+Y
+क
+ख
+क
+क
+क
+क
+ 
+ 
+ 
+4
+US4
+11-07-1964
+MSC
+01-01-2012
+SC
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+ख
+क
+क
+C.CASE
+ 
+ 
+5
+US5
+22-05-1971
+11TH
+10-05-2010
+ST
+Y
+Y
+Y
+Y
+Y
+Y
+ख
+क+
+घ
+क
+क+
+क+
+ 
+ 
+ 
+6
+US6
+16-09-1972
+BA
+10-05-2010
+UR
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+क
+क+
+ 
+ 
+ 
+7
+US7
+22-06-1969
+BA
+10-05-2010
+OBC
+Y
+Y
+Y
+Y
+Y
+Y
+क
+क
+क
+क
+क
+क
+ 
+ 
+ 
+8
+US8
+13-01-1970
+MCOM
+12-09-2011
+ST
+Y
+Y
+Y
+Y
+N
+Y
+क
+क+
+क+
+क+
+क+
+क+
+ 
+ 
+9
+US9
+07-12-1969
+BSC
+12-09-2011
+ST
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+क+
+क
+ग
+ 
+ 
+ 
+10
+US10
+21-08-1971
+BCOM
+12-09-2011
+ST
+Y
+Y
+Y
+Y
+Y
+Y
+ख
+ख
+क
+क
+क
+क+
+PUNISHMENT
+ONLINE DEPARTMENTAL PROMOTION (DETAILED DPC PROPOSAL)
+SAVE AND NEXT
+UPLOAD
+
+===== SLIDE 19 =====
+APPROVAL OF DPC PROPOSAL
+Online DPC
+विभागाध्यक्ष द्वितीय स्तर के आई.डी. एवं पासवर्ड के द्वारा लॉगिन कर विस्तृत डी.पी.सी. प्रस्ताव को अनुमोदित करेंगे। अनुमोदन पश्चात विस्तृत डी.पी.सी. प्रस्ताव छत्तीसगढ़ लोक सेवा आयोग को प्रेषित हो जाएगा।
+19
+
+===== SLIDE 20 =====
+APPROVAL OF  ADMINISTRATIVE HEADLOGIN
+Online DPC
+20
+LOGIN PAGE FOR ADMINISTRATIVE HEAD
+AADHAR  NO
+OTP
+999048447606
+**********
+AH_HEdu
+**************
+By providing Aadhar No. And Aadhar OTP you are digitally signing  the content.
+
+===== SLIDE 21 =====
+APPROVAL BY ADMINISTRATIVE HEADSELECTION OF POSTS
+Online DPC
+21
+पद नाम जिस हेतु पदोन्नति प्रस्ताव प्रस्तुत किया जाना है -  
+APPROVE 
+POST
+DEPUTY SECRETARY 
+क्या प्रस्ताव सम्बन्धी किसी प्रकार का विधिक स्थगन अथवा रोक प्रभावशील है  - नहीं 
+FRESH DPC
+पदोन्नति प्रस्ताव तिथि -  
+पद नाम जिससे पदोन्नति हेतु प्रस्ताव प्रस्तुत किया जाना है -  
+POST
+UNDER SECRETARY 
+वर्ग (CLASS) -  
+वर्ग (CLASS) -  
+I
+I
+DPC का प्रकार -  
+25 JUNE 2026
+
+===== SLIDE 22 =====
+APPROVAL BY ADMINISTRATIVE HEADDPC COMMITEE
+Online DPC
+22
+APPROVE
+DPC PROPOSAL DATE –  25/06/2026  
+विभागीय पदोन्नति समिति का विवरण 
+SN
+NAME
+DESIGNATION
+MO. NO.
+EMAIL
+CAPACITY
+1 
+HON’BLE K.R. PISDA
+CHAIRMAN,CGPSC
+-
+-
+CHAIRMAN
+2 
+3 
+4 
+
+===== SLIDE 23 =====
+APPROVAL BY ADMINISTRATIVE HEAD UPLOADING OFFICERS UNDER CONSIDERATION
+Online DPC
+23
+2026 की स्थिति में उप सचिव पद पर कार्यरत अधिकारीयों का विवरण प्रविष्ट करें अथवा विवरण अपलोड करें 
+2026 की स्थिति में स्वीकृत उप सचिव पद संख्या - 
+4
+स्पष्ट रिक्ति – 01 (UR-1)
+पदोन्नति से संभावित रिक्ति – 0
+सेवानिवृत्ति से संभावित रिक्ति –  01(ST-1)
+प्रतिनियुक्ति से संभावित रिक्ति – 0  
+S.N.
+NAME OF DS
+DOB
+QUAL.
+DATE OF JOINING IN SERVICE
+DATE OF POSTING ON DS
+CAT
+ROSTER POSITION
+DEPUTATION DATE
+1
+DS1
+20-03-196472
+BSC
+01-04-1994
+01-01-2020
+UR
+1
+ 
+2
+DS2
+12-05-1976
+BCOM
+13-03-1994
+01-01-2020
+SC
+4
+15-11-2025
+3
+DS3
+09-04-1969
+BA
+04-07-1994
+01-01-2020
+ST
+2
+ 
+APPROVE
+
+===== SLIDE 24 =====
+APPROVAL BY ADMINISTRATIVE HEAD UPLOADING SENIORITY LIST
+Online DPC
+24
+2026 की स्थिति में अवर सचिव की अंतिम पदक्रम सूचि की प्रविष्टि करें अथवा 2026 की स्थिति में अवर सचिव की अंतिम पदक्रम सूचि अपलोड करें 
+पदोन्नति हेतु कुल विचार्य संख्या – 2 X 2 + 4 = 8
+S.N.
+NAME OF US
+DOB
+QUAL.
+DATE OF JOINING IN SERVICE
+DATE OF POSTING ON US
+CAT
+1
+US1
+20-03-1964
+11TH
+01-04-1985
+01-01-2012
+UR
+2
+US2
+12-05-1968
+11TH
+13-03-1986
+01-01-2012
+OBC
+3
+US3
+09-04-1967
+BA
+04-07-1986
+01-01-2012
+ST
+4
+US4
+11-07-1964
+11TH
+12-09-1987
+01-01-2012
+SC
+5
+US5
+22-05-1971
+11TH
+10-11-1987
+10-05-2010
+ST
+6
+US6
+16-09-1972
+BA
+04-05-1988
+10-05-2010
+UR
+7
+US7
+22-06-1969
+BA
+04-05-1988
+10-05-2010
+OBC
+8
+US8
+13-01-1970
+11TH
+12-07-1988
+12-09-2011
+UR
+9
+US9
+07-12-1969
+11TH
+22-07-1989
+12-09-2011
+ST
+10
+US10
+21-08-1971
+BCOM
+10-01-1990
+12-09-2011
+ST
+S.N.
+NAME OF US
+DOB
+QUAL.
+DATE OF JOINING IN SERVICE
+DATE OF POSTING ON US
+CAT
+1
+US1
+20-03-1972
+11TH
+01-04-1993
+01-01-2020
+UR
+2
+US2
+12-05-1974
+11TH
+13-03-1994
+01-01-2020
+OBC
+3
+US3
+09-04-1975
+BA
+04-07-1994
+01-01-2020
+ST
+4
+US4
+11-07-1972
+MSC
+12-09-1995
+01-01-2020
+SC
+5
+US5
+22-05-1979
+11TH
+10-11-1995
+10-05-2018
+ST
+6
+US6
+16-09-1980
+BA
+04-05-1996
+10-05-2018
+UR
+7
+US7
+22-06-1977
+BA
+04-05-1996
+10-05-2018
+OBC
+8
+US8
+13-01-1978
+MCOM
+12-07-1996
+12-09-2019
+UR
+9
+US9
+07-12-1977
+BSC
+22-07-1997
+12-09-2019
+ST
+10
+US10
+21-08-1978
+BCOM
+10-01-1998
+12-09-2019
+ST
+APPROVE
+
+===== SLIDE 25 =====
+APPROVAL BY ADMINISTRATIVE HEAD UPLOADING TABULATION CHART
+Online DPC
+25
+2026 की स्थिति में अवर सचिवों के मूल्यान्कन पत्रक अपलोड/प्रविष्ट करें अथवा 2026
+पदोन्नति हेतु कुल विचार्य संख्या – 2 X 2 + 4 = 8
+SN
+NAME OF US
+DOB
+QUAL
+DOP
+CAT
+LOYALTY
+IMMOVABLE PROPERTY DETAILS
+YEAR WISE CR
+NOTE
+ 
+MARK
+ 
+REMARK
+ 
+2013
+2014
+2015
+1016
+2017
+2012
+2013
+2014
+2015
+1016
+2017
+1
+US1
+20-03-1972
+11TH
+01-01-2020
+UR
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+ख
+क
+क
+क+
+ 
+ 
+2
+US2
+12-05-1974
+11TH
+01-01-2020
+OBC
+Y
+Y
+Y
+Y
+Y
+Y
+क
+क
+क
+क
+क
+क
+PUNISHMENT
+ 
+ 
+3
+US3
+09-04-1975
+BA
+01-01-2020
+ST
+Y
+Y
+Y
+Y
+Y
+Y
+क
+ख
+क
+क
+क
+क
+ 
+ 
+ 
+4
+US4
+11-07-1972
+MSC
+01-01-2020
+SC
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+ख
+क
+क
+C.CASE
+ 
+ 
+5
+US5
+22-05-1979
+11TH
+10-05-2018
+ST
+Y
+Y
+Y
+Y
+Y
+Y
+ख
+क+
+घ
+क
+क+
+क+
+ 
+ 
+ 
+6
+US6
+16-09-1980
+BA
+10-05-2018
+UR
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+क
+क+
+ 
+ 
+ 
+7
+US7
+22-06-1977
+BA
+10-05-2018
+OBC
+Y
+Y
+Y
+Y
+Y
+Y
+क
+क
+क
+क
+क
+क
+ 
+ 
+ 
+8
+US8
+13-01-1978
+MCOM
+12-09-2019
+ST
+Y
+Y
+Y
+Y
+N
+Y
+क
+क+
+क+
+क+
+क+
+क+
+ 
+ 
+9
+US9
+07-12-1977
+BSC
+12-09-2019
+ST
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+क+
+क
+ग
+ 
+ 
+ 
+10
+US10
+21-08-1978
+BCOM
+12-09-2019
+ST
+Y
+Y
+Y
+Y
+Y
+Y
+ख
+ख
+क
+क
+क
+क+
+PUNISHMENT
+APPROVE
+
+===== SLIDE 26 =====
+ACTION BY CGPSC ON DPC PROPOSAL
+Online DPC
+डी.पी.सी. प्रस्ताव के आधार पर छत्तीसगढ़ लोक सेवा आयोग द्वारा डी.पी.सी. हेतु तिथि व समय निर्धारित किए जाएंगे तथा इस संबंध में जानकारी प्रशासकीय प्रमुख एवं ONLINE DPC हेतु अधिकृत अधिकारी के रजिस्टर्ड मोबाईल नंबर तथा ई-मेल पर प्रेषित हो जाएगी।
+26
+
+===== SLIDE 27 =====
+ACTION ON dpc proposal BY cgpscLOGIN (HON'BLE CHAIRMAN)
+Online DPC
+27
+LOGIN PAGE FOR HON’BLE CHAIRMAN 
+
+===== SLIDE 28 =====
+ACTION ON dpc proposal BY cgpscALLOTMENT(HON'BLE CHAIRMAN)
+Online DPC
+28
+SN
+DEPARTMENT
+DPC P.No.
+PROPOSAL DATE
+POST
+FROM
+POST
+TO
+DPC ALLOTED TO
+M1
+M2
+M3
+M4
+M5
+1
+HIGHER EDUCATION
+HE201711111
+25/06/2026
+US
+DS
+2
+MEDICAL EDUCATION
+ME20170109
+01/07/2026
+AP
+READER
+3
+PWD
+PW20171212
+20/05/2025
+AS
+DS
+ALLOTMENT OF DPC
+DPC ALLOTMENT REPORT
+SN
+DEPARTMENT
+DPC P.No.
+PROPOSAL DATE
+POST
+FROM
+POST
+TO
+DPC ALLOTED TO
+STATUS
+DEFAULT DPC DATE
+1
+HIGHER EDUCATION
+HE201711111
+25/06/2026
+US
+DS
+M1
+PENDING
+10/07/26
+2
+MEDICAL EDUCATION
+ME20170109
+01/07/2026
+AP
+READER
+M3
+PENDING
+10/07/26
+3
+PWD
+PW20171212
+20/05/2025
+AS
+DS
+M4
+PENDING
+10/07/26
+DONE
+
+===== SLIDE 29 =====
+ACTION ON dpc proposal BY cgpscLOGIN (HON'BLE MEMBER)
+Online DPC
+29
+LOGIN PAGE FOR HON’BLE MEMBER (TO WHOM DPC IS ALLOTED ) 
+
+===== SLIDE 30 =====
+ACTION ON dpc proposal BY cgpscSCHEDULING
+Online DPC
+ACCEPTANCE OF DPC AND SCHEDULING
+SN
+DEPARTMENT
+DPC P.No.
+PROPOSAL DATE
+POST
+FROM
+POST
+TO
+SCHEDULING
+DPC DATE
+DPC TIME
+1
+HIGHER EDUCATION
+HE201711111
+25/06/2026
+US
+DS
+DONE
+12/07/2026
+02:00 PM
+RE-ALLOTMENT
+(RE)SCHEDULING
+12/07/2026 2:00 PM
+15/07/2026 2:00 PM
+15/07/2026
+02:00 PM
+ 
+SN 
+DEPARTMENT
+DPC P.No.
+PROPOSAL DATE
+POST
+FROM
+POST
+TO
+SCHEDULING
+DPC DATE
+DPC TIME
+
+===== SLIDE 31 =====
+PROCESS OF ONLINE DPC
+Online DPC
+निर्धारित तिथि एवं समय पर छत्तीसगढ़ लोक सेवा आयोग के कार्यालय में ऑनलाइन डी.पी.सी. की प्रक्रिया संपन्न होगी। डी.पी.सी. की तिथि को विभाग द्वारा की गई प्रविष्टियों में परिवर्तन किसी भी स्थिति में मान्य नहीं होंगे यदि वे परिर्वतन विस्तृत डी.पी.सी. प्रस्ताव प्रेषित करने एवं डी.पी.सी. की तिथि के बीच के न हो।
+31
+
+===== SLIDE 32 =====
+PROCESS OF ONLINE DPCLOGIN (HON'BLE CHAIRMAN / HON'BLE MEMBER)
+Online DPC
+32
+LOGIN PAGE FOR HON’BL CHAIRMAN / MEMBER 
+           DPC ID 
+OTP
+HE201711111
+**********
+M1_CGPSC
+**************
+
+===== SLIDE 33 =====
+PROCESS OF ONLINE DPCACTION
+Online DPC
+33
+SN
+NAME OF US
+DOB
+QUAL
+DOP
+CAT
+LOYALTY
+IMMOVABLE PROPERTY DETAILS
+YEAR WISE CR
+NOTE
+ 
+MARK
+ 
+REMARK
+ 
+2013
+2014
+2015
+1016
+2017
+2012
+2013
+2014
+2015
+1016
+2017
+1
+US1
+20-03-1964
+11TH
+01-01-2012
+UR
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+ख
+क
+क
+क+
+2
+US2
+12-05-1968
+11TH
+01-01-2012
+OBC
+Y
+Y
+Y
+Y
+Y
+Y
+क
+क
+क
+क
+क
+क
+PUNISHMENT
+3
+US3
+09-04-1967
+BA
+01-01-2012
+ST
+Y
+Y
+Y
+Y
+Y
+Y
+क
+ख
+क
+क
+क
+क
+ 
+4
+US4
+11-07-1964
+MSC 
+01-01-2012
+SC
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+ख
+क
+क
+C.CASE
+5
+US5
+22-05-1971
+11TH
+10-05-2010
+ST
+Y
+Y
+Y
+Y
+Y
+Y
+ख
+क+
+घ
+क
+क+
+क+
+ 
+6
+US6
+16-09-1972
+BA
+10-05-2010
+UR
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+क
+क+
+ 
+7
+US7
+22-06-1969
+BA
+10-05-2010
+OBC
+Y
+Y
+Y
+Y
+Y
+Y
+क
+क
+क
+क
+क
+क
+ 
+8
+US8
+13-01-1970
+MCOM 
+12-09-2011
+ST
+Y
+Y
+Y
+Y
+N
+Y
+क
+क+
+क+
+क+
+क+
+क+
+9
+US9
+07-12-1969
+BSC 
+12-09-2011
+ST
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+क+
+क
+ग
+ 
+10
+US10
+21-08-1971
+BCOM 
+12-09-2011
+ST
+Y
+Y
+Y
+Y
+Y
+Y
+ख
+ख
+क
+क
+क
+क+
+PUNISHMENT
+SN
+NAME OF US
+DOB
+QUAL
+DOP
+CAT
+LOYALTY
+IMMOVABLE PROPERTY DETAILS
+YEAR WISE CR
+NOTE
+MARK 
+REMARK
+2013
+2014
+2015
+1016
+2017
+2012
+2013
+2014
+2015
+1016
+2017
+1
+US1
+20-03-1964
+11TH
+01-01-2012
+UR
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क 
+ख
+क
+क
+क+
+ 15
+EL
+2
+US2
+12-05-1968
+11TH
+01-01-2012
+OBC
+Y
+Y
+Y
+Y
+Y
+Y
+क
+क
+क
+क
+क
+क
+PUNISHMENT
+ 15
+NE
+3
+US3
+09-04-1967
+BA
+01-01-2012
+ST
+Y
+Y
+Y
+Y
+Y
+Y
+क
+ख
+क
+क
+क
+क
+ 
+ 14
+NE 
+4
+US4
+11-07-1964
+MSC 
+01-01-2012
+SC
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+ख
+क
+क
+C.CASE
+ 15
+CC 
+5
+US5
+22-05-1971
+11TH
+10-05-2010
+ST
+Y
+Y
+Y
+Y
+Y
+Y
+ख
+क+
+घ
+क
+क+
+क+
+ 
+ 15
+NE
+6
+US6
+16-09-1972
+BA
+10-05-2010
+UR
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+क
+क+
+ 
+ -
+CIR
+7
+US7
+22-06-1969
+BA
+10-05-2010
+OBC
+Y
+Y
+Y
+Y
+Y
+Y
+क
+क
+क
+क
+क
+क
+ 
+ 15
+EL
+8
+US8
+13-01-1970
+MCOM 
+12-09-2011
+ST
+Y
+Y
+Y
+Y
+N
+Y
+क
+क+
+क+
+क+
+क+
+क+
+ 20
+CIR
+9
+US9
+07-12-1969
+BSC 
+12-09-2011
+ST
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+क+
+क
+ग
+ 
+ 15
+NE
+10
+US10
+21-08-1971
+BCOM 
+12-09-2011
+ST
+Y
+Y
+Y
+Y
+Y
+Y
+ख
+ख
+क
+क
+क
+क+
+PUNISHMENT
+15
+NE
+अवर सचिव पद से उप सचिव पद पर पदोन्नति हेतु मूल्यांकन पत्रक सह अंतिम पदक्रम सूचि 
+SAVE 
+CALCULATE
+EDIT
+CANCEL DPC
+TRIBAL 
+2013 
+15
+EL
+SN
+NAME OF US
+DOB
+QUAL
+DOP
+CAT
+LOYALTY
+IMMOVABLE PROPERTY DETAILS
+YEAR WISE CR
+NOTE
+MARK
+REMARK
+2013
+2014
+2015
+1016
+2017
+2012
+2013
+2014
+2015
+1016
+2017
+1
+US1
+20-03-1964
+11TH
+01-01-2012
+UR
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+ख
+क
+क
+क+
+ 15
+UR
+2
+US2
+12-05-1968
+11TH
+01-01-2012
+OBC
+Y
+Y
+Y
+Y
+Y
+Y
+क
+क
+क
+क
+क
+क
+PUNISHMENT
+ 15
+ NE
+3
+US3
+09-04-1967
+BA
+01-01-2012
+ST
+Y
+Y
+Y
+Y
+Y
+Y
+क
+ख
+क
+क
+क
+क
+TRIBAL 2021 
+ 15
+ST_W
+4
+US4
+11-07-1964
+MSC 
+01-01-2012
+SC
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+ख
+क
+क
+C.CASE
+ 15
+UR_W CC 
+5
+US5
+22-05-1971
+11TH
+10-05-2010
+ST
+Y
+Y
+Y
+Y
+Y
+Y
+ख
+क+
+घ
+क
+क+
+क+
+ 
+ 15
+ NE
+6
+US6
+16-09-1972
+BA
+10-05-2010
+UR
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+क
+क+
+ 
+ -
+CIR
+7
+US7
+22-06-1969
+BA
+10-05-2010
+OBC
+Y
+Y
+Y
+Y
+Y
+Y
+क
+क
+क
+क
+क
+क
+ 
+ 15
+EL
+8
+US8
+13-01-1970
+MCOM 
+12-09-2011
+ST
+Y
+Y
+Y
+Y
+N
+Y
+क
+क+
+क+
+क+
+क+
+क+
+ 20
+ST SS CIR
+9
+US9
+07-12-1969
+BSC 
+12-09-2011
+ST
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+क+
+क
+ग
+ 
+ 15
+NE 
+10
+US10
+21-08-1971
+BCOM 
+12-09-2011
+ST
+Y
+Y
+Y
+Y
+Y
+Y
+ख
+ख
+क
+क
+क
+क+
+PUNISHMENT
+15
+NE
+SN
+NAME OF US
+DOB
+QUAL
+DOP
+CAT
+LOYALTY
+IMMOVABLE PROPERTY DETAILS
+YEAR WISE CR
+NOTE
+ 
+MARK
+ 
+REMARK
+ 
+2013
+2014
+2015
+1016
+2017
+2012
+2013
+2014
+2015
+1016
+2017
+1
+US1
+20-03-1972
+11TH
+01-01-2020
+UR
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+ख
+क
+क
+क+
+ 15
+UR
+2
+US3
+09-04-1975
+BA
+01-01-2020
+ST
+Y
+Y
+Y
+Y
+Y
+Y
+क
+ख
+क
+क
+क
+क
+ TRIBAL 2021
+ 15
+ST_W
+3
+US4
+11-07-1972
+MSC
+01-01-2020
+SC
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+ख
+क
+क
+C.CASE
+ 15
+UR_W CC 
+4
+US8
+13-01-1978
+MCOM
+12-09-2019
+ST
+Y
+Y
+Y
+Y
+N
+Y
+क
+क+
+क+
+क+
+क+
+क+
+ 20
+ ST SS CIR
+
+===== SLIDE 34 =====
+PROCESS OF ONLINE DPCAPPROVAL
+Online DPC
+34
+SN
+NAME OF US
+DOB
+QUAL
+DOP
+CAT
+LOYALTY
+IMMOVABLE PROPERTY DETAILS
+YEAR WISE CR
+NOTE
+ 
+MARK
+ 
+REMARK
+ 
+2013
+2014
+2015
+1016
+2017
+2012
+2013
+2014
+2015
+1016
+2017
+PROMOTION AS ON 2017 ON DS FROM US MAIN LIST
+1
+US1
+20-03-1964
+11TH
+01-01-2012
+UR
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+ख
+क
+क
+क+
+ 15
+UR
+2
+US8
+13-01-1970
+MCOM
+12-09-2011
+ST
+Y
+Y
+Y
+Y
+N
+Y
+क
+क+
+क+
+क+
+क+
+क+
+ 20
+ ST SS CIR
+PROMOTION AS ON 2017 ON DS FROM US WAITING LIST
+1
+US3
+09-04-1967
+BA
+01-01-2012
+ST
+Y
+Y
+Y
+Y
+Y
+Y
+क
+ख
+क
+क
+क
+क
+ TRIBAL 2021
+ 15
+ST_W
+2
+US4
+11-07-1964
+MSC
+01-01-2012
+SC
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+ख
+क
+क
+C.CASE
+ 15
+UR_W CC 
+अवर सचिव पद से उप सचिव पद पर पदोन्नत अधिकारीयों की मुख्य सूचि तथा अनुपूरक सूचि 
+APPROVE BY CGPSC 
+
+===== SLIDE 35 =====
+REVIEW DPC
+Online DPC
+विभाग द्वारा डी.पी.सी. हेतु त्रुटिपूर्ण जानकारी देने अथवा आयोग द्वारा किसी प्रक्रियागत गलती होने पर किसी अभ्यावेदन अथवा अन्य माध्यम से उक्त तथ्य के संज्ञान में आने पर विभाग के निवेदन पर अथवा आयोग द्वारा तथ्य को स्वयं संज्ञान में लेते हुए रिव्यू डी.पी.सी की जा सकेगी। सामान्यतः डी.पी.सी. की प्रक्रिया में निम्न प्रकार की त्रुटियां हो सकती हैं-
+वरिष्ठता सूची में किसी अधिकारी/कर्मचारी का नाम छोड़ देना
+वरिष्ठता सूची में किसी अधिकारी/कर्मचारी का वरिष्ठता क्रम गलत अंकित कर देना।
+रोस्टर बिन्दुओं को गलत अंकित करना। 
+अधिकारियों/कर्मचारियों में से किसी एक अथवा अधिक के सी.आर. की गलत प्रविष्टि।
+अनुसूचित (ट्राईबल) क्षेत्र में सेवा अवधि का मूल्यांकन न करना।
+आरक्षण नियम का पालन न करना।
+रिव्यू डी.पी.सी. की प्रक्रिया ठीक उसी प्रकार होगी, जिस प्रकार फ्रेश डी.पी.सी. की प्रक्रिया होती है। 
+35
+
+===== SLIDE 36 =====
+REVIEW DPC PROPOSALLOGIN AUTHORISED OFFICER
+Online DPC
+36
+LOGIN PAGE FOR OFFICER AUTHORISED FOR ONLINE DPC  
+AADHAR  NO
+OTP
+999048447606
+**********
+AO_HEdu
+**************
+By providing Aadhar No. And Aadhar OTP you are digitally signing  the content.
+
+===== SLIDE 37 =====
+REVIEW DPC PROPOSAL PROPOSAL BY AUTHORISED OFFICER
+Online DPC
+37
+पद नाम जिस हेतु पदोन्नति प्रस्ताव प्रस्तुत किया गया था -  
+NEXT
+SAVE
+POST
+DEPUTY SECRETARY
+UNDER SECRETARY
+SECTION OFFICER
+DEPUTY SECRETARY 
+फ्रेश DPC की तिथि - - 		
+TYPE OF DPC
+FRSH DPC
+REVIEW DPC
+CIRCULATION(I. PROPERTY) MISSING OR CR <= 4)
+REVIEW DPC
+REVIEW पदोन्नति प्रस्ताव तिथि -  
+25/06/2026
+पद नाम जिससे पदोन्नति हेतु प्रस्ताव प्रस्तुत किया गया था -  
+POST
+DEPUTY SECRETARY
+UNDER SECRETARY
+SECTION OFFICER
+UNDER SECRETARY 
+वर्ग (CLASS) -  
+वर्ग (CLASS) -  
+I
+II
+III
+I
+II
+III
+30/03/2026 
+DPC ID 
+HE201700000 
+HE201711111
+HE201722222 
+HE201711111
+DPC ID -
+REASON FOR REVIEW  DPC
+वरिष्ठता सूचि में नाम न जोड़े जाने सम्बन्धी त्रुटी 
+वरिष्ठता सूचि में क्रम सम्बन्धी त्रुटी 
+रोस्टर बिंदु सम्बन्धी त्रुटी 
+CR की त्रुटिपूर्ण प्रविष्ठी 
+आरक्षण नियम सम्बन्धी त्रुटी 
+ट्राइबल क्षेत्र में सेवा की गणना सम्बन्धी त्रुटी 
+ट्राइबल क्षेत्र में सेवा की गणना सम्बन्धी त्रुटी 
+
+===== SLIDE 38 =====
+REVIEW DPC PROPOSAL CORRECTION IN TABULATION CHART
+Online DPC
+38
+2026 की स्थिति में अवर सचिवों के मूल्यान्कन पत्रक अपलोड/प्रविष्ट करें
+SAVE AND NEXT
+SHOW DETAILS
+पदोन्नति हेतु कुल विचार्य संख्या – 2 X 2 + 4 = 8
+SN
+NAME OF US
+DOB
+QUAL
+DOP
+CAT
+LOYALTY
+IMMOVABLE PROPERTY DETAILS
+YEAR WISE CR
+NOTE
+ 
+MARK
+ 
+REMARK
+ 
+2013
+2014
+2015
+1016
+2017
+2012
+2013
+2014
+2015
+1016
+2017
+1
+US1
+20-03-1972
+11TH
+01-01-2020
+UR
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+ख
+क
+क
+क+
+ 
+ 
+2
+US2
+12-05-1974
+11TH
+01-01-2020
+OBC
+Y
+Y
+Y
+Y
+Y
+Y
+क
+क
+क
+क
+क
+क
+PUNISHMENT
+ 
+ 
+3
+US3
+09-04-1975
+BA
+01-01-2020
+ST
+Y
+Y
+Y
+Y
+Y
+Y
+क
+ख
+क
+क
+क
+क
+ 
+ 
+ 
+4
+US4
+11-07-1972
+MSC
+01-01-2020
+SC
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+ख
+क
+क
+C.CASE
+ 
+ 
+5
+US5
+22-05-1979
+11TH
+10-05-2018
+ST
+Y
+Y
+Y
+Y
+Y
+Y
+ख
+क+
+घ
+क
+क+
+क+
+ 
+ 
+ 
+6
+US6
+16-09-1980
+BA
+10-05-2018
+UR
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+क
+क+
+ 
+ 
+ 
+7
+US7
+22-06-1977
+BA
+10-05-2018
+OBC
+Y
+Y
+Y
+Y
+Y
+Y
+क
+क
+क
+क
+क
+क
+ 
+ 
+ 
+8
+US8
+13-01-1978
+MCOM
+12-09-2019
+ST
+Y
+Y
+Y
+Y
+N
+Y
+क
+क+
+क+
+क+
+क+
+क+
+ 
+ 
+9
+US9
+07-12-1977
+BSC
+12-09-2019
+ST
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+क+
+क
+ग
+ 
+ 
+ 
+10
+US10
+21-08-1978
+BCOM
+12-09-2019
+ST
+Y
+Y
+Y
+Y
+Y
+Y
+ख
+ख
+क
+क
+क
+क+
+PUNISHMENT
+TRIBAL 
+2021 
+
+===== SLIDE 39 =====
+REVIEW DPC PROPOSAL LOGIN (ADMINISTRATIVE HEAD)
+Online DPC
+39
+LOGIN PAGE FOR AH
+AADHAR  NO
+OTP
+999048447606
+**********
+AH_HEdu
+**************
+By providing Aadhar No. And Aadhar OTP you are digitally signing  the content.
+
+===== SLIDE 40 =====
+REVIEW DPC PROPOSAL APPROVAL(ADMINISTRATIVE HEAD)
+Online DPC
+40
+2026 की स्थिति में अवर सचिवों के मूल्यान्कन पत्रक
+पदोन्नति हेतु कुल विचार्य संख्या – 2 X 2 + 4 = 8
+SN
+NAME OF US
+DOB
+QUAL
+DOP
+CAT
+LOYALTY
+IMMOVABLE PROPERTY DETAILS
+YEAR WISE CR
+NOTE
+ 
+MARK
+ 
+REMARK
+ 
+2013
+2014
+2015
+1016
+2017
+2012
+2013
+2014
+2015
+1016
+2017
+1
+US1
+20-03-1972
+11TH
+01-01-2020
+UR
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+ख
+क
+क
+क+
+ 
+ 
+2
+US2
+12-05-1974
+11TH
+01-01-2020
+OBC
+Y
+Y
+Y
+Y
+Y
+Y
+क
+क
+क
+क
+क
+क
+PUNISHMENT
+ 
+ 
+3
+US3
+09-04-1975
+BA
+01-01-2020
+ST
+Y
+Y
+Y
+Y
+Y
+Y
+क
+ख
+क
+क
+क
+क
+TRIBAL 2021 
+ 
+ 
+4
+US4
+11-07-1972
+MSC
+01-01-2020
+SC
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+ख
+क
+क
+C.CASE
+ 
+ 
+5
+US5
+22-05-1979
+11TH
+10-05-2018
+ST
+Y
+Y
+Y
+Y
+Y
+Y
+ख
+क+
+घ
+क
+क+
+क+
+ 
+ 
+ 
+6
+US6
+16-09-1980
+BA
+10-05-2018
+UR
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+क
+क+
+ 
+ 
+ 
+7
+US7
+22-06-1977
+BA
+10-05-2018
+OBC
+Y
+Y
+Y
+Y
+Y
+Y
+क
+क
+क
+क
+क
+क
+ 
+ 
+ 
+8
+US8
+13-01-1978
+MCOM
+12-09-2019
+ST
+Y
+Y
+Y
+Y
+N
+Y
+क
+क+
+क+
+क+
+क+
+क+
+ 
+ 
+9
+US9
+07-12-1977
+BSC
+12-09-2019
+ST
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+क+
+क
+ग
+ 
+ 
+ 
+10
+US10
+21-08-1978
+BCOM
+12-09-2019
+ST
+Y
+Y
+Y
+Y
+Y
+Y
+ख
+ख
+क
+क
+क
+क+
+PUNISHMENT
+APPROVE
+
+===== SLIDE 41 =====
+ACTION ON REVIEW DPC
+Online DPC
+निर्धारित तिथि एवं समय पर छत्तीसगढ़ लोक सेवा आयोग के कार्यालय में ऑनलाइन डी.पी.सी. की प्रक्रिया संपन्न होगी। डी.पी.सी. की तिथि को विभाग द्वारा की गई प्रविष्टियों में परिवर्तन किसी भी स्थिति में मान्य नहीं होंगे यदि वे परिर्वतन विस्तृत डी.पी.सी. प्रस्ताव प्रेषित करने एवं डी.पी.सी. की तिथि के बीच के न हो।
+41
+
+===== SLIDE 42 =====
+ACTION ON REVIEW DPCLOGIN (HON'BLE CHAIRMAN / MEMBER)
+Online DPC
+42
+LOGIN PAGE FOR HON’BL CHAIRMAN / MEMBER 
+           DPC ID 
+OTP
+999048447606
+**********
+M1_CGPSC
+**************
+
+===== SLIDE 43 =====
+ACTION ON REVIEW DPCREVIEW
+Online DPC
+43
+SN
+NAME OF US
+DOB
+QUAL
+DOP
+CAT
+LOYALTY
+IMMOVABLE PROPERTY DETAILS
+YEAR WISE CR
+NOTE
+ 
+MARK
+ 
+REMARK
+ 
+2013
+2014
+2015
+1016
+2017
+2012
+2013
+2014
+2015
+1016
+2017
+1
+US1
+20-03-1964
+11TH
+01-01-2012
+UR
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+ख
+क
+क
+क+
+2
+US2
+12-05-1968
+11TH
+01-01-2012
+OBC
+Y
+Y
+Y
+Y
+Y
+Y
+क
+क
+क
+क
+क
+क
+PUNISHMENT
+3
+US3
+09-04-1967
+BA
+01-01-2012
+ST
+Y
+Y
+Y
+Y
+Y
+Y
+क
+ख
+क
+क
+क
+क
+TRIBAL
+2013 
+4
+US4
+11-07-1964
+11TH
+01-01-2012
+SC
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+ख
+क
+क
+C.CASE
+5
+US5
+22-05-1971
+11TH
+10-05-2010
+ST
+Y
+Y
+Y
+Y
+Y
+Y
+ख
+क+
+घ
+क
+क+
+क+
+ 
+6
+US6
+16-09-1972
+BA
+10-05-2010
+UR
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+क
+क+
+ 
+7
+US7
+22-06-1969
+BA
+10-05-2010
+OBC
+Y
+Y
+Y
+Y
+Y
+Y
+क
+क
+क
+क
+क
+क
+ 
+8
+US8
+13-01-1970
+11TH
+12-09-2011
+ST
+Y
+Y
+Y
+Y
+N
+Y
+क
+क+
+क+
+क+
+क+
+क+
+9
+US9
+07-12-1969
+11TH
+12-09-2011
+ST
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+क+
+क
+ग
+ 
+10
+US10
+21-08-1971
+BCOM
+12-09-2011
+ST
+Y
+Y
+Y
+Y
+Y
+Y
+ख
+ख
+क
+क
+क
+क+
+PUNISHMENT
+अवर सचिव पद से उप सचिव पद पर पदोन्नति हेतु मूल्यांकन पत्रक सह अंतिम पदक्रम सूचि 
+SAVE 
+CALCULATE
+EDIT
+CANCEL DPC
+SN
+NAME OF US
+DOB
+QUAL
+DOP
+CAT
+LOYALTY
+IMMOVABLE PROPERTY DETAILS
+YEAR WISE CR
+NOTE
+ 
+MARK
+ 
+REMARK
+ 
+2013
+2014
+2015
+1016
+2017
+2012
+2013
+2014
+2015
+1016
+2017
+1
+US1
+20-03-1964
+11TH
+01-01-2012
+UR
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+ख
+क
+क
+क+
+ 15
+UR
+2
+US2
+12-05-1968
+11TH
+01-01-2012
+OBC
+Y
+Y
+Y
+Y
+Y
+Y
+क
+क
+क
+क
+क
+क
+PUNISHMENT
+ 15
+ NE
+3
+US3
+09-04-1967
+BA
+01-01-2012
+ST
+Y
+Y
+Y
+Y
+Y
+Y
+क
+ख
+क
+क
+क
+क
+TRIBAL 202 
+ 15
+ST_W
+4
+US4
+11-07-1964
+11TH
+01-01-2012
+SC
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+ख
+क
+क
+C.CASE
+ 15
+UR_W CC 
+5
+US5
+22-05-1971
+11TH
+10-05-2010
+ST
+Y
+Y
+Y
+Y
+Y
+Y
+ख
+क+
+घ
+क
+क+
+क+
+ 
+ 15
+ NE
+6
+US6
+16-09-1972
+BA
+10-05-2010
+UR
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+क
+क+
+ 
+ -
+CC
+7
+US7
+22-06-1969
+BA
+10-05-2010
+OBC
+Y
+Y
+Y
+Y
+Y
+Y
+क
+क
+क
+क
+क
+क
+ 
+ 15
+EL
+8
+US8
+13-01-1970
+11TH
+12-09-2011
+ST
+Y
+Y
+Y
+Y
+N
+Y
+क
+क+
+क+
+क+
+क+
+क+
+ 20
+ST SS CIR
+9
+US9
+07-12-1969
+11TH
+12-09-2011
+ST
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+क+
+क
+ग
+ 
+ 15
+NE 
+10
+US10
+21-08-1971
+BCOM
+12-09-2011
+ST
+Y
+Y
+Y
+Y
+Y
+Y
+ख
+ख
+क
+क
+क
+क+
+PUNISHMENT
+15
+NE
+SN
+NAME OF US
+DOB
+QUAL
+DOP
+CAT
+LOYALTY
+IMMOVABLE PROPERTY DETAILS
+YEAR WISE CR
+NOTE
+ 
+MARK
+ 
+REMARK
+ 
+2013
+2014
+2015
+1016
+2017
+2012
+2013
+2014
+2015
+1016
+2017
+1
+US1
+20-03-1972
+11TH
+01-01-2020
+UR
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+ख
+क
+क
+क+
+ 15
+UR
+2
+US3
+09-04-1975
+BA
+01-01-2020
+ST
+Y
+Y
+Y
+Y
+Y
+Y
+क
+ख
+क
+क
+क
+क
+ TRIBAL 2021
+ 15
+ST_W
+3
+US4
+11-07-1972
+MSC
+01-01-2020
+SC
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+ख
+क
+क
+C.CASE
+ 15
+UR_W CC 
+4
+US8
+13-01-1978
+MCOM
+12-09-2019
+ST
+Y
+Y
+Y
+Y
+N
+Y
+क
+क+
+क+
+क+
+क+
+क+
+ 20
+ ST SS CIR
+
+===== SLIDE 44 =====
+ACTION ON REVIEW DPCREVIEW
+Online DPC
+44
+SN
+NAME OF US
+DOB
+QUAL
+DOP
+CAT
+LOYALTY
+IMMOVABLE PROPERTY DETAILS
+YEAR WISE CR
+NOTE
+ 
+MARK
+ 
+REMARK
+ 
+2013
+2014
+2015
+1016
+2017
+2012
+2013
+2014
+2015
+1016
+2017
+PROMOTION AS ON 2017 ON DS FROM US MAIN LIST
+1
+US1
+20-03-1964
+11TH
+01-01-2012
+UR
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+ख
+क
+क
+क+
+ 15
+UR
+2
+US8
+13-01-1970
+BA
+12-09-2011
+ST
+Y
+Y
+Y
+Y
+N
+Y
+क
+क+
+क+
+क+
+क+
+क+
+ 20
+ ST SS CIR
+PROMOTION AS ON 2017 ON DS FROM US WAITING LIST
+1
+US3
+09-04-1967
+MSC
+01-01-2012
+ST
+Y
+Y
+Y
+Y
+Y
+Y
+क
+ख
+क
+क
+क
+क
+ TRIBAL 2021
+ 15
+ST_W
+2
+US4
+11-07-1964
+MCOM
+01-01-2012
+SC
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+ख
+क
+क
+C.CASE
+ 15
+UR_W CC
+अवर सचिव पद से उप सचिव पद पर पदोन्नत अधिकारीयों की मुख्य सूचि तथा अनुपूरक सूचि 
+APPROVE BY CGPSC 
+
+===== SLIDE 45 =====
+CIRCULATION DPC
+Online DPC
+ डी.पी.सी. के दौरान कतिपय अधिकारियों/कर्मचारियों के संबंध में निम्न में से कोई एक अथवा अधिक टीप अंकित की जाती है-
+दो या अधिक वर्ष की सी.आर. संसूचना न होने संबंधित टीप
+एक या अधिक वर्ष का अचल संपत्ति विवरण दर्ज न होने संबंधित टीप
+उक्त में से कोई एक अथवा अधिक टीप अंकित होने पर संबंधित अधिकारी/कर्मचारी को डी.पी.सी. की प्रक्रिया में शामिल तो किया जाता है, परंतु उस अधिकारी/कर्मचारी के संबंध में पदोन्नति की कार्यवाही को सुरक्षित कर लिया जाता है। जब संबंधित अधिकारी/कर्मचारी के संबंध में दर्शित टीप के अनुरुप निराकरण प्राप्त हो जाता है, तब उक्त अधिकारी/कर्मचारी की पदोन्नति के संबंध में निर्णय लेकर आयोग से निर्धारित प्रारुप में सहमति प्राप्त की जाती है। 
+45
+
+===== SLIDE 46 =====
+PROCESS OF CIRCULATION DPCLOGIN (HON'BLE CHAIRMAN/ MEMBER)
+Online DPC
+46
+LOGIN PAGE FOR HON’BL CHAIRMAN/ MEMBER FOR 
+ROTATION DPC  
+AADHAR  NO
+OTP
+999048447606
+**********
+M1_CGPSC
+**************
+By providing Aadhar No. And Aadhar OTP you are digitally signing  the content.
+
+===== SLIDE 47 =====
+PROCESS OF CIRCULATION DPCACTION
+Online DPC
+47
+पद नाम जिस हेतु पदोन्नति प्रस्ताव प्रस्तुत किया गया था -  
+NEXT
+SAVE
+POST
+DEPUTY SECRETARY
+UNDER SECRETARY
+SECTION OFFICER
+DEPUTY SECRETARY 
+फ्रेश DPC की तिथि - 		
+TYPE OF DPC
+FRSH DPC
+REVIEW DPC
+CIRCULATION
+CIRCULATION DPC
+परिभ्रमण पदोन्नति प्रस्ताव तिथि -  
+6 July 2026
+पद नाम जिससे पदोन्नति हेतु प्रस्ताव प्रस्तुत किया गया था -  
+POST
+DEPUTY SECRETARY
+UNDER SECRETARY
+SECTION OFFICER
+UNDER SECRETARY 
+वर्ग (CLASS) -  
+वर्ग (CLASS) -  
+I
+II
+III
+I
+II
+III
+30/03/2018 
+DPC ID 
+HE201700000 
+HE201711111
+HE201722222 
+HE201711111
+DPC ID -
+
+===== SLIDE 48 =====
+PROCESS OF CIRCULATION DPCACTION
+Online DPC
+48
+SN
+NAME OF US
+DOB
+QUAL
+DOP
+CAT
+LOYALTY
+IMMOVABLE PROPERTY DETAILS
+YEAR WISE CR
+NOTE
+ 
+MARK
+ 
+REMARK
+ 
+2013
+2014
+2015
+1016
+2017
+2012
+2013
+2014
+2015
+1016
+2017
+PROMOTION AS ON 2017 ON DS FROM US MAIN LIST
+1
+US1
+20-03-1964
+11TH
+01-01-2012
+UR
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+ख
+क
+क
+क+
+ 15
+UR
+2
+US8
+13-01-1970
+11TH
+12-09-2011
+ST
+Y
+Y
+Y
+Y
+N
+Y
+क
+क+
+क+
+क+
+क+
+क+
+C. CASE
+ 20
+ ST SS CIR 
+PROMOTION AS ON 2017 ON DS FROM US WAITING LIST
+1
+US3
+09-04-1967
+BA
+01-01-2012
+ST
+Y
+Y
+Y
+Y
+Y
+Y
+क
+ख
+क
+क
+क
+क
+ TRIBAL 2021
+ 15
+ST_W
+2
+US4
+11-07-1964
+11TH
+01-01-2012
+SC
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+ख
+क
+क
+C.CASE
+ 15
+UR_W CC
+अवर सचिव पद से उप सचिव पद पर पदोन्नत अधिकारीयों की मुख्य सूचि तथा अनुपूरक सूचि 
+APPROVE BY CGPSC 
+SN
+NAME OF US
+DOB
+QUAL
+DOP
+CAT
+LOYALTY
+IMMOVABLE PROPERTY DETAILS
+YEAR WISE CR
+NOTE
+ 
+MARK
+ 
+REMARK
+ 
+2013
+2014
+2015
+1016
+2017
+2012
+2013
+2014
+2015
+1016
+2017
+PROMOTION AS ON 2017 ON DS FROM US MAIN LIST
+1
+US1
+20-03-1964
+11TH
+01-01-2012
+UR
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+ख
+क
+क
+क+
+ 15
+UR
+2
+US8
+13-01-1970
+BA
+12-09-2011
+ST
+Y
+Y
+Y
+Y
+Y
+Y
+क
+क+
+क+
+क+
+क+
+क+
+ 20
+ ST  SS   
+PROMOTION AS ON 2017 ON DS FROM US WAITING LIST
+1
+US3
+09-04-1967
+MSC
+01-01-2012
+ST
+Y
+Y
+Y
+Y
+Y
+Y
+क
+ख
+क
+क
+क
+क
+TRIBAL 2021
+ 15
+ST_W
+2
+US4
+11-07-1964
+MCOM
+01-01-2012
+SC
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+ख
+क
+क
+C.CASE
+ 15
+UR_W 
+
+===== SLIDE 49 =====
+SELF INSEPECTION AND ASSESMENT 
+Online DPC
+विभागीय अधिकारीयों व कर्मचारियों को स्वयं के डाटा अवलोकन की सुविधा 
+49
+
+===== SLIDE 50 =====
+SELF INSPECTION AND ASSESMENTLOGIN 
+Online DPC
+50
+LOGIN PAGE FOR INDIVIDUAL BEING CONSIDER FOR DPC
+AADHAR  NO
+OTP
+999048447606
+**********
+US1
+0/01/2012
+By providing Aadhar No. And Aadhar OTP you are digitally signing  the content.
+NAME AS ON AADHAR CARD
+DATE OF JOINING CURRENT CADRE
+
+===== SLIDE 51 =====
+SELF INSPECTION AND ASSESMENTACTION
+Online DPC
+51
+NAME OF US
+DOB
+QUAL
+DOP
+CAT
+LOYALTY
+IMMOVABLE PROPERTY DETAILS
+YEAR WISE CR
+NOTE
+ 
+2013
+2014
+2015
+1016
+2017
+2012
+2013
+2014
+2015
+1016
+2017
+US1
+20-03-1964
+11TH
+01-01-2012
+UR
+Y
+Y
+Y
+Y
+Y
+Y
+क+
+क
+ख
+क
+क
+क+
+DATA BEING CONSIDER AS PROVIDED BY YOUR DEPARTMENT FOR ONLINE DPC 
+NAME – US1
+DOB – 20-03-1972
+CAT - UR
+यदि उक्त डाटा के सम्बन्ध में आपको किसी प्रकार की आपत्ति हो तो दिनांक 25 जून 2026 या उसके पूर्व विभाग में स्वयं उपस्थित होकर समाधान करवा लेवें. छत्तीसगढ़ लोक सेवा आयोग द्वारा उक्त सम्बन्ध में किसी भी प्रकार के अभ्यावेदन पर विचार नहीं किया जाएगा और ऐसे अभ्यावेदन सीधे नस्तीबद्ध कर दिए जाएँगे.
+CLOSE
+PRINT
+RAISE OBJECTION
+
+===== SLIDE 52 =====
+Online DPC
+52
+THANK YOU
+GAJANAN RATHOD
+ADDITIONAL EXAM CONTROLLER
+OFFICER IN-CHARGE IT SECTION 
+CHHATTISGARH PUBLIC SERVICE COMMISSION, RAIPUR
+CONTACT – 9826195455
+MAIL ID – g.rathod@gov.in
