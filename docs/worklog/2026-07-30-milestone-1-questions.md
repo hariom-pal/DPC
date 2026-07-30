@@ -1,5 +1,17 @@
 # Milestone 1 — Architect Questions
 
+> **RESOLVED 2026-07-30 (architect review).** All four items below were ruled and **incorporated into M1**:
+> - **Q1 SMS/Email:** log driver in dev; **government SMS gateway + government SMTP** in production (commercial only on explicit customer request). Implemented as a provider abstraction (`SmsSender` → `LogSmsSender`), with all SMS/email dispatched via **queued** Events/Listeners.
+> - **Q2 Identity:** **per-officer official emails** (AO + AH) added, with the **department contact email kept separate** on `departments.email`. Login by email or mobile.
+> - **Q3 Digital signature:** OTP-signing **removed**; replaced by a `SignatureProvider` abstraction (`MockSignatureProvider` dev / `CscDigiSignProvider` prod stub). `SignatureService` stores metadata (txn ref, certificate, timestamp) in `signatures` and the signed file on the configured disk (**S3** in prod). Business logic depends only on `SignatureService`.
+> - **Q4 Password policy:** **forced password change on first login** for system-issued credentials (implemented).
+>
+> Additional directives incorporated: notifications **queued** via Events/Listeners; provider-driven architecture for SMS/Email/DigiSign/S3.
+>
+> The original question write-ups are retained below for the record.
+
+---
+
 The following decisions require your approval. Each is currently implemented with a safe default (or deferred) so development can continue, but they should be confirmed before the affected areas are relied upon in production.
 
 ---

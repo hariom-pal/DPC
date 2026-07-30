@@ -2,6 +2,16 @@
 
 **Date:** 2026-07-30 · **Branch:** `feature/m0-setup` · **Stack:** Laravel 13 / PHP 8.4 / MySQL / Redis / Blade + Bootstrap 5.3
 
+> **Architect-review incorporation (2026-07-30).** After initial M1 approval, four architectural decisions were incorporated (see the questions file). Net changes on top of the original M1:
+> - **Provider-driven SMS** (`App\Contracts\SmsSender` → `App\Sms\LogSmsSender`) replacing the old `SmsService`; production binds a government gateway.
+> - **Queued Events/Listeners** for all notifications: `OtpRequested`/`CredentialsIssued` → `SendOtpNotification`/`SendCredentialNotification` (`ShouldQueue`).
+> - **Per-officer official emails** (AO + AH) added; **department contact email** kept separate (`departments.email`). Registration form + validation updated.
+> - **Digital signature abstraction**: OTP-signing removed; `signatures` table + `Signature` model + `App\Signature\Contracts\SignatureProvider` (`MockSignatureProvider` dev, `CscDigiSignProvider` prod stub) + rewritten `SignatureService` storing metadata in DB and signed files on the configured disk (S3 in prod). `OtpPurpose::Signature` removed.
+> - **Forced first-login password change** (`users.must_change_password`, `EnsurePasswordChanged` middleware, `PasswordChangeController`).
+> - **Final gate:** PHPStan 0 errors (67 files), **23 tests / 75 assertions pass**, live HTTP smoke OK.
+>
+> The sections below describe the original M1 scope; the bullets above are the deltas that supersede any conflicting detail (notably: `sign_events` → `signatures`; single email → per-officer emails; `SmsService` → `SmsSender`).
+
 ## Objective
 Deliver the identity foundation: RBAC, authentication (login/logout), department registration with two-tier accounts, dual-channel (email + mobile) OTP verification, credential issuance, audit trail, and the e-sign (OTP step-up) foundation. Source: PPT S5–S6; decisions Q1 (email/mobile + password + OTP, no Aadhaar), Q2 (CGPSC Admin role).
 

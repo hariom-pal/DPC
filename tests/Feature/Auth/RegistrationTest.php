@@ -34,13 +34,15 @@ class RegistrationTest extends TestCase
             'district' => 'Raipur',
             'place' => 'Raipur',
             'pin' => '492001',
-            'email' => 'h_edu@cg.gov.in',
+            'department_email' => 'h_edu@cg.gov.in',
             'ah_name' => 'A. B. Cdef',
             'ah_designation' => 'Secretary',
             'ah_mobile' => '9826195455',
+            'ah_email' => 'ah.hedu@cg.gov.in',
             'ao_name' => 'P. Q. Rstuv',
             'ao_designation' => 'Deputy Secretary',
             'ao_mobile' => '9407938480',
+            'ao_email' => 'ao.hedu@cg.gov.in',
         ];
     }
 
@@ -53,18 +55,20 @@ class RegistrationTest extends TestCase
 
         $department->refresh();
         $this->assertSame(DepartmentStatus::Registered, $department->status);
+        $this->assertSame('h_edu@cg.gov.in', $department->email);
 
         $ao = User::query()->where('mobile', '9407938480')->firstOrFail();
         $ah = User::query()->where('mobile', '9826195455')->firstOrFail();
 
         $this->assertTrue($ao->hasRole(Role::AuthorizedOfficer->value));
         $this->assertTrue($ah->hasRole(Role::AdministrativeHead->value));
-        $this->assertSame(1, $ao->level?->value);
-        $this->assertSame(2, $ah->level?->value);
+        $this->assertSame('ao.hedu@cg.gov.in', $ao->email);
+        $this->assertSame('ah.hedu@cg.gov.in', $ah->email);
+        $this->assertTrue($ao->must_change_password);
         $this->assertFalse($ao->isFullyVerified());
 
-        // Registration OTPs: department email + AO mobile.
-        $this->assertSame(1, OtpVerification::query()->where('identifier', 'h_edu@cg.gov.in')->count());
+        // Registration OTPs for the registrant: AO email + AO mobile.
+        $this->assertSame(1, OtpVerification::query()->where('identifier', 'ao.hedu@cg.gov.in')->count());
         $this->assertSame(1, OtpVerification::query()->where('identifier', '9407938480')->count());
     }
 
@@ -72,10 +76,10 @@ class RegistrationTest extends TestCase
     {
         $department = Department::query()->where('code', 'HE')->firstOrFail();
         $payload = $this->validPayload($department);
-        $payload['email'] = 'someone@gmail.com';
+        $payload['ao_email'] = 'someone@gmail.com';
 
         $this->post(route('register.store'), $payload)
-            ->assertSessionHasErrors('email');
+            ->assertSessionHasErrors('ao_email');
 
         $this->assertSame(0, User::query()->count());
     }

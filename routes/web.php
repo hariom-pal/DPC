@@ -3,10 +3,12 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\Auth\PasswordChangeController;
 use App\Http\Controllers\Auth\RegistrationController;
 use App\Http\Controllers\Auth\VerificationController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\HealthController;
+use App\Http\Middleware\EnsurePasswordChanged;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', fn () => view('welcome'))->name('home');
@@ -37,6 +39,13 @@ Route::post('/verify', [VerificationController::class, 'store'])->name('verify.s
  | Authenticated area
  */
 Route::middleware('auth')->group(function (): void {
-    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    // Reachable even while a first-login password change is pending.
+    Route::get('/password/change', [PasswordChangeController::class, 'show'])->name('password.change.show');
+    Route::post('/password/change', [PasswordChangeController::class, 'update'])->name('password.change.update');
     Route::post('/logout', [LoginController::class, 'destroy'])->name('logout');
+
+    // Application screens require the system-issued password to be changed.
+    Route::middleware(EnsurePasswordChanged::class)->group(function (): void {
+        Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    });
 });

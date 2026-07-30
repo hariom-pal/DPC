@@ -4,70 +4,67 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use App\Enums\OtpChannel;
-use App\Enums\OtpPurpose;
-use App\Models\SignEvent;
+use App\Enums\SignatureStatus;
+use App\Models\Signature;
 use App\Models\User;
+use App\Signature\Contracts\SignatureProvider;
+use App\Signature\SignatureRequest;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 /**
- * OTP step-up "signature" for legally significant actions.
+ * Signs a business document through the configured SignatureProvider, stores
+ * the signed file on the configured disk (S3 in production) and persists the
+ * signature metadata (provider, transaction reference, certificate details,
+ * timestamp) for audit.
  *
- * Replaces the PPT's Aadhaar-OTP signing statement (per the approved Q1
- * override): a fresh OTP is issued to the actor's verified channel and, once
- * confirmed, an immutable SignEvent is recorded as the record of intent for
- * the specific record being signed. Wired to business actions in later
- * milestones; provided here as the foundation.
+ * Business modules depend on this service only — never on OTP or a concrete
+ * provider.
  */
 class SignatureService
 {
-    public function __construct(private readonly OtpService $otp) {}
+    public function __construct(private readonly SignatureProvider $provider) {}
 
     /**
-     * Issue a signing OTP to the actor on the chosen channel.
+     * @param  array<string, mixed>  $context
      */
-    public function requestSignature(User $user, OtpChannel $channel): void
+    public function sign(User $signer, Model $signable, string $documentContents, string $documentName, array $context = []): Signature
     {
-        $identifier = $this->identifierFor($user, $channel);
+        return DB::transaction(function () use ($signer, $signable, $documentContents, $documentName, $context): Signature {
+            $result = $this->provider->sign(new SignatureRequest(
+                signer: $signer,
+                signable: $signable,
+                documentContents: $documentContents,
+                documentName: $documentName,
+                context: $context,
+            ));
 
-        $this->otp->issue($identifier, $channel, OtpPurpose::Signature);
-    }
+            $disk = (string) config('dpc.signature.disk', 'local');
+            $path = 'signatures/'.$signable->getMorphClass().'/'.$signable->getKey().'/'
+                .Str::uuid().'-'.$documentName;
 
-    /**
-     * Confirm the signing OTP and persist the SignEvent against the record.
-     */
-    public function confirmSignature(User $user, Model $signable, OtpChannel $channel, string $code, Request $request): ?SignEvent
-    {
-        $identifier = $this->identifierFor($user, $channel);
+            Storage::disk($disk)->put($path, $result->signedContents);
 
-        if (! $this->otp->verify($identifier, OtpPurpose::Signature, $code)) {
-            return null;
-        }
+            $signature = new Signature([
+                'signable_type' => $signable->getMorphClass(),
+                'signable_id' => $signable->getKey(),
+                'provider' => $result->provider,
+                'status' => SignatureStatus::Signed->value,
+                'transaction_reference' => $result->transactionReference,
+                'certificate_subject' => $result->certificateSubject,
+                'certificate_serial' => $result->certificateSerial,
+                'certificate_issuer' => $result->certificateIssuer,
+                'signed_disk' => $disk,
+                'signed_path' => $path,
+                'meta' => $result->meta,
+                'signed_at' => $result->signedAt,
+            ]);
+            $signature->user()->associate($signer);
+            $signature->save();
 
-        $event = new SignEvent([
-            'signable_type' => $signable->getMorphClass(),
-            'signable_id' => $signable->getKey(),
-            'channel' => $channel->value,
-            'otp_identifier' => $identifier,
-            'ip_address' => $request->ip(),
-            'user_agent' => (string) $request->userAgent(),
-            'signed_at' => now(),
-        ]);
-        $event->user()->associate($user);
-        $event->save();
-
-        return $event;
-    }
-
-    private function identifierFor(User $user, OtpChannel $channel): string
-    {
-        $identifier = $channel === OtpChannel::Email ? $user->email : $user->mobile;
-
-        if ($identifier === null) {
-            throw new \RuntimeException('User has no verified '.$channel->value.' identifier for signing.');
-        }
-
-        return $identifier;
+            return $signature;
+        });
     }
 }

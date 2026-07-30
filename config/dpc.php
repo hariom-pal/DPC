@@ -42,6 +42,23 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Digital Signature
+    |--------------------------------------------------------------------------
+    |
+    | Legally significant actions are signed through a provider abstraction so
+    | business logic never depends on the concrete mechanism. "mock" is used in
+    | development; production will use CSC DigiSign / CSC eSign. Signed files are
+    | stored on the configured filesystem disk (S3 in production).
+    |
+    */
+
+    'signature' => [
+        'provider' => env('DPC_SIGNATURE_PROVIDER', 'mock'),
+        'disk' => env('DPC_SIGNATURE_DISK', 'local'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Seeded CGPSC Admin
     |--------------------------------------------------------------------------
     |

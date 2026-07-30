@@ -39,6 +39,7 @@ class User extends Authenticatable implements Auditable
         'department_id',
         'level',
         'is_active',
+        'must_change_password',
         'email_verified_at',
         'mobile_verified_at',
     ];
@@ -62,11 +63,11 @@ class User extends Authenticatable implements Auditable
     }
 
     /**
-     * @return HasMany<SignEvent, $this>
+     * @return HasMany<Signature, $this>
      */
-    public function signEvents(): HasMany
+    public function signatures(): HasMany
     {
-        return $this->hasMany(SignEvent::class);
+        return $this->hasMany(Signature::class);
     }
 
     /**
@@ -87,6 +88,7 @@ class User extends Authenticatable implements Auditable
             'mobile_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_active' => 'boolean',
+            'must_change_password' => 'boolean',
             'level' => UserLevel::class,
         ];
     }

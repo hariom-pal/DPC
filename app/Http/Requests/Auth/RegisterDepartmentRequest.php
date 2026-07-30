@@ -20,6 +20,8 @@ class RegisterDepartmentRequest extends FormRequest
      */
     public function rules(): array
     {
+        $govEmail = 'regex:/@([A-Za-z0-9\-]+\.)*gov\.in$/i';
+
         return [
             'department_id' => [
                 'required',
@@ -28,17 +30,15 @@ class RegisterDepartmentRequest extends FormRequest
             'district' => ['required', 'string', 'max:255'],
             'place' => ['required', 'string', 'max:255'],
             'pin' => ['required', 'digits:6'],
-            'email' => [
-                'required', 'email', 'max:255',
-                'regex:/@([A-Za-z0-9\-]+\.)*gov\.in$/i',
-                Rule::unique('users', 'email'),
-            ],
+            'department_email' => ['required', 'email', 'max:255', $govEmail],
             'ao_name' => ['required', 'string', 'max:255'],
             'ao_designation' => ['required', 'string', 'max:255'],
             'ao_mobile' => ['required', 'digits:10', 'different:ah_mobile', Rule::unique('users', 'mobile')],
+            'ao_email' => ['required', 'email', 'max:255', $govEmail, 'different:ah_email', Rule::unique('users', 'email')],
             'ah_name' => ['required', 'string', 'max:255'],
             'ah_designation' => ['required', 'string', 'max:255'],
             'ah_mobile' => ['required', 'digits:10', Rule::unique('users', 'mobile')],
+            'ah_email' => ['required', 'email', 'max:255', $govEmail, Rule::unique('users', 'email')],
         ];
     }
 
@@ -48,7 +48,9 @@ class RegisterDepartmentRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'email.regex' => 'The department email must be an official .gov.in address.',
+            'department_email.regex' => 'The department email must be an official .gov.in address.',
+            'ao_email.regex' => 'The Authorized Officer email must be an official .gov.in address.',
+            'ah_email.regex' => 'The Administrative Head email must be an official .gov.in address.',
         ];
     }
 }

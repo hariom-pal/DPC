@@ -33,7 +33,7 @@ class RegistrationController extends Controller
 
     public function store(RegisterDepartmentRequest $request): RedirectResponse
     {
-        /** @var array{department_id:int,district:string,place:string,pin:string,email:string,ao_name:string,ao_designation:string,ao_mobile:string,ah_name:string,ah_designation:string,ah_mobile:string} $data */
+        /** @var array{department_id:int,district:string,place:string,pin:string,department_email:string,ao_name:string,ao_designation:string,ao_mobile:string,ao_email:string,ah_name:string,ah_designation:string,ah_mobile:string,ah_email:string} $data */
         $data = $request->validated();
 
         $authorizedOfficer = $this->registration->register($data);

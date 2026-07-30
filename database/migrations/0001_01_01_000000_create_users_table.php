@@ -25,6 +25,7 @@ return new class extends Migration
             $table->unsignedBigInteger('department_id')->nullable()->index();
             $table->unsignedTinyInteger('level')->nullable()->comment('1 = Authorized Officer, 2 = Administrative Head');
             $table->boolean('is_active')->default(true)->index();
+            $table->boolean('must_change_password')->default(false);
             $table->rememberToken();
             $table->timestamps();
             $table->softDeletes();

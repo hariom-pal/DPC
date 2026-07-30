@@ -4,11 +4,27 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\SignatureStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Illuminate\Support\Carbon;
 
-class SignEvent extends Model
+/**
+ * @property int $id
+ * @property int $user_id
+ * @property string $provider
+ * @property SignatureStatus $status
+ * @property string|null $transaction_reference
+ * @property string|null $certificate_subject
+ * @property string|null $certificate_serial
+ * @property string|null $certificate_issuer
+ * @property string|null $signed_disk
+ * @property string|null $signed_path
+ * @property array<string, mixed>|null $meta
+ * @property Carbon|null $signed_at
+ */
+class Signature extends Model
 {
     /**
      * @var list<string>
@@ -17,10 +33,14 @@ class SignEvent extends Model
         'user_id',
         'signable_type',
         'signable_id',
-        'channel',
-        'otp_identifier',
-        'ip_address',
-        'user_agent',
+        'provider',
+        'status',
+        'transaction_reference',
+        'certificate_subject',
+        'certificate_serial',
+        'certificate_issuer',
+        'signed_disk',
+        'signed_path',
         'meta',
         'signed_at',
     ];
@@ -34,8 +54,6 @@ class SignEvent extends Model
     }
 
     /**
-     * The record whose signing this event attests to (proposal, order, …).
-     *
      * @return MorphTo<Model, $this>
      */
     public function signable(): MorphTo
@@ -49,6 +67,7 @@ class SignEvent extends Model
     protected function casts(): array
     {
         return [
+            'status' => SignatureStatus::class,
             'meta' => 'array',
             'signed_at' => 'datetime',
         ];

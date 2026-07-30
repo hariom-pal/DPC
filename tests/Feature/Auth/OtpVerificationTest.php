@@ -21,23 +21,32 @@ class OtpVerificationTest extends TestCase
         $this->seed([RolesAndPermissionsSeeder::class, DepartmentMasterSeeder::class]);
     }
 
-    public function test_valid_otps_verify_the_account_and_activate_the_department(): void
+    /**
+     * @return array<string, string|int>
+     */
+    private function payload(Department $department): array
     {
-        $department = Department::query()->where('code', 'HE')->firstOrFail();
-
-        $this->post(route('register.store'), [
+        return [
             'department_id' => $department->id,
             'district' => 'Raipur',
             'place' => 'Raipur',
             'pin' => '492001',
-            'email' => 'h_edu@cg.gov.in',
+            'department_email' => 'h_edu@cg.gov.in',
             'ah_name' => 'A. B. Cdef',
             'ah_designation' => 'Secretary',
             'ah_mobile' => '9826195455',
+            'ah_email' => 'ah.hedu@cg.gov.in',
             'ao_name' => 'P. Q. Rstuv',
             'ao_designation' => 'Deputy Secretary',
             'ao_mobile' => '9407938480',
-        ]);
+            'ao_email' => 'ao.hedu@cg.gov.in',
+        ];
+    }
+
+    public function test_valid_otps_verify_the_account_and_activate_the_department(): void
+    {
+        $department = Department::query()->where('code', 'HE')->firstOrFail();
+        $this->post(route('register.store'), $this->payload($department));
 
         $this->post(route('verify.store'), [
             'email_code' => '123456',
@@ -52,20 +61,7 @@ class OtpVerificationTest extends TestCase
     public function test_invalid_otp_is_rejected(): void
     {
         $department = Department::query()->where('code', 'HE')->firstOrFail();
-
-        $this->post(route('register.store'), [
-            'department_id' => $department->id,
-            'district' => 'Raipur',
-            'place' => 'Raipur',
-            'pin' => '492001',
-            'email' => 'h_edu@cg.gov.in',
-            'ah_name' => 'A. B. Cdef',
-            'ah_designation' => 'Secretary',
-            'ah_mobile' => '9826195455',
-            'ao_name' => 'P. Q. Rstuv',
-            'ao_designation' => 'Deputy Secretary',
-            'ao_mobile' => '9407938480',
-        ]);
+        $this->post(route('register.store'), $this->payload($department));
 
         $this->post(route('verify.store'), [
             'email_code' => '000000',
