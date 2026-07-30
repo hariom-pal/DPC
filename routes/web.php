@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use App\Enums\Role;
+use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\PasswordChangeController;
 use App\Http\Controllers\Auth\RegistrationController;
@@ -47,5 +49,13 @@ Route::middleware('auth')->group(function (): void {
     // Application screens require the system-issued password to be changed.
     Route::middleware(EnsurePasswordChanged::class)->group(function (): void {
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
+        // CGPSC Admin area (master data & user management).
+        Route::middleware('role:'.Role::Admin->value)
+            ->prefix('admin')
+            ->name('admin.')
+            ->group(function (): void {
+                Route::get('/', [AdminDashboardController::class, 'index'])->name('dashboard');
+            });
     });
 });

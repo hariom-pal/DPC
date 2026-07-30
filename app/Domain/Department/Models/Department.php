@@ -6,6 +6,7 @@ namespace App\Domain\Department\Models;
 
 use App\Domain\Authentication\Models\User;
 use App\Enums\DepartmentStatus;
+use App\Support\Concerns\Blameable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -27,6 +28,7 @@ use OwenIt\Auditing\Contracts\Auditable;
 class Department extends Model implements Auditable
 {
     use AuditableTrait;
+    use Blameable;
     use SoftDeletes;
 
     /**
@@ -43,6 +45,7 @@ class Department extends Model implements Auditable
         'registered_at',
         'created_by',
         'updated_by',
+        'deleted_by',
     ];
 
     /**
