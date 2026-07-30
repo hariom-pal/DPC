@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Domain\Authentication\Models\User;
+use App\Domain\Signature\Services\SignatureService;
 use App\Enums\SignatureStatus;
-use App\Models\User;
-use App\Services\SignatureService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;

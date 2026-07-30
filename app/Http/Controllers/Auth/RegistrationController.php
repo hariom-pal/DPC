@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Auth;
 
+use App\Domain\Authentication\Requests\RegisterDepartmentRequest;
+use App\Domain\Authentication\Services\RegistrationService;
+use App\Domain\Authentication\Services\VerificationService;
+use App\Domain\Department\Models\Department;
 use App\Enums\DepartmentStatus;
 use App\Enums\OtpPurpose;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Auth\RegisterDepartmentRequest;
-use App\Models\Department;
-use App\Services\RegistrationService;
-use App\Services\VerificationService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Database\Seeders;
 
+use App\Domain\Department\Models\Department;
 use App\Enums\DepartmentStatus;
-use App\Models\Department;
 use Illuminate\Database\Seeder;
 
 /**

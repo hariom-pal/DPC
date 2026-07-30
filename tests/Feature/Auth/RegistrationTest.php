@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Auth;
 
+use App\Domain\Authentication\Models\OtpVerification;
+use App\Domain\Authentication\Models\User;
+use App\Domain\Department\Models\Department;
 use App\Enums\DepartmentStatus;
 use App\Enums\Role;
-use App\Models\Department;
-use App\Models\OtpVerification;
-use App\Models\User;
 use Database\Seeders\DepartmentMasterSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;

@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
-use App\Contracts\SmsSender;
-use App\Events\CredentialsIssued;
-use App\Events\OtpRequested;
-use App\Listeners\SendCredentialNotification;
-use App\Listeners\SendOtpNotification;
-use App\Signature\Contracts\SignatureProvider;
-use App\Signature\Providers\CscDigiSignProvider;
-use App\Signature\Providers\MockSignatureProvider;
-use App\Sms\LogSmsSender;
+use App\Domain\Authentication\Events\CredentialsIssued;
+use App\Domain\Authentication\Events\OtpRequested;
+use App\Domain\Authentication\Listeners\SendCredentialNotification;
+use App\Domain\Authentication\Listeners\SendOtpNotification;
+use App\Integrations\Contracts\SignatureProvider;
+use App\Integrations\Contracts\SmsSender;
+use App\Integrations\CSC\CscDigiSignProvider;
+use App\Integrations\Mock\LogSmsSender;
+use App\Integrations\Mock\MockSignatureProvider;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 

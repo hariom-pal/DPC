@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Auth;
 
+use App\Domain\Department\Models\Department;
 use App\Enums\DepartmentStatus;
-use App\Models\Department;
 use Database\Seeders\DepartmentMasterSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;

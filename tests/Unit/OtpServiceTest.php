@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Unit;
 
+use App\Domain\Authentication\Services\OtpService;
 use App\Enums\OtpChannel;
 use App\Enums\OtpPurpose;
-use App\Services\OtpService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 

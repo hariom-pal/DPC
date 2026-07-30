@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Auth;
 
+use App\Domain\Authentication\Models\User;
+use App\Domain\Authentication\Requests\ChangePasswordRequest;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Auth\ChangePasswordRequest;
-use App\Models\User;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Hash;

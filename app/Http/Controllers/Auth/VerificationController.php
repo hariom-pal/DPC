@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Auth;
 
+use App\Domain\Authentication\Models\User;
+use App\Domain\Authentication\Requests\VerifyOtpRequest;
+use App\Domain\Authentication\Services\VerificationService;
 use App\Enums\DepartmentStatus;
 use App\Enums\OtpPurpose;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Auth\VerifyOtpRequest;
-use App\Models\User;
-use App\Services\VerificationService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
