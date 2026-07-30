@@ -1,0 +1,94 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Tests\Feature\Admin;
+
+use App\Domain\Authentication\Models\User;
+use App\Enums\Role;
+use Database\Seeders\RolesAndPermissionsSeeder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+class UserManagementTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private function admin(): User
+    {
+        $this->seed(RolesAndPermissionsSeeder::class);
+        $admin = User::factory()->create();
+        $admin->assignRole(Role::Admin->value);
+
+        return $admin;
+    }
+
+    public function test_admin_can_provision_a_member_account(): void
+    {
+        $this->actingAs($this->admin())
+            ->post(route('admin.users.store'), [
+                'name' => 'Hon. Member One',
+                'email' => 'member1@cgpsc.gov.in',
+                'mobile' => '9812345678',
+                'role' => Role::Member->value,
+            ])
+            ->assertRedirect(route('admin.users.index'));
+
+        $member = User::query()->where('email', 'member1@cgpsc.gov.in')->firstOrFail();
+        $this->assertTrue($member->hasRole(Role::Member->value));
+        $this->assertTrue($member->is_active);
+        $this->assertTrue($member->must_change_password);
+        $this->assertFalse($member->isFullyVerified());
+    }
+
+    public function test_provisioning_requires_a_government_email(): void
+    {
+        $this->actingAs($this->admin())
+            ->post(route('admin.users.store'), [
+                'name' => 'X', 'email' => 'x@gmail.com', 'mobile' => '9812345678', 'role' => Role::Member->value,
+            ])
+            ->assertSessionHasErrors('email');
+    }
+
+    public function test_non_provisionable_role_is_rejected(): void
+    {
+        $this->actingAs($this->admin())
+            ->post(route('admin.users.store'), [
+                'name' => 'X', 'email' => 'x@cgpsc.gov.in', 'mobile' => '9812345678', 'role' => Role::AuthorizedOfficer->value,
+            ])
+            ->assertSessionHasErrors('role');
+    }
+
+    public function test_admin_can_deactivate_and_reactivate_an_account(): void
+    {
+        $admin = $this->admin();
+        $member = User::factory()->create();
+        $member->assignRole(Role::Member->value);
+
+        $this->actingAs($admin)->post(route('admin.users.toggle-active', $member));
+        $this->assertFalse($member->fresh()->is_active);
+
+        $this->actingAs($admin)->post(route('admin.users.toggle-active', $member->fresh()));
+        $this->assertTrue($member->fresh()->is_active);
+    }
+
+    public function test_reset_password_forces_change_on_next_login(): void
+    {
+        $admin = $this->admin();
+        $member = User::factory()->create(['must_change_password' => false]);
+        $member->assignRole(Role::Member->value);
+
+        $this->actingAs($admin)->post(route('admin.users.reset-password', $member));
+
+        $this->assertTrue($member->fresh()->must_change_password);
+    }
+
+    public function test_non_admin_cannot_manage_users(): void
+    {
+        $this->seed(RolesAndPermissionsSeeder::class);
+        $officer = User::factory()->create();
+        $officer->assignRole(Role::AuthorizedOfficer->value);
+
+        $this->actingAs($officer)->get(route('admin.users.index'))->assertForbidden();
+    }
+}

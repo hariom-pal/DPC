@@ -40,4 +40,23 @@ enum Role: string
     {
         return array_map(static fn (self $role): string => $role->value, self::cases());
     }
+
+    /**
+     * Roles a CGPSC Admin may provision directly (AO/AH come via department
+     * registration; Individual via self-inspection).
+     *
+     * @return list<self>
+     */
+    public static function provisionable(): array
+    {
+        return [self::Admin, self::Chairman, self::Member];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function provisionableValues(): array
+    {
+        return array_map(static fn (self $role): string => $role->value, self::provisionable());
+    }
 }

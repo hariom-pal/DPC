@@ -48,6 +48,8 @@
                        href="{{ route('admin.committee-configurations.index') }}">Committee Configurations</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.recruitment-rules.*') ? 'active' : '' }}"
                        href="{{ route('admin.recruitment-rules.index') }}">Recruitment Rules</a>
+                    <a class="list-group-item list-group-item-action fw-semibold {{ request()->routeIs('admin.users.*') ? 'active' : '' }}"
+                       href="{{ route('admin.users.index') }}">User Management</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.reservation-categories.*') ? 'active' : '' }}"
                        href="{{ route('admin.reservation-categories.index') }}">Reservation Categories</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.vacancy-types.*') ? 'active' : '' }}"

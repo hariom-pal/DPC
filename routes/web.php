@@ -17,6 +17,7 @@ use App\Http\Controllers\Admin\ReservationPolicyController;
 use App\Http\Controllers\Admin\ReservationRosterController;
 use App\Http\Controllers\Admin\ReservationRosterPointController;
 use App\Http\Controllers\Admin\ReviewReasonController;
+use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\VacancyTypeController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\PasswordChangeController;
@@ -111,6 +112,10 @@ Route::middleware('auth')->group(function (): void {
                     ->name('recruitment-rules.version');
                 Route::get('recruitment-rules/{recruitmentRule}/download', [RecruitmentRuleController::class, 'download'])
                     ->name('recruitment-rules.download');
+
+                Route::resource('users', UserController::class)->only(['index', 'create', 'store', 'edit', 'update']);
+                Route::post('users/{user}/toggle-active', [UserController::class, 'toggleActive'])->name('users.toggle-active');
+                Route::post('users/{user}/reset-password', [UserController::class, 'resetPassword'])->name('users.reset-password');
             });
     });
 });
