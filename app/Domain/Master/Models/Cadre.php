@@ -34,9 +34,12 @@ class Cadre extends Model implements Auditable
         'pay_scale_id',
     ];
 
-    public function initializeCadre(): void
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
     {
-        $this->mergeCasts(['class_level' => ServiceClass::class]);
+        return ['class_level' => ServiceClass::class];
     }
 
     /**

@@ -5,6 +5,8 @@ declare(strict_types=1);
 use App\Enums\Role;
 use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\CadreController;
+use App\Http\Controllers\Admin\CommitteeConfigurationController;
+use App\Http\Controllers\Admin\CommitteeTypeController;
 use App\Http\Controllers\Admin\DesignationController;
 use App\Http\Controllers\Admin\DistrictController;
 use App\Http\Controllers\Admin\DpcTypeController;
@@ -95,6 +97,12 @@ Route::middleware('auth')->group(function (): void {
                     ->name('reservation-rosters.points.store');
                 Route::delete('reservation-rosters/{reservationRoster}/points/{point}', [ReservationRosterPointController::class, 'destroy'])
                     ->name('reservation-rosters.points.destroy');
+                Route::resource('committee-types', CommitteeTypeController::class)
+                    ->parameters(['committee-types' => 'committeeType'])
+                    ->except(['show']);
+                Route::resource('committee-configurations', CommitteeConfigurationController::class)
+                    ->parameters(['committee-configurations' => 'committeeConfiguration'])
+                    ->except(['show']);
             });
     });
 });

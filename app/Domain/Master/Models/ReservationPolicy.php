@@ -33,13 +33,16 @@ class ReservationPolicy extends Model implements Auditable
         'effective_to',
     ];
 
-    public function initializeReservationPolicy(): void
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
     {
-        $this->mergeCasts([
+        return [
             'effective_from' => 'date',
             'effective_to' => 'date',
             'percentage' => 'decimal:2',
-        ]);
+        ];
     }
 
     /**

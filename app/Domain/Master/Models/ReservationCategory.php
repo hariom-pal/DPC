@@ -31,8 +31,11 @@ class ReservationCategory extends Model implements Auditable
         'is_reserved',
     ];
 
-    public function initializeReservationCategory(): void
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
     {
-        $this->mergeCasts(['is_reserved' => 'boolean']);
+        return ['is_reserved' => 'boolean'];
     }
 }

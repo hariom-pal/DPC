@@ -39,13 +39,16 @@ class ReservationRoster extends Model implements Auditable
         'effective_to',
     ];
 
-    public function initializeReservationRoster(): void
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
     {
-        $this->mergeCasts([
+        return [
             'size' => 'integer',
             'effective_from' => 'date',
             'effective_to' => 'date',
-        ]);
+        ];
     }
 
     /**
