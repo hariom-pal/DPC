@@ -102,4 +102,28 @@ return [
         'password' => env('DPC_ADMIN_PASSWORD', 'ChangeMe@12345'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Workflows (configuration-driven)
+    |--------------------------------------------------------------------------
+    |
+    | Each transition declares the event, the state(s) it is allowed from, the
+    | resulting state, the role permitted to perform it, whether a digital
+    | signature is required, and who is notified. The WorkflowEngine enforces
+    | legality + role and records an audit ledger + timeline + notification for
+    | every transition.
+    |
+    */
+
+    'workflows' => [
+        'pre_dpc' => [
+            'transitions' => [
+                'submit' => ['from' => ['draft', 'returned'], 'to' => 'submitted', 'role' => 'authorized_officer', 'signature' => false, 'notify' => ['administrative_head']],
+                'approve' => ['from' => ['submitted'], 'to' => 'approved', 'role' => 'administrative_head', 'signature' => true, 'notify' => ['authorized_officer']],
+                'return' => ['from' => ['submitted'], 'to' => 'returned', 'role' => 'administrative_head', 'signature' => false, 'notify' => ['authorized_officer']],
+                'cancel' => ['from' => ['draft', 'returned'], 'to' => 'cancelled', 'role' => 'authorized_officer', 'signature' => false, 'notify' => ['administrative_head']],
+            ],
+        ],
+    ],
+
 ];

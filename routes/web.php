@@ -25,6 +25,7 @@ use App\Http\Controllers\Auth\RegistrationController;
 use App\Http\Controllers\Auth\VerificationController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\HealthController;
+use App\Http\Controllers\PreDpc\PreDpcProposalController;
 use App\Http\Middleware\EnsurePasswordChanged;
 use Illuminate\Support\Facades\Route;
 
@@ -64,6 +65,24 @@ Route::middleware('auth')->group(function (): void {
     // Application screens require the system-issued password to be changed.
     Route::middleware(EnsurePasswordChanged::class)->group(function (): void {
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
+        // Pre-DPC Proposal workflow (department Authorized Officer / Administrative Head).
+        Route::middleware('role:'.Role::AuthorizedOfficer->value.'|'.Role::AdministrativeHead->value)
+            ->prefix('pre-dpc')
+            ->name('pre-dpc.')
+            ->group(function (): void {
+                Route::get('/', [PreDpcProposalController::class, 'index'])->name('index');
+                Route::get('/create', [PreDpcProposalController::class, 'create'])->name('create');
+                Route::post('/', [PreDpcProposalController::class, 'store'])->name('store');
+                Route::get('/{preDpc}', [PreDpcProposalController::class, 'show'])->name('show');
+                Route::get('/{preDpc}/edit', [PreDpcProposalController::class, 'edit'])->name('edit');
+                Route::put('/{preDpc}', [PreDpcProposalController::class, 'update'])->name('update');
+                Route::post('/{preDpc}/submit', [PreDpcProposalController::class, 'submit'])->name('submit');
+                Route::post('/{preDpc}/approve', [PreDpcProposalController::class, 'approve'])->name('approve');
+                Route::post('/{preDpc}/return', [PreDpcProposalController::class, 'return'])->name('return');
+                Route::post('/{preDpc}/cancel', [PreDpcProposalController::class, 'cancel'])->name('cancel');
+                Route::post('/{preDpc}/amend', [PreDpcProposalController::class, 'amend'])->name('amend');
+            });
 
         // CGPSC Admin area (master data & user management).
         Route::middleware('role:'.Role::Admin->value)

@@ -29,6 +29,13 @@
                 </div>
             </div>
 
+            @if ($user->hasAnyRole([\App\Enums\Role::AuthorizedOfficer->value, \App\Enums\Role::AdministrativeHead->value]))
+                <a href="{{ route('pre-dpc.index') }}" class="btn btn-success mt-3">Pre-DPC Proposals</a>
+            @endif
+            @if ($user->hasRole(\App\Enums\Role::Admin->value))
+                <a href="{{ route('admin.dashboard') }}" class="btn btn-success mt-3">Administration</a>
+            @endif
+
             <p class="text-muted small mt-3">
                 Modules become available as the corresponding milestones are delivered.
             </p>

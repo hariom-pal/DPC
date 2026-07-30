@@ -8,6 +8,8 @@ use App\Domain\Authentication\Events\CredentialsIssued;
 use App\Domain\Authentication\Events\OtpRequested;
 use App\Domain\Authentication\Listeners\SendCredentialNotification;
 use App\Domain\Authentication\Listeners\SendOtpNotification;
+use App\Domain\Shared\Events\WorkflowTransitioned;
+use App\Domain\Shared\Listeners\SendWorkflowNotification;
 use App\Integrations\Contracts\DirectoryProvider;
 use App\Integrations\Contracts\SignatureProvider;
 use App\Integrations\Contracts\SmsSender;
@@ -49,5 +51,6 @@ class AppServiceProvider extends ServiceProvider
     {
         Event::listen(OtpRequested::class, SendOtpNotification::class);
         Event::listen(CredentialsIssued::class, SendCredentialNotification::class);
+        Event::listen(WorkflowTransitioned::class, SendWorkflowNotification::class);
     }
 }
