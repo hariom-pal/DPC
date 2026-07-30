@@ -6,7 +6,11 @@ use App\Enums\Role;
 use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\DesignationController;
 use App\Http\Controllers\Admin\DistrictController;
+use App\Http\Controllers\Admin\DpcTypeController;
 use App\Http\Controllers\Admin\PayScaleController;
+use App\Http\Controllers\Admin\ReservationCategoryController;
+use App\Http\Controllers\Admin\ReviewReasonController;
+use App\Http\Controllers\Admin\VacancyTypeController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\PasswordChangeController;
 use App\Http\Controllers\Auth\RegistrationController;
@@ -63,6 +67,18 @@ Route::middleware('auth')->group(function (): void {
                 Route::resource('designations', DesignationController::class)->except(['show']);
                 Route::resource('pay-scales', PayScaleController::class)
                     ->parameters(['pay-scales' => 'payScale'])
+                    ->except(['show']);
+                Route::resource('reservation-categories', ReservationCategoryController::class)
+                    ->parameters(['reservation-categories' => 'reservationCategory'])
+                    ->except(['show']);
+                Route::resource('review-reasons', ReviewReasonController::class)
+                    ->parameters(['review-reasons' => 'reviewReason'])
+                    ->except(['show']);
+                Route::resource('vacancy-types', VacancyTypeController::class)
+                    ->parameters(['vacancy-types' => 'vacancyType'])
+                    ->except(['show']);
+                Route::resource('dpc-types', DpcTypeController::class)
+                    ->parameters(['dpc-types' => 'dpcType'])
                     ->except(['show']);
             });
     });
