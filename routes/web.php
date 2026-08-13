@@ -10,6 +10,7 @@ use App\Http\Controllers\Admin\CommitteeTypeController;
 use App\Http\Controllers\Admin\DesignationController;
 use App\Http\Controllers\Admin\DistrictController;
 use App\Http\Controllers\Admin\DpcTypeController;
+use App\Http\Controllers\Admin\IntegrationStatusController;
 use App\Http\Controllers\Admin\PayScaleController;
 use App\Http\Controllers\Admin\RecruitmentRuleController;
 use App\Http\Controllers\Admin\ReservationCategoryController;
@@ -23,7 +24,12 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\PasswordChangeController;
 use App\Http\Controllers\Auth\RegistrationController;
 use App\Http\Controllers\Auth\VerificationController;
+use App\Http\Controllers\Cgpsc\AllotmentController;
+use App\Http\Controllers\Cgpsc\SchedulingController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\Dpc\DpcCalculationController;
+use App\Http\Controllers\Dpc\DpcImportController;
+use App\Http\Controllers\Dpc\DpcProposalController;
 use App\Http\Controllers\HealthController;
 use App\Http\Controllers\PreDpc\PreDpcProposalController;
 use App\Http\Middleware\EnsurePasswordChanged;
@@ -45,13 +51,13 @@ Route::get('/lang/{locale}', function (string $locale) {
  | Authentication & department registration (PPT S5–S6)
  */
 Route::get('/login', [LoginController::class, 'create'])->name('login');
-Route::post('/login', [LoginController::class, 'store'])->name('login.store');
+Route::post('/login', [LoginController::class, 'store'])->middleware('throttle:login')->name('login.store');
 
 Route::get('/register', [RegistrationController::class, 'create'])->name('register');
 Route::post('/register', [RegistrationController::class, 'store'])->name('register.store');
 
 Route::get('/verify', [VerificationController::class, 'show'])->name('verify.show');
-Route::post('/verify', [VerificationController::class, 'store'])->name('verify.store');
+Route::post('/verify', [VerificationController::class, 'store'])->middleware('throttle:otp-verify')->name('verify.store');
 
 /*
  | Authenticated area
@@ -84,12 +90,82 @@ Route::middleware('auth')->group(function (): void {
                 Route::post('/{preDpc}/amend', [PreDpcProposalController::class, 'amend'])->name('amend');
             });
 
+        // DPC Proposal workflow (M4 Phase 1: post selection + submit/approve/return/cancel).
+        Route::middleware('role:'.Role::AuthorizedOfficer->value.'|'.Role::AdministrativeHead->value)
+            ->prefix('dpc-proposals')
+            ->name('dpc-proposals.')
+            ->group(function (): void {
+                Route::get('/', [DpcProposalController::class, 'index'])->name('index');
+                Route::get('/create', [DpcProposalController::class, 'create'])->name('create');
+                Route::post('/', [DpcProposalController::class, 'store'])->name('store');
+                Route::get('/{dpcProposal}', [DpcProposalController::class, 'show'])->name('show');
+                Route::get('/{dpcProposal}/edit', [DpcProposalController::class, 'edit'])->name('edit');
+                Route::put('/{dpcProposal}', [DpcProposalController::class, 'update'])->name('update');
+                Route::get('/{dpcProposal}/committee', [DpcProposalController::class, 'committee'])->name('committee');
+                Route::put('/{dpcProposal}/committee', [DpcProposalController::class, 'updateCommittee'])->name('committee.update');
+                Route::get('/{dpcProposal}/working-officers', [DpcProposalController::class, 'workingOfficers'])->name('working-officers');
+                Route::put('/{dpcProposal}/working-officers', [DpcProposalController::class, 'updateWorkingOfficers'])->name('working-officers.update');
+                Route::get('/{dpcProposal}/seniority-list', [DpcProposalController::class, 'seniorityList'])->name('seniority-list');
+                Route::put('/{dpcProposal}/seniority-list', [DpcProposalController::class, 'updateSeniorityList'])->name('seniority-list.update');
+                // AH review walkthrough (M4 Phase 7, PPT S21–S25) — ends in the single approval.
+                Route::get('/{dpcProposal}/review/{step?}', [DpcProposalController::class, 'review'])
+                    ->whereNumber('step')
+                    ->name('review');
+                Route::get('/{dpcProposal}/evaluation-chart', [DpcProposalController::class, 'evaluationChart'])->name('evaluation-chart');
+                Route::put('/{dpcProposal}/evaluation-chart', [DpcProposalController::class, 'updateEvaluationChart'])->name('evaluation-chart.update');
+                // Excel import (M4 Phase 6): Preview -> Validation -> Error Report -> Commit.
+                Route::post('/{dpcProposal}/imports', [DpcImportController::class, 'store'])->name('imports.store');
+                Route::get('/{dpcProposal}/imports/{importBatch}', [DpcImportController::class, 'show'])->name('imports.show');
+                Route::get('/{dpcProposal}/imports/{importBatch}/errors', [DpcImportController::class, 'errors'])->name('imports.errors');
+                Route::post('/{dpcProposal}/imports/{importBatch}/commit', [DpcImportController::class, 'commit'])->name('imports.commit');
+                Route::post('/{dpcProposal}/imports/{importBatch}/cancel', [DpcImportController::class, 'cancel'])->name('imports.cancel');
+
+                // CALCULATE and calculation history (M5 Phase 4). Runs are
+                // addressed by UUID only; officers within a run by their
+                // chart serial number, never by a database id.
+                // Throttled: a calculation writes permanent evidence that no
+                // code path can delete, so the button must not be a way to
+                // flood the evidence tables.
+                Route::post('/{dpcProposal}/calculate', [DpcCalculationController::class, 'store'])
+                    ->middleware('throttle:calculate')
+                    ->name('calculate');
+                Route::get('/{dpcProposal}/calculations', [DpcCalculationController::class, 'index'])->name('calculations.index');
+                Route::get('/{dpcProposal}/calculations/{calculationRun}', [DpcCalculationController::class, 'show'])->name('calculations.show');
+                Route::get('/{dpcProposal}/calculations/{calculationRun}/officers/{sn}', [DpcCalculationController::class, 'explain'])
+                    ->whereNumber('sn')
+                    ->name('calculations.explain');
+
+                Route::post('/{dpcProposal}/submit', [DpcProposalController::class, 'submit'])->name('submit');
+                Route::post('/{dpcProposal}/approve', [DpcProposalController::class, 'approve'])->name('approve');
+                Route::post('/{dpcProposal}/return', [DpcProposalController::class, 'return'])->name('return');
+                Route::post('/{dpcProposal}/cancel', [DpcProposalController::class, 'cancel'])->name('cancel');
+            });
+
+        // CGPSC workflow — allotment and scheduling (M6, PPT S26–S30).
+        Route::middleware('role:'.Role::Chairman->value.'|'.Role::Member->value)
+            ->prefix('cgpsc')
+            ->name('cgpsc.')
+            ->group(function (): void {
+                Route::get('/allotments', [AllotmentController::class, 'index'])->name('allotments.index');
+                Route::post('/allotments/{dpcProposal}', [AllotmentController::class, 'store'])->name('allotments.store');
+                Route::post('/allotments/{dpcProposal}/reallot', [AllotmentController::class, 'reallot'])->name('allotments.reallot');
+                Route::get('/allotments/{dpcProposal}/history', [AllotmentController::class, 'history'])->name('allotments.history');
+
+                // Member acceptance and scheduling (M6 Phase 2, PPT S29–S30).
+                Route::get('/schedules', [SchedulingController::class, 'index'])->name('schedules.index');
+                Route::post('/schedules/{dpcProposal}/accept', [SchedulingController::class, 'accept'])->name('schedules.accept');
+                Route::post('/schedules/{dpcProposal}', [SchedulingController::class, 'store'])->name('schedules.store');
+                Route::post('/schedules/{dpcProposal}/reschedule', [SchedulingController::class, 'reschedule'])->name('schedules.reschedule');
+                Route::get('/schedules/{dpcProposal}/history', [SchedulingController::class, 'history'])->name('schedules.history');
+            });
+
         // CGPSC Admin area (master data & user management).
         Route::middleware('role:'.Role::Admin->value)
             ->prefix('admin')
             ->name('admin.')
             ->group(function (): void {
                 Route::get('/', [AdminDashboardController::class, 'index'])->name('dashboard');
+                Route::get('/integrations', IntegrationStatusController::class)->name('integrations');
                 Route::resource('districts', DistrictController::class)->except(['show']);
                 Route::resource('designations', DesignationController::class)->except(['show']);
                 Route::resource('pay-scales', PayScaleController::class)

@@ -84,6 +84,7 @@ class PreDpcProposalController extends Controller
                 ->where('subject_id', $preDpc->id)
                 ->with('actor')
                 ->orderBy('occurred_at')
+                ->orderBy('uuid')
                 ->get(),
         ]);
     }

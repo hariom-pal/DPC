@@ -30,3 +30,17 @@ PPT is the default source of truth. Where the PPT is silent or internally incons
 | **Q16** | **Out-of-scope confirm** — video conferencing, real-time multi-member voting, HRMS import appear only in secondary docs, not the PPT. Confirm excluded from V1? | Scope | excluded | M11 |
 
 **Recommended answers to unblock M0–M2 quickly:** Q1 → email/mobile + password with dual OTP at registration and OTP step-up at signing (your earlier lean; confirm); Q2 → yes, add CGPSC Admin; Q3 → yes, config-driven; Q13 → Redis for queue in V1, sessions/cache via config; Q14 → Spatie; Q15 → a maintained audit package.
+
+---
+
+## Business Questions
+
+**Moved 2026-08-13 by architect directive.** Questions that need a business answer — not an engineering or design decision — now live in a single register:
+
+### → `docs/business/PENDING_BUSINESS_DECISIONS.md`
+
+That includes Q5, Q6, Q7, Q11 and Q12 from the table above, plus the CSC eSign document-format question, the HRMS API contract, and the `PUNISHMENT` disqualification question raised by PPT slide 33.
+
+The table above remains the record of what each ambiguity *was* and which milestone it affects. The business register is the record of what is still **blocked on someone with authority over the promotion rules**, and what the system does in the meantime.
+
+**Standing rule while a business question is open:** the engine applies the printed rule, flags every case the unruled rule could have changed, and never guesses in either direction.

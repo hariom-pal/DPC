@@ -200,7 +200,15 @@ return [
     |
     | Whether console events should be audited (eg. php artisan db:seed).
     |
+    | Env-driven so the test suite can turn it on. PHPUnit runs in "console",
+    | so with this hardcoded to false the audit trail was silently inert under
+    | test and no assertion about it could ever pass — a government-grade
+    | requirement with zero coverage. `phpunit.xml` sets AUDIT_CONSOLE=true so
+    | tests exercise auditing the way an HTTP request does. It stays false by
+    | default in real environments, where seeders and maintenance commands
+    | should not manufacture audit rows.
+    |
     */
 
-    'console' => false,
+    'console' => (bool) env('AUDIT_CONSOLE', false),
 ];

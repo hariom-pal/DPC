@@ -9,6 +9,7 @@ use App\Domain\Master\Models\Designation;
 use App\Domain\Signature\Models\Signature;
 use App\Enums\UserLevel;
 use Database\Factories\UserFactory;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -21,6 +22,21 @@ use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable implements Auditable
 {
+    use HasUuids;
+
+    /**
+     * A stable public identity for the user, added for timeline actor
+     * snapshots (architect directive). The auto-increment `id` remains the
+     * primary key and the route key — only the column is added, so no existing
+     * relation or URL changes.
+     *
+     * @return list<string>
+     */
+    public function uniqueIds(): array
+    {
+        return ['uuid'];
+    }
+
     use AuditableTrait;
 
     /** @use HasFactory<UserFactory> */

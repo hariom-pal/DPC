@@ -31,6 +31,7 @@
 
             @if ($user->hasAnyRole([\App\Enums\Role::AuthorizedOfficer->value, \App\Enums\Role::AdministrativeHead->value]))
                 <a href="{{ route('pre-dpc.index') }}" class="btn btn-success mt-3">Pre-DPC Proposals</a>
+                <a href="{{ route('dpc-proposals.index') }}" class="btn btn-success mt-3">DPC Proposals</a>
             @endif
             @if ($user->hasRole(\App\Enums\Role::Admin->value))
                 <a href="{{ route('admin.dashboard') }}" class="btn btn-success mt-3">Administration</a>

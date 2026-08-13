@@ -9,6 +9,8 @@ use App\Domain\Shared\Events\WorkflowTransitioned;
 use App\Domain\Shared\Services\ActivityTimelineService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * Configuration-driven workflow engine. Validates transition legality + actor
@@ -43,7 +45,16 @@ class WorkflowEngine
     }
 
     /**
+     * `$properties` are merged into the timeline entry. Domain detail recorded
+     * there is what makes workflow history reproducible from timeline records
+     * alone (architect directive) rather than by reading current state.
+     *
+     * `$notifyUserIds` names recipients a role-plus-department query cannot
+     * reach — a CGPSC Chairman or Member holds no department.
+     *
      * @param  array{from:list<string>,to:string,role:string,signature:bool,notify:list<string>}  $def
+     * @param  array<string, mixed>  $properties
+     * @param  list<int>  $notifyUserIds
      */
     public function record(
         Model $subject,
@@ -56,6 +67,8 @@ class WorkflowEngine
         ?string $remarks = null,
         ?int $signatureId = null,
         ?int $departmentId = null,
+        array $properties = [],
+        array $notifyUserIds = [],
     ): WorkflowTransition {
         $transition = WorkflowTransition::query()->create([
             'workflow' => $workflow,
@@ -76,11 +89,26 @@ class WorkflowEngine
             "{$workflow}.{$event}",
             $subject,
             "{$workflow} {$event}: {$from} → {$def['to']}",
-            ['from' => $from, 'to' => $def['to'], 'remarks' => $remarks],
+            array_merge(['from' => $from, 'to' => $def['to'], 'remarks' => $remarks], $properties),
             $actor,
         );
 
-        WorkflowTransitioned::dispatch($workflow, $event, $def['to'], $departmentId, $def['notify'], $remarks);
+        // A workflow transition must never fail because a notification did
+        // (architect directive). The ledger and timeline entries above are
+        // already written; dispatch is the last step and is deliberately
+        // isolated, so a broken listener — a dead SMS gateway, a misconfigured
+        // mailer, a third-party subscriber — degrades to a logged warning
+        // rather than rolling back a completed transition.
+        try {
+            WorkflowTransitioned::dispatch($workflow, $event, $def['to'], $departmentId, $def['notify'], $remarks, $notifyUserIds);
+        } catch (Throwable $e) {
+            Log::warning('Workflow notification dispatch failed; the transition itself is unaffected.', [
+                'workflow' => $workflow,
+                'event' => $event,
+                'transition_uuid' => $transition->uuid,
+                'error' => $e->getMessage(),
+            ]);
+        }
 
         return $transition;
     }

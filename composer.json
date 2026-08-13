@@ -9,6 +9,7 @@
         "php": "^8.4",
         "laravel/framework": "^13.8",
         "laravel/tinker": "^3.0",
+        "maatwebsite/excel": "^3.1",
         "owen-it/laravel-auditing": "^14.0",
         "predis/predis": "^3.5",
         "spatie/laravel-permission": "^8.3"
@@ -52,9 +53,11 @@
         "pint": "@php vendor/bin/pint",
         "pint:test": "@php vendor/bin/pint --test",
         "stan": "@php vendor/bin/phpstan analyse --memory-limit=512M",
+        "audit:security": "@composer audit --no-interaction",
         "gate": [
             "@php vendor/bin/pint --test",
             "@php vendor/bin/phpstan analyse --memory-limit=512M",
+            "@composer audit --no-interaction",
             "@php artisan config:clear --ansi",
             "@php artisan test"
         ],

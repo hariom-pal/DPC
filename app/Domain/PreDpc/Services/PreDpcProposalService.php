@@ -13,6 +13,7 @@ use App\Domain\PreDpc\Models\PreDpcProposal;
 use App\Domain\Shared\Workflow\WorkflowEngine;
 use App\Domain\Shared\Workflow\WorkflowException;
 use App\Domain\Signature\Services\SignatureService;
+use App\Enums\Feature;
 use App\Enums\MasterStatus;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -212,10 +213,19 @@ class PreDpcProposalService
         }
     }
 
+    /**
+     * Production must never sign a legally significant approval with the mock
+     * provider (architect ruling, 2026-08-13). Keyed on the feature flag,
+     * which is the single switch deciding which provider is bound — checking
+     * anything else could drift out of step with what actually signs.
+     */
     private function assertSignatureAvailable(): void
     {
-        if (app()->environment('production') && config('dpc.signature.provider') !== 'csc_digisign') {
-            throw new WorkflowException('Digital signing is unavailable: CSC DigiSign is not configured. Approval cannot proceed.');
+        if (app()->environment('production') && Feature::CscDigiSign->disabled()) {
+            throw new WorkflowException(
+                'Digital signing is unavailable: CSC DigiSign is not enabled on this environment, and a Pre-DPC '
+                .'proposal may not be approved without a legally valid digital signature. Contact the system administrator.'
+            );
         }
     }
 

@@ -1,0 +1,378 @@
+# Changelog
+
+All notable work on the ODPC Portal, in reverse chronological order. Business-rule changes are traceable to `docs/ODPC_NEW_FINAL.pptx` / `docs/CONVENTIONAL DPC PROCESS.pptx` slide numbers where applicable. This file, `docs/PROJECT_STATUS.md`, `docs/PROJECT_PROGRESS.md`, and `docs/ARCHITECT_REVIEW.md` are the only documents updated on an ongoing basis (see `docs/ARCHITECT_REVIEW.md` for the full documentation policy).
+
+## 2026-08-13 — Repository baseline: `v0.6.0-m6-complete`
+
+**No code written.** Repository verified, gated, cleaned, committed and tagged, to leave a clean reproducible state before M7.
+
+- **TD-14 resolved — M4, M5 and M6 are committed.** The last commit had been `3133ac4 M3`: three closed, frozen milestones existed only in an uncommitted working tree with no stash. Now one commit, tagged **`v0.6.0-m6-complete`** (annotated), pushed with the branch. The loss risk was the obvious half; **the half that mattered more is that the freezes are now verifiable** — `git diff v0.6.0-m6-complete -- app/Domain/Eligibility` mechanically answers "has the frozen engine changed?" Until a commit existed at a milestone boundary there was nothing to diff against, so a freeze breach during M7 would have been indistinguishable from M7's own work.
+
+- **Gates re-run before committing, all green:** Pint pass · PHPStan (Larastan level 6) 0 errors · PHPUnit 368 passed / 1281 assertions · `composer audit` no advisories · `migrate:fresh --seed` OK (54 tables, 10 seeders). Nothing needed fixing.
+
+- **Cleanliness verified:** no backup, temporary, editor or conflict files; nothing over 2 MB; no `storage/` runtime artefacts; `node_modules` absent. `.idea/` and `.phpunit.result.cache` were already ignored. `.claude/settings.local.json` was untracked but not ignored — added to `.gitignore`. `design/`'s three empty subdirectories were left alone (protected, and git does not track empty directories anyway), as were `package.json` / `vite.config.js` / `.npmrc` — Laravel scaffolding rather than junk, so removing them would be a decision rather than a cleanup.
+
+- **`README.md` promoted to a mandatory document and re-synchronized.** Two real desyncs: its document map predated the six newer mandatory documents, and it described `composer gate` without `composer audit` — mandatory since M4 Phase 6, and present in the composer script all along, so only the README was wrong. Added a milestone-state section so the three freezes are visible on the front page.
+
+- **`docs/ARCHITECT_REVIEW.md` replaced with a handover** — repository status, gates, UAT readiness, remaining business decisions, M7, and five recommendations. It records that **the M7 design document does not yet exist**: approval is noted, but nothing has been written.
+
+- Documentation verification: all eleven mandatory documents present and synchronized.
+
+## 2026-08-13 — M6 closure, freeze, and UAT documentation set
+
+**Documentation only. No source file was modified.** M6 approved and closed by the architect; M4, M5 and M6 are now all frozen.
+
+- **M6 FROZEN.** No further functional changes; bug fixes only. All three completed workflow milestones are now under freeze: M4 architecture-frozen, M5 engine-frozen, M6 frozen.
+
+- **`docs/INTEGRATION_ROADMAP.md`** — HRMS, CSC DigiSign, LG Directory, Government SMS, Government E-mail, Calendar and internal Notifications, each with its Feature Flag, Provider, Events Used, Dependencies and Current Status, plus the procedure for adding another. It records one assessment worth stating plainly: **the Government SMS gateway is the highest-value outstanding integration** — not because S26 notifications need it, but because **OTP delivery does, so without it no officer can complete verification in production**. Every other integration being absent makes the system less convenient; this one makes it unusable.
+
+- **`docs/UAT_CHECKLIST.md`** — 9 sections, ~60 scenarios, one scenario to one expected outcome, written for business users with no technical vocabulary. Opens by stating what is deliberately switched off (SMS/e-mail, HRMS, real signature) so testers do not raise those as defects, and which two results will legitimately appear as "awaiting a business decision".
+
+- **`docs/DEMO_SCRIPT.md`** — Parts 0–9 following the PPT (S12→S30), with a ★-marked 15-minute short version, the accounts and data to prepare beforehand, the six questions to expect with their answers, and what to do if something fails live.
+
+- **`docs/TECHNICAL_DEBT.md` created — a permanent register.** Every known limitation, deferred item and recommendation now has a home that survives a phase boundary. **`docs/ARCHITECT_REVIEW.md` is replaced in full at each phase**, so until now a carried-forward risk survived only by being manually re-copied — a process that holds until it doesn't, and the item most likely to be dropped is an old P2 nobody has thought about in five phases. 14 open engineering items, 2 blocking business items, 7 documented interpretations, 8 resolved. Items move to Resolved rather than being deleted.
+
+  The Resolved section records a pattern worth keeping visible: **four of the eight were found by applying a directive properly rather than by testing the feature that directive concerned** — the untested audit trail, the notification rollback, the driver-dependent time read, and the timeline ordering defect. Directives that look like documentation tasks have repeatedly turned out to be live bugs.
+
+- **TD-14 raised — the three closed milestones are uncommitted.** Verifying "no source file was modified in this phase" meant reading `git status`, which showed the last commit is `3133ac4 M3`: **M4, M5 and M6, 133 changed paths, have never been committed** and there is no stash. The loss risk is the obvious part. The less obvious part is that **the freeze policies are currently unenforceable** — a freeze is a statement about a commit, and with no commit at a milestone boundary there is nothing to diff a suspected breach against, so a change to frozen M5 code during M7 would be indistinguishable from M7's own work. Nothing was committed; that is not ours to decide. Recommendation recorded: commit each closed milestone at its own boundary before M7.
+
+- **UAT Readiness Review prepared** in `docs/ARCHITECT_REVIEW.md`, per instruction. No implementation begun; M7 awaits approval.
+
+- Gates re-verified after the documentation additions: **368 tests / 1281 assertions**, Pint clean, PHPStan 0 errors, `composer audit` clean, `migrate:fresh --seed` OK (54 tables). `composer audit` **failed on its first run and passed on retry** — `curl error 28` reaching packagist, the network timeout already recorded as TD-2, reproduced on the very first gate run after the register predicted it. Not a code finding; it confirms that CI needs a retry on that step or builds will fail in a way that looks like a security gate failing.
+
+## 2026-08-13 — M6 Phase 4: notification coverage and closeout — **MILESTONE M6 COMPLETE**
+
+Final slice of M6 (PPT S26–S30). No new transitions and no new tables, as instructed. M4 architecture-frozen and M5 engine-frozen; neither touched throughout M6.
+
+- **Notification coverage verified at the listener, not the event.** Earlier phases asserted the *event* carried the right recipients; these tests assert `SendWorkflowNotification` **resolves them to real users**. That is a different claim — the department-scoped role query and the explicit user-id list are two independent code paths, and only one of them can reach a CGPSC Member. A recording SMS sender captures who the application actually tried to message. Covered across all five transitions, plus the negative cases: an unrelated department is never notified, a deactivated user is skipped, and a Member who is no longer the allottee stops being notified.
+
+- **A directive turned out to be a live bug.** Directive 3 — "timeline exports must sort by Occurred At then UUID, never sequential ids" — looked like a documentation task. It was not. **Every timeline and ledger read ordered by `occurred_at` alone, and `occurred_at` has second granularity** while a workflow transition writes its ledger and timeline rows inside one transaction. Events in the same second carried identical timestamps and came back in whatever order the database chose, so allot and accept performed in quick succession could present in either order, differently between reads. A history that reorders itself between reads is not a history, and it would have surfaced first in an export or a printed record. Fixed at all four read sites; a test writes five events inside a single frozen second and asserts repeated reads return an identical order.
+
+- **`docs/EVENT_CATALOG.md` created** — every published event with its trigger, payload, timeline entry, audit entry and future subscribers, plus the consumption contract: ordering, idempotency, replay, dry run and failure behaviour.
+
+- **Three independent versions documented.** **Workflow Version** (the state machines — value 1, documentation only per directive), **Schema Version** (a timeline row's `properties`), and **Notification Payload Version** (the event object). Deliberately independent: adding a transition cannot change how an existing timeline row reads, nor the event's shape, so tying them together would force consumers to re-verify against changes that cannot affect them. **None is bumped for an added key** — only for a change in the meaning of something that already existed.
+
+- **Replay Dry Run documented, not built** — design, output shape, and the three situations it exists for: before enabling a new subscriber against months of history; after a bug that dropped notifications, to see what would be re-sent before anything reaches an officer; and to verify an audit export before it becomes evidence. The most useful thing it produces is the list of events it *cannot* replay.
+
+- 9 new tests, **368 tests / 1281 assertions passing** (77 across M6's four phases). Pint clean, PHPStan 0 errors, `composer audit` clean, `migrate:fresh --seed` OK (54 tables).
+
+**Full PPT verification, S26–S30 — no divergence.** S26's requirement that information reach the Administrative Head and Authorized Officer on **registered mobile *and* e-mail** is met on both channels for both recipients, verified at the listener. S28's Allotment Report carries STATUS and DEFAULT DPC DATE. S30 is complete including RE-ALLOTMENT and (RE) SCHEDULING with the old slot struck through beside the new — the slide's own worked move, `12/07/2026 2:00 PM` → `15/07/2026 2:00 PM`, is the scenario the Phase 3 tests use.
+
+**M6 is complete.** Next per the roadmap is the **UAT Readiness Review** checkpoint before M7.
+
+## 2026-08-13 — M6 Phase 3: re-scheduling and old-beside-new history
+
+Third slice of M6 (PPT S30). **The full S26–S30 transition set now exists** — Phase 4 adds notification coverage and closeout, introducing no new transition. M4 architecture-frozen and M5 engine-frozen; neither touched.
+
+- **`reschedule` transition** — allottee only, reason required, and the new slot must differ from the current one. **Append-only:** a new `dpc_schedules` row is written and the previous one superseded. Repeated rescheduling is supported and every step kept; a test moves a DPC twice and confirms three rows with exactly one current. A **superseded** row is still immutable — the interesting case, since that is the row a tamperer would target.
+- **Old-beside-new display** — the scheduling screen and Scheduling Report show the superseded date and time struck through beside the new; the allotment screen and Allotment Report do the same for the previous allottee. Both resolve their superseded rows in **one keyed query**, not one per row. This reproduces S30's own worked example: `12/07/2026 2:00 PM` → `15/07/2026 2:00 PM`, which is the scenario the tests use.
+- **Scheduling history screen** — accept, schedule and reschedule events rendered from the timeline alone, with reasons and the recorded time zone.
+
+**Cross-cutting directives, implemented in the shared layer so every workflow inherits them:**
+
+- **Actor snapshot on every timeline event** — `users.uuid` added and backfilled (additive; `id` remains primary and route key, so no relation or URL changed), plus `activity_timelines.actor_uuid` and `actor_name` stamped by `ActivityTimelineService`. **`causer_id` is a reference; the snapshot is the record.** A reference tells you who the actor is *now*; a snapshot tells you who acted *then*, and they diverge exactly where it counts — a renamed user makes the reference resolve to a different name, a removed user to nothing. **A test asserts renaming the actor does not change the record.** Existing rows were backfilled; rows whose causer has since gone stay null rather than acquiring a fabricated name.
+- **Notification payload versioning** — `WorkflowTransitioned::PAYLOAD_VERSION = 1`, carried on every event and asserted by test. Bumped only when the meaning of an existing property changes, never when one is added, so a subscriber written against version 1 keeps working.
+- **Time-zone preparation** — `dpc.timezone` (default `Asia/Kolkata`), recorded on every scheduling event. No conversion built. It exists because **a stored `14:00` is meaningless without the zone it was meant in**: when time-zone support is built, events written before it can still be resolved correctly, which would be impossible if the zone had only ever been implicit.
+- **Timeline replay** — a test replays allot → accept → schedule → reschedule and rebuilds both a notification and a calendar entry **without reading a single business table**. What makes this work is that **supersession events record the previous values** (`previous_dpc_date`, `previous_dpc_time`, `previous_allotted_to_name`); without them, reproducing the old-beside-new display would mean walking a `superseded_by_id` chain through business tables — exactly what the timeline is not permitted to depend on. Each event's own UUID lets a replaying integration tell whether it has already emitted that event rather than duplicating it.
+
+- 19 new tests, **359 tests / 1231 assertions passing**. 3 additive columns (54 tables). Pint clean, PHPStan 0 errors, `composer audit` clean, `migrate:fresh --seed` OK.
+- `docs/WORKFLOWS.md` extended with Timeline Replay, Notification Version, Actor Snapshot and Future Time Zone Support, plus entry/exit criteria for every transition.
+- Phase 4 (notification coverage + closeout) not started.
+
+## 2026-08-13 — M6 Phase 2: member acceptance and scheduling
+
+Second slice of M6 (PPT S29–S30). M4 architecture-frozen and M5 engine-frozen; neither touched.
+
+- **`accept` and `schedule` transitions** added to the `dpc_cgpsc` workflow; `reschedule` stays out of config until Phase 3 produces it. **`AllotmentStatus::workflowState()`** now maps status → state, so the CGPSC workflow state remains **derived** rather than stored — tested that nothing about it touches M4's frozen `dpc_proposals`.
+- **`dpc_schedules`** — UUID identifier, **append-only** on the same terms as allotments. `superseded_by_id` and `reschedule_reason` exist from Phase 2 though Phase 2 never populates them: they are the mechanism that makes overwriting impossible, and Phase 3 uses them. Edit and delete both throw at the model layer.
+- **Acceptance & Scheduling screen and Scheduling Report (S30)** with SCHEDULING / DPC DATE / DPC TIME. A Member sees only their own DPCs; the Chairman sees all, since he may allot to himself and remains accountable for the Commission's schedule. Current schedules resolve in one keyed query rather than one per row.
+- **`DpcAllotmentPolicy::act()`** — holding the Member role is not the same as being *this* DPC's member. Enforced at the policy and re-checked in the service, so a console caller is bound too.
+- **Scheduling is not validated against the default DPC date** (architect Decision 4), and a past date is permitted — CGPSC may record a DPC already held. Enforcing either would be inventing a business rule the PPT does not state.
+
+**Cross-cutting directives, implemented across the shared workflow layer so every workflow gets them:**
+
+- **Timeline schema version** — `schema_version` on every timeline row, starting at 1, stamped by `ActivityTimelineService`; existing rows backfilled. Bumped only when the meaning of an existing key changes, never for an added key, so an exporter written against version 1 keeps working.
+- **Workflow transition UUIDs** — `workflow_transitions.uuid`, backfilled and unique. Timeline rows got one too: an export that can be regenerated must identify its rows stably without leaking sequential ids.
+- **Export readiness** — the version-1 timeline schema is documented in `docs/WORKFLOWS.md` §6b. This is why M6 records allottee *names* rather than ids alone, and scheduling records `scheduled_for` as a resolved ISO-8601 instant instead of leaving a consumer to join date and time.
+- **Calendar integration stays decoupled** — no calendar code. `dpc_cgpsc.schedule` already carries everything an ICS entry needs, and `schedule_uuid` is the stable external key so a Phase 3 reschedule supersedes rather than duplicates.
+
+**Two defects found while implementing the directives, both fixed:**
+
+- **Directive 3 was not satisfied by the obvious implementation.** Making the listener queued with `afterCommit` and wrapping its delivery loop was not enough: `WorkflowTransitioned::dispatch()` runs *inside* the workflow transaction, so any listener that throws — a third-party subscriber, a future calendar integration, a misconfigured mailer — escapes the service and **rolls back the completed transition**. A test proved it. Fixed by isolating the dispatch in `WorkflowEngine::record()`, where the ledger and timeline rows are already written and a failure degrades to a logged warning. The guarantee now holds at three layers, and a test asserts a throwing listener cannot prevent a transition completing. This is also what will stop the future calendar integration from being able to break a DPC schedule.
+- **`dpc_time` read differently per database.** MySQL's `TIME` column returns `H:i:s`; SQLite returns the stored string. A schedule written as `14:00` therefore read back differently in test and production — and a time that varies by driver cannot be reliably compared, exported, or handed to a calendar. Normalised to `H:i:s` on write.
+
+- 23 new tests, **340 tests / 1160 assertions passing**. 1 new table + 3 additive columns (54 total). Pint clean, PHPStan 0 errors, `composer audit` clean, `migrate:fresh --seed` OK.
+- Phase 3 (re-scheduling, and re-allotment/re-scheduling history shown old-beside-new as S30 does) not started.
+
+## 2026-08-13 — M6 Phase 1: CGPSC allotment — workflow, allotment report, history
+
+First slice of M6 (PPT S27–S28). M4 architecture-frozen and M5 engine-frozen; neither touched.
+
+- **`dpc_cgpsc` workflow** — runs on the `DpcProposal` as subject under its own workflow name, so CGPSC-side state sits alongside the `dpc_proposal` workflow **without touching M4's frozen status enum**. The state is *derived* from the current allotment, never duplicated onto `dpc_proposals`, because two sources of truth can disagree. Only `allot` and `reallot` are declared; `accept`/`schedule`/`reschedule` are documented in `docs/WORKFLOWS.md` as the approved design but stay out of config until Phase 2 produces them.
+- **`dpc_allotments`** — UUID public identifier, **append-only**. Re-allotting writes a new row and marks the previous one superseded via `superseded_by_id`; the model rejects every other update and rejects deletion outright, enforced at the model layer so the guarantee survives any caller.
+- **Chairman allotment screen and Allotment Report (S28)** — allot inline, re-allot behind a disclosure with a mandatory reason, and the report showing **STATUS** and **DEFAULT DPC DATE** exactly as the slide does. All current allotments are resolved in one keyed query rather than one per row — the report is a list, and an N+1 there would grow with the Commission's workload.
+- **Allotment history rendered purely from timeline records** (architect Directive 3). `historyFromTimeline()` touches no allotment row, so if the timeline could not answer the question it would visibly fail rather than quietly fall back to current state. A test reconstructs a two-step history — including who the DPC was taken *from* — without reading the table.
+- **Decisions applied:** members resolved dynamically from the role, not limited to five (tested with seven extra members); **default DPC date is manual Chairman input, never derived**, and kept optional because requiring it would itself be an invented rule; no member-decline transition — re-allotment is the Chairman's remedy; scheduling validation deferred to Phase 2 as informational.
+- **`DpcAllotmentPolicy` is the first policy in the project with no department check** — deliberately. CGPSC users hold no department; a DPC reaches CGPSC precisely by leaving its department's control. The compensating control is that the role gate is applied at both middleware and policy, and tested from the department side.
+
+**Shared-infrastructure change, flagged rather than buried.** Implementing the notification decision exposed that `SendWorkflowNotification` resolves recipients as *"users holding role X within the subject's department"* — which **can never reach a CGPSC Chairman or Member**, since they hold no department. No configuration could fix it: a role cannot express "this specific member". Three **additive** changes were made, all optional-parameter defaults so every existing M3/M4 caller behaves exactly as before: `WorkflowTransitioned` gained `notifyUserIds`; `SendWorkflowNotification` now resolves department-roles **or** named users; and `WorkflowEngine::record()` gained `$properties` and `$notifyUserIds`. The `$properties` addition is what makes Directive 3 achievable at all — the engine previously wrote a timeline entry containing only from/to/remarks, from which you could not tell *who* a DPC was allotted to.
+
+- Re-allotment notifies the **outgoing** member as well as the new one — they may already have been preparing for a DPC that is no longer theirs.
+- **`docs/WORKFLOWS.md` created** as directed: state diagrams, allowed transitions, role matrix, audit events, timeline events, notifications, rate limiting, and the design rules every workflow follows.
+- 26 new tests, **317 tests / 1090 assertions passing**. 1 new table (53 total). Pint clean, PHPStan 0 errors, `composer audit` clean, `migrate:fresh --seed` OK.
+- Phase 2 (member acceptance, scheduling, `dpc_schedules`) not started.
+
+## 2026-08-13 — **M5 ENGINE FREEZE announced** · business-decision register · PPT classification
+
+M5 approved and officially complete. Post-approval directives applied. No implementation in this entry — M6 is at design stage, awaiting approval.
+
+**M5 ENGINE FREEZE — in force.** The **Eligibility Algorithm**, **Scoring Algorithm**, **Zone Logic** and **Super Seat Logic** are frozen. Future changes only through **Configuration**, **Master Data**, or **Government Notification** — never source code. Bug fixes and security fixes remain permitted.
+
+Only *approved* rules are frozen: unresolved business rules (BD-1 PUNISHMENT, BD-2/BD-3 reserved relaxation) are explicitly excluded, so settling them changes behaviour through configuration without breaching the freeze. The freeze is enforceable rather than aspirational — every threshold is configuration, each rule set is labelled by `rule_version`, every run stores its own snapshot, 13 golden tests fail if a value moves unintentionally, and `RuleSet::fromSnapshot()` keeps superseded rule sets executable.
+
+**`docs/business/PENDING_BUSINESS_DECISIONS.md` created.** Business questions no longer live in `ARCHITECT_REVIEW.md`, which is now engineering-only. Eight open items, each with severity, what it blocks, what CGPSC must confirm, and what the system does meanwhile — including **BD-1 (does PUNISHMENT disqualify?)**, ruled a business rule and not implemented. Closed items are retained so settled questions are not reopened. `docs/design/06-ambiguities.md` redirects there.
+
+**Every PPT difference is now classified** as Category A (implementation bug — none open), B (documentation difference), C (business clarification — all moved to the register), or D (future milestone).
+
+**Worked-example inventory across all 52 slides** (Directive 1: a PPT worked example becomes a golden test automatically). Worked calculations appear on S17/S18/S24/S25/S33/S34/S38/S40/S43/S44/S48/S51. The M4/M5 ones are golden tested; **S34's MAIN LIST is recorded as a mandatory golden test for M7**, S38–S44 for M8, S48 for M9, S51 for M10 — so no future milestone rediscovers its own answer key the way M5 did. Sample display rows (S9/S11/S15/S16/S22/S23/S28/S30) are classified as UI fixtures, not golden tests, since they illustrate a screen rather than state an arithmetic result.
+
+**M6 (CGPSC Workflow) design submitted for approval** — S26–S30: Chairman allotment and allotment report, member acceptance and scheduling, re-allotment and re-scheduling with history retained old-beside-new, and notifications. Proposed as four phases extending the existing config-driven `WorkflowEngine` rather than adding a mechanism, with allotments and schedules never overwritten and addressed by UUID. Five points raised for ruling first — notably **whether the DEFAULT DPC DATE is derived from the proposal date or typed by the Chairman**, which is the one place M6 could hide a business rule.
+
+## 2026-08-13 — M5 Phase 4: CALCULATE UI — history, lists, Explain Result — **M5 COMPLETE**
+
+Final slice of M5 (PPT S17/S18/S33). The milestone's first UI, so the Demo Readiness checklist applied in full. M4 untouched and still frozen.
+
+- **CALCULATE** wired onto the proposal detail screen — the only addition M5 makes to an M4 screen, presentation only, changing no M4 logic. Deliberately available **after submission**: a calculation writes separate evidence and never touches the proposal, and the Commission calculates when the proposal itself is no longer editable, so gating it on `update` would make the engine unusable at exactly the point it is needed.
+- **Calculation history**, **Main List (मुख्य सूचि) / Waiting List (अनुपूरक सूचि) screens**, an **all-officers table** including those on neither list (an absent name is explained, never silently missing), and **Explain Result** as a page per officer with the narrative, year-by-year marks, score arithmetic and every ground for refusal.
+- **UUID-only addressing** — tests assert the sequential id neither resolves as a route nor appears in rendered markup. Officers within a run are addressed by chart serial number, business data already printed on the PPT.
+- **Rate limiting on CALCULATE**, keyed by user *and* proposal so two officers of the same department cannot throttle each other. Unbounded recalculation would let anyone bury the run the Commission acted on under thousands of near-identical rows.
+- **Provisional runs warn on screen** in both history and detail, so a flagged calculation cannot be mistaken for a final one.
+- `docs/deployment/EVIDENCE-TABLE-PERMISSIONS.md` documents the production database-permission requirement (architect Decision 2). **It flags an operational catch:** revoking `UPDATE` outright would break every calculation, because the run performs exactly one legitimate update (`Draft → Completed`). A column-level grant on `status` is recommended instead — a permission change, not a code change.
+
+**PPT finding — the customer's answer key was found, and it corrects an earlier error.**
+
+Performing the full PPT comparison this phase required turned up **slide 33 with MARK and REMARK filled in** for all ten officers. Earlier reviews of ours recorded that no worked MARK/REMARK existed anywhere; that was true of slide 18 and **false** of slide 33.
+
+- **The engine reproduces 9 of the 10 stated marks exactly**, now pinned by 12 new golden tests.
+- **Three rows independently confirm decisions taken on other grounds.** US4's blank 2014 cell still yields 15, which is only reachable if the window reaches back to 2012 for a fifth *graded* year — the customer's own arithmetic vindicating "five most recent **available** CR years". US3 appears twice, at 14 · NE and then 15 · ST_W once `TRIBAL 2021` is recorded, working §5.2 flipping a verdict. US5 and US9 each score exactly the Class-I threshold of 15 and are still refused, confirming both hard gates.
+- **Two rows diverge (P1).** US2 and US10 both score 15 — agreed — and the slide marks both **NE**. Both carry `PUNISHMENT` in the Note column; no other row does. The engine treats Note as commentary, and §5.3 lists only two hard gates. **Not implemented unilaterally:** adding a rule that refuses officers promotion, on a reading of a slide, against approved and about-to-be-frozen logic, is exactly the change that must not be made without a ruling. Both rows are pinned by test asserting current behaviour with the divergence documented in place. Raised in `docs/ARCHITECT_REVIEW.md`.
+- **Two observations recorded for M9** so it need not rediscover them: US8 is `ST SS CIR` with a property `N`, matching Q12's circulation trigger; US4 is an SC officer shown on the UR waiting list, suggesting reserved-category officers can appear on the unreserved list, which per-category placement would not produce.
+
+- 30 new tests, **291 tests / 1007 assertions passing**. Pint clean, PHPStan 0 errors, `composer audit` clean, `migrate:fresh --seed` OK (52 tables).
+
+**A post-M5 Feature Freeze is drafted for architect announcement** in `docs/ARCHITECT_REVIEW.md`: no changes to the eligibility algorithm, scoring, zone or Super Seat logic; only bug fixes, notification-driven rule-set updates through configuration or master data, and security fixes. The architecture already supports it — every threshold lives in `config/dpc.php → scoring`, each set is labelled by `rule_version`, every run stores its own snapshot, and the golden tests fail if any value moves unintentionally.
+
+## 2026-08-13 — M5 Phase 3: CALCULATE — runs, results, Main/Waiting lists, Explain Result
+
+Third slice of M5 (PPT S33, requirements §5.7). No UI. M4 untouched and still frozen.
+
+- **`DpcCalculationService`** — the orchestrator, and **the only class in the milestone that touches the database**. It exists so the four engines never have to: it loads a proposal, converts it to plain value objects, calls the pure services, ranks, places on lists, and persists. That is how Decision 1's purity requirement survives contact with persistence.
+- **`dpc_calculation_runs`** — **UUID public identifier** with the auto-increment id kept internal (architect directive: a sequential id in a legal document discloses how many calculations exist and invites guessing neighbours). Each run stores the complete rule set it executed under, the officer-data fingerprint, executed-by/at, the zone whole, counts, pending decisions, and **build provenance** (application version, git commit, build timestamp, from new `dpc.application` config). If an engine defect is ever found, those three values are what identify which stored calculations the affected code produced — unanswerable after the fact without them.
+- **`dpc_calculation_results`** — one row per officer **including those on neither list**, so an absent name is explained rather than silently missing. The officer's identity is snapshotted rather than merely joined, so a result stays readable if the proposal data later changes.
+- **Main and Waiting lists (§5.7)** — zone membership by seniority; within the zone §5.5's notional seniority puts Super Seat officers ahead of the field, with actual seniority deciding among them; each category then fills its own vacancies from its own eligible officers, and the remainder go to the waiting (supplementary) list. Remarks follow §6.3: the category code on the main list, `_W`-suffixed on the waiting list, `NE` for the ineligible, `EL` for an eligible officer outside the zone. A test demonstrates a Super Seat officer who is fourth by seniority taking first place ahead of two seniors.
+- **Self-containment (Decision 1)** — a stored run rebuilds its own rules via `$run->ruleSet()`. Tested: changing `dpc.scoring.*` afterwards leaves a stored run's rules and verdicts untouched.
+- **Explain Result (Decision 2)** — `ExplainCalculationService` assembles per-officer and per-run explanations **purely from stored fields**. Nothing is recomputed and no current configuration is read. Tested: the explanation is byte-identical before and after the configuration is changed underneath it. An explanation that recomputed anything would disagree with the result it claims to explain after any rule change, which is worse than no explanation in a service matter.
+- **Immutability** — enforced at the **model** layer for both runs and results: update and delete throw, and a run accepts exactly one update (`Draft → Completed`). Recalculating creates a new run beside the old one; the previous run and its lists are verified intact.
+- **Known limitation, disclosed rather than papered over:** model-layer immutability does not stop a query-builder mass update, which bypasses Eloquent events entirely. No application code path can edit a completed calculation and no developer can do so accidentally — but a developer with database access, or one who deliberately writes a query-builder update, can. Closing it properly requires database triggers or revoked grants, both outside application code and neither directed; raised for architect ruling in `docs/ARCHITECT_REVIEW.md`.
+- **"Proposal Version" interpreted as a content fingerprint** — DPC proposals are not sequentially versioned (a deliberate M4 decision), so there is no version number to store. A SHA-256 of the officer data consumed serves instead: identical fingerprints mean identical input, and a differing one proves the data changed between runs, which is the question a recalculation actually raises. Flagged for confirmation.
+- **Calculation Status** — all four states declared per directive. `Draft` and `Completed` are genuinely produced (a `Draft` run is one whose calculation did not finish); `Cancelled` and `Archived` are declared but not yet reachable, a knowing exception to the project's no-unused-values rule, disclosed in the review.
+- **Q5/Q6 now block publishable output**, as forecast: a run meeting a reserved shortfall completes and records every affected officer and category in `pending_decisions`, but the lists it produces are provisional for those categories.
+- 27 new tests, **259 tests / 873 assertions passing**. 2 new tables (52 total). Pint clean, PHPStan 0 errors, `composer audit` clean, `migrate:fresh --seed` OK.
+- Phase 4 (CALCULATE wiring into the screens — the first UI of this milestone) not started.
+
+## 2026-08-13 — M5 Phase 2: Zone of Consideration, Super Seat, Golden Tests
+
+Second slice of M5 (PPT S17/S33, requirements §5.5–§5.6). No UI. M4 untouched and still frozen.
+
+- **`ZoneOfConsiderationService`** — Class-I→I sizing (1 vacancy → top 5; >1 → 2×vacancies+4), configuration-driven. **The PPT's own printed figure is reproduced exactly:** slide 17's "पदोन्नति हेतु कुल विचार्य संख्या – 2 X 2 + 4 = 8" is the only number on the whole deck checkable without interpretation, and it matches. Class pairs with no configured rule return an **uncapped** zone rather than a very large number — the PPT's "other cases" admits every officer meeting the experience qualification, and "no cap" and "a big cap" are different facts a stored calculation should not blur. A zone larger than the officers available is truncated and says so, so a short list is visibly short through lack of candidates rather than through the formula.
+- **`SuperSeatService`** — all CR years in the scoring window at the top grade → notional (काल्पनिक) seniority, plus §5.5's tie-break by actual seniority. Two judgement calls: the rule is tested on the **grade, not on a total of 20** (the requirements state both, and they agree only while क+ is worth 4 — a golden test revalues it to 9 and confirms the rule still means "an unbroken run of top grades"); and a **short CR window can never qualify**, because three क+ years with two missing is not the same demonstration as five, and a notional promotion ahead of a senior colleague must not rest on absent records. Officers without a serial number sort last deterministically — an unstable sort would make a calculation unreproducible.
+- **RuleSet versioning (architect Directive 1)** — implemented as `RuleSet::fromSnapshot()` rather than as an archive of past rule sets. An archive is a second source of truth that can drift from, or be deleted independently of, the calculations depending on it. Instead **every run stores its own complete rule set**, and `toArray()`/`fromSnapshot()` are exact inverses (asserted by golden test), so a 2026 calculation re-run in 2031 rebuilds the 2026 rules *from the calculation itself*. "Never delete a rule version" is satisfied structurally — there is no registry that could be pruned. An **incomplete snapshot is rejected**, not silently topped up from current configuration, which would produce a calculation claiming to be historical while not being so.
+- **Reserved zone expansion (7×) is BLOCKED** alongside the qualifying-score relaxation — both are part of Q5. The zone is sized by the printed formula and the affected categories are **named**, never expanded. Q5/Q6 now block two rules, not one.
+- **Explain Result (Directive 2)** — every zone and Super Seat outcome carries the `formula` and `explanation` that produced it, built at calculation time from the rules that fired. "8 officers were considered" is not defensible; "2 vacancies × 2 + 4 = 8" is.
+- **Golden test coverage audit** — Decision 4 is now a permanent project rule (every *configurable* business rule needs at least one golden test). All **13** configurable rules are covered, plus two whole-chart assertions: the set of eligible officers, and the set of Super Seat officers (US8 is the only one on slide 18).
+- **Ragged S18 rows** accepted as documentation ambiguity per Decision 5 — natural interpretation retained, ambiguity documented, no business question raised to CGPSC.
+- 33 new tests, **232 tests / 801 assertions passing**. Pint clean, PHPStan 0 errors, `composer audit` clean, `migrate:fresh --seed` OK.
+- Phase 3 (orchestration + calculation-run persistence with UUID identifiers) and Phase 4 (CALCULATE wiring) not started.
+
+## 2026-08-13 — M5 Phase 1: Scoring Engine, Eligibility Engine, Golden Test Suite
+
+First slice of M5 (PPT C4–C6, S33; requirements §5.1–§5.4). No UI, per architect Decision 5. M4 untouched and still frozen.
+
+- **`ScoringService`** — CR grade → marks (क+=4, क=3, ख=2, ग=1, घ=0) over the **five most recent *available*** CR years (architect Decision 1), plus the §5.2 tribal-area bonus. The S18 chart holds six CR columns; the oldest is not scored. A year listed with no grade is **skipped, not scored as zero** — a missing CR means "no assessment on record", which is what a Circulation DPC exists for, and scoring it as zero would silently turn an administrative gap into a failed officer. An unrecognised grade is treated the same way rather than guessed as the worst mark.
+- **`EligibilityService`** — the §5.3 hard gates (any घ in the window; Class-I→I final CR may not be ग) and the §5.4 qualifying scores by class pair. Gates are evaluated in the PPT's order and **every** failure is recorded, not just the first: an officer refused promotion is entitled to all the grounds, and a CAT/HC challenge will ask for them.
+- **`RuleSet`** — an immutable snapshot of the rules in force at calculation time. Nothing in the engine reads `config()` directly; everything reads a RuleSet, because a promotion computed under one government notification must stay explicable years later after the notification changes. `toArray()` is the configuration snapshot every run must persist, and `rule_version` is the label it is explained by.
+- **Both engines are pure** — no database, no clock, no configuration read inside. Same officer plus same RuleSet always yields the same result, which is what makes a stored calculation reproducible.
+- **Reserved relaxation (Q5/Q6) — BLOCKED, per architect Decision 3: do not guess.** The engine applies the printed thresholds, ships with `reserved_relaxation.enabled = false`, and **flags** exactly the officers the unruled rule could have changed the answer for (reserved category, failed *only* on the score, at or above the relaxed floor). They are marked not eligible — the conservative side deliberately, since granting eligibility under an unapproved rule would promote someone the rules may not entitle to it. Four tests pin the boundaries, including that an officer failing a *hard gate* is not flagged, because relaxation is about the score and could not have rescued them.
+- **All rules configuration-driven** (`config/dpc.php → scoring`): marks, scoring window, tribal bonus, gate grades, qualifying scores per class pair, relaxation floor. Nothing hardcoded — asserted by a test that reads the config file. `rule_version` must be bumped whenever a value changes.
+- **13 golden cases transcribed from PPT slide 18**, run against the **shipped configuration** rather than fixtures, so they prove the values the application deploys with reproduce the customer's own document. The two most valuable: **US5 and US9 both score exactly 15 — the Class-I threshold — and both are correctly refused**, one by the घ gate and one by the final-year ग gate. An engine checking only the total would pass them.
+- **PPT finding:** three S18 rows list fewer CR grades than there are year columns (rows 4 and 9 carry five, row 6 carries four, against six columns), and the slide gives no alignment. Row 6 has an incomplete CR window under any reading — the Circulation-DPC condition (Q12) — yet appears as an ordinary row; and for row 9 the alignment decides eligibility, since its final grade is ग. The natural reading (grades are the most recent years) is implemented, and those three rows are asserted **separately** from the seven unambiguous ones so an alignment correction can never be mistaken for an arithmetic regression. Flagged for confirmation with CGPSC.
+- **Business questions registered** in `docs/design/06-ambiguities.md`: **BQ1** (CSC eSign — raw bytes or PDF?), raised per architect directive with no implementation until the specification arrives; **BQ2** (HRMS API contract). Q5/Q6 recorded as blocking M5.
+- 42 new tests, **199 tests / 723 assertions passing**. Pint clean, PHPStan 0 errors, `composer audit` clean, `migrate:fresh --seed` OK.
+- Phases 2–4 (Zone of Consideration + Super Seat; orchestration + calculation-run persistence; CALCULATE wiring) not started.
+
+## 2026-08-13 — Cross-cutting: Feature Flags & Provider Pattern (M4 frozen)
+
+Established before M5 on architect ruling, so every future integration follows one pattern. No M4 business logic changed — configuration, provider registration, and one admin screen, consistent with the M4 freeze.
+
+- **`config/features.php`** — one switchboard for every external integration, each flag documenting its own fallback. `FEATURE_HRMS`, `FEATURE_CSC_DIGISIGN`, `FEATURE_SMS_GATEWAY`, `FEATURE_EMAIL_GATEWAY`, `FEATURE_S3_STORAGE`, `FEATURE_LGD_SYNC` all default **off**; `FEATURE_NOTIFICATIONS` defaults on, being an internal capability rather than an external dependency.
+- **`App\Enums\Feature`** — flags as a type, not strings. Business logic asks `Feature::Hrms->enabled()`, never `config('features.hrms')`: a mistyped config key returns null, which is falsy, so an integration would silently switch off and nothing would fail — the worst failure mode for a mechanism whose job is to be trustworthy. A mistyped enum case is a fatal error. Each case carries its env key and documented fallback, so the admin screen enumerates the cases and a new flag appears automatically.
+- **HRMS provider architecture** — `HrmsProvider` interface, `MockHrmsProvider` (bound while off), `RealHrmsProvider` (production target, unimplemented, throws). The mock never fabricates an employee: a plausible-looking fake officer flowing into a promotion proposal would be far worse than an empty result.
+- **All providers rebound onto flags** — signature, HRMS, SMS, directory. Flags with no implementation yet (SMS gateway, LGD sync) throw a message naming the flag if switched on, so enabling something unbuilt fails immediately instead of degrading silently.
+- **Never mock-sign in production** — enforced at the service layer for both DPC and Pre-DPC approval, keyed on the feature flag (the single switch deciding what is bound; checking anything else could drift out of step with what actually signs). Tested: production + flag off → approval refused, proposal stays submitted, no signature, no DPC ID, no partial state. Counterpart also tested — non-production still signs via mock so UAT stays demonstrable while CSC's API is outstanding.
+- **The entire M4 workflow is tested to run with every integration disabled** — draft through signed approval. That is the guarantee behind "no workflow may fail because an integration is off".
+- **Integration Status screen** (`/admin/integrations`, admin-only, read-only) — every flag, its env key, state, fallback, and which provider each contract actually resolves to right now. Resolution is attempted rather than assumed, so a flag enabled without its provider reports `UNAVAILABLE` with the reason. A flag nobody can see is a flag nobody can trust; before a phased rollout an operator must be able to confirm from the running application that production signs through CSC and not the mock.
+- **Storage disks follow `FEATURE_S3_STORAGE`** in config, so no code decides where a signed document goes.
+- **Superseded config keys removed** — `dpc.signature.provider`, `dpc.sms.driver`, `dpc.directory.provider` chose providers by name, which is now the flag's job. Leaving both would create two switches for one decision on a legally significant path.
+- `docs/integration/HRMS.md` (new) and `docs/integration/CSC-DigiSign.md` (rewritten): provider architecture, enable/disable configuration, integration flow, failure behaviour, future API requirements, production considerations, test coverage.
+- 12 new tests, **157 tests / 596 assertions passing**. Pint clean, PHPStan 0 errors, `composer audit` clean, `migrate:fresh --seed` OK.
+
+**M5 design submitted for approval** in `docs/ARCHITECT_REVIEW.md` — not implemented, per the Design → Review → Approval → Implementation process. Two of its open questions (Q5 reserved relaxation, Q6 relaxation scope) block implementation and need ruling.
+
+## 2026-08-13 — M4 Phase 7: Closeout — **MILESTONE M4 COMPLETE**
+
+Final slice of M4 (PPT S19–S25). Phase-6 decisions and directives applied; the **Demo Readiness Rule** adopted as the completion test. M5 not started.
+
+**Three P1 defects found by applying the Demo Readiness Rule** — all had passed six consecutive green quality gates:
+
+- **An empty proposal could be submitted and signed.** No committee, no officers, no seniority list, no evaluation chart, yet the Administrative Head would be asked to digitally sign it. Fixed by `DpcProposalCompletenessService`: the PPT's S14→S18 sequence is now a completeness check, enforced at the service layer, surfaced to the officer as a readiness panel with a "Complete" link per outstanding section, and named explicitly when submission is refused. Completeness only, never correctness — no scoring, ranking, or eligibility judgement, which stay M5's. **This broke 13 existing tests**, all of which had been submitting incomplete proposals: the suite had encoded the defect as expected behaviour.
+- **The signed document contained only a header.** A single approval covers every section, but the signed artefact was five lines — department, type, posts, date, legal stay. The AH's signature attested to a header while the sections it approved lived only in mutable rows. The document now contains all five sections as they stood at signing, which is what makes the signature useful if a promotion is contested in CAT/HC. Pinned by a test that reads the stored file.
+- **The audit trail had never been tested anywhere in the project.** `config/audit.php` hardcoded `'console' => false`; PHPUnit runs in console, so every audit record in every test since M1 was silently discarded and no assertion about auditing could ever have passed. A government-grade traceability requirement with zero coverage across seven milestones. Made env-driven, enabled in `phpunit.xml`, and asserted for the first time. Stays `false` by default in real environments so seeders do not manufacture audit rows.
+
+**Phase 7 work**
+
+- **Administrative Head review walkthrough (S21–S25)** — five read-only steps mirroring the PPT: Selection of Posts → Committee → Officers Under Consideration → Seniority List → Tabulation Chart, with progress indicator and step navigation. The approve and return actions appear **only on the final step**, which is how the PPT's per-screen APPROVE buttons and the single-approval ruling reconcile: five screens reviewed, one approval, one signature, one transition, one timeline entry.
+- **Section partials extracted** so the proposal detail screen and the review walkthrough share one renderer instead of duplicating five tables. Presentation-only.
+- **DigiSign integration point verified, still unimplemented** per directive: a test proves approval *hard-fails* with the CSC provider selected rather than silently falling back to the mock, leaving the proposal `submitted` with no signature, no DPC ID, and no partial state. A promotion order signed by a development stub would be worse than no signature.
+- `DpcProposalClosureTest` (17 tests) and a `CompletesDpcProposals` test trait.
+
+**Decisions and directives applied**
+
+- **Decision 1** — `composer audit` added to the permanent gate (`composer.json → scripts.gate`), now Pint → PHPStan → audit → PHPUnit, plus a standalone `composer audit:security`.
+- **Decision 2** — Excel template export not implemented; moved to the M11 Enhancement Backlog.
+- **Decision 3** — import batches retained permanently; now tested that committing deletes no evidence.
+- **Directive 1** — the CSV error report is now **persisted at validation time** rather than rendered on demand, so the officer downloads the same artefact the batch was judged against even if validation rules change later. Original file and import log were already retained.
+- **Directive 2** — SHA-256 `file_hash` on every upload (indexed), taken before storing. Drives duplicate detection (earlier identical uploads named on the preview screen), integrity verification (a tampered stored file is flagged), and evidence.
+- **Directive 3** — prepared for a future `Expired` status without stubbing it: no unused enum case was added, since a case with no transition into it would be dead code on a demoed screen. The column has room, `isCommittable()` allows only `Previewed` so an expired batch is refused by default, and `isTerminal()` is the single place terminality is declared.
+- 1 additive migration (50 tables). 22 new tests, **145 tests / 516 assertions passing** overall. Pint clean, PHPStan 0 errors, `composer audit` clean, `migrate:fresh --seed` OK.
+
+**M4 is complete.** Full PPT comparison of S12–S25 recorded in `docs/ARCHITECT_REVIEW.md`; no unexplained divergence remains. M5 (Scoring & Eligibility Engine) is next and has its complete input: raw per-year CR grades, loyalty and property flags, tribal-area service years, seniority order, vacancy counts by category, and class levels — with no calculation performed anywhere in M4.
+
+## 2026-08-13 — M4 Phase 6: Excel Import (+ Phase 5 decisions applied)
+
+Sixth slice of M4 (PPT S16–S18 upload templates). Architect Decisions 1–5 from the Phase 5 review applied; Phase 7 not started.
+
+**Phase 5 decisions applied**
+
+- **Decision 1** — Loyalty stays per-year. No change.
+- **Decision 2** — `dpc_working_officers.date_of_posting_on_post` **not** renamed; schema stability preferred over naming consistency. Documented in the model docblock instead, per the ruling.
+- **Decision 3** — new `config('dpc.limits')` bounds every officer array from configuration (committee 50, vacancy rows 200, working officers / seniority entries / evaluation rows 500) rather than relying on PHP's `max_input_vars` default. Phase 5's `dpc.evaluation.max_rows` moved into this block so section limits live in one place; no behaviour change. Import files are bounded by the same numbers, so an upload cannot smuggle in a larger write than manual entry allows.
+- **Decision 4** — `saveWorkingOfficers()`, `saveSeniorityEntries()`, and `saveEvaluationRows()` now each record one ActivityTimeline entry per save, via a shared helper, matching the Committee pattern from Phase 2. The actor argument is optional: `ActivityTimelineService` already falls back to the authenticated user, so the ruling was applied without churning existing call sites.
+- **Decision 5** — `tribal_area_service_years` stays a count of years. No calendar-year column added.
+
+**Excel import**
+
+- **`DpcRowRules`** — validation rules extracted into one shared definition per section. The three manual-entry Form Requests and the importer now validate against the same rule sets, so neither path can drift (architect directive: never duplicate business logic). Mechanical extraction, no behaviour change — the existing Phase 3–5 tests passed unchanged throughout.
+- **`import_batches` + `import_rows`** — the staged pipeline the directive calls for: **Preview → Validation → Error Report → Commit**. An upload is parsed, mapped, and validated into staged rows and writes *nothing*; only an explicit commit of a previewed batch reaches the proposal, and it does so by calling the existing `DpcProposalService` save methods. Batches are retained after commit — for a promotion contested in CAT/HC, "which file produced this list, uploaded by whom, confirmed by whom, and what was rejected" is part of the record.
+- **`ImportTemplate` enum** — the single place mapping each PPT template to its column headers, rule set, and target section. Accepts both the PPT's own headers (`NAME OF US`, `DATE OF POSTING ON US`, `QUAL`, `CAT`, `DOP`) and this system's field names, so a file exported from the portal re-imports unedited. Column order is irrelevant; unrecognised columns are ignored.
+- **Day-first date parsing.** The PPT tables use `DD-MM-YYYY`, so that is tried first and the parse is round-tripped to reject near-misses. Without it, `01-02-2012` would silently import as 2 January rather than 1 February — a plausible-looking corruption of dates that feed M5's eligibility calculations. Pinned by test.
+- **Category resolved by code**, not id — a department filling a spreadsheet has no access to primary keys. An unknown code rejects that row with the code quoted back. **Per-row rejection**, so one bad cell never blocks the rest of the file.
+- **S18 per-year columns matched by pattern** (`CR 2016`, `LOYALTY 2017`, `IMMOVABLE PROPERTY 2013`), since the year set varies by proposal and differs between CR and Property on slide 18.
+- **Security:** upload type/size gated by config (detected type, not the client-supplied filename); files stored on a private disk under a per-proposal path; import inherits the proposal's ownership and DRAFT/RETURNED-only rules at three layers; only a `Previewed` batch is committable, so double-commit and commit-after-cancel are refused. The **error report is escaped against CSV/formula injection** — it echoes untrusted spreadsheet content into a file opened in Excel, so cells starting `=`, `+`, `-`, `@`, tab or CR are defanged with a leading quote. Tested with a `=cmd|/c calc!A1` payload.
+- **Dependency advisories found and fixed:** installing `maatwebsite/excel` surfaced 6 advisories (4 high, 2 medium) against `league/commonmark` 2.8.3, a transitive framework dependency — DoS and filter-bypass classes, all fixed upstream in 2.9.0. Upgraded to 2.10.0; `composer audit` now clean. Pre-existing, not introduced by this phase. Adding `composer audit` to the quality gate is recommended in `docs/ARCHITECT_REVIEW.md`.
+- 2 new tables (50 total). 16 new tests, **124 tests / 428 assertions passing** overall. Pint clean, PHPStan (Larastan level 6) 0 errors, `composer audit` clean, `migrate:fresh --seed` OK.
+- Phase 7 (M4 closeout) remains.
+
+## 2026-08-13 — M4 Phase 5: Evaluation / Tabulation Chart
+
+Fifth slice of M4 (PPT S18), plus the approved Phase 4 field and all four additional architect directives. Phase 6+ not started.
+
+- **`dpc_evaluation_rows`** — one row per officer on the tabulation chart: the standard ten-field employee snapshot, plus `tribal_area_service_years` and `note`. Same discipline as Phases 3–4: plain columns, no live employee/HRMS reference, `reservation_category_id` the only FK (to the M2 master).
+- **Per-year child tables** (decision Q4): `dpc_evaluation_cr_grades`, `dpc_evaluation_loyalty_flags`, `dpc_evaluation_property_flags`, each unique on (row, year) and cascade-deleted from the parent. All three value columns are nullable so "recorded as No" stays distinct from "not recorded" — the distinction the Circulation-DPC rule (Q12) turns on, and the reason a partial chart is accepted rather than rejected.
+- **No calculations** (directive 2): no mark, remark, score, total, service-year, experience, or zone column exists. Asserted by a test against the persisted column list, so a later phase cannot quietly add one. MARK and REMARK are blank on the PPT mockup too — CALCULATE-time outputs owned by M5.
+- **PPT comparison caught a blocker.** Slide 18 was extracted from the PPTX directly rather than read from the requirements summary: the chart carries **six** year-wise CR columns (2012–2017), not the five the scoring rule (§5.4) sums. The initial five-year entry cap would have rejected the PPT's own worked example. The five-year window is a scoring rule, not a data-entry limit — default raised to six and pinned with a test that saves S18 row 1 verbatim. A second finding (slide 18 shows Loyalty as a single column, while Q4 rules it per-year) is implemented per Q4 and flagged for the architect in `docs/ARCHITECT_REVIEW.md`.
+- **`date_of_posting_on_feeder_post` added to `dpc_seniority_entries`** (PPT S17/S24) — the approved field from the Phase 4 review. Nullable, additive, manual entry, HRMS-import compatible.
+- **Employee snapshot tables standardized** (directive 1): `dpc_working_officers` gained `employee_number`, `current_post`, `feeder_post`, `date_of_posting_on_feeder_post`; `dpc_seniority_entries` gained `date_of_posting_on_current_post`. All three snapshot tables now carry the identical ten fields. Strictly additive — no approved column renamed, retyped, or dropped, which is why working officers keeps the Phase 3 name `date_of_posting_on_post` for the concept the other two call `date_of_posting_on_current_post` (rename flagged for approval).
+- **Proposal Detail eager loading** (directive 4): all officer sections and the three per-year tables are eager loaded. `DpcProposalDetailPerformanceTest` renders the screen with 2 officers and with 25 and asserts the query count is identical — a flat curve rather than a fixed budget, since a fixed number breaks on unrelated framework changes.
+- **XSS regression pinned:** the entry screen seeds saved rows into a `<script>` block. Verified `@json` compiles to `json_encode($v, 15, 512)` (`JSON_HEX_TAG` hex-escapes `<`), and a test stores a `</script><script>` payload as an officer name and asserts it is never emitted raw on either screen.
+- Evaluation reference values (CR grade codes, max CR years, year bound, note codes, row cap) are config-driven per Q3 in `config/dpc.php → evaluation`. The grade→mark mapping and all thresholds are deliberately absent — M5 owns them.
+- 4 new tables (48 total). 18 new tests, **108 tests / 368 assertions passing** overall. Pint clean, PHPStan (Larastan level 6) 0 errors, `migrate:fresh --seed` OK.
+- Excel import remains Phase 6; Phase 7 closes M4.
+
+## 2026-08-13 — Roadmap: UAT Readiness Review milestone inserted
+
+Approved (Option A): `docs/design/05-milestones.md` now has a **UAT Readiness Review** checkpoint between M6 (CGPSC Workflow) and M7 (DPC Proceeding & Results) — the full proposal → evaluation → allotment pipeline demoed to business users before the higher-stakes proceeding/legal-output work begins. M4's internal phasing (Seniority List and Evaluation Chart stay as M4 Phases 4–5) is unchanged. CSC DigiSign remains a cross-cutting integration built incrementally at each approval point, not a standalone milestone. Review DPC (M8), Circulation DPC (M9), and Self-Inspection (M10) are retained as-is.
+
+## 2026-08-13 — M4 Phase 4: Seniority List
+
+Fourth slice of M4 (PPT S17). All 4 architect directives applied exactly; Phase 5+ not started.
+
+- **`dpc_seniority_entries`** — a proposal-time snapshot per directive: seniority number, employee number, name, DOB, qualification, current post, feeder post, date of joining, all plain columns; `reservation_category_id` is the one FK, pointing at the M2 master (config data, not "live employee data"). No live employee/HRMS reference anywhere on the table, so a historical proposal can never change because upstream HR data changes later.
+- **No CALCULATE button** (directive 3) — this phase only stores data; the zone-of-consideration computation (e.g. the PPT's worked "2×2+4=8") is explicitly M5's Eligibility Engine, not implemented here.
+- **Same two-layer immutability + shared-service-layer pattern as Phase 3** (directive 4): `saveSeniorityEntries(DpcProposal, array $entries)` takes a plain array (ready for Phase 6's Excel importer to call directly) and is guarded by the same `assertEditable()` Service-layer check, on top of the existing Policy gate.
+- 1 new table (`dpc_seniority_entries`; 44 total). 5 new tests (`DpcSeniorityListTest`), 90 tests / 286 assertions passing overall. Pint clean, PHPStan (Larastan level 6) 0 errors, `migrate:fresh --seed` OK.
+- Evaluation chart and Excel import remain Phases 5–6.
+
+## 2026-08-13 — M4 Phase 3: Working Officers + Vacancy breakdown
+
+Third slice of M4 (PPT S16). All 5 architect directives applied exactly; Phase 4+ not started.
+
+- **`dpc_vacancies`** — strictly row-based per directive: one row per (`vacancy_type_id`, `reservation_category_id`) pair with a `count`, never separate columns per vacancy type. Both FKs reference the M2 masters; nothing hardcoded. A DB unique constraint plus a Form Request cross-check both prevent a duplicate pair.
+- **`dpc_working_officers`** — a proposal-time snapshot per directive: plain columns (name/DOB/qualification/dates/roster position), no live FK to any employee/HRMS record — this system has no such source to begin with, and the schema is built so it never could silently drift even if one existed.
+- **`sanctioned_post_count`** added to `dpc_proposals` (captured on this same S16 screen, not S14 — moved here after re-reading the mockup during Phase 1 planning).
+- **Immutability, enforced at two layers:** the existing `update` Policy ability already blocked non-DRAFT/RETURNED edits at the HTTP layer; added a matching `DpcProposalService::assertEditable()` guard at the **Service** layer too (directive: never trust only the HTTP layer), and backfilled the same guard onto `updateDraft()` and `saveCommittee()` for consistency — a defense-in-depth gap from Phases 1–2, closed here. Verified directly: a test calls the service method itself, bypassing HTTP/Policy entirely, and confirms it still refuses to mutate a submitted proposal.
+- **Shared service layer for manual entry and future Excel import** (directive): `saveWorkingOfficers(DpcProposal, array $officers)` takes a plain array — the same shape a Phase 6 `ExcelImportService` will produce from a parsed upload — so Phase 6 calls this exact method rather than duplicating persistence logic.
+- 2 new tables (`dpc_vacancies`, `dpc_working_officers`; 43 total). 6 new tests (`DpcWorkingOfficersTest`), 85 tests / 274 assertions passing overall. Pint clean, PHPStan (Larastan level 6) 0 errors, `migrate:fresh --seed` OK.
+- Seniority list, evaluation chart, and Excel import remain Phases 4–6.
+
+## 2026-08-13 — M4 Phase 2: DPC Committee
+
+Second slice of M4 (PPT S15). Design directives from the architect applied exactly; Phase 3+ not started.
+
+- **`DpcCommitteeMember`** (`dpc_committee_members`) — references an existing application `User` wherever possible; external (non-user) members are an optional manual-entry fallback (`user_id` null). When linked to a user, name/designation/mobile/email are **denormalized server-side from that user's own record**, never trusted from client input — closes a spoofing angle (a client can't pair a real `user_id` with a fake display name). A row snapshot either way, so a proposal's historical committee record doesn't silently change if a user's profile is edited later.
+- **Validation, entirely server-side** (`SaveDpcCommitteeRequest`): exactly one Chairman; no user appears twice; no two members share a mobile number; committee size must fall within the active `CommitteeConfiguration`'s min/max; external members rejected outright if that configuration's `external_member_allowed` flag is off. All 6 rules have a dedicated test.
+- **Seeded default committee configuration** (`CommitteeMasterSeeder`): `CommitteeType('dpc_committee')` + `CommitteeConfiguration` (chairman mandatory, min 1, max 5, external members allowed) — admin-editable via the existing M2 screen, not hardcoded. `voting_method`/`majority_type`/`tie_break_rule`/`quorum` are seeded with clearly-flagged placeholder values (required columns, but voting/quorum logic belongs to the M7 Proceeding milestone, which the PPT describes as single-conductor, not multi-member voting per decision Q16).
+- **CSC DigiSign schema preparation** (architect directive): `signature_status`/`signed_at`/`signature_reference` columns added to `dpc_committee_members`, reusing the existing `SignatureStatus` enum for typing. Unused — no signing logic in this phase.
+- **Audit + timeline, verified not assumed:** `DpcCommitteeMember` is `Auditable` (owen-it) — every add/remove is its own audit row (individual `create()` calls per member, not a bulk insert, specifically so each one passes through Eloquent's event system); one `ActivityTimeline` entry per committee save action. Both directly asserted in tests.
+- 1 new table (`dpc_committee_members`; 41 total). 8 new tests (`DpcCommitteeTest`), 79 tests / 259 assertions passing overall. Pint clean, PHPStan (Larastan level 6) 0 errors, `migrate:fresh --seed` OK.
+
+## 2026-08-13 — M4 Phase 1: DPC Proposal aggregate + Post Selection
+
+First slice of M4 (PPT S12–S25). Design approved in `docs/ARCHITECT_REVIEW.md` before any code was written; implemented exactly Phase 1 scope, nothing further.
+
+- **Aggregate:** `DpcProposal` (`app/Domain/Dpc`) — unlike Pre-DPC, not versioned (a department has many proposals over time, not one evolving baseline). Reuses the M3 `WorkflowEngine` unchanged: DRAFT→SUBMITTED→APPROVED, RETURNED loop, CANCELLED terminal, config-driven via `config('dpc.workflows.dpc_proposal')`.
+- **Single approval, by design:** one `approve` transition covers AH review of the whole proposal — one `SignatureService` call, one `WorkflowTransition` row, one `ActivityTimeline` entry, one audit event. Verified directly in `tests/Feature/Dpc/DpcProposalWorkflowTest.php`.
+- **Post selection (S14):** post-to/post-from reuse the `cadres` master (M2/M3) instead of free text — class I/II/III is read from the cadre, closing the divergence risk flagged in the previous review. DPC type restricted to `fresh` for now (Review/Circulation shown per the mockup but disabled — they open in M8/M9 on this same aggregate).
+- **DPC ID generation:** `DpcIdGeneratorService`, format `<DeptCode><Year><Serial>` (PPT S28/S32/S37), race-safe via a locked per-department-per-year sequence table (`dpc_id_sequences`) — assigned atomically inside the same transaction as approval, along with `forwarded_at`.
+- **Policies introduced:** `DpcProposalPolicy` — the architecture ruling to use Laravel Policies from M4 onward (M1–M3 used `role:` middleware + inline checks only). Closes an IDOR/BOLA gap: cross-department view/edit is now policy-denied and tested, and cadre selection is scoped to the acting user's department at the Form Request layer.
+- **Hardening carried into the new code (not retrofitted onto M3):** every transition re-fetches the proposal row with `lockForUpdate()` before checking status, closing a narrow double-submit/double-approve race.
+- 2 new tables (`dpc_proposals`, `dpc_id_sequences`; 40 total). 10 new tests (`DpcProposalWorkflowTest`), 71 tests / 237 assertions passing overall. Pint clean, PHPStan (Larastan level 6) 0 errors, `migrate:fresh --seed` OK.
+- Committee, working officers, seniority list, evaluation chart, and Excel import are **not** in this phase — Phases 2–6, per the approved plan in `docs/ARCHITECT_REVIEW.md`.
+
+## 2026-08-13 — Documentation audit, cleanup & security hardening
+
+- Audited every Markdown document in the repo against the PPTs; produced `docs/project-documentation-audit.md`, `docs/PROJECT_PROGRESS.md`, `docs/PROJECT_STATUS.md`.
+- Found and restored 7 milestone worklog files (M0–M2) that had been silently deleted by the M3 commit; archived them (and other superseded pre-reset planning docs, including the two pre-reset `.docx` files) to `docs/archive/`. Removed 3 empty, untracked leftover directories (`docs/api/`, `docs/architecture/`, `docs/requirements/`).
+- **Security (P0):** added Laravel `RateLimiter` brute-force protection on `POST /login` and `POST /verify` (config-driven via `config/dpc.php → rate_limiting`, default 5 attempts/minute, keyed per identifier+IP so one account's lockout doesn't affect others). Covers Login and OTP Verify; self-service Forgot Password / Password Reset do not exist in the app yet (no such screen in the PPT) — flagged as a decision in `docs/ARCHITECT_REVIEW.md` rather than built silently.
+- Replaced the stock Laravel `README.md` with a project-specific one.
+- Established the standing production-execution doctrine (module completeness bar, mandatory security/VAPT/performance review, quality gate, `docs/ARCHITECT_REVIEW.md` format) — see that file for the current pending decisions.
+- Quality gate: Pint clean, PHPStan (Larastan level 6) 0 errors, 61 tests / 203 assertions passing (added `tests/Feature/Auth/RateLimitingTest.php`, 2 tests).
+
+## 2026-07-30 — M3: Pre-DPC Proposal workflow
+
+First workflow milestone (PPT S7–S11). Reusable config-driven workflow engine (`app/Domain/Shared/Workflow`); Pre-DPC aggregate with versioning (DRAFT→SUBMITTED→APPROVED, RETURNED loop, CANCELLED); signature-gated AH approval; approval projects into the Cadre + Recruitment Rule masters. 59 tests / 185 assertions passing. Full detail: `docs/archive/worklog/` is not applicable (M3 worklog stays live in `docs/worklog/`) — see `docs/worklog/2026-07-30-milestone-3-review.md`.
+
+## 2026-07-30 — M2: Master data & user management
+
+15 master/lookup models (districts, designations, pay scales, cadres, reservation hierarchy, committee types/configuration, versioned recruitment rules) with lifecycle status, soft deletes, audit columns; CGPSC Admin role + user provisioning (Chairman/Member/Admin accounts). Government reservation percentages deliberately left unseeded (commit `a90ea0c`) — admin-configured, never hardcoded. 52 tests / 156 assertions passing. Full detail: `docs/archive/worklog/2026-07-30-milestone-2-review.md`.
+
+## 2026-07-30 — M1: Auth, RBAC, registration, OTP, audit
+
+RBAC via `spatie/laravel-permission` (6 roles); audit trail via `owen-it/laravel-auditing`; department registration (two-tier AO/AH accounts, PPT S5–S6); dual-channel (email+mobile) OTP verification; login by email or mobile; e-sign foundation (`SignatureService`). Decision Q1 (email/mobile+password+OTP replacing the PPT's Aadhaar mechanism) and Q2 (CGPSC Admin role, not in the PPT) ruled here. 19 tests / 58 assertions passing. Full detail: `docs/archive/worklog/2026-07-30-milestone-1-review.md`.
+
+## 2026-07-30 — M0: Project foundation
+
+Laravel 13.23.0 scaffold on the approved stack (PHP 8.4, MySQL, Redis for cache/queue/sessions, Bootstrap 5.3 vendored, no Node/Vite). Bilingual (EN/HI) shell; `/health` endpoint; Pint + Larastan (level 6) + PHPUnit quality gate established. 6 tests / 11 assertions passing. Full detail: `docs/archive/worklog/2026-07-30-milestone-0-foundation.md`.
+
+## 2026-07-29/30 — Project reset
+
+All prior Node.js/React/Express/Prisma direction discarded; restarted on Laravel, with the two source PPTs as the sole authoritative requirements input. Superseded pre-reset planning (`technical-proposal.md`, `screen-specs.md`) archived to `docs/archive/`.

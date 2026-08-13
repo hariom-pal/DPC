@@ -1,58 +1,67 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# ODPC Portal — Online Departmental Promotion Committee Management System
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+A Laravel application for the Chhattisgarh Public Service Commission (CGPSC) that digitizes the Departmental Promotion Committee (DPC) process end to end: department registration → Pre-DPC proposal → detailed DPC proposal → CGPSC allotment → scheduling → online DPC proceeding → result (main + waiting list) → approval, plus Review DPC, Circulation DPC, and Self-Inspection.
 
-## About Laravel
+**This is a government system.** Its outputs (promotion orders) can be legally contested. Correctness, auditability, and security take priority over speed of delivery — see `docs/ARCHITECT_REVIEW.md` for the standing engineering doctrine.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Source of truth
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+Business requirements come **only** from:
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+1. `docs/ODPC_NEW_FINAL.pptx` (52 slides)
+2. `docs/CONVENTIONAL DPC PROCESS.pptx` (7 slides — scoring/eligibility rules)
 
-## Learning Laravel
+Everything under `docs/design/` is derived from these two decks; on any conflict, the PPTs win. `docs/archive/` holds superseded pre-reset planning documents, kept for historical traceability only — do not implement from them.
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+## Where to start
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+| I want to... | Read |
+|---|---|
+| Know current project status at a glance | `docs/PROJECT_STATUS.md` |
+| See what's built vs. what the PPT requires, module by module | `docs/PROJECT_PROGRESS.md` |
+| See the current handover, decisions and review findings | `docs/ARCHITECT_REVIEW.md` |
+| See known limitations, deferred items and resolved defects | `docs/TECHNICAL_DEBT.md` |
+| Understand a workflow, its states and who may act | `docs/WORKFLOWS.md` |
+| Consume a workflow event, or build an integration against one | `docs/EVENT_CATALOG.md` |
+| Know which external systems connect, and what is switched on | `docs/INTEGRATION_ROADMAP.md` |
+| Run user acceptance testing | `docs/UAT_CHECKLIST.md` |
+| Demonstrate the system to the customer | `docs/DEMO_SCRIPT.md` |
+| Understand the requirements/design baseline | `docs/design/01-requirements.md` … `06-ambiguities.md` |
+| See what changed release over release | `docs/CHANGELOG.md` |
+| Know which business rules are still unsettled | `docs/business/PENDING_BUSINESS_DECISIONS.md` |
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+These eleven documents — this README plus the ten under `docs/` above — are **mandatory and kept synchronized**. Anything else under `docs/` is supporting detail.
 
-## Agentic Development
+## Milestone state
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+M0–M6 are complete. **M4 (DPC Proposal), M5 (Scoring & Eligibility Engine) and M6 (CGPSC Workflow) are frozen** — bug fixes, security fixes and hardening only; no new features, workflow changes or schema changes. M5's freeze covers only *approved* rules, so the unresolved business decisions can still be settled through configuration. M7 has not started. Current status and the exact freeze terms: `docs/PROJECT_STATUS.md`.
+
+## Stack
+
+PHP 8.4 · Laravel 13 · MySQL · Redis (cache, queue, sessions) · Blade + Bootstrap 5.3 (vendored, no Node/Vite build step) · AWS EC2 + S3 in production. Architecture: thin controllers → Domain Services (`app/Domain/*`) → Eloquent models, config-driven business rules (`config/dpc.php` + master-data tables — never hardcoded), Provider abstractions for every external integration (`app/Integrations/*`).
+
+## Local setup
 
 ```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+composer setup      # composer install, .env, app key, migrate
+php artisan db:seed # seed roles, masters, admin account
+php artisan serve
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+Requires a running MySQL (`dpc_dev` by default — see `.env.example`) and Redis instance; both are load-bearing (sessions, cache, and queue all run on Redis).
+
+## Quality gate
+
+Every milestone must pass this before being considered complete — see `docs/ARCHITECT_REVIEW.md` for the full production-readiness bar (security/VAPT/performance review, not just these checks):
+
+```bash
+composer gate   # Pint --test · PHPStan (Larastan level 6) · composer audit · config:clear · php artisan test
+```
+
+Individually: `composer pint` (auto-fix), `composer pint:test` (check only), `composer stan` (PHPStan), `composer audit:security`, `composer test` (PHPUnit). `php artisan migrate:fresh --seed` must also succeed before a milestone closes.
+
+**CI note:** `composer audit` reaches packagist over the network and has been observed to fail with `curl error 28` on an otherwise clean tree. Retry that step in CI, or a build will fail in a way that looks like a security gate failing (`TD-2`).
 
 ## Contributing
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
-
-## Code of Conduct
-
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
-
-## Security Vulnerabilities
-
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
-
-## License
-
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+Follow the architecture and conventions in `docs/design/04-laravel-architecture-and-structure.md`: no business logic in controllers or Blade, all validation in Form Requests, all business logic in Domain Services, external systems behind a Provider contract, no hardcoded business values. Do not add screens or workflow not present in the two source PPTs without an explicit, recorded architect decision (`docs/ARCHITECT_REVIEW.md`).

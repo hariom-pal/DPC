@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
             LookupMasterSeeder::class,
             DepartmentMasterSeeder::class,
             CadreSeeder::class,
+            CommitteeMasterSeeder::class,
             AdminUserSeeder::class,
         ]);
     }

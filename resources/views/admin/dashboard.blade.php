@@ -23,5 +23,13 @@
                 </div>
             </div>
         </div>
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <h2 class="h6 mb-1"><a href="{{ route('admin.integrations') }}" class="stretched-link text-decoration-none">Integration Status</a></h2>
+                    <p class="text-muted small mb-0">Which external integrations are enabled, which provider is bound, and what happens while each is off.</p>
+                </div>
+            </div>
+        </div>
     </div>
 @endsection

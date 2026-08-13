@@ -1,0 +1,420 @@
+# DPC Project — Progress Report
+
+**Date:** 2026-08-13
+**Source of truth:** `docs/ODPC_NEW_FINAL.pptx` (52 slides, `S<n>`) and `docs/CONVENTIONAL DPC PROCESS.pptx` (7 slides, `C<n>`). Cross-checked against `docs/design/*.md`, git history, and the live codebase.
+**Stack:** PHP 8.4 / Laravel 13.23.0 / MySQL / Redis (cache+queue+sessions) / Blade + Bootstrap 5.3. No Node/Vite build step. Architecture: thin controllers → Domain Services → Eloquent models, under `app/Domain/{Authentication,Department,Dpc,Import,Master,PreDpc,Shared,Signature,UserManagement}` + `app/Integrations`. **All external integrations are behind `FEATURE_*` flags (default off) and the Provider Pattern** — business logic never calls an external system directly; only Providers may.
+**Verified today:** `composer test` → 368 passed / 1281 assertions, 0 failing. `vendor/bin/pint --test` → passed. `vendor/bin/phpstan analyse` (Larastan level 6) → 0 errors. `composer audit` → no advisories. `php artisan migrate:fresh --seed` schema → 54 tables live in `dpc_dev`. All four gate steps are now mandatory per phase (`composer gate`).
+
+**M5 ENGINE FREEZE (2026-08-13):** the Eligibility Algorithm, Scoring Algorithm, Zone Logic and Super Seat Logic are frozen. Future changes only through Configuration, Master Data or Government Notification — never source code; bug and security fixes remain permitted. Only *approved* rules are frozen — unresolved business rules are excluded and are tracked in `docs/business/PENDING_BUSINESS_DECISIONS.md`.
+
+**M6 FREEZE (2026-08-13):** M6 (CGPSC Workflow) is frozen on closure — no further functional changes; **bug fixes only**. All three completed workflow milestones are now under freeze: M4 architecture-frozen, M5 engine-frozen, M6 frozen.
+
+**Known limitations now have a permanent home: `docs/TECHNICAL_DEBT.md`** (created 2026-08-13). `docs/ARCHITECT_REVIEW.md` is replaced in full at each phase, so a carried-forward risk previously survived only by being manually re-copied. Items move to Resolved rather than being deleted. Currently 14 open engineering items, 2 blocking business items, 7 documented interpretations, 8 resolved.
+
+**UAT documentation set (2026-08-13, documentation only):** `docs/INTEGRATION_ROADMAP.md` (every integration with its flag, provider, events, dependencies and status), `docs/UAT_CHECKLIST.md` (~60 business-language scenarios, one expected outcome each), `docs/DEMO_SCRIPT.md` (Parts 0–9 following the PPT, with a 15-minute short version). The **UAT Readiness Review** is prepared in `docs/ARCHITECT_REVIEW.md` and awaits approval; **M7 has not begun.**
+
+**Updated 2026-08-13 (post-approval):** documentation cleanup executed (archive/restore/delete per `docs/project-documentation-audit.md`); P0 rate-limiting gap closed (see Module 2); decisions Q4, Q9, Q10 ruled; **M4 COMPLETE — all 7 phases** (Post Selection, Committee, Working Officers + Vacancies, Seniority List, Evaluation/Tabulation Chart, Excel Import, Closeout) — 145 tests / 516 assertions passing, Pint clean, PHPStan 0 errors, `composer audit` clean, 50 DB tables. Applying the new **Demo Readiness Rule** caught three P1 defects that six consecutive green gates had missed (empty proposals were submittable and signable; the signed document contained only a header; the audit trail had never been tested anywhere in the project) — all fixed and covered. A **UAT Readiness Review** milestone sits between M6 and M7 (see `docs/design/05-milestones.md`). Full detail: `docs/ARCHITECT_REVIEW.md`, `docs/CHANGELOG.md`.
+
+This document is the single source of truth for project status going forward, per your instruction. It supersedes any per-milestone status claims in older worklog files.
+
+---
+
+## How to read this report
+
+Every module below corresponds to a stage of the 6-stage ODPC process (or a cross-cutting concern called out separately in the PPT/traceability matrix) and to one of the 11 implementation milestones in `docs/design/05-milestones.md`. Status:
+
+- ✅ **Completed** — implemented, tested, passing the quality gate, and matches the PPT.
+- 🟡 **Partially Completed** — some part is implemented (usually as a byproduct of an earlier milestone), but the module's own milestone hasn't been built yet.
+- ⚪ **Not Started** — no code for this module exists yet.
+
+---
+
+## Module 1 — Foundation & Platform
+
+**PPT Reference:** N/A (infrastructure, not a PPT screen) · **Milestone:** M0 · **Status:** ✅ Completed
+
+1. **Purpose:** Stand up the Laravel 13 application, dev environment (MySQL `dpc_dev`, Redis), quality tooling, and the bilingual (EN/HI) shell every later screen builds on.
+2. **Business Workflow:** N/A — platform scaffolding.
+3. **Current Implementation Status:** Done. Laravel 13.23.0 installed at repo root; Bootstrap 5.3.3 vendored (no CDN/build step); `/health` endpoint probes DB + Redis + cache; bilingual shell (`lang/en`, `lang/hi`, `SetLocale` middleware, `/lang/{locale}` switch route).
+4. **Database Tables:** None business-specific (base Laravel `users`, `cache`, `jobs` tables only at this stage).
+5. **Backend Components:** `App\Http\Controllers\HealthController`; `App\Http\Middleware\SetLocale`.
+6. **Frontend Components:** `resources/views/layouts/app.blade.php`, `resources/views/welcome.blade.php`.
+7. **APIs:** `GET /`, `GET /health`, `GET /lang/{locale}`.
+8. **Business Rules Implemented:** N/A.
+9. **Remaining Work:** None for this milestone's scope.
+10. **Dependencies:** None (first milestone).
+11. **Next Milestone:** N/A — feeds into all subsequent milestones.
+
+---
+
+## Module 2 — Authentication & RBAC
+
+**PPT Reference:** S8, S10, S13, S20, S27, S29, S32, S36, S39, S42, S46, S50 (login screens, all actors) · **Milestone:** M1 · **Status:** ✅ Completed
+
+1. **Purpose:** Let every actor (AO, AH, Chairman, Member, Individual, Admin) log in securely, with role-based access control gating every screen.
+2. **Business Workflow:** PPT shows Aadhaar No. + Aadhaar OTP as the login/e-sign mechanism on every screen. **Approved deviation (decision Q1, 2026-07-30):** replaced with email-or-mobile + password login, dual email+mobile OTP verification at registration, and OTP step-up at each legally significant signing action (logged to the audit trail as record of intent).
+3. **Current Implementation Status:** Done. 6 roles seeded via `spatie/laravel-permission` (admin, authorized_officer, administrative_head, chairman, member, individual); login accepts email or mobile; session regeneration on login; forced password change on first login (system-issued temp passwords); deactivated accounts blocked.
+4. **Database Tables:** `roles`, `permissions`, `model_has_roles`, `model_has_permissions`, `role_has_permissions`, `otp_verifications`, `signatures` (e-sign record of intent), `audits` (owen-it/laravel-auditing).
+5. **Backend Components:** `App\Domain\Authentication\Services\{OtpService,VerificationService}`; `App\Domain\Authentication\Models\{User,OtpVerification}`; `App\Http\Controllers\Auth\{LoginController,VerificationController,PasswordChangeController}`; `App\Http\Middleware\EnsurePasswordChanged`; role middleware alias.
+6. **Frontend Components:** `resources/views/auth/{login,verify,change-password}.blade.php`.
+7. **APIs:** `GET/POST /login`, `GET/POST /verify`, `GET/POST /password/change`, `POST /logout`.
+8. **Business Rules Implemented:** Both email and mobile must be OTP-verified before the account is usable; login by email or mobile; role-gated route groups (`role:` middleware) on every authenticated area.
+9. **Remaining Work:** Fresh OTP step-up is wired at the Pre-DPC approval step (M3); still needs wiring at each future legally-significant action (M4 approval, M7 CGPSC approval, etc.) as those milestones are built. ~~Rate limiting on `/login`/`/verify`~~ — **closed 2026-08-13**: config-driven `RateLimiter` (`config/dpc.php → rate_limiting`) applied via `throttle:login`/`throttle:otp-verify`, keyed per identifier+IP, tested in `tests/Feature/Auth/RateLimitingTest.php`. Self-service Forgot Password / Password Reset do not exist in the app (not in the PPT, not built) — raised as an open question in `docs/ARCHITECT_REVIEW.md` rather than invented silently.
+10. **Dependencies:** M0.
+11. **Next Milestone:** N/A — cross-cutting, consumed by every later milestone.
+
+**Composer packages added:** `spatie/laravel-permission` ^8.3, `owen-it/laravel-auditing` ^14.0.
+
+---
+
+## Module 3 — Department Registration
+
+**PPT Reference:** S5–S6 (Registration of Departments) · **Milestone:** M1 · **Status:** ✅ Completed
+
+1. **Purpose:** Let a department self-register for Online DPC and receive its two-tier accounts.
+2. **Business Workflow:** Department picks itself from a master list, enters district/place/PIN and both AH (Level-2) and AO (Level-1) details; on submit, both accounts are provisioned and credentials are issued over mobile + email (S5).
+3. **Current Implementation Status:** Done, PPT-faithful field-for-field (S6), with district/designation now via dropdown (linked to master data added in M2, not free text).
+4. **Database Tables:** `departments`.
+5. **Backend Components:** `App\Domain\Authentication\Services\RegistrationService`; `App\Domain\Department\Models\Department`; `App\Http\Controllers\Auth\RegistrationController`.
+6. **Frontend Components:** `resources/views/auth/register.blade.php` (bilingual, PPT-faithful labels).
+7. **APIs:** `GET/POST /register`.
+8. **Business Rules Implemented:** Department must exist and be `unregistered`; PIN is 6 digits; AO/AH mobiles are 10 digits, unique, and must differ from each other; department email required, `.gov.in`, unique; department code (from the master list) will prefix the future DPC ID.
+9. **Remaining Work:** None for this milestone. AH-only accounts currently verify mobile only (PPT gives AH no email field) — noted as a design characteristic, not a defect.
+10. **Dependencies:** M0.
+11. **Next Milestone:** Feeds Pre-DPC Proposal (M3) — AO/AH created here are the actors of that workflow.
+
+---
+
+## Module 4 — Master Data & Rule Configuration
+
+**PPT Reference:** S6, S9, S18, C4–C6 (§10 Master Modules in `01-requirements.md`) · **Milestone:** M2 · **Status:** ✅ Completed
+
+1. **Purpose:** Provide the reference/config data every later workflow depends on — masters must exist and be admin-manageable before Pre-DPC, Proposal, or the Eligibility Engine can be built, per decision Q3 (config/master-data-driven rules, PPT values seeded as defaults, never hardcoded).
+2. **Business Workflow:** CGPSC Admin (role added per decision Q2 — not in the PPT, explicitly approved) maintains districts, designations, pay scales, cadres, reservation categories/policy/roster, committee types/configuration, and versioned recruitment rules through an admin CRUD area.
+3. **Current Implementation Status:** Done. 15 master/lookup models, each carrying a lifecycle status (Draft/Active/Inactive/Archived), soft deletes, and `created_by`/`updated_by` audit columns via a shared `IsMaster` trait. Reservation policies, rosters, committee configuration, and recruitment rules are effective-dated; **recruitment rules are versioned and never overwritten** (amend = new version). Government reservation percentages are deliberately **not seeded** (commit `a90ea0c`) — left for the Admin to configure per current government notification, consistent with "never hardcode statutory values."
+4. **Database Tables:** `districts`, `designations`, `pay_scales`, `cadres`, `reservation_categories`, `review_reasons`, `vacancy_types`, `dpc_types`, `reservation_policies`, `reservation_rosters`, `reservation_roster_points`, `committee_types`, `committee_configurations`, `recruitment_rules`, `recruitment_rule_feeders` (15 tables).
+5. **Backend Components:** `App\Domain\Master\Services\{MasterCrudService,RecruitmentRuleService}`; 15 models in `App\Domain\Master\Models`; `App\Domain\Master\Concerns\IsMaster` trait.
+6. **Frontend Components:** `layouts/admin.blade.php`, shared `admin/partials/{lookup-index,lookup-form}` + 15 per-master `index`/`form` view pairs (30 Blade files) under `resources/views/admin/`.
+7. **APIs:** 15 resource route groups under `/admin/*` (role:admin), plus `POST recruitment-rules/{id}/version` and `GET recruitment-rules/{id}/download`.
+8. **Business Rules Implemented:** Master lifecycle states; unique codes/names (self-ignored on update); `.gov.in` email / 10-digit mobile validation where relevant; percentages constrained 0–100; `max_members ≥ min_members`, `quorum ≤ max_members` for committees; roster points ≤ roster size and unique; GO PDF upload validated (`application/pdf`, ≤10MB); recruitment rules never overwritten, only re-versioned.
+9. **Remaining Work:** None for this milestone. No statutory computation lives here — that's the Eligibility Engine (M5), which will read these masters/config.
+10. **Dependencies:** M0. Registration (M1) now reads District/Designation from here.
+11. **Next Milestone:** Feeds Pre-DPC Proposal (M3, cadre/recruitment-rule) and later the Eligibility Engine (M5, category/threshold/zone-rule data).
+
+---
+
+## Module 5 — User Management (CGPSC account provisioning)
+
+**PPT Reference:** Not shown in PPT — see decision Q2 · **Milestone:** M2 (phase 7) · **Status:** ✅ Completed
+
+1. **Purpose:** The PPT's login screens for Chairman/Member accounts imply those accounts exist, but no screen creates them. Decision Q2 added a CGPSC Admin role to provision them.
+2. **Business Workflow:** CGPSC Admin creates Chairman/Member/Admin accounts, assigns roles, activates/deactivates, and resets passwords (system issues a temporary password, forcing change on first login — reuses M1's `EnsurePasswordChanged` mechanism).
+3. **Current Implementation Status:** Done.
+4. **Database Tables:** Uses the `users` table (from M1) + Spatie role tables; no new tables.
+5. **Backend Components:** `App\Domain\UserManagement\Services\UserProvisioningService`.
+6. **Frontend Components:** `resources/views/admin/users/{index,form}.blade.php`.
+7. **APIs:** `admin/users` resource (index/create/store/edit/update), `POST admin/users/{user}/toggle-active`, `POST admin/users/{user}/reset-password`.
+8. **Business Rules Implemented:** Provisionable-role restriction (Admin can only create the roles this screen is meant for); temp password + forced change on first login; activate/deactivate.
+9. **Remaining Work:** None for this milestone.
+10. **Dependencies:** M1 (auth/RBAC foundation).
+11. **Next Milestone:** Provisioned Chairman/Member accounts are consumed starting at M6 (CGPSC Workflow).
+
+---
+
+## Module 6 — Pre-DPC Proposal
+
+**PPT Reference:** S7–S11 ("Posts Sanctioned for Promotion" — entry + approval) · **Milestone:** M3 · **Status:** ✅ Completed
+
+1. **Purpose:** The department's Authorized Officer records which posts have promotion quotas, at what pay scale, promotion %, and feeder cadres (per Schedule-IV of the recruitment rules); the Administrative Head approves before anything reaches CGPSC.
+2. **Business Workflow (S7–S11):** AO enters posts sanctioned for promotion (pay scale, % direct recruitment, % promotion recruitment, up to 2 feeder cadres each with % and required experience) → AH reviews and **approves** (digitally signed) or **returns** for correction. Approved data becomes the department's authoritative promotion-post basis.
+3. **Current Implementation Status:** Done. Built on a new, reusable **config-driven workflow engine** (`app/Domain/Shared/Workflow`) that later milestones (M4, M7, M8, M9) will reuse. State machine: `DRAFT → SUBMITTED → APPROVED` (terminal) with a `RETURNED` correction loop and a `CANCELLED` terminal from DRAFT/RETURNED. On AH approval, data **projects into** the Cadre + Recruitment Rule masters (new recruitment-rule version each approval) — the single source of truth decision (Q1 of the M3 questions log). Approved versions are immutable; amending creates a new DRAFT version (parent-linked), never overwriting history.
+4. **Database Tables:** `workflow_transitions` (generic append-only ledger, reused by future workflows), `pre_dpc_proposals` (versioned; audit + soft deletes), `pre_dpc_posts`, `pre_dpc_post_feeders` (4 tables).
+5. **Backend Components:** `App\Domain\Shared\Workflow\{WorkflowEngine,WorkflowTransition,WorkflowException}`; `App\Domain\Shared\Events\WorkflowTransitioned` + queued listener; `App\Domain\PreDpc\Services\PreDpcProposalService`; `App\Domain\PreDpc\Models\{PreDpcProposal,PreDpcPost,PreDpcPostFeeder}`; `App\Http\Controllers\PreDpc\PreDpcProposalController`.
+6. **Frontend Components:** `resources/views/pre-dpc/{index,form,show}.blade.php` — repeatable posts + nested feeder rows, role-aware workflow action buttons, workflow-history panel.
+7. **APIs:** 11 routes under `/pre-dpc` (role `authorized_officer|administrative_head`): index, create, store, show, edit, update, submit, approve, return, cancel, amend.
+8. **Business Rules Implemented:** AO-only editing while DRAFT/RETURNED; AH approval **requires a digital signature** (`SignatureService` — Mock provider in dev/UAT, production hard-refuses to approve without a real CSC DigiSign provider configured, by design — never silently bypassed); approved = immutable; one current version per department (`is_current`); submit requires ≥1 post + GO number + effective date; feeders resolved to a department cadre by id/name project into recruitment-rule feeders, unresolved feeders stay recorded on the Pre-DPC as source of truth but aren't projected (documented limitation, CQ1).
+9. **Remaining Work:** None for M3 scope.
+10. **Dependencies:** M1 (auth/roles), M2 (Cadre + Recruitment Rule masters it projects into).
+11. **Next Milestone:** M4 (DPC Proposal) will read the approved Pre-DPC / projected masters as its input.
+
+**Tests:** `tests/Feature/PreDpc/PreDpcWorkflowTest.php` — 7 tests (create+submit, AH approval signs + projects to masters, AO-cannot-approve, illegal transition rejected, return-with-remarks, amend creates new version, submit-requires-GO-number).
+
+---
+
+## Module 7 — CSC DigiSign / E-Signature
+
+**PPT Reference:** "By providing Aadhar No. And Aadhar OTP you are digitally signing the content" — every login/action screen (S8, S10, S13, S20, etc.) · **Milestone:** cross-cutting, introduced M1, load-bearing from M3 onward, live integration is unscheduled · **Status:** 🟡 Partially Completed
+
+1. **Purpose:** Every legally significant action in the PPT (approval, allotment, scheduling, result approval) is meant to carry a digital signature / record-of-intent, replacing the PPT's Aadhaar-OTP mechanism per decision Q1.
+2. **Business Workflow:** OTP step-up at the moment of signing, written to an immutable signature/audit record, tied to the object being signed (e.g. a Pre-DPC approval).
+3. **Current Implementation Status:** The **abstraction and Mock provider** are built and wired into the one workflow that exists so far (Pre-DPC approval, M3). The **real CSC DigiSign integration is not built** — production approval currently hard-fails (by design, not a bug) until a real provider is configured, because CGPSC's CSC API details aren't available yet.
+4. **Database Tables:** `signatures`.
+5. **Backend Components:** `App\Domain\Signature\Services\SignatureService`; `App\Domain\Signature\Models\Signature`; `App\Integrations\Contracts\SignatureProvider` with a Mock implementation (`App\Integrations\Mock`).
+6. **Frontend Components:** Signature step surfaced inline in the Pre-DPC approval action (no dedicated screen).
+7. **APIs:** Consumed internally by `PreDpcProposalService::approve()`; no standalone route yet.
+8. **Business Rules Implemented:** Signature mandatory on approval, no environment can silently skip it; Mock in dev/UAT, CSC-only in production.
+9. **Remaining Work:** Real CSC DigiSign API integration (needs CGPSC to supply API access/credentials — external dependency, not a code task; the information needed and the planned implementation shape are now documented in `docs/integration/CSC-DigiSign.md`, created 2026-08-13); re-wiring the same service at every future approval point (M4, M6, M7, M8, M9).
+10. **Dependencies:** M1 (OTP), M3 (first consumer).
+11. **Next Milestone:** Becomes load-bearing again at M4 (AH proposal approval) and M7 (CGPSC result approval) — same service, no rework expected, just more call sites.
+
+---
+
+## Module 8 — DPC Proposal (Detailed)
+
+**PPT Reference:** S12–S25 (proposal entry S12–S18, AH approval S19–S25) · **Milestone:** M4 · **Status:** ✅ Completed (all 7 phases)
+
+1. **Purpose:** The core proposal the AO sends to CGPSC — post-to/post-from + class, legal-stay declaration, DPC committee, working officers under consideration (with vacancy sub-types), feeder seniority list, and the tabulation/evaluation chart — approved by AH and forwarded to CGPSC.
+2. **Business Workflow (S12–S25):** AO selects posts (to/from + class, DPC type, proposal date) → names the DPC committee → enters/uploads working officers under consideration with a vacancy breakdown (clear/promotion/retirement/deputation) → enters/uploads the feeder seniority list (zone count shown, e.g. "2×2+4=8") → enters/uploads the tabulation/evaluation chart (loyalty, immovable property, year-wise CR, notes) → AH reviews and approves (a single approval event covering every section — architect decision, 2026-08-13) → forwarded to CGPSC, DPC ID generated.
+3. **Current Implementation Status:** **Complete — all 7 phases shipped 2026-08-13** (Post Selection S14, Committee S15, Working Officers + Vacancies S16, Seniority List S17, Evaluation/Tabulation Chart S18, Excel Import S16–S18, Closeout S19–S25). `DpcProposal` reuses the M3 workflow engine unchanged; post-to/post-from select an existing department `Cadre`; approval generates a race-safe DPC ID and forwards to CGPSC. Committee members reference an existing `User` wherever possible with an external-member fallback. Vacancies are strictly row-based (one row per vacancy-type × reservation-category pair). Working officers, seniority entries, and evaluation rows are all proposal-time snapshots carrying the identical standard ten-field employee set (architect directive) — plain columns, no live employee/HRMS reference anywhere. **Every section is immutable once a proposal leaves DRAFT/RETURNED, enforced at both the Policy and Service layers** (verified directly by tests that call the Service bypassing HTTP entirely). The evaluation chart stores raw data only: no mark, remark, score, total, service-year, experience, or zone column exists, asserted by a test against the persisted column list. No CALCULATE/zone-of-consideration logic anywhere — that's M5, deliberately not built here even though the S16/S17 mockups show a CALCULATE button. Every section save is recorded on the Activity Timeline, and every officer array is bounded from configuration. Phase 7 added the **Administrative Head review walkthrough** (S21–S25: five read-only steps, with approve/return only on the final step — the PPT's per-screen APPROVE buttons and the single-approval ruling reconciled), **final workflow validation** (a proposal cannot be submitted until the S14→S18 sequence is complete), a **signed document containing every approved section**, and the first genuine **audit-trail coverage** in the project.
+4. **Database Tables:** `dpc_proposals` (+`sanctioned_post_count`), `dpc_id_sequences`, `dpc_committee_members`, `dpc_vacancies`, `dpc_working_officers`, `dpc_seniority_entries`, `dpc_evaluation_rows`, `dpc_evaluation_cr_grades`, `dpc_evaluation_loyalty_flags`, `dpc_evaluation_property_flags` (all 10 planned tables built), plus `import_batches` and `import_rows` for the staged Excel import.
+5. **Backend Components:** `App\Domain\Dpc\Services\{DpcProposalService,DpcIdGeneratorService}`; `App\Domain\Dpc\Models\{DpcProposal,DpcIdSequence,DpcCommitteeMember,DpcVacancy,DpcWorkingOfficer,DpcSeniorityEntry,DpcEvaluationRow,DpcEvaluationCrGrade,DpcEvaluationYearFlag,DpcEvaluationLoyaltyFlag,DpcEvaluationPropertyFlag}`; `App\Domain\Dpc\Enums\{DpcProposalStatus,CommitteeCapacity}`; `App\Domain\Dpc\Policies\DpcProposalPolicy`; `App\Domain\Dpc\Requests\{SaveDpcProposalRequest,ReturnDpcProposalRequest,SaveDpcCommitteeRequest,SaveWorkingOfficersRequest,SaveSeniorityEntriesRequest,SaveEvaluationChartRequest}`; `App\Domain\Dpc\Validation\DpcRowRules` (one shared row-rule definition per section, used by both manual entry and import); `App\Domain\Import\{Enums\ImportTemplate,Enums\ImportBatchStatus,Models\ImportBatch,Models\ImportRow,Services\ExcelImportService,Requests\UploadImportFileRequest,Support\RawSheetImport}`; `App\Http\Controllers\Dpc\{DpcProposalController,DpcImportController}`; `Database\Seeders\CommitteeMasterSeeder`.
+6. **Frontend Components:** `resources/views/dpc-proposals/{index,form,show,committee,working-officers,seniority-list,evaluation-chart}.blade.php` plus `imports/{preview,_upload}.blade.php`; dashboard entry point added. All three officer screens offer manual entry **or** Excel upload, per PPT §10. Proposal Detail renders the S18 chart as year-grouped columns and eager loads every section (architect directive), asserted by a query-count regression test.
+7. **APIs:** 24 routes under `/dpc-proposals` (role `authorized_officer|administrative_head`, policy-checked): index, create, store, show, edit, update, committee (get/put), working-officers (get/put), seniority-list (get/put), evaluation-chart (get/put), review (5-step AH walkthrough), imports (store / show / errors / commit / cancel), submit, approve, return, cancel.
+8. **Business Rules Implemented:** *(Phase 1)* DPC ID generation `<DeptCode><Year><Serial>`, race-safe via a locked per-department-per-year sequence; post-to ≠ post-from; both cadres scoped to the acting AO's department; only `fresh`-type proposals; every transition locks the row before checking status. *(Phase 2)* exactly one Chairman required; no duplicate user/mobile; committee size within the active `CommitteeConfiguration`; external members blocked when disallowed; per-member audit + one timeline entry per save. *(Phase 3)* vacancies are row-based (vacancy type × reservation category, no duplicate pairs); working officers stored as plain snapshot columns. *(Phase 4)* seniority entries stored as plain snapshot columns; no duplicate seniority numbers within one list. *(Phase 5)* evaluation chart rows carry the standard ten-field snapshot plus tribal-area service years and Note; CR grade, Loyalty, and Immovable Property are each stored per year (Q4), all nullable so "recorded as No" stays distinct from "not recorded" — the distinction the Circulation rule (Q12) turns on, and why a partial chart is accepted; CR grade codes validated against config (Q3); no duplicate S.N. within a chart and no duplicate year within an officer. All sections immutable outside DRAFT/RETURNED, enforced at both Policy and Service layers. *(Phase 6)* Excel import runs a staged **Preview → Validation → Error Report → Commit** pipeline: an upload is parsed, mapped, and validated into staged rows and writes nothing until an explicit commit, which hands the valid rows to the same service methods manual entry uses. Rows are rejected individually with per-field reasons; a CSV error report is downloadable. Dates parse day-first to match the PPT templates; reservation category is resolved from its code; S18 per-year columns are matched by pattern. Only a previewed batch is committable, so double-commit and commit-after-cancel are refused. **Not yet implemented:** CSC DigiSign signing itself (schema only), M5's scoring/zone-of-consideration CALCULATE.
+9. **Remaining Work:** None — M4 is complete. Three items are logged against the later UAT & Security Hardening sprint in `docs/ARCHITECT_REVIEW.md`: a capacity plan for permanently retained import files and signed documents, an audit-trail UI, and the deferred Excel template export (M11 backlog).
+10. **Dependencies:** M1 (auth), M2 (masters), M3 (approved Pre-DPC posts/cadres this proposal is built from).
+11. **Next Milestone:** M5 (Scoring & Eligibility Engine) — awaiting architect sign-off on the M4 closeout report before starting, per the "stop after each milestone" instruction.
+
+---
+
+## Module 8b — External Integration Architecture (cross-cutting)
+
+**PPT Reference:** N/A (infrastructure) · **Milestone:** cross-cutting, established 2026-08-13 · **Status:** ✅ Completed
+
+1. **Purpose:** Let every external integration be enabled or disabled by configuration alone, so modules can be tested independently, UAT can run without integrations whose APIs have not arrived, production can roll out in phases, and a future deployment for another state is a configuration exercise.
+2. **Business Workflow:** N/A — infrastructure. Its guarantee is that **no workflow may fail because an integration is disabled.**
+3. **Current Implementation Status:** Done. `config/features.php` is the single switchboard; `App\Enums\Feature` is the typed accessor; `AppServiceProvider::register()` is the only place a provider is chosen. Every integration flag defaults to off. The entire M4 workflow — draft through signed approval — is tested to run with all of them disabled. Production is tested never to sign with the mock provider, while non-production still signs so UAT stays demonstrable.
+4. **Database Tables:** None.
+5. **Backend Components:** `App\Enums\Feature`; `App\Integrations\Contracts\{HrmsProvider,SignatureProvider,SmsSender,DirectoryProvider}`; `App\Integrations\Mock\{MockHrmsProvider,MockSignatureProvider,LogSmsSender,SeedDirectoryProvider}`; `App\Integrations\HRMS\RealHrmsProvider`; `App\Integrations\CSC\CscDigiSignProvider`; `App\Http\Controllers\Admin\IntegrationStatusController`.
+6. **Frontend Components:** `resources/views/admin/integrations/index.blade.php`; admin dashboard entry point.
+7. **APIs:** `GET /admin/integrations` (CGPSC Admin only, read-only).
+8. **Business Rules Implemented:** Integration flags default off; enabling an unimplemented integration fails loudly rather than degrading silently; production refuses to approve without a real signature provider and never falls back to the mock; `MockHrmsProvider` never fabricates employee data; flags are deployment configuration and are not editable from the UI.
+9. **Remaining Work:** None. `RealHrmsProvider` and `CscDigiSignProvider` await CGPSC's API contracts — see `docs/integration/HRMS.md` and `docs/integration/CSC-DigiSign.md`.
+10. **Dependencies:** None.
+11. **Next Milestone:** Every future integration follows this pattern.
+
+---
+
+## Module 9 — Scoring & Eligibility Engine
+
+**PPT Reference:** C4–C6 (scoring rules), S16–S18/S33 (CALCULATE) · **Milestone:** M5 · **Status:** ✅ Completed (all 4 phases) — **APPROVED and FROZEN 2026-08-13**
+
+1. **Purpose:** The rules engine that turns a tabulation chart into MARK/REMARK per officer and produces the Main + Waiting lists — the single most legally sensitive piece of business logic in the system.
+2. **Business Workflow:** CR grade → marks (क+=4, क=3, ख=2, ग=1, घ=0); tribal-area service +1; eligibility gates (any of last 5 CRs = घ → not eligible; CLASS-I→I: last year's CR must not be ग); qualifying score by class pair (I→I ≥15, II→I ≥13, II→II ≥11, others ≥10, reserved relaxable to 10); Super Seat (all 5 CRs = क+, sum 20 → notional seniority); Zone of Consideration (I→I: 1 vacancy → top 5, >1 → 2×vacancies+4, reserved shortfall → expand 7× that category only; other cases → all experience-qualified officers).
+3. **Current Implementation Status:** **All 4 phases shipped 2026-08-13** — `ScoringService` (§5.1–§5.2), `EligibilityService` (§5.3–§5.4), `ZoneOfConsiderationService` (§5.6) and `SuperSeatService` (§5.5), plus golden cases transcribed from PPT slides 17–18 and run against the *shipped* configuration. **The PPT's own printed zone figure — "2 X 2 + 4 = 8" — is reproduced exactly**, the one number on the deck checkable without interpretation. Both engines are **pure**: no database, no clock, no `config()` read inside — they take an officer record and an immutable `RuleSet` and return a score breakdown and a verdict, which is what makes a stored calculation reproducible years later. No UI and no persistence in this phase, by architect ruling. **Reserved relaxation and the 7× reserved zone expansion (both Q5/Q6) are BLOCKED pending a business decision:** the engine applies the printed rules and *flags* every officer and category the unruled rules could have changed the answer for, rather than guessing in either direction. **Older rule versions stay executable** without an archive: every run stores its own complete rule set and `RuleSet::fromSnapshot()` reconstructs it exactly, so a calculation can always be re-run under the rules that actually applied to it. **Note for whoever builds this:** the S18 chart carries **six** CR year columns (2012–2017) while §5.4 sums only the **last five** — M4 stores all six as entered, so this engine must select its five-year window rather than assume the stored set is already the scoring set.
+4. **Database Tables:** `dpc_calculation_runs` (UUID public identifier, auto-increment id internal) and `dpc_calculation_results` (one row per officer, including those on neither list). Each run stores its complete rule set, an officer-data fingerprint, executed-by/at, and build provenance; calculations are **immutable** and never overwritten. Reads `dpc_evaluation_rows`/`dpc_evaluation_cr_grades`/`dpc_evaluation_loyalty_flags`/`dpc_evaluation_property_flags` (built in Module 8, Phase 5) plus the M2 masters (`cr_grade_marks`, `qualifying_thresholds`, `zone_rules` — not yet seeded as distinct tables; currently only planned in `03-database-design.md` §G).
+5. **Backend Components:** `App\Domain\Eligibility\{RuleSet,Enums\{RemarkCode,CalculationStatus,ListType},ValueObjects\{OfficerRecord,ScoreBreakdown,EligibilityVerdict,ZoneOfConsideration,SuperSeatVerdict},Models\{DpcCalculationRun,DpcCalculationResult},Services\{ScoringService,EligibilityService,ZoneOfConsiderationService,SuperSeatService,DpcCalculationService,ExplainCalculationService}}`. `DpcCalculationService` is the **only** class in the milestone that touches the database — it exists so the engines never have to.
+6. **Frontend Components:** `resources/views/dpc-proposals/calculations/{index,show,explain}.blade.php`, plus the CALCULATE entry point on the proposal detail screen. History and results are addressed by **UUID only**; officers within a run by their chart serial number. Every screen renders stored data — nothing is recomputed for display.
+7. **APIs:** 4 routes — `POST /dpc-proposals/{proposal}/calculate` (rate limited per user per proposal), `GET .../calculations`, `GET .../calculations/{uuid}`, `GET .../calculations/{uuid}/officers/{sn}`. All authorise `view` on the parent proposal.
+8. **Business Rules Implemented:** §5.1 CR grade → marks; §5.2 tribal-area bonus (one bonus, not one per year); §5.3 both hard gates (any घ in the window; Class-I→I final CR may not be ग), with **every** failed ground recorded rather than just the first; §5.4 qualifying scores per class pair; §5.5 Super Seat (tested on the *grade*, not on a total of 20 — the two readings agree only while क+ is worth 4 — and never awarded on an incomplete CR window); §5.6 zone sizing for Class-I→I, with other class pairs uncapped as the PPT's "other cases" requires. The scoring window is the five most recent *available* years — a year with no grade is skipped, never scored as zero, since a missing CR is an administrative gap (the Circulation-DPC case), not a bad assessment. §5.7 Main List (मुख्य सूचि) and Waiting List (अनुपूरक सूचि) per reservation category, with §6.3 remark codes. **Not yet implemented:** CALCULATE wiring into the screens (Phase 4). **Blocked:** reserved relaxation and the 7× reserved zone expansion (both Q5/Q6) — as of Phase 3 these block *publishable* output, not just flagging.
+9. **Remaining Work:** None — M5 is approved and frozen. **Three items remain blocked on business answers**, tracked in `docs/business/PENDING_BUSINESS_DECISIONS.md`: (a) whether `PUNISHMENT` in the Note column disqualifies an officer — slide 33 marks two such officers NE who score 15, while the engine passes them, since §5.3 lists only two hard gates and the slide is the only evidence for a third; (b) Q5/Q6, which are unruled *business* rules blocking publishable output; (c) the column-level `UPDATE` grant on `dpc_calculation_runs.status` — approved as a deployment recommendation; revoking `UPDATE` outright would break every calculation.
+
+   Recorded for **M9** rather than M5: slide 33 shows an incomplete CR window as MARK "–" with REMARK CIR (the engine computes a partial score and flags it), an officer with a property `N` marked CIR (Q12's circulation trigger), and an SC officer appearing on the UR waiting list (which per-category placement would not produce).
+10. **Dependencies:** M4 (evaluation data), M2 (rule masters).
+11. **Next Milestone:** This is the next-but-one milestone. **Blocked by:** **Q5** (is reserved-relaxation/7× zone expansion automatic or a logged committee-discretion action?), **Q6** (does relaxation-to-10 apply only to CLASS-I→I, or all class pairs?), **Q12** (circulation trigger: "2+ years CR missing" vs. the S14 label's "CR ≤ 4" — which governs).
+
+---
+
+## Module 10 — CGPSC Workflow (Allotment & Scheduling)
+
+**PPT Reference:** S26–S30 · **Milestone:** M6 · **Status:** ✅ Completed (all 4 phases)
+
+1. **Purpose:** Once a proposal reaches CGPSC, the Chairman allots each DPC to himself or a Member; the allottee accepts and schedules (or re-allots/reschedules) a date and time.
+2. **Business Workflow (S26–S30):** Proposal reaches Chairman's account → Chairman allots to self or a named Member (allotment report shows status + a default DPC date) → allottee accepts and sets DPC date/time, or re-allots/reschedules → AH and AO are notified via registered mobile + email.
+3. **Current Implementation Status:** **Complete — all 4 phases shipped 2026-08-13**, covering S26–S30 in full: Chairman allotment and re-allotment with Allotment Report (S28), member acceptance, scheduling and re-scheduling with Scheduling Report (S30), and both histories rendered from timeline records with the previous allottee and previous date/time shown struck through beside the new. Design in `docs/design/07-m6-cgpsc-workflow.md`; workflow reference in `docs/WORKFLOWS.md`. The CGPSC-side state is *derived* from the current allotment rather than stored on `dpc_proposals`, so M4 stays frozen and there is no second source of truth.
+4. **Database Tables:** `dpc_allotments` and `dpc_schedules` — both **append-only**, UUID public identifiers, superseded-by chains, model-layer immutability (edit and delete both throw). This supersedes the earlier sketch in `03-database-design.md` §C, which proposed mutable fields on `dpc_proposals`: S30 displays the previous date beside the new one on a reschedule, which is only possible if history is kept.
+5. **Backend Components:** `App\Domain\Cgpsc\{Enums\AllotmentStatus, Models\{DpcAllotment,DpcSchedule}, Services\{AllotmentService,SchedulingService}, Policies\DpcAllotmentPolicy, Requests\{AllotDpcRequest,ScheduleDpcRequest}}`; `App\Http\Controllers\Cgpsc\{AllotmentController,SchedulingController}`; `dpc_cgpsc` workflow definition extending the existing config-driven `WorkflowEngine`.
+6. **Frontend Components:** `resources/views/cgpsc/allotments/{index,history}.blade.php` and `resources/views/cgpsc/schedules/index.blade.php` — allotment screen, Allotment Report, allotment history rendered purely from timeline records, plus the acceptance/scheduling screen and Scheduling Report.
+7. **APIs:** 9 routes under `/cgpsc` (role `chairman|member`): allotments index, allot, re-allot, allotment history, schedules index, accept, schedule, re-schedule, scheduling history.
+8. **Business Rules Implemented:** Acceptance and scheduling belong to the **allottee alone** — holding the Member role is not the same as being *this* DPC's member. A DPC must be accepted before it can be scheduled. Scheduling is **not** validated against the default DPC date and a past date is permitted, since enforcing either would invent a rule the PPT does not state. Only a proposal approved *and* forwarded by its department may be allotted; the allottee must hold a CGPSC role and be active; a DPC cannot be allotted twice or re-allotted to the same member; re-allotment requires a reason. Members are resolved **dynamically from the role** — the PPT's M1–M5 columns are a layout, not a limit. The **default DPC date is manual Chairman input, never derived**, and is optional because requiring it would itself be an invented rule. **There is no member-decline transition** — re-allotment is the Chairman's remedy.
+9. **Remaining Work:** None — M6 is complete. Notification coverage is verified at the listener across all five transitions, including the negative cases (unrelated department, deactivated user, former allottee).
+10. **Dependencies:** M4 (proposal must exist and be forwarded), M5 (not required to allot, but scheduling precedes the M7 calculation). Both are complete and frozen, so M6 builds on a stable base.
+11. **Next Milestone:** the **UAT Readiness Review** checkpoint, then M7 (DPC Proceeding & Results), which consumes a scheduled DPC. **S34's MAIN LIST is a mandatory golden test at M7** per the worked-example directive. The event contract M7 will publish against is documented in `docs/EVENT_CATALOG.md`.
+
+---
+
+## Module 11 — DPC Proceeding & Results (Promotion Orders)
+
+**PPT Reference:** S31–S34 (Fresh DPC proceeding, calculate, approve) · **Milestone:** M7 · **Status:** ⚪ Not Started
+
+1. **Purpose:** The actual online DPC proceeding on the scheduled date — recompute/confirm the evaluation, produce Main + Waiting lists, and get CGPSC approval, issuing the proceedings.
+2. **Business Workflow (S31–S34):** On the scheduled date/time, the allotted Chairman/Member conducts the proceeding, runs CALCULATE (MARK/REMARK per officer, tribal flag), reviews Main List + Waiting/Supplementary List by category, and either **APPROVE BY CGPSC** or **CANCEL DPC**. Department entries made after the detailed proposal was sent are not valid unless made between submission and the DPC date.
+3. **Current Implementation Status:** Not started.
+4. **Database Tables:** None yet. Planned: `dpc_results`, plus `conducted_at`/`result_approved_at`/`cancelled_at`/`cancel_reason` on `dpc_proposals` (`03-database-design.md` §C, §E).
+5. **Backend Components:** None yet. Planned: `ProceedingService`, consuming the M5 `DpcCalculationService`.
+6. **Frontend Components:** None yet.
+7. **APIs:** None yet.
+8. **Business Rules Implemented:** None yet.
+9. **Remaining Work:** Entire milestone, including the proceedings/result PDF (queued job → S3).
+10. **Dependencies:** M5 (calculation engine), M6 (scheduled DPC).
+11. **Next Milestone:** **Blocked by Q7** — is a formal proceedings/order PDF generated, and what's its layout? The PPT only says "proceedings issued," no layout shown.
+
+---
+
+## Module 12 — Review DPC
+
+**PPT Reference:** S35–S44 · **Milestone:** M8 · **Status:** ⚪ Not Started
+
+1. **Purpose:** Correct an error discovered in a completed Fresh DPC (wrong seniority order/omission, wrong roster point, wrong CR entry, reservation rule not followed, tribal-area service not counted), via a representation referencing the original DPC.
+2. **Business Workflow (S35–S44):** Same as Fresh DPC end-to-end, but the AO references the original DPC ID and picks a coded review reason; AH approves; CGPSC recalculates and re-approves.
+3. **Current Implementation Status:** Not started.
+4. **Database Tables:** None yet. Planned: `dpc_proposals.type = review` + `original_dpc_proposal_id` self-FK + `review_reason` (already modeled in `03-database-design.md` §C, reusing the Fresh DPC tables).
+5. **Backend Components:** None yet. Planned: `ReviewDpcService`.
+6. **Frontend Components:** None yet.
+7. **APIs:** None yet.
+8. **Business Rules Implemented:** None yet. `review_reasons` master table already exists (built in M2) and is seeded with the 6 PPT-listed reasons, ready to be consumed here.
+9. **Remaining Work:** Entire milestone.
+10. **Dependencies:** M7 (a completed Fresh DPC to review).
+11. **Next Milestone:** No open blockers specific to this module.
+
+---
+
+## Module 13 — Circulation DPC
+
+**PPT Reference:** C3, C7, S45–S48 · **Milestone:** M9 · **Status:** ⚪ Not Started
+
+1. **Purpose:** Handle officers whose promotion must be held during a DPC because their CR or immovable-property records are incomplete, until the gap is resolved.
+2. **Business Workflow (S45–S48, C7):** During a DPC, an officer missing 2+ years of CR or 1+ years of immovable-property declaration is still included in the proceeding but their promotion decision is held (`CIR`); once the missing record is resolved, CGPSC signs a circulation note to finalize that officer's promotion.
+3. **Current Implementation Status:** Not started.
+4. **Database Tables:** None yet. Planned: `circulation_holds` (`03-database-design.md` §E).
+5. **Backend Components:** None yet. Planned: `CirculationDpcService`.
+6. **Frontend Components:** None yet.
+7. **APIs:** None yet.
+8. **Business Rules Implemented:** None yet.
+9. **Remaining Work:** Entire milestone.
+10. **Dependencies:** M7 (proceeding that identifies held officers), M5 (the `CIR` remark is produced by the eligibility engine).
+11. **Next Milestone:** **Blocked by Q12** — same circulation-trigger wording ambiguity as Module 9 ("2+ years CR missing" vs. "CR ≤ 4").
+
+---
+
+## Module 14 — Self-Inspection & Objection
+
+**PPT Reference:** S49–S51 · **Milestone:** M10 · **Status:** ⚪ Not Started
+
+1. **Purpose:** Let the individual officer under consideration see the data being used to evaluate them and raise a time-boxed objection before the DPC date.
+2. **Business Workflow (S49–S51):** Individual logs in, views their own DOB/category/CR/loyalty/property data as entered by the department, can PRINT it, and can RAISE OBJECTION before the stated deadline (objections after the DPC date are not considered).
+3. **Current Implementation Status:** Not started.
+4. **Database Tables:** None yet. Planned: `objections` (`03-database-design.md` §E).
+5. **Backend Components:** None yet. Planned: `SelfInspectionService`.
+6. **Frontend Components:** None yet.
+7. **APIs:** None yet.
+8. **Business Rules Implemented:** None yet.
+9. **Remaining Work:** Entire milestone.
+10. **Dependencies:** M4 (evaluation data to display).
+11. **Next Milestone:** **Blocked by Q11** — is the objection deadline configurable, and does raising one notify the department / block the DPC / only log?
+
+---
+
+## Module 15 — Notifications
+
+**PPT Reference:** S5 (registration credentials), S26 (scheduling) — implied at every workflow transition · **Milestone:** cross-cutting (introduced M1, full matrix is M11) · **Status:** 🟡 Partially Completed
+
+1. **Purpose:** Deliver credentials, approvals, and scheduling information to the right actor by mobile + email at every workflow step.
+2. **Business Workflow:** Registration issues Level-1/Level-2 credentials via mobile+email (S5); DPC scheduling notifies AH/AO via registered mobile+email (S26); by implication, every workflow transition should notify the relevant actor.
+3. **Current Implementation Status:** A generic notification mechanism exists and fires on every workflow transition (`WorkflowTransitioned` event → queued `SendWorkflowNotification` listener, built in M3), and OTP delivery (SMS + email) exists from M1. What's **not** built: a live SMS gateway (currently a log-driver `SmsService`, gateway-pluggable but not connected to a real provider), and the full notification matrix across all 11 milestones' events.
+4. **Database Tables:** Laravel's own `notifications`/queue tables exist by framework default; a dedicated `notification_logs` delivery-audit table (`03-database-design.md` §F) is planned but not yet built.
+5. **Backend Components:** `App\Domain\Authentication\Services\OtpService` (+ `SmsService`, log driver); `App\Domain\Shared\Events\WorkflowTransitioned` + listener.
+6. **Frontend Components:** None dedicated (delivered out-of-band via SMS/email).
+7. **APIs:** None (internal event-driven).
+8. **Business Rules Implemented:** OTP delivery on registration and verification; workflow-transition notification on every Pre-DPC state change.
+9. **Remaining Work:** Real SMS gateway integration (external dependency — needs CGPSC/vendor credentials); `notification_logs` delivery-audit table; notification coverage for M4–M10 events as they're built.
+10. **Dependencies:** M1 (OTP), M3 (workflow-event pattern to extend).
+11. **Next Milestone:** Full matrix is explicitly scoped to **M11**.
+
+---
+
+## Module 16 — Reports & Dashboards
+
+**PPT Reference:** Not in either PPT — appears only in secondary docs (`technical-proposal.md`, pre-reset) · **Milestone:** M11 · **Status:** ⚪ Not Started
+
+1. **Purpose:** Give departments and CGPSC visibility into DPC status, volumes, and trends.
+2. **Business Workflow:** Not specified by the PPTs (out-of-scope-by-default unless approved — see decision Q16, still open).
+3. **Current Implementation Status:** Not started. A minimal role-aware landing `dashboard.blade.php` exists (from M1, extended in M3 to link to Pre-DPC), but it is a navigation landing page, not a reporting/analytics dashboard.
+4. **Database Tables:** None reporting-specific yet.
+5. **Backend Components:** `App\Http\Controllers\{DashboardController,Admin\AdminDashboardController}` exist but only render navigation, not metrics.
+6. **Frontend Components:** `resources/views/dashboard.blade.php`, `resources/views/admin/dashboard.blade.php`.
+7. **APIs:** `GET /dashboard`, `GET /admin` (both navigation-only today).
+8. **Business Rules Implemented:** None (no reporting logic).
+9. **Remaining Work:** Entire reporting/Chart.js scope.
+10. **Dependencies:** Most other milestones (reports are cross-cutting over their data).
+11. **Next Milestone:** Scoped to **M11**, gated on decision **Q16** confirming this is in scope at all (it's absent from both PPTs).
+
+---
+
+## Module 17 — Audit Trail & Security Hardening
+
+**PPT Reference:** Implied by the e-signature statement on every screen and standard government-system norms, not an explicit screen · **Milestone:** cross-cutting (foundation in M1, final pass is M11) · **Status:** 🟡 Partially Completed
+
+1. **Purpose:** A tamper-evident record of who did what, when, on every legally significant action — required for a system whose outputs can be contested in CAT/High Court.
+2. **Business Workflow:** Every create/update/delete on business models, and every workflow transition, is recorded.
+3. **Current Implementation Status:** Foundation is in place and used consistently since M1: `owen-it/laravel-auditing` audits models directly (`User`, `Department`, and all 15 masters via the `IsMaster` trait); a separate, purpose-built `ActivityTimeline` records human-readable workflow history (used on the Pre-DPC show screen); the `workflow_transitions` ledger (M3) is an append-only record of every state change. What's not done: a dedicated audit-trail **UI** for browsing/searching the log, and the M11 security/performance hardening pass (rate limiting review, header hardening, Redis cache tuning, etc.).
+4. **Database Tables:** `audits` (owen-it), `activity_timelines`, `workflow_transitions`.
+5. **Backend Components:** `App\Domain\Shared\Services\ActivityTimelineService`; `App\Domain\Shared\Models\ActivityTimeline`; owen-it `Auditable` trait on audited models.
+6. **Frontend Components:** Workflow-history panel embedded in `resources/views/pre-dpc/show.blade.php`; no standalone audit-browser screen yet.
+7. **APIs:** None dedicated (data is queried internally for the timeline panel).
+8. **Business Rules Implemented:** Every Pre-DPC workflow transition is logged to both the audit trail and the activity timeline; CSRF protection; no stack traces in production (Laravel default + verified).
+9. **Remaining Work:** Standalone audit-trail UI; formal security review pass; performance/cache tuning pass — both explicitly scoped to M11.
+10. **Dependencies:** M1 (packages), M3 (pattern established).
+11. **Next Milestone:** Full pass scoped to **M11**, gated on decision **Q16** (confirming final scope before hardening it).
+
+---
+
+## Implementation Summary
+
+### Overall Progress
+
+```
+Foundation                          ✅ 100%
+Authentication & RBAC               ✅ 100%
+Department Registration             ✅ 100%
+Master Data & Rule Configuration    ✅ 100%
+User Management (provisioning)      ✅ 100%
+Pre-DPC Proposal                    ✅ 100%
+External Integration Architecture   ✅ 100% (feature flags + Provider Pattern)
+CSC DigiSign / E-Signature          🟡 Partial (abstraction + Mock done; real CSC integration pending — BD-4)
+DPC Proposal (detailed)             ✅ 100% (all 7 phases — FROZEN)
+Scoring & Eligibility Engine        ✅ 100% (all 4 phases — ENGINE FROZEN)
+CGPSC Workflow (Allotment/Sched.)   ✅ 100% (all 4 phases)
+DPC Proceeding & Results            ⚪ 0%
+Review DPC                          ⚪ 0%
+Circulation DPC                     ⚪ 0%
+Self-Inspection & Objection         ⚪ 0%
+Notifications                       🟡 Partial (mechanism + OTP done; live SMS gateway + full matrix pending)
+Reports & Dashboards                ⚪ 0%
+Audit Trail & Security Hardening    🟡 Partial (foundation done; UI + hardening pass pending)
+```
+
+**Milestone completion: 7 of 11 (M0–M6) fully done — ~64% of the planned milestone roadmap.** Note this is a milestone-count estimate, not effort-weighted; M4 (Proposal) and M5 (Eligibility Engine) were the two largest, and both are now complete and frozen.
+
+**Two freezes are in force:** M4 is architecture-frozen (bug/security/performance/VAPT/hardening only), and the M5 calculation engine is frozen (changes only through configuration, master data, or government notification). M6 was built entirely on that stable core without touching either, which is the freeze doing its job.
+
+**The next step is the UAT Readiness Review** checkpoint before M7.
+
+### Codebase Inventory (live count, 2026-08-13)
+
+| Metric | Count |
+|---|---|
+| Database tables | 44 |
+| Migrations | 24 files |
+| Models | 29 |
+| Controllers | 25 |
+| Domain Services | 11 |
+| Policies | 1 |
+| Form Requests | 27 |
+| Seeders | 10 |
+| Factories | 1 |
+| Blade views | 50 |
+| Routes | 133 |
+| Test files | 23 |
+| Composer packages added beyond Laravel default | `spatie/laravel-permission`, `owen-it/laravel-auditing`, `predis/predis`, `larastan/larastan` (dev) |
+
+### Quality Gate (run 2026-08-13)
+
+| Check | Result |
+|---|---|
+| `composer test` (`php artisan test`) | **90 passed / 286 assertions, 0 failing** |
+| Laravel Pint (`--test`) | **Passed** — PSR-12 + strict types, no violations |
+| PHPStan / Larastan (level 6) | **0 errors** |
+| `php artisan migrate:fresh --seed` | OK — 44 tables, 10 seeders |
+
+All milestones to date (M0–M3) shipped with this gate green, per the project's own quality-gate discipline (`composer test`, `php artisan test`, `php artisan migrate`, `php artisan optimize`, Pint, PHPStan before the next milestone begins).
