@@ -38,7 +38,7 @@ Eight of the project's standing rules were established on this one day, and ever
 
 **M5 engine-frozen**, with unresolved business rules explicitly excluded from the freeze.
 
-**`docs/business/PENDING_BUSINESS_DECISIONS.md` created** — business questions get their own register, separate from engineering review.
+**A business-decisions register created** — business questions get their own home, separate from engineering review. (Moved to `docs/PENDING_BUSINESS_DECISIONS.md` on 2026-08-14.)
 
 **M6 closes, across four phases.** Two defects are found not by testing the feature but by **implementing an architect directive properly**: a failing notification could roll back a completed workflow transition, and every timeline read was non-deterministically ordered within a second.
 
@@ -87,6 +87,14 @@ Ruled: **raise BD-9 and BD-10 to CGPSC, implement no assumption, do not modify M
 `docs/UAT_BUSINESS_VALIDATION.md` puts the four blocking questions to CGPSC officials in plain language, each with the worked example that exposes it.
 
 **Tag `v0.7.0-m7-complete`.** 537 tests, 1682 assertions, 58 tables.
+
+## 2026-08-14 — M8 design
+
+Written against S35–S44 immediately after the M7 tag. The deck settles more than usual: S35 states that the Review process is identical to Fresh, and S35 also answers who may initiate one — *"on the department's request **or** the Commission taking cognizance itself"* — a power the deck grants but never shows a screen for.
+
+**The first design to carry a "Deferred Because of Business" section**, under the rule adopted the same day. M7 learned the need for it the hard way: BD-9 and BD-10 surfaced in its final phase's PPT comparison, after four phases were built. M8 states what it cannot settle *before* anything is built.
+
+**BD-11 raised** — what happens to an officer already promoted under a DPC that is later reviewed. It blocks M8's last phase and nothing else.
 
 ---
 

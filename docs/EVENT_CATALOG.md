@@ -182,6 +182,49 @@ The one published event that is **not** a `WorkflowTransitioned`. Publication ch
 
 **Publication is refused while `has_pending_decisions` is true** (architect Directive 5, Phase 4), so this event never fires for a provisional result. A subscriber may treat its arrival as meaning the result is final.
 
+### Review DPC (`dpc_review`) — M8
+
+Neither of these is a workflow transition. Raising a Review creates a **new proposal** which then runs the ordinary `dpc_proposal`, `dpc_cgpsc` and `dpc_proceeding` workflows; the act of raising it changes no state on either DPC, so the ledger must not claim one (the rule established in M7 Phase 2).
+
+| Event | Trigger | Subject | Payload |
+|---|---|---|---|
+| `dpc_review.created` | A department raises a Review against a concluded DPC (S37) | **the Review** | review_link_uuid, chain_uuid, review_number, chain_depth, original_proposal_version, effect, original_dpc_proposal_uuid, original_dpc_code, original_proposal_date, review_dpc_proposal_uuid, review_proposal_date, reasons, established_by_id/name, established_at |
+| `dpc_review.superseded_by` | The same act, recorded against the DPC being corrected | **the original** | as above |
+
+**The same act writes two events, on two subjects, deliberately.** A correction chain must be visible from *either* end: someone opening the original needs to know it has been reviewed, and someone opening the Review needs to know what it corrects. A single event on one subject would leave one of those two questions unanswerable without a join.
+
+**`chain_uuid` groups a correction chain; `review_number` is a position within it; `chain_depth` counts DPCs including the original.** Depth is stored rather than derived because walking a chain to measure it is the query that gets slower as the thing it measures grows.
+
+**`original_proposal_version`** is the content fingerprint of the DPC being corrected, taken from its concluded proceeding. The original is immutable, so it cannot change — recording it means the claim rests on evidence rather than on that assumption holding.
+
+#### Supersession — M8 Phase 3
+
+| Event | Trigger | Subject | Payload |
+|---|---|---|---|
+| `dpc_review.supersession_effective` | The Review's own result is approved | **the Review** | review_link_uuid, chain_uuid, review_number, chain_depth, original_proposal_version, effect, superseded_at, original_dpc_code, original_proposal_uuid, review_dpc_code, review_proposal_uuid, proceeding_uuid |
+| `dpc_review.superseded` | The same act, recorded against the DPC now superseded | **the original** | as above |
+
+**Supersession is a consequence of a decision, not of an intention to review.** Raising a Review records the *intent* (`dpc_review.created`); nothing is superseded until the Review's own result is approved. A Review that is cancelled, returned or simply never approved leaves the original standing, and no event in this pair fires.
+
+**Neither is a workflow transition on the original.** The original's own state is untouched — what changed is that a *different* DPC now governs. A transition would have its ledger claim a status change it never underwent.
+
+### `DpcSupersededByReview` — M8
+
+The second published event that is not a `WorkflowTransitioned`.
+
+| Property | Type | Notes |
+|---|---|---|
+| `chainUuid` | string | |
+| `reviewNumber` | int | |
+| `originalProposalUuid` / `originalDpcCode` | string / string\|null | The DPC a department must stop relying on |
+| `reviewProposalUuid` / `reviewDpcCode` | string / string\|null | The DPC that now governs |
+| `departmentId` | int\|null | Scopes the recipients |
+| `payloadVersion` | int | **1** |
+
+Both DPC codes are carried because the department needs to be told which promotion list to stop relying on, and a code is what it knows them by.
+
+**A Review's own calculation emits the ordinary `dpc_proceeding.*` events**, on the Review as subject. There is no separate "review calculated" event, because a Review calculates exactly as any DPC does — under the original's rules, which the run's own `configuration_snapshot` records, and whose provenance `dpc_review_calculations` pins by UUID.
+
 ---
 
 ## Consuming events

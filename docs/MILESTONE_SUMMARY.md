@@ -18,12 +18,12 @@ One page per milestone: what it delivered, what governs it now, and what it left
 | **M5** | Scoring & Eligibility Engine — 4 phases | S18, S33, C4–C6 | ✅ Complete | **Engine frozen** | 146 |
 | **M6** | CGPSC Workflow — 4 phases | S26–S30 | ✅ Complete | **Frozen** | 77 |
 | **M7** | DPC Proceedings & Result Generation — 4 phases | S31–S34, S45 | ✅ **Complete** | — | 169 |
-| **M8** | Review DPC | S35–S44 | 📐 Design | — | — |
+| **M8** | Review DPC | S35–S44 | 🟡 3 of 3 phases — closure pending BD-11 | — | 70 |
 | **M9** | Circulation DPC | S45–S48 | ⚪ Not started | — | — |
 | **M10** | Self-Inspection & Objection | S49–S51 | ⚪ Not started | — | — |
 | **M11** | Notifications · Reports · Dashboards · Audit UI · Hardening | — | ⚪ Not started | — | — |
 
-**537 tests / 1682 assertions.** Pint clean · PHPStan (Larastan level 6) 0 errors · `composer audit` clean · `migrate:fresh --seed` OK, 58 tables.
+**607 tests / 1865 assertions.** Pint clean · PHPStan (Larastan level 6) 0 errors · `composer audit` clean · `migrate:fresh --seed` OK, 61 tables.
 
 ---
 
@@ -117,6 +117,26 @@ One page per milestone: what it delivered, what governs it now, and what it left
 **A silent-failure class closed permanently.** Twice in M7 a newly added column failed to reach its model, because `update()` discards non-fillable attributes and **reports success**. `Model::preventSilentlyDiscardingAttributes()` is now on outside production.
 
 **Left open, deliberately.** BD-9 and BD-10, found by the Phase 4 full-PPT comparison against slide 34's stated result. Ruled: raise to CGPSC, implement no assumption, do not modify M5. **M7 is not reopened for them.**
+
+---
+
+## M8 — Review DPC 🟡 *all phases built, closure pending*
+
+**All three phases complete; closure held on BD-11.** Design at `docs/design/09-m8-review-dpc.md`.
+
+**The smallest milestone since M2, by design rather than by ambition.** S35 says outright that *"the Review DPC process will be exactly the same as the Fresh DPC process"*, and S36–S44 bear it out: every screen already exists. M8 adds no new workflow, no new engine, no new renderer and no new proceeding — it adds an **origin** (which DPC is being corrected, and why), **copy-on-create** so the department corrects rather than retypes, and the answer to what a Review does to the original.
+
+**Six questions raised, all ruled.** AQ-9: a Review **supersedes** the original, with permanent bidirectional references, a chain UUID and a review number. AQ-11: a Review applies **the original's** configuration snapshot, never today's rules.
+
+**Phase 1 delivered (2026-08-14):** origin, chain, coded reasons, copy-on-create, and the "THIS IS A REVIEW DPC" banner — rendered from the layout via a view composer, because a Review traverses M4's frozen screens and they could not be edited. The milestone's central guarantee is its first test: **editing a Review never touches the original.**
+
+**Phases 2 and 3 delivered:** calculation under the **original's** configuration snapshot (a correction cannot silently re-decide eligibility under later rules), full M6/M7 reuse, supersession taking effect at approval, and the `SUPERSEDED` watermark applied **on delivery** so a superseded document stays byte-identical to what was issued and still verifies.
+
+**M8 introduced the decoration pattern** — four subclasses bound over M7 in the container, so M8 changes how M7 approves, renders and serves without modifying a byte of it. Documented, with its costs and limits, in `docs/ARCHITECTURE_BASELINE_v0.7.md`.
+
+**Still blocked:** **BD-11** — what supersession means for an officer already promoted. It gates closure, and nothing else.
+
+**One finding in existing schema:** `review_reason_id` is singular; S37's reasons are checkboxes. Fixed additively, with the frozen column left unused rather than repurposed.
 
 ---
 

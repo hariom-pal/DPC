@@ -140,6 +140,27 @@ The same pattern was applied to something that is *not* an external system — `
 
 **Consequence.** A rendering failure cannot damage a decision already taken, and a template change cannot require re-approval. A failed generation is a **first-class event**, not a log line: an approved DPC with no document is exactly what a subscriber should notice.
 
+
+### AD-19 — Stored rules are re-applied through the configuration mechanism, not a second code path
+
+**Decided:** M8 Phase 2, implementing AQ-11.
+
+A Review DPC must calculate under the **original's** rules. `DpcCalculationService` calls `RuleSet::fromConfig()` internally and accepts no rule set, and M5 is engine-frozen.
+
+The seam was already there. `fromConfig()` and `fromSnapshot()` share one `build()`, so a stored `configuration_snapshot` has exactly the shape of `config('dpc.scoring')` — and under **AD-3**, business rules *are* configuration. Running under the original's rules therefore means running under the original's configuration: set it, calculate, restore it in a `finally`.
+
+**Consequence.** No second scoring path exists, which is the point — a parallel "historic rules" implementation would be a second engine to keep correct. The cost is that configuration is process-global: it is restored on every exit path, and the residual risk under a concurrent worker is recorded as **TD-22**. `engine_version` is deliberately preserved across the override, because the rules are the original's but the engine doing the work is this build.
+
+### AD-20 — Behaviour is added to a completed milestone by decoration, never by edit
+
+**Decided:** M8 Phase 2.
+
+M8 needed M7's calculation service to behave differently for a Review. `ReviewAwareCalculationService` extends it and is bound over it in the container; M7's file is untouched.
+
+**Consequence.** `git diff v0.7.0-m7-complete -- app/Domain/Proceeding` stays empty while M7's behaviour is genuinely extended — which is what makes the freeze check meaningful rather than a formality. The cost is indirection: the class that runs is not the class the caller names, and a reader following `ProceedingCalculationService` will not see the Review behaviour until they check the container binding. Mitigated by a test asserting which implementation resolves, so the binding cannot be removed silently.
+
+This is now the standing pattern for extending a complete milestone. It is **not** a licence to avoid the freeze process for changes that belong inside the frozen code — a bug in M7 is still fixed in M7, with approval.
+
 ---
 
 ## Process

@@ -22,6 +22,7 @@ Everything under `docs/design/` is derived from these two decks; on any conflict
 | See the current handover, decisions and review findings | `docs/ARCHITECT_REVIEW.md` |
 | See known limitations, deferred items and resolved defects | `docs/TECHNICAL_DEBT.md` |
 | Understand why the architecture is the way it is | `docs/ARCHITECTURE_DECISIONS.md` |
+| Extend a frozen or completed milestone | `docs/ARCHITECTURE_BASELINE_v0.7.md` |
 | See what each milestone delivered | `docs/MILESTONE_SUMMARY.md` |
 | See when decisions were taken, and why | `docs/PROJECT_TIMELINE.md` |
 | Understand a workflow, its states and who may act | `docs/WORKFLOWS.md` |
@@ -34,7 +35,7 @@ Everything under `docs/design/` is derived from these two decks; on any conflict
 | Know which business rules are still unsettled | `docs/PENDING_BUSINESS_DECISIONS.md` |
 | Put those questions to CGPSC in plain language | `docs/UAT_BUSINESS_VALIDATION.md` |
 
-These sixteen documents — this README plus the fifteen under `docs/` above — are **mandatory and kept synchronized**. Anything else under `docs/` is supporting detail.
+These seventeen documents — this README plus the sixteen under `docs/` above — are **mandatory and kept synchronized**. Anything else under `docs/` is supporting detail.
 
 **Three registers, deliberately separate** (architect directive): `PENDING_BUSINESS_DECISIONS.md` holds questions only CGPSC can answer, `TECHNICAL_DEBT.md` holds what we know is imperfect, and `ARCHITECTURE_DECISIONS.md` holds the rulings that constrain future work. Each survives a phase boundary; `ARCHITECT_REVIEW.md` does not — it is replaced in full each phase.
 
@@ -42,7 +43,9 @@ These sixteen documents — this README plus the fifteen under `docs/` above —
 
 M0–M6 are complete. **M4 (DPC Proposal), M5 (Scoring & Eligibility Engine) and M6 (CGPSC Workflow) are frozen** — bug fixes, security fixes and hardening only; no new features, workflow changes or schema changes. M5's freeze covers only *approved* rules, so the unresolved business decisions can still be settled through configuration.
 
-**M7 (DPC Proceedings & Result Generation) is complete**, closed 2026-08-14 at tag `v0.7.0-m7-complete`. Four business questions remain open and are tracked only in `docs/PENDING_BUSINESS_DECISIONS.md`; M7 is not reopened for them. **M8 (Review DPC) is at design stage** — nothing implemented.
+**M7 (DPC Proceedings & Result Generation) is complete**, closed 2026-08-14 at tag `v0.7.0-m7-complete`. Four business questions remain open and are tracked only in `docs/PENDING_BUSINESS_DECISIONS.md`; M7 is not reopened for them.
+
+**M8 (Review DPC) engineering is complete** — all three phases built, tested and gate-green, 2026-08-14. **M8 is not closed:** closure is withheld pending **BD-11** (what supersession means for an officer already promoted under the reviewed DPC). No file in M4, M5, M6 or M7 was modified — M8 extends M7 by **decoration** (AD-20); read `docs/ARCHITECTURE_BASELINE_v0.7.md` before extending a frozen or completed milestone. **M9 (Circulation DPC) has not started.**
 
 Current status and the exact freeze terms: `docs/PROJECT_STATUS.md`.
 

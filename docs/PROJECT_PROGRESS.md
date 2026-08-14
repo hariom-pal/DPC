@@ -2,8 +2,10 @@
 
 **Date:** 2026-08-14
 **Source of truth:** `docs/ODPC_NEW_FINAL.pptx` (52 slides, `S<n>`) and `docs/CONVENTIONAL DPC PROCESS.pptx` (7 slides, `C<n>`). Cross-checked against `docs/design/*.md`, git history, and the live codebase.
-**Stack:** PHP 8.4 / Laravel 13.23.0 / MySQL / Redis (cache+queue+sessions) / Blade + Bootstrap 5.3. No Node/Vite build step. Architecture: thin controllers → Domain Services → Eloquent models, under `app/Domain/{Authentication,Cgpsc,Department,Dpc,Eligibility,Import,Master,PreDpc,Proceeding,Shared,Signature,UserManagement}` + `app/Integrations`. **All external integrations are behind `FEATURE_*` flags (default off) and the Provider Pattern** — business logic never calls an external system directly; only Providers may.
-**Verified today:** `composer test` → 537 passed / 1682 assertions, 0 failing. `vendor/bin/pint --test` → passed. `vendor/bin/phpstan analyse` (Larastan level 6) → 0 errors. `composer audit` → no advisories. `php artisan migrate:fresh --seed` schema → 58 tables live in `dpc_dev`. All four gate steps are now mandatory per phase (`composer gate`).
+**Stack:** PHP 8.4 / Laravel 13.23.0 / MySQL / Redis (cache+queue+sessions) / Blade + Bootstrap 5.3. No Node/Vite build step. Architecture: thin controllers → Domain Services → Eloquent models, under `app/Domain/{Authentication,Cgpsc,Department,Dpc,Eligibility,Import,Master,PreDpc,Proceeding,Review,Shared,Signature,UserManagement}` + `app/Integrations`. **All external integrations are behind `FEATURE_*` flags (default off) and the Provider Pattern** — business logic never calls an external system directly; only Providers may.
+**Verified today (full gate re-run 2026-08-14):** PHPUnit → **620 passed / 1902 assertions, 0 failing** (95 MB peak, 1m19s, run bounded at 2 GB). `vendor/bin/pint --test` → passed. `vendor/bin/phpstan analyse` (Larastan level 6) → 0 errors. `composer audit` → no advisories. `php artisan migrate:fresh --seed` → 43 migrations, **62 tables** live in `dpc_dev`, 10 seeders. Freeze diff against `v0.7.0-m7-complete` → empty. All four gate steps are mandatory per phase (`composer gate`).
+
+**This run replaced figures that were not reproducible.** The line above previously read *607 passed / 1865 assertions* and *61 tables*. **Two P0 defects in M8 were found by running the gate, both now fixed:** a circular container dependency among M8's four decorators, which crashed the PHP process on every document generation and — under this environment's `memory_limit=-1` — exhausted the host rather than failing; and a foreign-key identifier one character over MySQL's 64-character limit, which meant `dpc_document_review_references` had never been created in the database. The second survived 84 green tests because the suite runs on **in-memory SQLite**, which does not enforce that limit (**TD-24**).
 
 **M5 ENGINE FREEZE (2026-08-13):** the Eligibility Algorithm, Scoring Algorithm, Zone Logic and Super Seat Logic are frozen. Future changes only through Configuration, Master Data or Government Notification — never source code; bug and security fixes remain permitted. Only *approved* rules are frozen — unresolved business rules are excluded and are tracked in `docs/PENDING_BUSINESS_DECISIONS.md`.
 
@@ -17,7 +19,9 @@
 
 **Updated 2026-08-13 (post-approval):** documentation cleanup executed (archive/restore/delete per `docs/project-documentation-audit.md`); P0 rate-limiting gap closed (see Module 2); decisions Q4, Q9, Q10 ruled; **M4 COMPLETE — all 7 phases** (Post Selection, Committee, Working Officers + Vacancies, Seniority List, Evaluation/Tabulation Chart, Excel Import, Closeout) — 145 tests / 516 assertions passing, Pint clean, PHPStan 0 errors, `composer audit` clean, 50 DB tables. Applying the new **Demo Readiness Rule** caught three P1 defects that six consecutive green gates had missed (empty proposals were submittable and signable; the signed document contained only a header; the audit trail had never been tested anywhere in the project) — all fixed and covered. A **UAT Readiness Review** milestone sits between M6 and M7 (see `docs/design/05-milestones.md`). Full detail: `docs/ARCHITECT_REVIEW.md`, `docs/CHANGELOG.md`.
 
-This document is the single source of truth for project status going forward, per your instruction. It supersedes any per-milestone status claims in older worklog files.
+**M8 COMPLETE (2026-08-14):** all three phases of Review DPC are built, tested and gate-green, committed and tagged `v0.8.0-m8-phase3`. **BD-11** (what supersession means for an officer already promoted) is a **Deferred Business Decision — required before production activation of the Review supersession policy** by architect ruling of 2026-08-14 and **does not block M8 completion**. **No file in M4, M5, M6 or M7 was modified**, verified by full-repository diff at every phase boundary; M8 extends M7 by **decoration** (AD-20), with four decorators bound over it in the container. **M9 (Circulation DPC) has NOT started.** See the Implementation Summary at the end of this document for the current status, remaining milestones, pending decisions, debt, suggestions and next steps.
+
+This document is the single source of truth for project status and for AI progress/suggestions going forward, per your instruction. It is replaced in full at each phase boundary and no additional progress markdown file is created. It supersedes any per-milestone status claims in older worklog files.
 
 ---
 
@@ -255,19 +259,19 @@ Every module below corresponds to a stage of the 6-stage ODPC process (or a cros
 
 ## Module 12 — Review DPC
 
-**PPT Reference:** S35–S44 · **Milestone:** M8 · **Status:** ⚪ Not Started
+**PPT Reference:** S35–S44 · **Milestone:** M8 · **Status:** ✅ Completed (all 3 phases) — BD-11 deferred, not blocking
 
-1. **Purpose:** Correct an error discovered in a completed Fresh DPC (wrong seniority order/omission, wrong roster point, wrong CR entry, reservation rule not followed, tribal-area service not counted), via a representation referencing the original DPC.
-2. **Business Workflow (S35–S44):** Same as Fresh DPC end-to-end, but the AO references the original DPC ID and picks a coded review reason; AH approves; CGPSC recalculates and re-approves.
-3. **Current Implementation Status:** Not started.
-4. **Database Tables:** None yet. Planned: `dpc_proposals.type = review` + `original_dpc_proposal_id` self-FK + `review_reason` (already modeled in `03-database-design.md` §C, reusing the Fresh DPC tables).
-5. **Backend Components:** None yet. Planned: `ReviewDpcService`.
-6. **Frontend Components:** None yet.
-7. **APIs:** None yet.
-8. **Business Rules Implemented:** None yet. `review_reasons` master table already exists (built in M2) and is seeded with the 6 PPT-listed reasons, ready to be consumed here.
-9. **Remaining Work:** Entire milestone.
-10. **Dependencies:** M7 (a completed Fresh DPC to review).
-11. **Next Milestone:** No open blockers specific to this module.
+1. **Purpose:** Correct an error discovered in a completed DPC — a name omitted from the seniority list, a wrong seniority order, a wrong roster point, a mis-entered CR, tribal-area service not counted, or a reservation rule not followed — by running a new DPC that references the original and states why.
+2. **Business Workflow (S35–S44):** The AO raises a Review against a concluded DPC, selecting it by DPC ID and ticking the grounds (S37); the chart arrives pre-filled and is corrected (S38); the AH approves (S39–S40); the Commission conducts a sitting and approves the result (S41–S44). **S35 states the process is identical to a Fresh DPC**, and it is — M8 adds no new workflow, engine, renderer or proceeding.
+3. **Current Implementation Status:** **All three phases complete (2026-08-14). BD-11 deferred by architect ruling; M8 is complete.** Review proposal creation with origin and multiple coded reasons; copy-on-create; the correction chain (`chain_uuid`, `review_number`, `chain_depth`, `original_proposal_version`) with append-only bidirectional links and three chain roles; the "THIS IS A REVIEW DPC" banner; calculation under the **original's configuration snapshot** with per-calculation provenance; full M6/M7 pipeline reuse; **supersession taking legal effect at approval**; Review documents stating what they correct; the **`SUPERSEDED` watermark applied on delivery**; publication; and 85 tests.
+4. **Database Tables:** `dpc_review_links` (chain UUID, review number, chain depth, original proposal version, effect, `superseded_at`), `dpc_proposal_review_reasons`, `dpc_review_calculations` (run UUID, configuration snapshot UUID, original calculation run UUID) — all additive.
+5. **Backend Components:** `App\Domain\Review\{Enums\ChainRole, Models\{DpcReviewLink, DpcProposalReviewReason, DpcReviewCalculation}, Documents\ReviewAwareDocumentRenderer, Events\DpcSupersededByReview, Listeners\SendSupersessionNotification, Services\{ReviewDpcService, ReviewAwareCalculationService, ReviewAwareApprovalService, ReviewAwareDocumentService}, Requests\CreateReviewProposalRequest}`; `App\Http\Controllers\Dpc\ReviewProposalController`; `App\Http\View\Composers\ReviewDpcComposer`. **Four decorators sit over M7 in the container** — see `docs/ARCHITECTURE_BASELINE_v0.7.md`.
+6. **Frontend Components:** `resources/views/dpc/reviews/{create,chain}.blade.php`, `resources/views/partials/review-banner.blade.php`.
+7. **APIs:** `GET|POST /dpc-proposals/reviews`, `GET /dpc-proposals/{dpcProposal}/review-chain`. The original is selected by **UUID**.
+8. **Business Rules Implemented:** A Review may be raised only against a **concluded** DPC, only by the owning department's Authorized Officer (AQ-10), and only against the **latest** DPC in a chain (AQ-14). At least one ground is required. The Review **owns its own rows**; the original is never modified. A Review calculates under the **original's configuration snapshot**, never today's rules (AQ-11). It runs the **full M6 allotment cycle** (AQ-12). On approval it **supersedes** the DPC it corrects (AQ-9) — never before, so a Review that is cancelled or never approved leaves the original standing. Superseded documents remain downloadable and are watermarked **on delivery**, so the stored artefact and its hash stay exactly as issued. A provisional result cannot be published.
+9. **Remaining Work:** **Nothing.** **BD-11** — what supersession means for an officer already promoted under the reviewed DPC — is a **Deferred Business Decision — required before production activation of the Review supersession policy** (architect ruling 2026-08-14) and does not block completion. The system records the supersession and notifies the department; it asserts nothing about the promotion itself, and must not until CGPSC rules. **That ruling is required before the Review supersession policy is activated in production.**
+10. **Dependencies:** M4 (proposal sections), M5 (engine), M6 (allotment), M7 (proceeding and documents) — all complete, and none modified.
+11. **Next Milestone:** M9 (Circulation DPC), which resolves a held promotion (`CIR`) from an earlier DPC and faces the same supersession question M8 raised. **BD-11 gates neither M8's completion nor M9's start** — it gates production activation of the supersession policy.
 
 ---
 
@@ -363,7 +367,11 @@ Every module below corresponds to a stage of the 6-stage ODPC process (or a cros
 
 ## Implementation Summary
 
-### Overall Progress
+**This is the project's single progress-and-suggestions document.** It is replaced in full at each phase boundary rather than appended to, and no additional progress markdown file is created. The module-by-module report above is the detailed record; this section is the current state, what remains, what is blocked, and what I recommend next.
+
+### 1. Current project completion status
+
+**M8 (Review DPC) is COMPLETE — all three phases, committed and tagged `v0.8.0-m8-phase3`. BD-11 is deferred by architect ruling and does not block completion. M9 has NOT started.**
 
 ```
 Foundation                          ✅ 100%
@@ -373,50 +381,124 @@ Master Data & Rule Configuration    ✅ 100%
 User Management (provisioning)      ✅ 100%
 Pre-DPC Proposal                    ✅ 100%
 External Integration Architecture   ✅ 100% (feature flags + Provider Pattern)
-CSC DigiSign / E-Signature          🟡 Partial (abstraction + Mock done; real CSC integration pending — BD-4)
-DPC Proposal (detailed)             ✅ 100% (all 7 phases — FROZEN)
-Scoring & Eligibility Engine        ✅ 100% (all 4 phases — ENGINE FROZEN)
-CGPSC Workflow (Allotment/Sched.)   ✅ 100% (all 4 phases)
-DPC Proceeding & Results            ⚪ 0%
-Review DPC                          ⚪ 0%
-Circulation DPC                     ⚪ 0%
-Self-Inspection & Objection         ⚪ 0%
-Notifications                       🟡 Partial (mechanism + OTP done; live SMS gateway + full matrix pending)
-Reports & Dashboards                ⚪ 0%
-Audit Trail & Security Hardening    🟡 Partial (foundation done; UI + hardening pass pending)
+DPC Proposal (detailed)             ✅ 100% (7 phases — ARCHITECTURE FROZEN)
+Scoring & Eligibility Engine        ✅ 100% (4 phases — ENGINE FROZEN)
+CGPSC Workflow (Allotment/Sched.)   ✅ 100% (4 phases — FROZEN)
+DPC Proceeding & Results            ✅ 100% (4 phases — FROZEN, closed v0.7.0-m7-complete)
+Review DPC                          ✅ 100% (3 phases) — COMPLETE; BD-11 deferred, not blocking
+Circulation DPC                     ⚪ 0%  — M9, NOT STARTED
+Self-Inspection & Objection         ⚪ 0%  — M10
+Reports & Dashboards                ⚪ 0%  — M11 (gated on Q16: absent from both PPTs)
+CSC DigiSign / E-Signature          🟡 Partial (abstraction + Mock done; real CSC pending — BD-4)
+Notifications                       🟡 Partial (mechanism + OTP done; live SMS gateway pending — TD-6)
+Audit Trail & Security Hardening    🟡 Partial (foundation done; UI + hardening pass = M11)
 ```
 
-**Milestone completion: 7 of 11 (M0–M6) fully done — ~64% of the planned milestone roadmap.** Note this is a milestone-count estimate, not effort-weighted; M4 (Proposal) and M5 (Eligibility Engine) were the two largest, and both are now complete and frozen.
+**Milestone completion: 8 of 11 closed (M0–M7), plus M8 built but not closed — ~82% of the planned milestone roadmap by count.** Not effort-weighted: M4 and M5 were the two largest and are both frozen.
 
-**Two freezes are in force:** M4 is architecture-frozen (bug/security/performance/VAPT/hardening only), and the M5 calculation engine is frozen (changes only through configuration, master data, or government notification). M6 was built entirely on that stable core without touching either, which is the freeze doing its job.
+**Four freezes are in force** — M4 architecture-frozen, M5 engine-frozen, M6 frozen, M7 frozen from M8 onward. M8 was built entirely on that stable core **without modifying a single file in any of them**, verified by full-repository diff at every phase boundary. That is the freeze doing its job, and it is the strongest evidence the boundaries are in the right places.
 
-**The next step is the UAT Readiness Review** checkpoint before M7.
+### 2. Remaining milestones
 
-### Codebase Inventory (live count, 2026-08-13)
+| # | Milestone | Scope | Status | Gated on |
+|---|---|---|---|---|
+| **M9** | Circulation DPC | S45–S48, C3, C7 — resolve a held promotion (`CIR`) from an earlier DPC; CGPSC signs a circulation note once the missing CR or immovable-property record is supplied | ⚪ **NOT STARTED** | Architect approval to begin. **Q12** (circulation-trigger wording: "2+ years CR missing" vs. "CR ≤ 4") should be settled first; **BD-11** informs the design |
+| **M10** | Self-Inspection & Objection | S49–S52 — an officer inspects their own record and raises an objection | ⚪ Not started | M9; the objection outcome may require a Review DPC, which M8 now provides |
+| **M11** | Reports, Audit-trail UI, Security & Performance Hardening | Reporting/dashboards, a standalone audit browser, rate-limiting review, header hardening, Redis cache tuning | ⚪ Not started | **Q16** — reporting is absent from both PPTs and is out-of-scope-by-default until confirmed |
+| — | **UAT & Security Hardening sprint** | Full business UAT, VAPT, capacity planning | Not started | M11; and the government SMS gateway (TD-6) before any officer can complete verification |
+
+**M9 has not started.** No M9 code, migration, route, view or test exists in this working tree.
+
+### 3. Pending business decisions
+
+Register: `docs/PENDING_BUSINESS_DECISIONS.md`. Put to business users in plain language in `docs/UAT_BUSINESS_VALIDATION.md`. **None of these is an engineering task, and none is resolved unilaterally.**
+
+| # | Question | Severity | Blocks | Behaviour while open |
+|---|---|---|---|---|
+| **BD-11** | What happens to an officer already **promoted** under a DPC that is later reviewed and superseded? | **P1** | **Nothing in the build.** **Deferred Business Decision — required before production activation of the Review supersession policy** (architect ruling 2026-08-14) | The system marks the DPC superseded on both timelines, notifies the department with both codes, watermarks the superseded documents on delivery, and **asserts nothing about the promotion itself** — no withdrawal, no reverted rank, no arrears |
+| **BD-2 / BD-3** | Reserved relaxation — automatic or committee discretion, and does relaxation to 10 apply beyond Class-I→I? | **P1** | Publishable results | Result marked **provisional** and **blocked from publication**. Fires on Reviews too — US3's case is exactly this |
+| **BD-9** | Which waiting list does an officer join when their own category has no vacancy? | **P1** | Publishable results | **The one to chase.** It raises **no flag**, so it can produce a confidently wrong *published* list rather than a blocked one. **M5 is not modified for it** (ruling) — raised to CGPSC |
+| **BD-10** | Does a pending court case annotate the remark? | P1 | Publishable results | Result marked provisional; publication blocked |
+| **BD-1** | Does `PUNISHMENT` disqualify an officer? | P2 | Nothing | Ruled a business rule, not an engineering one. Not implemented; current behaviour pinned by test |
+| **BD-4** | CSC DigiSign — the real provider and API contract | P2 | Production signing | Mock provider behind `FEATURE_*`, default off. **Never mock-sign in production** |
+
+**Why BD-11 in particular cannot be guessed:** the three plausible answers — the promotion stands and only the paper is corrected; it is withdrawn from the date of the Review; it is withdrawn retrospectively with recovery of pay — differ in what they do to a serving officer's substantive rank and pay. Choosing one silently would be the software deciding a service-law question.
+
+### 4. Technical debt
+
+Register: `docs/TECHNICAL_DEBT.md` — permanent, not reset at a phase boundary. The four items below are the ones M8 touched or deliberately left alone; all four are blocked by a **freeze**, not by effort.
+
+| # | Item | Status | Recommendation |
+|---|---|---|---|
+| **TD-19** | `DpcProposal` has no `HasUuids`; new proposals get their UUID by direct update, because adding the trait would modify frozen M4 | Open — **now two callers** (`ProceedingService::open()`, `ReviewDpcService::create()`) | One line when the M4 freeze is next opened. Cheapest of the four, most callers |
+| **TD-20** | The department-scoped notification recipient query is duplicated across listeners | Open — **now three copies**; Phase 3's `SendSupersessionNotification` is the third | Extract `NotificationRecipientResolver` when the M6 freeze is next opened. Two copies of "who should be told" is how one quietly stops matching the other; three is worse |
+| **TD-21** | Calculation Engine Version is not on `dpc_calculation_runs` — it is on the timeline, the proceeding and every document, but not the run row | Open, unchanged. M8 records its own provenance in `dpc_review_calculations` rather than writing to M5's table | Add the column when the M5 freeze is next opened |
+| **TD-22** | The rule-reuse config override is process-global (AD-19) | **Open by directive.** Restored in a `finally`; PHP-FPM serves one request per process, so two calculations cannot interleave today | **Do not solve it yet.** Real only if calculation is queued or run in a concurrent worker. Solving a concurrency residual before concurrent workers exist would be designing against a hypothesis |
+
+**Also open, and due before production rather than before UAT:** **TD-6** (government SMS gateway — without it OTP delivery fails, so no officer can complete verification), **TD-1** (evidence-table permission grants), **TD-8** (capacity plan for permanently retained import files and signed documents).
+
+### 5. Architect suggestions
+
+1. **Batch TD-19, TD-20 and TD-21 into one authorised freeze opening at M8's closure boundary.** Each is small and well understood; each is waiting for its own reason to arrive. Opening the freeze once, with the gate and the freeze-verification diff run around it, is cheaper and safer than three separate openings — and TD-20 is now at three copies, which is where duplicated logic starts to drift.
+2. **Stop at four decorators.** `docs/ARCHITECTURE_BASELINE_v0.7.md` is now the document to read before extending a frozen or completed milestone. It records what the pattern costs — indirection; the class that runs is not the class the caller names — and that a **fifth** decorator is the signal to ask whether the M7/M8 boundary is in the right place, rather than adding it and deciding later.
+3. **Chase BD-9 ahead of the others.** BD-2, BD-3 and BD-10 fail loudly — they block publication — and BD-11 is now explicitly deferred with its constraint named. BD-9 fails **silently** — it produces a plausible published promotion list that may name the wrong officer on the wrong waiting list. Of the open business questions it is the only one that can do real harm without anyone noticing.
+4. **Settle Q12 before M9 opens.** The circulation trigger is the same wording ambiguity that already affects the eligibility engine. Designing M9 around an unresolved trigger would mean building a workflow whose entry condition is a guess.
+5. **Rename the branch, or decide not to.** `feature/m0-setup` is eight milestones stale and describes none of what it contains. It rewrites the remote ref, so it needs a decision rather than a silent fix — but leaving it is a real handover hazard for anyone new to the repository.
+6. **Keep the Demo Readiness Rule ahead of the gate.** Six consecutive green gates once missed three P1 defects that an afternoon of demoing caught. The gate is necessary, not sufficient (AD-17), and every milestone since has been checked against the PPT slide by slide as well as gated.
+
+### 6. Recommended next steps
+
+**In order. Nothing here starts M9.**
+
+1. **Put BD-11 to CGPSC** with the three candidate answers and their consequences, via `docs/UAT_BUSINESS_VALIDATION.md`. It no longer blocks M8, but it **is required before the Review supersession policy is activated in production**, so it needs an answer on a procurement-style lead time rather than an engineering one.
+2. **Obtain architect approval of M8 Phase 3** against the checklist in `docs/ARCHITECT_REVIEW.md` §10.
+3. **Declare the M8 freeze**, as was done for M6 and M7. M8 is complete and tagged `v0.8.0-m8-phase3`; the freeze is a separate directive and has not been issued.
+4. **At that boundary, open the freeze once** for TD-19 + TD-20 + TD-21 (suggestion 1), with the gate and freeze verification run around it.
+5. **Chase BD-9, BD-2, BD-3 and BD-10** in parallel with the above — they gate *publication* of any result, Fresh or Review, and therefore gate the end of UAT rather than the start of M9.
+6. **Settle Q12**, then design M9 (Circulation DPC) and obtain approval of the design **before** any M9 code is written — the established pattern for every milestone since M4.
+7. **Before production, not before UAT:** connect the government SMS gateway (TD-6), grant the evidence-table permissions (TD-1), and produce the retention/capacity plan (TD-8).
+
+### 7. Implementation notes from this session
+
+Notes worth carrying forward that are not obvious from the diff:
+
+- **The M5 seam M8 needed already existed, built by M5 itself.** `DpcCalculationService` takes no rule set and calls `RuleSet::fromConfig()` internally — but `fromConfig()` and `fromSnapshot()` share one `build()`, so a stored `configuration_snapshot` has exactly the shape of `config('dpc.scoring')`. Under AD-3 business rules *are* configuration, so running under the original's rules is running under the original's configuration. **No second scoring path exists**, and that is the point: a parallel "historic rules" implementation would be a second engine to keep correct.
+- **Configuration is restored in a `finally`, deliberately.** It is process-global, and a failed calculation leaving a 2017 rule set in place would silently corrupt the *next* one. This is the whole of TD-22, and it is why TD-22 is documented rather than solved.
+- **`engine_version` is preserved across the rule override.** The rules are the original's; the engine doing the work is this build. Replacing `dpc.scoring` wholesale would have blanked it, and every Review document would then have claimed an unknown engine.
+- **The watermark is a delivery concern, not a storage one.** `contents()` is what a reader gets; `storedContents()` and `verify()` are what was issued. Three tests pin the split, including that **a superseded document still verifies** — its SHA-256 is what proves a department's copy is the copy the Commission issued, and rewriting the bytes would invalidate every copy already in circulation. It is also the honest model: the document *was* issued as it stands and was *later* superseded.
+- **The configuration snapshot UUID is a UUIDv5 over the canonical snapshot, keys sorted.** A random UUID would have satisfied the directive and recorded nothing useful. Derived, *"were these two results decided under the same rules?"* becomes an equality check. Tested both ways: reordered keys give the same UUID, a changed rule version gives a different one.
+- **`chain_depth` and `review_number` are not the same number**, and storing one under two names would have been the easy mistake. Depth counts DPCs in the chain including the original (first Review = depth 2); the number counts corrections (first Review = number 1). Stored rather than derived, because walking a chain to measure it is exactly the query that slows as the thing it measures grows.
+- **Three chain roles, not two.** A superseded **Review** and the **Original** are both "not the operative DPC" but are not the same thing, and the role is derived from **position**, not from `superseded_at` — keeping the structural view separate from supersession's legal effect.
+- **Supersession is recorded on both timelines** because a correction chain has to be readable from either end. Someone opening the original needs to know it no longer governs.
+- **The provisional-result block fires on Reviews in practice**, not just in theory — US3's case is exactly BD-2/BD-3. The companion test shows the other side: a Review that corrects the very CR it was raised for produces a clean result and publishes.
+- **Four decorators, each with a test asserting a Fresh DPC is unaffected.** A decorator that changes behaviour for anything that is not a Review is a defect, and it would be invisible without those tests.
+
+### Codebase Inventory (live count, 2026-08-14)
 
 | Metric | Count |
 |---|---|
-| Database tables | 44 |
-| Migrations | 24 files |
-| Models | 29 |
-| Controllers | 25 |
-| Domain Services | 11 |
-| Policies | 1 |
-| Form Requests | 27 |
+| Database tables (`migrate:fresh --seed`) | 62 |
+| Migrations | 43 files |
+| Models | 48 |
+| Controllers | 36 |
+| Domain Services | 31 |
+| Policies | 3 |
+| Form Requests | 39 |
 | Seeders | 10 |
-| Factories | 1 |
-| Blade views | 50 |
-| Routes | 133 |
-| Test files | 23 |
+| Blade views | 84 |
+| Routes | 176 |
+| Test files | 51 |
 | Composer packages added beyond Laravel default | `spatie/laravel-permission`, `owen-it/laravel-auditing`, `predis/predis`, `larastan/larastan` (dev) |
 
-### Quality Gate (run 2026-08-13)
+### Quality Gate (run 2026-08-14, this session)
 
 | Check | Result |
 |---|---|
-| `composer test` (`php artisan test`) | **90 passed / 286 assertions, 0 failing** |
+| PHPUnit (`php -d memory_limit=2G vendor/bin/phpunit`) | **620 passed / 1902 assertions, 0 failing** |
 | Laravel Pint (`--test`) | **Passed** — PSR-12 + strict types, no violations |
 | PHPStan / Larastan (level 6) | **0 errors** |
-| `php artisan migrate:fresh --seed` | OK — 44 tables, 10 seeders |
+| `composer audit` | **No advisories** |
+| `php artisan migrate:fresh --seed` | **OK** — 43 migrations, **62 tables**, 10 seeders |
+| Freeze verification (M4/M5/M6/M7 vs. `v0.7.0-m7-complete`) | **Empty** |
 
-All milestones to date (M0–M3) shipped with this gate green, per the project's own quality-gate discipline (`composer test`, `php artisan test`, `php artisan migrate`, `php artisan optimize`, Pint, PHPStan before the next milestone begins).
+All four gate steps are mandatory per phase (`composer gate`). Golden cases run against the *shipped* configuration, so a rule change that would alter a promotion outcome fails the build; all 13 configurable business rules have at least one golden test. **The gate is necessary, not sufficient (AD-17)** — every phase is also PPT-verified and demoed.

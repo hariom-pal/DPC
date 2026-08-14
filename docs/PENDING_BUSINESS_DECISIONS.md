@@ -19,6 +19,8 @@ Every item below is **blocked on a business answer**, not on engineering. None c
 | **BD-9** | When an officer's category has no vacancy, which waiting list do they go on? | **Which list an officer appears on.** The PPT's own example puts an SC officer on the *unreserved* waiting list; the system puts them on `SC_W` |
 | **BD-10** | Does a pending court case annotate the remark, hold the promotion, or disqualify? | **What the published remark says**, and possibly whether the promotion takes effect |
 
+**BD-11** (raised at M8 design) is tracked below but does **not** block M7 — it blocks M8's final phase.
+
 **None of these is an engineering choice, and none has been guessed at.** BD-9 and BD-10 were found by comparing the system's output against the customer's own worked answer on slide 34, row by row — see `docs/UAT_BUSINESS_VALIDATION.md`, which puts all four to business users in plain language with the worked examples that expose them.
 
 ---
@@ -39,6 +41,7 @@ Every item below is **blocked on a business answer**, not on engineering. None c
 | BD-8 | Objection handling (Q11) | M10 | P3 | 2026-07-30 |
 | BD-9 | Waiting-list placement when a category has no vacancy | **M7 closure** | **P1** | 2026-08-14 |
 | BD-10 | Does a court case annotate the remark? | **M7 closure** | P2 | 2026-08-14 |
+| BD-11 | What happens to an officer already promoted under a reviewed DPC? | **M8 phase 3** | **P1** | 2026-08-14 |
 
 ---
 
@@ -182,6 +185,35 @@ Is the objection deadline configurable? Does raising an objection notify the dep
 **What CGPSC must confirm:** does a pending court case annotate the result only, reserve the promotion, or disqualify the officer?
 
 **Current behaviour:** the note is recorded and displayed, and affects nothing. Not implemented unilaterally.
+
+---
+
+---
+
+## BD-11 — What happens to an officer already promoted under a DPC that is later reviewed?
+
+**Raised:** 2026-08-14, M8 design. **Severity: P1 — it decides what a department is told about a promotion an officer may already hold.**
+
+**The situation.** A DPC concludes. The promotion list is approved, signed and published; officers are promoted and take up their posts. Some time later an error is discovered — a name omitted from the seniority list, a mis-entered CR, a reservation rule misapplied — and a **Review DPC** is raised (S35).
+
+The Review recalculates. Its result may differ from the original's. **The deck does not say what that does to the promotions already given effect.**
+
+**What S35 does say.** It lists six grounds for review, states that a Review may be raised by the department or by the Commission of its own motion, and says the process is identical to a Fresh DPC. It says nothing about consequences.
+
+**Why this is a business decision, not an engineering one.** It is a question about the legal effect of a promotion order, not about how to model one. The engineering choice — whether the Review *supersedes*, *annotates* or simply *follows* the original (architect question **AQ-9**) — merely records whatever the answer is. Implementing a model before the rule is known would mean telling a department something about an officer's promotion that may be wrong.
+
+**What CGPSC must confirm:** when a Review DPC produces a different result from the original,
+
+| | Option |
+|---|---|
+| **A** | The original promotion is **withdrawn** and replaced by the Review's result |
+| **B** | The original promotion **stands**; the Review applies **prospectively** to future vacancies |
+| **C** | It **depends on the ground** — e.g. a name wrongly omitted is corrected retrospectively, while a marginal scoring difference is not |
+| **D** | Something else — please describe |
+
+**Also worth confirming:** does the answer differ if the officer has since retired, or been promoted again from the corrected post?
+
+**Current behaviour:** none. M8's final phase is not built, and the design says explicitly that phases 1 and 2 proceed while this is open. The Review will produce its own result and its own documents; **it will not assert anything about the original** until this is answered.
 
 ---
 

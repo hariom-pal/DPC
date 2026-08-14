@@ -2,6 +2,140 @@
 
 All notable work on the ODPC Portal, in reverse chronological order. Business-rule changes are traceable to `docs/ODPC_NEW_FINAL.pptx` / `docs/CONVENTIONAL DPC PROCESS.pptx` slide numbers where applicable. This file, `docs/PROJECT_STATUS.md`, `docs/PROJECT_PROGRESS.md`, and `docs/ARCHITECT_REVIEW.md` are the only documents updated on an ongoing basis (see `docs/ARCHITECT_REVIEW.md` for the full documentation policy).
 
+## 2026-08-14 — M8 quality gate run in full: two P0 defects found and fixed
+
+**No new feature, no refactor, no M4/M5/M6/M7 file touched.** The gate was run in the directed order — Pint, PHPStan (Larastan level 6), full PHPUnit suite, `composer audit`, `migrate:fresh --seed`. Gates 1, 2 and 4 passed first time. **Gates 3 and 5 each failed, and neither failure was cosmetic: M8 Phase 3 was not deployable.**
+
+- **Final figures, all five green:** Pint **pass** · PHPStan **0 errors** · PHPUnit **620 passed / 1902 assertions, 0 failing** (95 MB peak, 1m19s) · `composer audit` **no advisories** · `migrate:fresh --seed` **OK, 43 migrations, 62 tables, 10 seeders** · freeze diff against `v0.7.0-m7-complete` **empty**, re-verified after the fixes.
+
+- **P0 — a circular container dependency killed the PHP process (gate 3).** `php artisan test` died with SIGKILL. Bounded, it became `Premature end of PHP process` at `ProceedingDocumentTest::test_both_documents_are_generated_after_approval` — which failed **alone** too, so it was not cumulative leakage. Resolving `DocumentRenderer` recursed forever: `ReviewAwareDocumentRenderer` needs `ResultApprovalService`, bound to `ReviewAwareApprovalService`, which needed `ReviewAwareDocumentService`, which needs `DocumentRenderer`. **This is AD-20's four-decorator pattern reaching its cost** — three of the four sit in each other's dependency graph, and M7's own renderer already depended on the approval service, so Phase 3's constructor closed the ring. `ARCHITECTURE_BASELINE_v0.7.md` warns that a *fifth* decorator is the signal to re-examine the boundary; **the fourth was already enough.** Fixed by resolving the document service inside `approve()` — the only place it is used — rather than in the constructor. One edge, no refactor.
+
+- **This is also the cause of the development machine hanging.** CLI `memory_limit` is `-1` here, so the recursion consumed 15 GB of RAM and 1.3 GB of swap before the kernel intervened; the host thrashes long before the process dies, which presents as a hang rather than a test failure. Previously recorded as an open, uninvestigated question with no cause established. It was never a capacity problem, and the suite now peaks at **95 MB**.
+
+- **P0 — M8's last migration could not run on MySQL (gate 5).** `SQLSTATE 1059: Identifier name 'dpc_document_review_references_dpc_proceeding_document_id_foreign' is too long` — **65 characters against MySQL's limit of 64.** `dpc_document_review_references`, the table carrying Directive 3's four permanent document references and Directive 2's supersession timestamp, **had never existed in the database**; `migrate:fresh` aborted there, so no seeder ran either. The recorded "61 tables" was the count *before* the table that failed. Fixed with an explicit short constraint name; no column, index, type or relationship changed.
+
+- **Why 84 green M8 tests never caught it, and the process finding that matters more than the bug (TD-24).** `phpunit.xml` runs on **in-memory SQLite**, which does not enforce MySQL's identifier limit. Every M8 test exercised a table the real database could not create. **A green suite was not evidence the schema deploys**, and identifier length is not the only place the two engines differ. Running the suite — or at least a schema check — against MySQL is now the highest-value process change available.
+
+- **Documentation corrected rather than re-asserted.** *607 passed / 1865 assertions* and *61 tables* appeared in four documents and **no run could have produced either**: the suite could not reach its end and the migration could not complete. `ARCHITECT_REVIEW.md` §5 and §10 items 6 and 8, `PROJECT_STATUS.md` and `PROJECT_PROGRESS.md` now carry the run that actually happened, with the previous figures named so the change is auditable. **The failure mode is a number written once, propagated by copy, and never re-derived** — §5's caveat "true when recorded, no source file has changed since" was the wrong test, because it had never been true.
+
+- **Carried in from the preceding completeness review and now gate-verified for the first time:** `sanctioned_post_count` is copied onto a Review (without it, M4's own submission gate refused every Review DPC), the S37 reason checkboxes name the six grounds instead of rendering raw codes (`ReviewReason` has `name_en`, not `name`), and two regression tests guard both.
+
+- **Two items raised, neither blocked by a freeze:** **TD-24** (suite engine differs from the deployment engine) and **TD-23** (M8's end-to-end test `forceFill`s past M4's `submit()` and the AH approval, which is what hid the `sanctioned_post_count` defect — design §13 requires the real path).
+
+**Not committed, not pushed, not tagged.** Awaiting architect approval. **M8 closure is still not requested — BD-11 is unanswered.** M9 has not begun.
+
+## 2026-08-14 — M8 engineering complete: documentation synchronized at the milestone boundary
+
+No source change. This entry records the documentation state at the boundary.
+
+**Corrected 2026-08-14.** This entry was headed "…and committed at the milestone boundary" and stated that M8's three phases, having never been committed, "are now, in one commit on `feature/m0-setup`". **No such commit was ever made.** `HEAD` remains `6f52f71` (M7) and the branch is level with `origin`. The claim was written in anticipation of a step that did not happen — the same failure mode that put a false gate result in four documents (see the entry above). The freeze policy's premise still holds and is still unmet: **a freeze is a statement about a commit**, and M8 does not yet have one.
+
+- **M8 engineering is complete and M8 is *not* closed.** Everything the milestone was scoped to build exists, is tested, and passes every gate. Closure is withheld pending **BD-11** — what supersession means for an officer already promoted under the reviewed DPC. That is a service-law question about a serving officer's substantive rank and pay, not an engineering one, and the three plausible answers differ in what they do to that officer. The system records the supersession, notifies the department, and asserts nothing about the promotion itself.
+
+- **M9 has NOT started.** No M9 code, migration, route, view or test exists.
+
+- ~~**Gate re-verified before committing**: Pint passed, PHPStan 0 errors, PHPUnit 607 passed / 1865 assertions, `composer audit` no advisories, `migrate:fresh --seed` OK (61 tables).~~ **Withdrawn 2026-08-14.** Neither the test figure nor the table count was reproducible: the suite was killed by a circular container dependency before it finished, and `migrate:fresh` aborted on M8's last migration under MySQL. The verified figures are in the entry above — **620 passed / 1902 assertions**, **62 tables**. Freeze verification against `v0.7.0-m7-complete` **was** and remains empty for M4, M5, M6 and M7; that part stands.
+
+- **`docs/ARCHITECT_REVIEW.md` now carries the four sections it was missing** — a consolidated **Architect decisions** section stating each decision *with the alternative it rejected and why that alternative is wrong* (AD-19, AD-20, AQ-9, AQ-11, AQ-13, the watermark, the derived UUID, chain depth, three chain roles); **Open business decisions**, with BD-11 stated in full and the four carried-forward questions; **Technical debt**, TD-19 to TD-22 with what changed this phase; and a 23-item **Architect approval checklist** whose last two rows are the ones that matter — *M8 closure requested: **no***, *M9 started: **no***.
+
+- **`docs/PROJECT_PROGRESS.md` replaced from `## Implementation Summary` onward** and is now the project's single progress-and-suggestions document: current completion status, remaining milestones, pending business decisions, technical debt, architect suggestions, recommended next steps, and the implementation notes from this session worth carrying forward. **No additional progress markdown file was created.** The eighteen module sections above it are unchanged — they are the detailed record the summary sits on.
+
+- **`docs/PROJECT_STATUS.md` brought current.** Its body had drifted badly: Overall Progress, Current Work, Next Milestone, Build Status and Test Status all still described M6 and a 368-test suite, while the header already described M8. Rewritten, plus M7's closure detail, M8's status detail and both rows added to the Milestone Closure Record — M8's row records **"Not closed"** rather than a date, because that is what is true.
+
+- **`README.md`** corrected: it claimed M8 was "at design stage — nothing implemented".
+
+- **The branch name `feature/m0-setup` is now eight milestones stale.** Renaming rewrites the remote ref, so it stays a decision rather than a silent fix — but it is a real handover hazard for anyone new to the repository.
+
+## 2026-08-14 — M8 Phase 3: supersession takes effect, Review documents, SUPERSEDED watermark
+
+Third slice of M8 (PPT S44). One additive table. **No file in M4, M5, M6 or M7 was modified** — notable because this phase changes how M7 approves a result, renders a document and serves one.
+
+- **Supersession takes effect at the Review's approval, not at its raising.** Phase 1 recorded the intent; Phase 3 records the effect. The timing is the substance of AQ-9, not a detail of it: **a Review that is cancelled, returned or never approved must leave the original standing.** If raising a Review superseded the original immediately, a department could invalidate a signed promotion list by filing a correction it never pursued. Recorded on both timelines and notified to the department with both DPC codes — a department holding a signed list needs to know which list replaces it, and it knows them by code.
+
+- **The watermark is applied on delivery, never in storage.** The obvious implementation rewrites or regenerates the stored file — and that breaks two things at once: a generated document is immutable (AD-4), and its SHA-256 is what proves a department's copy is the copy the Commission issued. Rewriting the bytes invalidates every copy already in circulation. So the file on disk stays exactly as signed and the watermark is prepended when the document is **served**. `contents()` is what a reader gets; `storedContents()` and `verify()` are what was issued. Three tests pin the split, including that **a superseded document still verifies**. It is also the honest model of what happened: the document *was* issued as it stands and was *later* superseded — baking the watermark in would assert it had been superseded at the moment of issue.
+
+- **The configuration snapshot UUID is derived from the rules, not generated at random (Directive 1).** A random UUID would satisfy the letter of the directive and record nothing useful — only that a snapshot existed. It is a UUIDv5 over the canonical snapshot with keys sorted, so two calculations under identical rules carry the **same** UUID and *"were these two decided under the same rules?"* becomes an equality check. Stored with the original calculation run UUID (Directive 2) in `dpc_review_calculations`, on the M8 side because `dpc_calculation_runs` belongs to frozen M5.
+
+- **A Review's documents state what they correct (AQ-13)** — original DPC, original date, review DPC, review date and reasons, before anything else on the page. A promotion list dated today that silently corrects one from years ago is misleading on its face, and the reader most likely to be misled is the one reading it long afterwards with nobody left to ask.
+
+- **A provisional Review result cannot be published**, inheriting M7's Directive 5 — and it fires in practice, because US3's case is exactly BD-2/BD-3. The companion test shows the other side: a Review that **corrects the very CR it was raised for** produces a clean result and publishes.
+
+- **`docs/ARCHITECTURE_BASELINE_v0.7.md` created (Directive 3).** Documents all four decorators M8 now places over M7, the rule-reuse mechanism in full, **what the pattern costs** — indirection; the class that runs is not the class the caller names — and **where it stops**: decoration adds behaviour for a new milestone, it does not repair an old one, and a fifth decorator would be the point to ask whether the boundary is in the right place.
+
+- **TD-22 stays open by directive.** The baseline document records why: solving a concurrency residual before concurrent workers exist would be designing against a hypothesis.
+
+- 19 new tests, **607 passed / 1865 assertions**. Pint clean, PHPStan 0 errors, `composer audit` clean on the first attempt, `migrate:fresh --seed` OK (61 tables).
+
+**M8 closure is not requested.** Everything M8 was scoped to build now exists. What is not decided is **BD-11** — what supersession means for an officer already promoted under the reviewed DPC. The system records the supersession and tells the department; it asserts nothing about the promotion itself, and it should not until that is answered.
+
+## 2026-08-14 — M8 Phase 2: Review calculation under the original's rules
+
+Second slice of M8 (PPT S38, S41–S44). One additive migration. **No file in M4, M5, M6 or M7 was modified** — notable given that this phase changes how M5's engine is invoked and how M7's calculation service behaves.
+
+- **A Review calculates under the original's rules, never today's (AQ-11).** A Review may be conducted years after the DPC it corrects; applying current configuration would mean a correction raised to fix a mis-typed CR **also silently re-decided eligibility** under thresholds that did not exist when the DPC was held. The test that matters: a later notification lowers the Class-I threshold from 15 to 14, and US3 — who scored 14 and was refused — **stays refused**.
+
+- **The seam was already there, built by M5 itself.** `DpcCalculationService` calls `RuleSet::fromConfig()` internally and takes no rule set, and M5 is engine-frozen. But `fromConfig()` and `fromSnapshot()` share one `build()`, so a stored `configuration_snapshot` has exactly the shape of `config('dpc.scoring')` — and under AD-3, business rules *are* configuration. Running under the original's rules is therefore running under the original's configuration, restored in a `finally`. **No second scoring path exists**, which is the point: a parallel "historic rules" implementation would be a second engine to keep correct.
+
+- **Added by decoration, not by edit.** `ReviewAwareCalculationService` extends M7's service and is bound over it in the container, so `git diff v0.7.0-m7-complete -- app/Domain/Proceeding` stays empty while M7's behaviour is genuinely extended. A Fresh DPC passes straight through, and a test asserts it still uses today's rules — the decorator has to be invisible to everything that is not a Review. Recorded as **AD-20**, now the standing pattern for extending a complete milestone.
+
+- **Two details that would have been wrong if left implicit.** Configuration is restored in a `finally`, because it is process-global and a failed calculation leaving a 2017 rule set in place would silently corrupt the *next* one. And `engine_version` is preserved across the override: the rules are the original's, but the engine doing the work is this build, and replacing `dpc.scoring` wholesale would have blanked it — every Review document then claiming an unknown engine.
+
+- **Chain depth is not the review number (Directive 2).** It would have been easy to store one value under two names. `review_number` is this Review's position among reviews; `chain_depth` counts DPCs in the chain including the original, so the first Review is depth 2. Depth counts DPCs; the number counts corrections. Stored rather than derived because walking a chain to measure it is exactly the query that gets slower as the thing it measures grows.
+
+- **Three chain roles, not two (Directive 4).** A superseded **Review** and the **Original** are both "not the operative DPC", but they are not the same thing — the original is what the department first decided; a superseded Review is a correction that was itself corrected. Collapsing them loses the distinction a tribunal asks about first. The role is derived from **position**, not from `superseded_at`, keeping the structural view separate from Phase 3's job of making supersession take legal effect.
+
+- **Original DPC version persisted (Directive 1).** `original_proposal_version` records the content fingerprint of the DPC being corrected, from its concluded proceeding. The original is immutable so it cannot change — recording it means the claim rests on evidence rather than on that assumption holding.
+
+- **Full M6 reuse confirmed end to end (AQ-12).** A Review is allotted, accepted, scheduled, opened, calculated and approved exactly as a Fresh DPC. No new workflow, engine, renderer or proceeding — which is what S35's *"exactly the same process"* promised.
+
+- **`docs/EVENT_CATALOG.md`** now carries `dpc_review.created` and `dpc_review.superseded_by`, and explains why one act writes two events on two subjects: a correction chain must be visible from either end.
+
+- 18 new tests, **588 passed / 1817 assertions**. Pint clean, PHPStan 0 errors, `composer audit` clean on the first attempt, `migrate:fresh --seed` OK (60 tables).
+
+**One residual recorded rather than buried (TD-22):** the configuration override is process-global. It is restored on every exit path and cannot interleave under PHP-FPM, but if calculation is ever queued or run in a long-lived concurrent worker, it becomes real.
+
+## 2026-08-14 — M8 Phase 1: Review proposal and the correction chain
+
+First slice of M8 (PPT S35, S37–S38). Two additive tables. **No file in M4, M5, M6 or M7 was modified** — verified by `git diff v0.7.0-m7-complete`.
+
+- **The chain is one row read from both ends.** `dpc_review_links` carries the review's and the original's foreign keys together, so "what reviews this?" and "what does this review?" are the same table queried from opposite directions (AQ-9). It is deliberately **not** a column on `dpc_proposals`: writing there would mean editing the frozen M4 model or writing behind its immutability guard — the trap TD-19 and TD-21 already record.
+
+- **Supersession is recorded at creation but takes effect only at approval.** `superseded_at` stays null. Raising a Review must not invalidate the original — a Review that is cancelled or never approved leaves the original standing, so the link records the *intent* now and the *effect* when it happens.
+
+- **Copy-on-create, by `getAttributes()` rather than a field list.** S38 is titled *Correction in Tabulation Chart* and shows a populated chart; making a department retype ten officers to fix one CR entry would guarantee fresh transcription errors while fixing an old one. Copying by explicit field list would have meant that a column added to a section table by a later migration is silently dropped from every copy — design risk R3, closed structurally rather than by vigilance.
+
+- **The Review owns its own rows, and that is the milestone's central guarantee.** Two tests: the Review's row ids never intersect the original's, and editing a copied CR grade leaves the original byte-identical.
+
+- **Directive 3 collided with a freeze, and was solved without touching it.** "Display THIS IS A REVIEW DPC throughout the Review workflow" is a UI directive — but a Review traverses **M4's own frozen proposal screens**. The banner is rendered from `layouts/app.blade.php` (M0, not frozen) via a view composer that checks whether the route's bound proposal is a Review. No M4 view is touched, and the banner reaches every screen a Review passes through — including screens M4 has not built yet. It matters because a Review looks *exactly* like a Fresh DPC, which is what S35 promises and precisely why someone opening one must not have to notice a type field to realise they are correcting a promotion already decided and published.
+
+- **A real finding in existing schema, implemented:** M4 prepared `review_reason_id` — singular — while S37 renders the reasons as checkboxes and several routinely apply at once. The pivot is additive; the singular column is left **unused** rather than repurposed.
+
+- **PHPStan found a logic bug, not a type complaint.** It flagged a nullsafe operator as unnecessary — because `assertReviewable()` guarantees the original has no link *as an original*. Following that through showed the chain lookup was simply wrong: a Review of a Review inherits its chain from the link that makes the **original itself a Review**, a different query. Left as written, every Review of a Review would have started a fresh chain numbered 1, and Directives 1 and 2 would have been quietly satisfied with wrong values.
+
+- **Strict attribute mode earned its keep on its first outing outside M7.** `created_by` is not fillable on the frozen `DpcProposal`, so the copy would have discarded it and **reported success**. `Model::preventSilentlyDiscardingAttributes()`, added in M7 Phase 4 after exactly this bug appeared twice, turned it into an exception on the first run.
+
+- 33 new tests, **570 passed / 1778 assertions**. Pint clean, PHPStan 0 errors, `composer audit` clean on the first attempt, `migrate:fresh --seed` OK (60 tables).
+
+**PPT comparison, S35 and S37 — no divergence.** All six review grounds offered; department-initiated only, with Commission-initiated review out of band per AQ-10; the original-DPC selector restricted to concluded, unreviewed, own-department DPCs; multiple reasons recorded together.
+
+## 2026-08-14 — M8 design: Review DPC
+
+Design only. **Nothing implemented.** Repository clean and tagged `v0.7.0-m7-complete` before design work began.
+
+- **`docs/design/09-m8-review-dpc.md`** — 16 sections covering PPT S35–S44, including the Risk Assessment, Database Design and Workflow Design sections directed, and the **first "Deferred Because of Business"** section under the new standing rule.
+
+- **The milestone is small, and the design says why.** S35 ends with a sentence unusually direct for this deck: *"the Review DPC process will be exactly the same as the Fresh DPC process."* S36–S44 confirm it — every screen in the Review flow is a screen the system already has. **M8 adds no new workflow, no new engine, no new document renderer and no new proceeding.** The design's job was to find where "exactly the same" is not quite true, and there are four places: a Review has an **origin**, it **starts from the original's data**, it **changes a decision already made**, and it may run **years later under rules that have since changed**. The last two are the milestone; the first two are wiring.
+
+- **One real finding in the existing schema.** M4 prepared `review_reason_id` — **singular**. S37 renders the reasons as **checkboxes**, and in practice several apply at once: a name omitted from the seniority list is frequently also a roster-point error. Since M4 is frozen the fix is an additive pivot table, and the singular column is left **unused** rather than repurposed — quietly redefining a frozen column's meaning is worse than leaving it idle.
+
+- **Copy-on-create, not reference.** S38 is titled *Correction in Tabulation Chart* and shows a populated chart; a Review that made the department retype ten officers to fix one CR entry would guarantee new transcription errors while fixing an old one. The Review's sections are copied as **new rows**, so the original is never read at edit time, the Review is self-contained like every other evidence record, and *what changed* is answerable by comparing two snapshots — which is exactly what a tribunal asks of a Review.
+
+- **Six architect questions raised (AQ-9 … AQ-14), of which only one genuinely blocks.** **AQ-11** — does a Review apply today's rules or the original's? — is recommended as the original's, because a Review raised to fix a mis-typed CR should not silently re-decide eligibility under thresholds that did not exist when the DPC was held. Answering it that way also gives M5's `configuration_snapshot` its first real use; a stored field nothing reads is a field that silently rots. The other four have defaults that can be proceeded on and corrected cheaply.
+
+- **AQ-9 is the exception, and it is blocked on business.** What a Review does to the original — supersede, annotate, or nothing — cannot be decided until **BD-11** says what happens to an officer **already promoted** under the reviewed DPC. That is a question about the legal effect of a promotion order, not about how to model one. **BD-11 raised.** M8 phases 1 and 2 proceed regardless; phase 3 does not.
+
+- **BD-2/BD-3 acquire a sharper edge in M8.** "Reservation rule not followed" is one of the six listed **grounds for review** — so a DPC may be reviewed *precisely because* a reservation rule was misapplied, and the rule in question may be one of the unsettled ones. A Review raised on that ground would produce a provisional correction of a provisional result.
+
 ## 2026-08-14 — M7 CLOSED · three registers separated · timeline and milestone summary
 
 **M7 is approved and closed** at tag `v0.7.0-m7-complete`. Business questions remain open and are tracked **only** in `docs/PENDING_BUSINESS_DECISIONS.md`; **M7 is not reopened for them** (architect ruling).
