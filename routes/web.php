@@ -35,6 +35,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Dpc\DpcCalculationController;
 use App\Http\Controllers\Dpc\DpcImportController;
 use App\Http\Controllers\Dpc\DpcProposalController;
+use App\Http\Controllers\Dpc\ReviewProposalController;
 use App\Http\Controllers\HealthController;
 use App\Http\Controllers\PreDpc\PreDpcProposalController;
 use App\Http\Middleware\EnsurePasswordChanged;
@@ -102,8 +103,16 @@ Route::middleware('auth')->group(function (): void {
             ->group(function (): void {
                 Route::get('/', [DpcProposalController::class, 'index'])->name('index');
                 Route::get('/create', [DpcProposalController::class, 'create'])->name('create');
+
+                // Review DPC (M8 Phase 1, PPT S35/S37). Declared before the
+                // `{dpcProposal}` routes so `reviews` is never mistaken for a
+                // proposal identifier.
+                Route::get('/reviews/create', [ReviewProposalController::class, 'create'])->name('reviews.create');
+                Route::post('/reviews', [ReviewProposalController::class, 'store'])->name('reviews.store');
                 Route::post('/', [DpcProposalController::class, 'store'])->name('store');
                 Route::get('/{dpcProposal}', [DpcProposalController::class, 'show'])->name('show');
+                // The complete correction chain (architect Directive 4).
+                Route::get('/{dpcProposal}/review-chain', [ReviewProposalController::class, 'chain'])->name('reviews.chain');
                 Route::get('/{dpcProposal}/edit', [DpcProposalController::class, 'edit'])->name('edit');
                 Route::put('/{dpcProposal}', [DpcProposalController::class, 'update'])->name('update');
                 Route::get('/{dpcProposal}/committee', [DpcProposalController::class, 'committee'])->name('committee');

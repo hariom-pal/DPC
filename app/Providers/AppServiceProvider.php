@@ -14,14 +14,23 @@ use App\Domain\Cgpsc\Policies\DpcAllotmentPolicy;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Policies\DpcProposalPolicy;
 use App\Domain\Proceeding\Documents\DocumentRenderer;
-use App\Domain\Proceeding\Documents\HtmlDocumentRenderer;
 use App\Domain\Proceeding\Events\ProceedingDocumentsPublished;
 use App\Domain\Proceeding\Listeners\SendDocumentPublicationNotification;
 use App\Domain\Proceeding\Models\DpcProceeding;
 use App\Domain\Proceeding\Policies\DpcProceedingPolicy;
+use App\Domain\Proceeding\Services\ProceedingCalculationService;
+use App\Domain\Proceeding\Services\ProceedingDocumentService;
+use App\Domain\Proceeding\Services\ResultApprovalService;
+use App\Domain\Review\Documents\ReviewAwareDocumentRenderer;
+use App\Domain\Review\Events\DpcSupersededByReview;
+use App\Domain\Review\Listeners\SendSupersessionNotification;
+use App\Domain\Review\Services\ReviewAwareApprovalService;
+use App\Domain\Review\Services\ReviewAwareCalculationService;
+use App\Domain\Review\Services\ReviewAwareDocumentService;
 use App\Domain\Shared\Events\WorkflowTransitioned;
 use App\Domain\Shared\Listeners\SendWorkflowNotification;
 use App\Enums\Feature;
+use App\Http\View\Composers\ReviewDpcComposer;
 use App\Integrations\Contracts\DirectoryProvider;
 use App\Integrations\Contracts\HrmsProvider;
 use App\Integrations\Contracts\SignatureProvider;
@@ -38,6 +47,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 
@@ -60,7 +70,20 @@ class AppServiceProvider extends ServiceProvider
         // later replace HTML without touching the approval path (AQ-3).
         // Bound like every other provider: business logic depends on the
         // contract, never on the implementation.
-        $this->app->bind(DocumentRenderer::class, HtmlDocumentRenderer::class);
+
+        // A Review DPC calculates under the original's rules (AQ-11). Added
+        // as a decorator over M7's service rather than inside it: M7 is
+        // complete and its freeze verification must stay empty. A Fresh DPC
+        // passes straight through unchanged.
+        $this->app->bind(ProceedingCalculationService::class, ReviewAwareCalculationService::class);
+
+        // Supersession takes legal effect at approval (AQ-9); Review documents
+        // state what they correct (AQ-13); a superseded DPC's documents stay
+        // downloadable, watermarked on delivery. All three by decoration —
+        // M7's files stay untouched (AD-20).
+        $this->app->bind(ResultApprovalService::class, ReviewAwareApprovalService::class);
+        $this->app->bind(ProceedingDocumentService::class, ReviewAwareDocumentService::class);
+        $this->app->bind(DocumentRenderer::class, ReviewAwareDocumentRenderer::class);
 
         $this->app->bind(SmsSender::class, function (): SmsSender {
             // No real gateway has been contracted yet; the flag exists so
@@ -110,11 +133,16 @@ class AppServiceProvider extends ServiceProvider
         if (Feature::Notifications->enabled()) {
             Event::listen(WorkflowTransitioned::class, SendWorkflowNotification::class);
             Event::listen(ProceedingDocumentsPublished::class, SendDocumentPublicationNotification::class);
+            Event::listen(DpcSupersededByReview::class, SendSupersessionNotification::class);
         }
 
         Gate::policy(DpcProposal::class, DpcProposalPolicy::class);
         Gate::policy(DpcAllotment::class, DpcAllotmentPolicy::class);
         Gate::policy(DpcProceeding::class, DpcProceedingPolicy::class);
+
+        // Architect Directive 3 (M8): the Review banner reaches M4's frozen
+        // proposal screens from the layout rather than by editing each one.
+        View::composer('layouts.app', ReviewDpcComposer::class);
 
         $this->configureRateLimiting();
     }

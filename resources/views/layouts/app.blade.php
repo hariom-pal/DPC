@@ -35,6 +35,10 @@
     </nav>
 
     <main class="container py-4 flex-grow-1">
+        {{-- Architect Directive 3 (M8): "THIS IS A REVIEW DPC" throughout the
+             Review workflow. Driven by a view composer rather than by editing
+             each screen, because the M4 proposal views are frozen. --}}
+        @includeWhen(($isReviewDpc ?? false), 'partials.review-banner')
         @yield('content')
     </main>
 
