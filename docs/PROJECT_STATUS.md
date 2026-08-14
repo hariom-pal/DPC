@@ -1,6 +1,6 @@
 # DPC Project — Status
 
-**Last updated:** 2026-08-13. This is the single page to read first when returning to the project. Full detail: `docs/PROJECT_PROGRESS.md`. Pending decisions/findings: `docs/ARCHITECT_REVIEW.md`. Known limitations & deferred items: `docs/TECHNICAL_DEBT.md`. Workflows: `docs/WORKFLOWS.md`. Business decisions: `docs/business/PENDING_BUSINESS_DECISIONS.md`. Integrations: `docs/INTEGRATION_ROADMAP.md`. UAT: `docs/UAT_CHECKLIST.md`, `docs/DEMO_SCRIPT.md`. History: `docs/CHANGELOG.md`. Source of truth for business rules: `docs/ODPC_NEW_FINAL.pptx` + `docs/CONVENTIONAL DPC PROCESS.pptx`.
+**Last updated:** 2026-08-14. This is the single page to read first when returning to the project. Full detail: `docs/PROJECT_PROGRESS.md`. Pending decisions/findings: `docs/ARCHITECT_REVIEW.md`. Business questions: `docs/PENDING_BUSINESS_DECISIONS.md`, put to business users in `docs/UAT_BUSINESS_VALIDATION.md`. Known limitations & deferred items: `docs/TECHNICAL_DEBT.md`. Architecture rulings: `docs/ARCHITECTURE_DECISIONS.md`. Per-milestone summary: `docs/MILESTONE_SUMMARY.md`. History: `docs/PROJECT_TIMELINE.md`. Workflows: `docs/WORKFLOWS.md`. Business decisions: `docs/PENDING_BUSINESS_DECISIONS.md`. Integrations: `docs/INTEGRATION_ROADMAP.md`. UAT: `docs/UAT_CHECKLIST.md`, `docs/DEMO_SCRIPT.md`. History: `docs/CHANGELOG.md`. Source of truth for business rules: `docs/ODPC_NEW_FINAL.pptx` + `docs/CONVENTIONAL DPC PROCESS.pptx`.
 
 ## Current Status
 
@@ -13,14 +13,19 @@
 | ✅ | **M5 Complete (Frozen)** — Scoring & Eligibility Engine |
 | ✅ | **M6 Complete (Frozen)** — CGPSC Workflow |
 | 🟡 | **UAT Ready** — qualified: see the note below |
-| ⏳ | **M7 Design Approved** |
-| ⏳ | **M7 Implementation Not Started** |
+| ✅ | **M7 Design Approved** — `docs/design/08-m7-proceedings.md`; all 8 questions ruled |
+| ✅ | **M7 Complete** — DPC Proceedings & Result Generation |
+| ⏳ | **M8 Design** — Review DPC; design only, implementation not started |
 
 (M0 Foundation is complete and predates M1.)
 
 **On "UAT Ready" being amber rather than green:** the pipeline runs end to end and UAT can begin, but **BD-2/BD-3 (reserved relaxation) is unsettled**, so any DPC where a reserved category has fewer eligible officers than vacancies returns a result the system marks **provisional**. That is correct behaviour — it declines to guess — but a provisional result cannot be published, so business sign-off on the calculation is partial until the rule is settled.
 
-**On "M7 Design Approved":** the approval is recorded as given. **The M7 design document does not yet exist** — no `docs/design/08-m7-*.md` has been written, and M7 carries open question Q7 (`docs/design/05-milestones.md`). Writing it is the first M7 task.
+**On M7 — COMPLETE (closed 2026-08-14).** All four phases delivered and approved: the proceeding lifecycle, the S33 editable workspace with append-only corrections, `CALCULATE` against the frozen M5 engine with stale-calculation protection, the S34 result, `APPROVE BY CGPSC`, `CANCEL DPC`, held promotions (`CIR`), and the proceedings document and promotion list rendered, stored, signed and published — 169 tests. **No file in M4, M5 or M6 was modified**, verified by full-repository diff at every phase boundary.
+
+**Four business questions remain open and are tracked only in `docs/PENDING_BUSINESS_DECISIONS.md`** — BD-2, BD-3, BD-9 and BD-10. **M7 is not reopened for them** (architect ruling). They constrain what may be *published*, not what is built: a result affected by BD-2/BD-3 or BD-10 is marked provisional and cannot be published. **BD-9 is the exception and the one to chase** — it raises no flag, so it can produce a confidently wrong published list rather than a blocked one.
+
+**The milestone is not closed.** Four business questions change what a published promotion list says: **BD-2** and **BD-3** (reserved relaxation), **BD-9** (which waiting list an officer joins when their category has no vacancy) and **BD-10** (what a pending court case does). BD-9 and BD-10 were found by comparing the system's output against the customer's own worked answer on slide 34, row by row. All four are put to business users in plain language in `docs/UAT_BUSINESS_VALIDATION.md`. **M5 is not to be modified for BD-9** (architect ruling) — it is raised to CGPSC instead, and **M8 does not start** until business answers or explicitly defers.
 
 ### Repository baseline
 
@@ -92,7 +97,7 @@ After the UAT Readiness Review: M7 (DPC Proceeding) → M8+ → **UAT & Security
 
 **Known limitations and deferred items** are in `docs/TECHNICAL_DEBT.md` — permanent, and not reset at a phase boundary.
 
-**Business questions now have their own register — `docs/business/PENDING_BUSINESS_DECISIONS.md`** (created 2026-08-13 by directive; they are no longer kept in `ARCHITECT_REVIEW.md`). Eight items are open, three of them P1 and blocking publishable promotion results:
+**Business questions now have their own register — `docs/PENDING_BUSINESS_DECISIONS.md`** (created 2026-08-13 by directive; they are no longer kept in `ARCHITECT_REVIEW.md`). Eight items are open, three of them P1 and blocking publishable promotion results:
 
 - **BD-1 — does `PUNISHMENT` disqualify an officer?** PPT slide 33 marks two officers NE who score 15 and carry `PUNISHMENT` in the Note column; the engine passes them, since §5.3 lists only two hard gates. Ruled a *business* rule, not an engineering one — not implemented, current behaviour pinned by test.
 - **BD-2 / BD-3 — reserved relaxation (Q5/Q6):** automatic or committee discretion, and does relaxation to 10 apply beyond Class-I→I?

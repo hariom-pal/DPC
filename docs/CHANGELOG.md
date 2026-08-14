@@ -2,6 +2,158 @@
 
 All notable work on the ODPC Portal, in reverse chronological order. Business-rule changes are traceable to `docs/ODPC_NEW_FINAL.pptx` / `docs/CONVENTIONAL DPC PROCESS.pptx` slide numbers where applicable. This file, `docs/PROJECT_STATUS.md`, `docs/PROJECT_PROGRESS.md`, and `docs/ARCHITECT_REVIEW.md` are the only documents updated on an ongoing basis (see `docs/ARCHITECT_REVIEW.md` for the full documentation policy).
 
+## 2026-08-14 — M7 CLOSED · three registers separated · timeline and milestone summary
+
+**M7 is approved and closed** at tag `v0.7.0-m7-complete`. Business questions remain open and are tracked **only** in `docs/PENDING_BUSINESS_DECISIONS.md`; **M7 is not reopened for them** (architect ruling).
+
+- **`docs/ARCHITECTURE_DECISIONS.md` created — the third register, and the one that was missing.** Business questions had a home; known imperfections had a home; **the decisions that shaped the architecture lived only in `docs/ARCHITECT_REVIEW.md`, which is replaced in full at every phase.** A ruling made in M4 Phase 5 and never restated since survived only in a git history nobody reads — the same failure mode `TECHNICAL_DEBT.md` was created to fix, applied to different information. 18 decisions recorded (AD-1 … AD-18), each with **the consequence as well as the decision**, because a decision whose cost is unwritten gets re-litigated by whoever next finds it inconvenient.
+
+  Three entries are worth naming. **AD-10** (pure engines) records that the payoff arrived two milestones after the decision: because the M5 engine reads only what it is handed, M7 could score a *corrected* chart without changing one line of frozen code. **AD-15** (freezes) records what the freeze **forecloses** — four small improvements (TD-16, TD-19, TD-20, TD-21) are visibly blocked by it and were left undone rather than take the freeze quietly. **AD-17** records that every significant defect in this project was found by applying a discipline, never by running the gate.
+
+- **`docs/MILESTONE_SUMMARY.md` created** — one section per milestone: what it delivered, what governs it now, what it left behind. It ends with the pattern all eight share: the defects that mattered were found by the Demo Readiness Rule, by implementing a directive properly, by a full PPT comparison, or by asserting an outcome rather than a rendering. Every one passed all four gates while broken.
+
+- **`docs/PROJECT_TIMELINE.md` created** — what happened when, and *why*. It records 2026-08-13 as the day eight standing rules were established, each in response to something that had just gone wrong: the audit trail inert since M1, slide 33's answer key, the notification rollback, three milestones sitting uncommitted. It closes with what actually gates production, ordered by lead time — the SMS gateway first, because it is a procurement task rather than an engineering one.
+
+- **Standing rule adopted (Directive 4):** every future milestone design carries a **"Deferred Because of Business"** section, so what a milestone *cannot* settle is stated at design time rather than discovered at closure. M7 learned this the hard way — BD-9 and BD-10 surfaced in the final phase's PPT comparison.
+
+- `PROJECT_STATUS.md` now reads **M7 Complete**. README's document map lists sixteen mandatory documents and states plainly why the three registers are separate.
+
+- Gates green: Pint · PHPStan 0 errors · **537 passed / 1682 assertions** · `composer audit` clean · `migrate:fresh --seed` OK (58 tables). M4, M5 and M6 untouched, verified by diff.
+
+## 2026-08-14 — M7 business clarification: register moved, validation pack, generator commit hash
+
+**M7 implementation approved. M7 milestone NOT closed** — status is now **Technically Complete · Business Clarification Pending**.
+
+- **BD-9 and BD-10 ruled: raise to CGPSC, do not implement assumptions, do not modify M5.** Both were found by the Phase 4 full PPT comparison against slide 34's stated result. Neither is now guessed at in code, and the frozen engine stays untouched.
+
+- **`docs/PENDING_BUSINESS_DECISIONS.md`** moved from `docs/business/` to `docs/` per directive, and restructured to lead with a **Blocking M7 closure** section naming BD-2, BD-3, BD-9 and BD-10 with the single sentence each changes. The other six items are kept rather than dropped — losing BD-1 (`PUNISHMENT`) or BD-4 (CSC eSign format) to make the file shorter would trade real information for tidiness. Every reference across eight documents updated; `docs/business/` is gone, so there is exactly one register.
+
+- **`docs/UAT_BUSINESS_VALIDATION.md` created** — the four blocking questions put to **CGPSC officials, not engineers**. Each states the rule as printed, what the presentation does *not* say, the actual case that raises it, what the system does today, and the options to choose between. BD-9 leads with the Commission's own worked example: two vacancies, US4 is SC, there is no SC vacancy, and slide 34 places them on the **unreserved** waiting list while the system places them on `SC_W`. It also states plainly that a "provisional" result is the system declining to guess, not a defect — and lists what is deliberately switched off, so UAT time is not spent re-reporting it.
+
+- **Generator commit hash on every document (Directive 4).** `generator_version` says *which renderer* — `html-v1` — and that is a label somebody has to remember to bump; two builds can both claim `html-v1` and render differently. The commit hash says *which build*, with nothing to remember. For a document produced in evidence years later, "rendered by html-v1" is an assertion; "rendered by commit a1b2c3…" is a fact that can be checked out and re-run. Recorded on the document row, in the document-generated event, and printed in the footer of both documents. Nullable and recorded honestly as `unknown` in a development checkout rather than refusing to generate.
+
+- **M8 does not start** until business answers or explicitly defers BD-9 and BD-10.
+
+- 2 new tests, **537 passed / 1682 assertions**. Pint clean, PHPStan 0 errors, `composer audit` clean, `migrate:fresh --seed` OK (58 tables). M4, M5 and M6 untouched, verified by diff.
+
+## 2026-08-14 — M7 Phase 4: CIR, proceedings document and promotion list
+
+Fourth slice of M7 (PPT S33–S34, S45). Two new tables plus two additive columns. **No file in M4, M5 or M6 was modified** — verified by full-repository diff against `v0.6.0-m6-complete`.
+
+- **`CIR` implemented (architect decision, not deferred to M9).** A hold reserves the **promotion action** for an officer who still takes part in the DPC, and it is orthogonal to merit — the PPT's own US8 scores 20, qualifies for a Super Seat, and is held anyway on a missing 2016 property return. Detection runs **inside CALCULATE**, because holds and scores read the same effective chart and detecting them separately would let the two drift apart invisibly. Automatic holds are **re-derived, not accumulated**: correcting the cause *releases* the hold rather than deleting it, so the record of having been held survives. A manual hold is never touched by detection, and an automatic hold cannot be released by hand — it would simply reappear.
+
+- **Two documents, deliberately separate.** The **proceedings document** records what the Commission *did* — who sat, what was corrected and why, what was held. The **promotion list** records what it *decided*. A department contesting a promotion needs the second; a tribunal examining how it was reached needs the first.
+
+- **Render → store → sign → publish, with the separation load-bearing.** Rendering is behind the `DocumentRenderer` contract so PDF later replaces HTML without touching the approval path (AQ-3). Storage goes through the abstraction, so `FEATURE_S3_STORAGE` decides local or S3 and nothing in M7 knows which. Signing goes through `SignatureService` — the integration point for CSC DigiSign, whose **API is not implemented**. Publication is separate so a **provisional result can be rendered and read by the Commission but never released to a department** (Directive 5).
+
+- **Documents are versioned, never overwritten.** Re-issuing creates version 2; version 1's hash is asserted unchanged. The artefact a department was already given must not change afterwards.
+
+- **A silent-failure class closed permanently.** Twice in M7 a newly added column failed to reach its model: `update()` discards non-fillable attributes and **reports success**, so the write is lost with no error anywhere, surfacing only as a puzzling assertion failure later. `Model::preventSilentlyDiscardingAttributes()` is now on outside production. The full suite — including every frozen milestone's tests — passes with it enabled, which is the evidence it changes no existing behaviour.
+
+- **Two directives could not be implemented literally, and both are reported rather than fudged.** The **calculation engine version** is not on the M5 run row: putting it there meant either editing frozen M5 source or writing to M5's table behind its own immutability guard, so it is recorded on every calculate event, on the proceeding, and on every document instead (TD-21). And **`dpc_proposals` had no UUID** at all — added and backfilled by migration following M6's `users.uuid` precedent, with new proposals minted by `ProceedingService` via direct update rather than by adding `HasUuids` to a frozen model (TD-19).
+
+- **Workflow Version moved 1 → 2**, because M7 added a workflow. That is exactly the condition the documented bump rule names. Schema Version and Payload Version did **not** move: M7 added properties in quantity but changed the meaning of no existing key, so a subscriber written against version 1 of either keeps working. The contrast is why the three are kept independent.
+
+- **`docs/EVENT_CATALOG.md` extended** with the full `dpc_proceeding` set — transitions, corrections, calculation, holds and documents — plus `ProceedingDocumentsPublished`, the one published event that is *not* a workflow transition. `calculate` and `recalculated` are now genuinely distinct events rather than one event with a flag: a recalculation supersedes a result the Commission may already have acted on, and a consumer that cannot tell them apart cannot know that.
+
+- 51 new tests, **535 passed / 1679 assertions**. Pint clean, PHPStan 0 errors, `composer audit` clean on the first attempt, `migrate:fresh --seed` OK (58 tables).
+
+**The full PPT comparison found two divergences from S34's stated result, and M7 closure was NOT requested because of them.** US4 is an **SC** officer in a DPC with **no SC vacancy**: the PPT places them on the **unreserved** waiting list (`UR_W`), the system on `SC_W`. The implied rule — *an officer whose category has no vacancy waits against the unreserved list* — is stated nowhere in either deck, sits in frozen M5 placement logic, and is a reservation rule adjacent to BD-2/BD-3. Raised as **BD-9**. Separately, US4's `C.CASE` note is composed onto the PPT's remark as `UR_W CC`; the mechanism built this phase for `CIR` would carry it, but what a court case *does* to a promotion is unknown and adjacent to BD-1. Raised as **BD-10**. Neither is a defect in Phase 4's work — and neither should be discovered after M7 is declared closed.
+
+## 2026-08-14 — M7 Phase 3: CALCULATE, result, approval and cancellation
+
+Third slice of M7 (PPT S33 `CALCULATE` / `CANCEL DPC`, S34 `APPROVE BY CGPSC`). One additive migration. **No file in M4, M5 or M6 was modified** — verified by full-repository diff against `v0.6.0-m6-complete`.
+
+- **The frozen M5 engine is called unchanged, on corrected data.** This was the phase's central problem: `CALCULATE` must score the *corrected* chart, but `DpcCalculationService` reads the proposal's evaluation rows and M5 is frozen. The solution needs no M5 change — `ProceedingCalculationService` materialises corrected **in-memory copies** of the rows and substitutes them on the proposal's loaded relation before handing it over. `DpcCalculationService::calculate()` opens with `loadMissing()`, which leaves an already-loaded relation alone, so the engine consumes corrected rows without knowing they were corrected. Nothing is persisted through those copies, and a test asserts the M4 row is unchanged after a calculation. **This was the phase where the freeze was most at risk**, because the shortest path to a corrected calculation would have been to change M5's own entry point.
+
+- **The PPT's own worked example is reproduced exactly, end to end.** S33 shows US3 scoring **14** and marked `NE`; after `TRIBAL 2021` is recorded it scores **15** and moves to the waiting list. A test drives calculate → correct → recalculate and asserts 14 → `NE`, then 15 → eligible → `waiting`, with US1 taking the single UR vacancy. The correction pipeline and the frozen engine agree with the Commission's own arithmetic.
+
+- **Stale-calculation protection is decided by correction sequence, not by timestamp.** The obvious implementation compares `applied_at` with `executed_at` — and both have **second granularity**, so a correction and a recalculation inside one second would be indistinguishable, and the failure would be *silent*: an approval would sail through against a result that does not reflect the last correction. Directive 1's correction sequence closes it exactly; a run records the high-water sequence it saw, and a result is stale when a higher sequence exists. A test freezes the clock at a single instant, corrects and recalculates within it, and asserts staleness is still detected. The refusal **names the officers affected** — a message the Commission cannot act on is one it will click past.
+
+- **Two runs, two questions.** `latest_calculation_run_id` moves with every recalculation; `final_calculation_run_id` is pinned at approval and never moves. Conflating them would let a later calculation retrospectively change what was approved. An approved result screen always shows the run that was attested to.
+
+- **Concurrency closed on two fronts.** `lockForUpdate` re-read before any approval or cancellation decision — the M4 pattern, not M3's (TD-5). And the `(proceeding, sequence)` unique index means two simultaneous corrections fail loudly rather than quietly producing two corrections numbered 4, which closes the race carried forward from Phase 2.
+
+- **Directive 3 needed more than it asked for.** `effective_value` is now on every correction event — but implementing it showed it is **identical to `new_value` in every case**, since a correction's effective value *is* what it sets. The real replay gap was elsewhere: after a chain of corrections a later event's `previous_value` is what the *previous correction* made it, not what the department sent, so the old-beside-new display could not be rebuilt from the timeline alone. `submitted_value` was added alongside, and both are now on every event.
+
+- **`CIR` was in the design's Phase 3 but not in the directive's "implement only" list, so it was not built.** The consequence is stated rather than left to be discovered: the S34 result currently cannot show that a promotion is reserved. In the PPT's own example US8 appears as `ST SS CIR` — top-scoring, Super-Seated, and held on a missing property return; today's result would show `ST SS` and omit the hold. That is a gap in the legal output. Recommended for Phase 4, before documents.
+
+- **Approval currently produces no signature.** `approve_result` declares `signature => false`, because signing needs a document to sign and documents are Phase 4 with CSC DigiSign. Declaring `true` now would be the placeholder Directive 4 forbids. Between now and Phase 4 the system can therefore produce an approved but unsigned promotion list — acceptable inside an unshipped milestone, not acceptable as how M7 closes.
+
+- **A defect our own tests caught, worth recording.** `lists()` originally partitioned results with a **string** comparison against a column cast to an **enum**, silently returning three empty lists. The screen test passed anyway — `assertSee('MAIN LIST')` matches a static heading whether or not the list beneath it has rows. Only the worked-example test, which asserts an officer's actual placement, caught it. The screen test now asserts placement. **The fourth defect in M7 found by asserting an outcome rather than a rendering.**
+
+- 36 new tests, **484 passed / 1569 assertions**. Pint clean, PHPStan 0 errors, `composer audit` clean on the first attempt, `migrate:fresh --seed` OK (56 tables).
+
+**BD-2/BD-3 is now live rather than theoretical.** A run with unsettled reserved-relaxation cases sets `has_pending_decisions`, the result screen marks it **provisional**, and the flag is carried on the approval timeline event. Approval is deliberately **not** blocked — blocking would resolve a business question in code, which Directive 5 forbids — so a provisional result can now be approved. It must not be published while flagged.
+
+## 2026-08-14 — M7 Phase 2: the editable S33 workspace and Commission corrections
+
+Second slice of M7 (PPT S33 `EDIT` / `TRIBAL` / `SAVE`). One additive migration. **No file in M4, M5 or M6 was modified** — verified by full-repository diff against `v0.6.0-m6-complete`, which shows changes only to `AppServiceProvider` (policy registration), `config/dpc.php`, `routes/web.php` and documentation. Every M7 file is new.
+
+- **Corrections are recorded, never applied.** `ProceedingCorrectionService::record()` writes an append-only override; `dpc_evaluation_rows` is read and never written. `effectiveChart()` then assembles the department's submission with corrections applied, in **two queries** — one eager-load of rows with their per-year children, one for all in-force overrides, keyed in memory. That assembled chart is what the workspace renders and what Phase 3 will hand to the frozen M5 engine, which will neither know nor care where its input came from.
+
+- **Withdrawal is itself a correction.** `DELETE` on a correction appends a *new* override restoring the previous value, with its own reason and author, and supersedes the original. An undo that erased the original would leave the record showing a value nobody ever chose. Both rows survive and both appear in the history.
+
+- **A correction records the *effective* previous value, not the department's original.** When a second correction supersedes a first, its `previous_value` is what the first had made it — so a chain reads back step by step rather than as unrelated jumps from the original. Pinned by test.
+
+- **Validation reuses M4's own rules.** `RecordCorrectionRequest` validates the corrected value through `DpcRowRules`, the same definitions manual entry and Excel import use, rather than restating them. Three code paths validating one field differently is how a bad CR grade eventually reaches a promotion list. A test asserts an invalid grade is refused **by M4's rule**, not by a parallel one.
+
+- **No workflow transition was added.** A correction changes no state — the DPC is in exactly the same place before and after — so the ledger must not claim one (Directive 4). `dpc_proceeding` still declares only `open`. A test asserts the transition count is unchanged after a correction.
+
+- **Directive 1 completed.** `closed_by`, `closed_by_name`, `closed_at` added, additive. The opening pair already existed: under AQ-6 the member who opens a sitting necessarily conducts it, so a separate `opened_by` would be a second name for one fact, and two columns that must agree are two that can disagree. Closure is **not** derived from `approved_at`/`cancelled_at` — those record when a decision was taken, closure records who ended the sitting. A test pins that the columns are writable in the same transaction that concludes the sitting; without it the terminal guard would reject every write the moment the status moved, and Phase 3 could never fill them.
+
+- **Directive 3 completed for audit.** The audit table keys on a sequential id that never leaves the database, so `generateTags()` on both models puts the **proceeding UUID** into every audit row. Without it an audit export of corrections could not be tied back to the sitting anyone else can see.
+
+- **Identity fields are deliberately not correctable.** `correctable_fields` covers CR grade, loyalty, property and tribal service — how an officer *performed*. Name, DOB, category and qualification are the department's record of who the officer *is*; correcting those at the sitting would change **who was considered**, not how they scored. Recorded in the config comment so the omission is not read as an oversight.
+
+- 39 new tests, **448 passed / 1479 assertions**. Pint clean, PHPStan 0 errors, `composer audit` clean on the first attempt, `migrate:fresh --seed` OK (56 tables).
+
+**PPT comparison, S33 — one display ambiguity documented, not resolved.** S33 renders the tribal annotation as `TRIBAL 2021` and S43 as `TRIBAL 2013`, which read as *years*; M4's frozen column is a *count* of years. Both cannot be literal. It changes no outcome — M5 turns any non-zero value into the single §5.2 bonus of +1, so `2021` and `3` score identically — so the workspace labels the field "Service in Tribal Area (years)" and stores what M4's column means, while `TRIBAL <n>` stays a Note annotation. Category B. Worth putting to CGPSC at UAT, because it changes what the printed result says rather than what it computes.
+
+## 2026-08-14 — M7 Phase 1: proceedings entity, lifecycle and override model
+
+First slice of M7 (PPT S31–S32, and the read-only chart of S33). Two additive tables; **M4, M5 and M6 were not touched**, verified by `git diff v0.6.0-m6-complete -- app/Domain/{Eligibility,Cgpsc,Dpc}` returning empty. That check is now a standing per-phase gate — it only became possible once the baseline tag existed.
+
+- **`dpc_proceedings`** — the sitting as a first-class record: UUID public identifier, the schedule slot it was held under, the conducting member and a **snapshot of their name**, the actual opening time, and a content fingerprint of the department's submission. Frozen once terminal; while open, only the lifecycle columns Phase 3 populates may move. Who conducted it, when it opened and what it acted on are history the moment they are written — they are the evidence.
+
+- **`dpc_proceeding_overrides`** — the correction record, append-only, model only in this phase (Phase 2 records into it). Every row carries UUID, previous value, new value, reason, actor and timestamp, per Directive 1. **This table is why M4 stays frozen:** the obvious implementation of S33's `EDIT` button is to update the evaluation row, and that is also the one that destroys the evidential model — a corrected row would silently contradict the signed M4 approval document that attested to it. A test asserts the M4 row is byte-identical after an override is recorded.
+
+- **Replayable by construction (Directive 2).** `toTimelineProperties()` lives on the model rather than in the Phase 2 service, so the recording path and any future replaying subscriber cannot drift apart. Storing only the new value would have made correction history reconstructible solely by replaying M4 plus every prior override in order — precisely the business-table dependency the timeline is not permitted to have.
+
+- **`dpc_proceeding` workflow** on the existing engine, declaring **only** the `open` transition. `approve_result` and `cancel_dpc` arrive with Phase 3, which produces them; a transition nothing can perform reads as supported behaviour when it is not. Subject is the `DpcProposal`, as in M6, so every CGPSC-side event stays on one ordered timeline thread.
+
+- **AQ-5 implemented as ruled:** early opening is configurable and permissive by default, and the **actual** opening timestamp is recorded regardless. Three tests — permissive default, strict refusal, and the real time recorded either way.
+
+- **AQ-6 implemented as ruled:** the Chairman may *read* any proceeding but conducts only what is allotted to him. Enforced in policy, controller and service. Re-allotment — which already exists and records its own reason — remains the route, so exactly one actor is ever accountable for a sitting.
+
+- **The S33 controls are absent rather than inert.** `SAVE`, `EDIT`, `TRIBAL`, `CALCULATE` and `CANCEL DPC` belong to Phases 2 and 3. A button that does nothing is worse than no button.
+
+- **Two defects found by our own reviews, before the gate.** The security review found the allottee check surfacing as a validation error rather than a 403 — which both reads oddly and confirms the record exists; it now authorises against the existing allotment policy. The performance review found an N+1 on the proceedings queue (one schedule lookup per row); it is now two keyed queries, following M6's pattern. Neither would have failed any gate.
+
+- **TD-16 raised.** M5's content fingerprint is `private` on a frozen class, so M7 computes its own. The two are defensibly different — M5 fingerprints the *scoring input*, M7 the *whole submission* including loyalty and property returns, which change no score but decide whether an officer is held — but they overlap, and overlapping duplicated logic drifts. Raised for a ruling rather than resolved unilaterally.
+
+- 41 new tests, **409 passed / 1378 assertions**. Pint clean, PHPStan 0 errors (one real nullsafe error found and fixed, not suppressed), `composer audit` clean, `migrate:fresh --seed` OK (56 tables).
+
+**PPT comparison, S31–S32 — no new divergence.** S31's data-freeze rule turns out to be **already structurally enforced**: M4 freezes every section on approval, so a department cannot alter anything after forwarding. Phase 1 adds what was missing — the *evidence*, in the form of a submission fingerprint recorded at opening, so the claim is provable rather than arguable. One documented difference carried forward: S32 shows entry by DPC ID + Aadhaar OTP, replaced under approved decision Q1 by ordinary authentication and a per-member queue. Category B.
+
+## 2026-08-14 — M7 design: DPC Proceedings & Result Generation
+
+**Design only. No production code, no migration, no change to business logic or existing workflow.** Working tree clean at `c2deae4` before and after.
+
+- **`docs/design/08-m7-proceedings.md`** — the full 30-section design for M7 (PPT S31–S34): four additive tables, a new `dpc_proceeding` workflow on the existing engine, six services, seven controllers, seven views, and four implementation phases. **No new framework and no new cross-cutting mechanism.** Every arrow into M4 and M5 is read-only, which is the structural expression of both freezes and is checkable by `git diff v0.6.0-m6-complete`.
+
+- **The PPT turns out to contain a second worked answer key, and the frozen engine reproduces it.** S33 renders the same chart three times in sequence — as forwarded, after CALCULATE, and after Commission correction. US3 scores **14** and is `NE`; once `TRIBAL 2021` is recorded, US3 scores **15** and moves to `ST_W`. Checked by hand against the frozen engine: five most recent grades ख,क,क,क,क = 14, plus the tribal +1 = 15, meeting the ≥15 Class-I→I threshold. **Exact.** This is independent confirmation of the M5 engine from the customer's own numbers, and it settles the shape of two design questions at once — Commission corrections are real, and they must trigger recalculation. It becomes M7's acceptance test.
+
+- **Ambiguity Q12 appears to dissolve rather than need a ruling.** The Conventional deck says "2 or more CR years missing"; the S14 label says "CR ≤ 4". With **six** CR columns on the chart these are the same condition stated from opposite ends. S33 shows both triggers live: US6 has four CR grades and is `CIR`; US8 scores 20, qualifies for a Super Seat, and is held anyway on a missing 2016 property return. Recorded as a documented interpretation; the ruling stays M9's.
+
+- **US8 also establishes that a hold is orthogonal to merit** — top-scoring, Super-Seated, and still `CIR`. `CIR` is a procedural reservation of the promotion action, not a verdict on eligibility, which is why the design places it *outside* the frozen engine rather than extending `RemarkCode`.
+
+- **A conflict with the archived SRS is documented rather than silently resolved (TD-15).** `docs/archive/DPC- SRS.docx` describes per-member voting, free-text meeting minutes, upload of an externally signed proceedings file, and a separate promotion-order generation and distribution module. **None of it appears in the PPT.** The PPT governs by standing rule, but the difference would roughly double M7, so it is raised as a scope question rather than assumed away.
+
+- **`docs/ARCHITECT_REVIEW.md` replaced with eight blocking architect questions** (AQ-1 … AQ-8), each with background, why a decision is required, options, pros, cons, recommendation, future impact and default action. Preference questions were deliberately excluded; anything answerable from the PPT or the existing architecture was decided in the design instead. Only AQ-1 blocks the data model; AQ-3 (ambiguity Q7, the legal document format) blocks phase 4 alone, so a late ruling on it does not stall the milestone.
+
+- **One sequencing recommendation recorded:** BD-2/BD-3 (reserved relaxation) should be settled before **phase 3**, not before phase 1. Phases 1 and 2 are unaffected. Phase 3 is where an unsettled rule stops merely marking a calculation provisional and starts determining what a signed promotion list says.
+
 ## 2026-08-13 — Repository baseline: `v0.6.0-m6-complete`
 
 **No code written.** Repository verified, gated, cleaned, committed and tagged, to leave a clean reproducible state before M7.
@@ -130,7 +282,7 @@ M5 approved and officially complete. Post-approval directives applied. No implem
 
 Only *approved* rules are frozen: unresolved business rules (BD-1 PUNISHMENT, BD-2/BD-3 reserved relaxation) are explicitly excluded, so settling them changes behaviour through configuration without breaching the freeze. The freeze is enforceable rather than aspirational — every threshold is configuration, each rule set is labelled by `rule_version`, every run stores its own snapshot, 13 golden tests fail if a value moves unintentionally, and `RuleSet::fromSnapshot()` keeps superseded rule sets executable.
 
-**`docs/business/PENDING_BUSINESS_DECISIONS.md` created.** Business questions no longer live in `ARCHITECT_REVIEW.md`, which is now engineering-only. Eight open items, each with severity, what it blocks, what CGPSC must confirm, and what the system does meanwhile — including **BD-1 (does PUNISHMENT disqualify?)**, ruled a business rule and not implemented. Closed items are retained so settled questions are not reopened. `docs/design/06-ambiguities.md` redirects there.
+**`docs/PENDING_BUSINESS_DECISIONS.md` created.** Business questions no longer live in `ARCHITECT_REVIEW.md`, which is now engineering-only. Eight open items, each with severity, what it blocks, what CGPSC must confirm, and what the system does meanwhile — including **BD-1 (does PUNISHMENT disqualify?)**, ruled a business rule and not implemented. Closed items are retained so settled questions are not reopened. `docs/design/06-ambiguities.md` redirects there.
 
 **Every PPT difference is now classified** as Category A (implementation bug — none open), B (documentation difference), C (business clarification — all moved to the register), or D (future milestone).
 

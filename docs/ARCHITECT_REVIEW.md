@@ -1,117 +1,89 @@
-# Handover — 2026-08-13
+# Architect Review — M7 Closure
 
-Baseline established. No code was written today; the repository was verified, gated, cleaned, committed and tagged.
-
----
-
-## Repository status
-
-| | |
-|---|---|
-| **Branch** | `feature/m0-setup` |
-| **Tag** | `v0.6.0-m6-complete` (annotated) |
-| **Commit** | the commit `v0.6.0-m6-complete` points at — `git rev-parse v0.6.0-m6-complete^{}` |
-| **Remote** | `origin` → `git@github.com:hariom-pal/DPC.git` |
-| **Working tree** | Clean |
-
-The hash is given as a tag reference rather than a literal, because this file is *inside* the commit it would name — writing the hash here would change it. The tag is the stable identifier; resolve it with the command above.
-
-**This commit closes TD-14.** Before it, the last commit was `3133ac4 M3` — M4, M5 and M6 existed only in an uncommitted working tree. Beyond the loss risk, that made the three freeze policies unverifiable: a freeze is a claim about a commit, and there was no commit at any milestone boundary to diff a suspected breach against. There is now.
-
-**Note on the branch name.** `feature/m0-setup` is six milestones out of date. Renaming rewrites the remote ref, so it is flagged rather than done.
+**Date:** 2026-08-14
+**Subject:** M7 closed · three registers separated · milestone summary and timeline · repository tagged
+**Status:** **M7 COMPLETE.** M8 at design stage — nothing implemented.
+**Tag:** `v0.7.0-m7-complete`
 
 ---
 
-## Quality gates — all green
+## 1. Directives — status
+
+| # | Directive | Status |
+|---|---|---|
+| **1** | `PROJECT_STATUS.md` → M7 COMPLETE | ✅ |
+| **2** | Create `docs/MILESTONE_SUMMARY.md` | ✅ One section per milestone — delivered, governing freeze, left behind |
+| **3** | Create `docs/PROJECT_TIMELINE.md` | ✅ What happened when, and **why** |
+| **4** | Every future milestone carries a "Deferred Because of Business" section | ✅ Adopted as a standing rule; **§14 of the M8 design is the first** |
+| **5** | Keep Business Decisions / Technical Debt / Architecture Decisions as separate documents | ⚠️ Two existed. **The third was created** — see below |
+| — | Gate, commit, tag, push | ✅ §3 |
+| — | Begin M8 **design only** | ✅ §5 |
+
+---
+
+## 2. On Directive 5 — the register that did not exist
+
+Business Decisions and Technical Debt were already separate files. **Architecture Decisions was not a document at all.**
+
+Architectural rulings lived in `docs/ARCHITECT_REVIEW.md` — which is **replaced in full at every phase**. A ruling made in M4 Phase 5 and not restated since survives only in a git history nobody reads. That is precisely the failure mode `TECHNICAL_DEBT.md` was created to fix, applied to a different kind of information, and it had been sitting unnoticed for four milestones.
+
+`docs/ARCHITECTURE_DECISIONS.md` records 18 decisions (AD-1 … AD-18), each with **the consequence as well as the decision** — a decision whose cost is unwritten gets re-litigated by whoever next finds it inconvenient.
+
+Three are worth naming here:
+
+- **AD-10 (pure engines).** The payoff arrived two milestones after the decision. Because the M5 engine reads only what it is handed, M7 could score a *corrected* chart without changing one line of frozen code. An engine that fetched its own data could not have been reused that way.
+- **AD-15 (freezes).** Records what the freeze **forecloses**: TD-16, TD-19, TD-20 and TD-21 are all small improvements visibly blocked by it, left undone rather than taking the freeze quietly. They should be batched into the next legitimate opening rather than each justifying one.
+- **AD-17 (the gate is necessary, not sufficient).** Every significant defect in this project was found by applying a discipline — the Demo Readiness Rule, a directive implemented properly, a full PPT comparison, an assertion about an outcome rather than a rendering. All of them passed Pint, PHPStan, PHPUnit and `composer audit` while broken.
+
+---
+
+## 3. Repository state
 
 | Gate | Result |
 |---|---|
-| Laravel Pint | Pass |
-| PHPStan (Larastan level 6) | 0 errors |
-| PHPUnit | 368 passed / 1281 assertions |
-| `composer audit` | No advisories |
-| `php artisan migrate:fresh --seed` | OK — 54 tables, 10 seeders |
+| Laravel Pint | **Pass** |
+| PHPStan (Larastan level 6) | **0 errors** |
+| PHPUnit | **537 passed / 1682 assertions** |
+| `composer audit` | **No advisories** |
+| `php artisan migrate:fresh --seed` | **OK** — 58 tables, 10 seeders |
 
-Run as `composer gate` plus `migrate:fresh --seed`. Nothing needed fixing.
+**Freeze verification:** `git diff --name-only v0.6.0-m6-complete` shows no file under `app/Domain/{Dpc,Eligibility,Cgpsc}`. M4, M5 and M6 came through all four M7 phases untouched.
 
-**One CI caveat:** `composer audit` reaches packagist over the network and failed with `curl error 28` on a clean tree during yesterday's run, passing on retry. **CI must retry that step**, or a build will fail in a way that reads as a security gate failing (`TD-2`). It passed first time today.
-
----
-
-## Repository cleanliness
-
-Verified: no backup, temporary, editor or conflict files; no file over 2 MB; no runtime artefacts from `storage/`; `node_modules` absent. `.idea/` and `.phpunit.result.cache` were already ignored. `.claude/settings.local.json` — machine-local tool settings — was untracked but not ignored, so it was added to `.gitignore` before committing.
-
-Three empty directories remain under `design/` (`assets`, `design-system`, `figma`). They are untouched: `design/` is on the do-not-delete list, and git does not track empty directories in any case.
-
-`package.json`, `vite.config.js` and `.npmrc` are tracked but the project deliberately has **no Node/Vite build step**. They are Laravel scaffolding rather than junk, so they were left in place — removing them is a decision, not a cleanup.
+Committed and tagged **`v0.7.0-m7-complete`**, pushed with the branch. Working tree clean apart from the M8 design documents, which are new and uncommitted by design.
 
 ---
 
-## Documentation
+## 4. What M7 leaves open, and where it is tracked
 
-All eleven mandatory documents exist and are synchronized:
+**Nothing in implementation.** Four business questions remain, tracked **only** in `docs/PENDING_BUSINESS_DECISIONS.md`, and M7 is not reopened for them.
 
-`README.md` · `PROJECT_STATUS.md` · `PROJECT_PROGRESS.md` · `CHANGELOG.md` · `ARCHITECT_REVIEW.md` · `TECHNICAL_DEBT.md` · `WORKFLOWS.md` · `EVENT_CATALOG.md` · `INTEGRATION_ROADMAP.md` · `UAT_CHECKLIST.md` · `DEMO_SCRIPT.md`
-
-Two desyncs were found in `README.md` and fixed: its document map predated the six newer mandatory documents, and it described `composer gate` without `composer audit`, which has been a mandatory gate since M4 Phase 6 (the script itself was correct; only the README was stale). A milestone-state section was added so the freezes are visible on the front page.
-
----
-
-## UAT readiness
-
-**Ready, with one qualification.** The full pipeline — registration → Pre-DPC → DPC proposal → Excel import → AH approval with signature → CALCULATE → allotment → scheduling — runs end to end with **every integration switched off**, which is the configuration UAT will use.
-
-**The qualification:** while BD-2/BD-3 is unsettled, a DPC where a reserved category has fewer eligible officers than vacancies returns a **provisional** result. UAT proceeds; a provisional result must not be published.
-
-**Two things to tell testers before they start, not during:**
-
-1. **SMS, HRMS and the real signature are switched off.** Unsaid, the finding log fills with the same three non-defects and the real findings get harder to see.
-2. **"Provisional" is a correct outcome**, not a failure — it is the system declining to guess at an unsettled rule.
-
-Both are written into the checklist preamble and the demo script's opening.
-
-Cannot be validated in UAT: SMS/e-mail delivery (TD-6), real digital signature (BD-4), HRMS pre-fill (BD-5), reserved-relaxation outcomes (BD-2/BD-3), PUNISHMENT disqualification (BD-1), audit-trail screens (TD-7).
-
----
-
-## Remaining business decisions
-
-Full detail in `docs/business/PENDING_BUSINESS_DECISIONS.md`; eight open, four material.
-
-| # | Question | Effect |
+| # | Question | Failure mode while open |
 |---|---|---|
-| **BD-2 / BD-3** | Reserved relaxation — automatic or committee discretion, and does relaxation to 10 apply beyond Class-I→I? | **Blocks publishable results.** The only open item that limits what UAT can conclude. |
-| **BD-1** | Does a recorded `PUNISHMENT` disqualify an officer? | Slide 33 marks two officers NE whom the engine passes. Current behaviour is pinned by test; not implemented unilaterally. |
-| **BD-4** | Does the CSC eSign API sign raw bytes or require a PDF? | The one integration question that could change application code — the signed proposal is currently plain text. |
-| **BD-5** | HRMS API contract | Blocks the HRMS provider; no UAT impact. |
+| **BD-2 / BD-3** | Reserved relaxation — automatic or discretionary, and its scope | **Safe.** Result marked provisional; publication refused |
+| **BD-10** | What a pending court case does | **Safe.** The remark omits `CC`; nothing else changes |
+| **BD-9** | Which waiting list, when a category has no vacancy | ⚠️ **Unsafe.** No flag is raised — the system places the officer under their own category code, considers the calculation complete, and **would publish it** |
 
-**Recommendation: escalate BD-2/BD-3 to CGPSC before UAT begins, not during.** It is the only one whose answer changes what UAT can conclude, and it needs a committee ruling rather than an engineering decision, so it has the longest lead time.
-
----
-
-## Next milestone — M7 (DPC Proceeding & Results)
-
-Scope per `docs/design/05-milestones.md`: conduct the DPC, CALCULATE, Main + Waiting list generation, APPROVE BY CGPSC, CANCEL DPC, proceedings and result PDF (queue → S3). Depends on M5 and M6, both frozen. Carries open question **Q7**.
-
-**The M7 design document does not exist yet.** Approval is recorded, but nothing has been written — no `docs/design/08-m7-*.md`. Writing it is the first task, not the second.
+**BD-9 is the one to chase.** It is the only open question that can produce a confidently wrong published document rather than a blocked one.
 
 ---
 
-## Recommendations before starting M7
+## 5. M8 — Review DPC: design submitted
 
-**1. Settle BD-2/BD-3 first, or accept that M7 inherits it.** M7 produces the legally significant artefacts — proceedings and result documents. A rule that today only marks a calculation provisional will, in M7, decide what a *published promotion order* contains. The cost of it being open rises sharply at exactly this milestone boundary.
+`docs/design/09-m8-review-dpc.md`. **Nothing implemented.**
 
-**2. Start the SMS gateway procurement now, in parallel.** The Government SMS gateway is not one integration among six: **OTP delivery depends on it, so without it no officer can log in to production at all.** Every other integration degrades gracefully — HRMS off means manual entry, e-mail off means one channel instead of two. This one means production does not function. It is also the longest lead time because it needs a government contract rather than an engineering decision, which is precisely why it will be discovered late if left to the deployment checklist (TD-6).
+Headline: **M8 is the smallest milestone since M2, and deliberately so.** S35 states the rule outright — *"the Review DPC process will be exactly the same as the Fresh DPC process"* — so the milestone is mostly **reuse**, not construction. The design's job was to find the places where "exactly the same" is not quite true, and there are four.
 
-**3. Take freeze verification seriously now that it is possible.** With `v0.6.0-m6-complete` in place, `git diff v0.6.0-m6-complete -- app/Domain/Eligibility` mechanically answers "has the frozen engine changed?" Worth running at each M7 phase boundary — M7 depends on both frozen milestones, which is exactly the condition under which a freeze quietly gets breached.
+**Six blocking questions raised (AQ-9 … AQ-14).** The two that decide the shape of the milestone:
 
-**4. Treat the gate as necessary but not sufficient.** Recorded in `TECHNICAL_DEBT.md` and repeated here because M7 is where it matters most: of the eight defects fixed since M4, **four were found by implementing a directive properly rather than by testing the feature concerned** — the audit trail untested since M1, a failing notification rolling back a workflow transition, `dpc_time` reading differently per driver, and non-deterministic timeline ordering. **All four passed Pint, PHPStan, PHPUnit and audit while broken.** M7's outputs are the ones that get read in a tribunal.
+- **AQ-9 — what does a Review DPC do to the original?** Superseded, annotated, or untouched? This determines whether a promotion already acted on is withdrawn, and it is the difference between a correction and a second, contradictory promotion list.
+- **AQ-11 — does a Review DPC re-run the engine, or re-run the *original's* rules?** A Review of a 2017 DPC conducted in 2027 could legitimately mean either. Getting it wrong means correcting a clerical error and silently re-deciding the case under rules that did not exist at the time.
 
-**5. Consider renaming the branch.** `feature/m0-setup` now contains M0 through M6.
+**Risk assessment, database design and workflow design** are §§10–13 as directed, and **§14 is the first "Deferred Because of Business"** section — stating at design time what M8 cannot settle, rather than discovering it at closure as M7 did.
 
 ---
 
-## Status
+## 6. Status
 
-M4, M5 and M6 are complete and frozen. The repository is clean, gated, committed, tagged and pushed. **M7 has not begun.**
+**M7 COMPLETE**, closed and tagged. **M8 design submitted; implementation not started.**
+
+Waiting for Architect approval.

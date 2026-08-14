@@ -37,7 +37,7 @@ PPT is the default source of truth. Where the PPT is silent or internally incons
 
 **Moved 2026-08-13 by architect directive.** Questions that need a business answer — not an engineering or design decision — now live in a single register:
 
-### → `docs/business/PENDING_BUSINESS_DECISIONS.md`
+### → `docs/PENDING_BUSINESS_DECISIONS.md`
 
 That includes Q5, Q6, Q7, Q11 and Q12 from the table above, plus the CSC eSign document-format question, the HRMS API contract, and the `PUNISHMENT` disqualification question raised by PPT slide 33.
 

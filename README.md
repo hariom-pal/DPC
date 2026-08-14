@@ -21,6 +21,9 @@ Everything under `docs/design/` is derived from these two decks; on any conflict
 | See what's built vs. what the PPT requires, module by module | `docs/PROJECT_PROGRESS.md` |
 | See the current handover, decisions and review findings | `docs/ARCHITECT_REVIEW.md` |
 | See known limitations, deferred items and resolved defects | `docs/TECHNICAL_DEBT.md` |
+| Understand why the architecture is the way it is | `docs/ARCHITECTURE_DECISIONS.md` |
+| See what each milestone delivered | `docs/MILESTONE_SUMMARY.md` |
+| See when decisions were taken, and why | `docs/PROJECT_TIMELINE.md` |
 | Understand a workflow, its states and who may act | `docs/WORKFLOWS.md` |
 | Consume a workflow event, or build an integration against one | `docs/EVENT_CATALOG.md` |
 | Know which external systems connect, and what is switched on | `docs/INTEGRATION_ROADMAP.md` |
@@ -28,13 +31,20 @@ Everything under `docs/design/` is derived from these two decks; on any conflict
 | Demonstrate the system to the customer | `docs/DEMO_SCRIPT.md` |
 | Understand the requirements/design baseline | `docs/design/01-requirements.md` … `06-ambiguities.md` |
 | See what changed release over release | `docs/CHANGELOG.md` |
-| Know which business rules are still unsettled | `docs/business/PENDING_BUSINESS_DECISIONS.md` |
+| Know which business rules are still unsettled | `docs/PENDING_BUSINESS_DECISIONS.md` |
+| Put those questions to CGPSC in plain language | `docs/UAT_BUSINESS_VALIDATION.md` |
 
-These eleven documents — this README plus the ten under `docs/` above — are **mandatory and kept synchronized**. Anything else under `docs/` is supporting detail.
+These sixteen documents — this README plus the fifteen under `docs/` above — are **mandatory and kept synchronized**. Anything else under `docs/` is supporting detail.
+
+**Three registers, deliberately separate** (architect directive): `PENDING_BUSINESS_DECISIONS.md` holds questions only CGPSC can answer, `TECHNICAL_DEBT.md` holds what we know is imperfect, and `ARCHITECTURE_DECISIONS.md` holds the rulings that constrain future work. Each survives a phase boundary; `ARCHITECT_REVIEW.md` does not — it is replaced in full each phase.
 
 ## Milestone state
 
-M0–M6 are complete. **M4 (DPC Proposal), M5 (Scoring & Eligibility Engine) and M6 (CGPSC Workflow) are frozen** — bug fixes, security fixes and hardening only; no new features, workflow changes or schema changes. M5's freeze covers only *approved* rules, so the unresolved business decisions can still be settled through configuration. M7 has not started. Current status and the exact freeze terms: `docs/PROJECT_STATUS.md`.
+M0–M6 are complete. **M4 (DPC Proposal), M5 (Scoring & Eligibility Engine) and M6 (CGPSC Workflow) are frozen** — bug fixes, security fixes and hardening only; no new features, workflow changes or schema changes. M5's freeze covers only *approved* rules, so the unresolved business decisions can still be settled through configuration.
+
+**M7 (DPC Proceedings & Result Generation) is complete**, closed 2026-08-14 at tag `v0.7.0-m7-complete`. Four business questions remain open and are tracked only in `docs/PENDING_BUSINESS_DECISIONS.md`; M7 is not reopened for them. **M8 (Review DPC) is at design stage** — nothing implemented.
+
+Current status and the exact freeze terms: `docs/PROJECT_STATUS.md`.
 
 ## Stack
 

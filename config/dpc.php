@@ -189,6 +189,36 @@ return [
             ],
         ],
 
+        /*
+        | DPC Proceeding (PPT S31–S34, M7). Like `dpc_cgpsc`, this runs on the
+        | DpcProposal as subject under its own workflow name, so every
+        | CGPSC-side event lands on one subject thread and "show me everything
+        | that happened to this DPC" stays a single ordered timeline query.
+        |
+        | Phase 1 declares only the transition it implements. `approve_result`
+        | and `cancel_dpc` arrive with Phase 3, which produces them — a
+        | transition nothing can perform reads as supported behaviour when it
+        | is not.
+        |
+        | The role is `member` because that is the role the allottee holds.
+        | Being *the allottee* is enforced by policy and service, not by role
+        | (architect ruling AQ-6): a Chairman who wishes to conduct a DPC
+        | re-allots it to himself first, so exactly one actor is accountable.
+        */
+        'dpc_proceeding' => [
+            'transitions' => [
+                'open' => ['from' => ['scheduled'], 'to' => 'in_proceeding', 'role' => 'member', 'signature' => false, 'notify' => ['authorized_officer', 'administrative_head']],
+
+                // Phase 3. `signature` is **false** rather than true: signing
+                // requires a document to sign, and the result document is
+                // Phase 4. Declaring a requirement nothing yet honours would
+                // be exactly the placeholder Directive 4 forbids. Phase 4
+                // sets it true when signing is wired.
+                'approve_result' => ['from' => ['in_proceeding'], 'to' => 'result_approved', 'role' => 'member', 'signature' => false, 'notify' => ['authorized_officer', 'administrative_head']],
+                'cancel_dpc' => ['from' => ['in_proceeding'], 'to' => 'cancelled', 'role' => 'member', 'signature' => false, 'notify' => ['authorized_officer', 'administrative_head']],
+            ],
+        ],
+
         // DPC Proposal (PPT S12–S25, M4). A single workflow approval covers
         // all sections the AH reviews (architect decision, 2026-08-13) — one
         // signature, one transition, one timeline entry, one audit event.
@@ -199,6 +229,87 @@ return [
                 'return' => ['from' => ['submitted'], 'to' => 'returned', 'role' => 'administrative_head', 'signature' => false, 'notify' => ['authorized_officer']],
                 'cancel' => ['from' => ['draft', 'returned'], 'to' => 'cancelled', 'role' => 'authorized_officer', 'signature' => false, 'notify' => ['administrative_head']],
             ],
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | DPC Proceeding (PPT S31–S34)
+    |--------------------------------------------------------------------------
+    |
+    | M7. Every value here is a business rule expressed as configuration, so a
+    | government notification changes a setting rather than source code — the
+    | M5 freeze doctrine applied to the proceeding.
+    |
+    | Phase 1 uses `allow_open_before_scheduled_time` only. The remaining keys
+    | are declared with the phase that consumes them.
+    |
+    */
+
+    'proceeding' => [
+        // S31 says the DPC is conducted "at the prescribed date and time".
+        // Whether the system *enforces* that is configurable, defaulting
+        // permissive (architect ruling AQ-5): the deck's sentence governs the
+        // validity of department data changes, not whether the Commission may
+        // convene early, and a strict default would make the system
+        // undemonstrable. The actual opening time is always recorded.
+        'allow_open_before_scheduled_time' => (bool) env('DPC_ALLOW_EARLY_PROCEEDING', true),
+
+        // S33 EDIT / TRIBAL. Which fields the Commission may correct at the
+        // sitting, so the set can be narrowed or widened by notification
+        // rather than by code. `CorrectableField` bounds what may be named
+        // here; this bounds what is actually enabled.
+        //
+        // Deliberately absent: the officer's identity fields (name, DOB,
+        // category, qualification). Those are the department's record of who
+        // the officer *is*, not of how they performed, and correcting them at
+        // the sitting would change who was considered rather than how they
+        // scored. If CGPSC needs that, it is a Review DPC.
+        'correctable_fields' => [
+            'tribal_area_service_years',
+            'cr_grade',
+            'loyalty_flag',
+            'property_flag',
+        ],
+
+        // A correction without a stated reason evidences nothing, and the
+        // reason is what a tribunal reads.
+        'correction_reason_min' => (int) env('DPC_CORRECTION_REASON_MIN', 10),
+
+        /*
+        | Held promotions — `CIR` (PPT S45, Conventional deck C3).
+        |
+        | A hold reserves the promotion action for an officer who still takes
+        | part in the DPC. Both triggers are configurable because ambiguity Q12
+        | is formally open, though S33 shows the two formulations are the same
+        | rule: the chart carries six CR columns, so "2 or more years missing"
+        | and the S14 label's "CR <= 4" describe one condition from opposite
+        | ends.
+        */
+        'hold' => [
+            'enabled' => (bool) env('DPC_HOLDS_ENABLED', true),
+
+            // Fewer than this many CR years recorded -> held.
+            'min_cr_years' => (int) env('DPC_HOLD_MIN_CR_YEARS', 5),
+
+            // Any year without an immovable-property return -> held.
+            'property_required' => (bool) env('DPC_HOLD_PROPERTY_REQUIRED', true),
+        ],
+
+        /*
+        | Proceedings document and promotion list.
+        |
+        | `format` is documentation of intent rather than a switch: the renderer
+        | is resolved from the `DocumentRenderer` contract in AppServiceProvider,
+        | so PDF later means binding a different implementation (AQ-3).
+        */
+        'documents' => [
+            'disk' => env('DPC_PROCEEDING_DISK', 'local'),
+            'format' => env('DPC_PROCEEDING_FORMAT', 'html'),
+
+            // Recorded on every document so it can say what produced it.
+            // Bump when the rendered output changes materially.
+            'generator_version' => env('DPC_DOCUMENT_GENERATOR_VERSION', 'html-v1'),
         ],
     ],
 
@@ -317,6 +428,20 @@ return [
     'scoring' => [
 
         'rule_version' => env('DPC_RULE_VERSION', '2026.1'),
+
+        /*
+        | The version of the calculation engine itself (architect Directive 1,
+        | M7 Phase 4), as distinct from `rule_version`, which versions the
+        | *rules* the engine applies. The two move independently: a government
+        | notification changes the rules without changing the engine, and a
+        | bug fix changes the engine without changing the rules.
+        |
+        | Recorded on every calculate event, on the proceeding, and stamped
+        | into every generated document. It is **not** written onto the M5 run
+        | row: doing so would mean editing frozen M5 code, or writing to M5's
+        | table behind its own immutability guard. See the Phase 4 review.
+        */
+        'engine_version' => env('DPC_ENGINE_VERSION', '1.0.0'),
 
         // §5.1 CR grade -> marks.
         'cr_grade_marks' => [

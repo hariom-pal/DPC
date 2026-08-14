@@ -21,7 +21,7 @@ Everything else (SRS, `Online DPC Module-.docx`, `technical-proposal.md`, `scree
 | `03-database-design.md` | Entities, relationships, key columns, indexes, constraints, soft deletes, audit columns |
 | `04-laravel-architecture-and-structure.md` | Layering (controllers/services/form requests/policies), config-driven rules, folder structure, security |
 | `05-milestones.md` | Milestone-by-milestone plan with per-milestone deliverables and quality gate |
-| `06-ambiguities.md` | Open questions requiring a decision before/within specific milestones. **Business questions have moved to `docs/business/PENDING_BUSINESS_DECISIONS.md`**; this file records what each ambiguity was and which milestone it affects. |
+| `06-ambiguities.md` | Open questions requiring a decision before/within specific milestones. **Business questions have moved to `docs/PENDING_BUSINESS_DECISIONS.md`**; this file records what each ambiguity was and which milestone it affects. |
 | `07-m6-cgpsc-workflow.md` | **M6 design — CGPSC allotment and scheduling (S26–S30). Submitted for approval, not implemented.** |
 
 ## Tech stack
@@ -40,6 +40,6 @@ The design baseline is not the whole documentation set. Also authoritative:
 | `docs/PROJECT_PROGRESS.md` | Module-by-module detail of what is built |
 | `docs/CHANGELOG.md` | History, in reverse chronological order |
 | `docs/ARCHITECT_REVIEW.md` | Engineering review, findings, and questions awaiting architect ruling |
-| `docs/business/PENDING_BUSINESS_DECISIONS.md` | Questions blocked on CGPSC or the department — **not** engineering decisions |
+| `docs/PENDING_BUSINESS_DECISIONS.md` | Questions blocked on CGPSC or the department — **not** engineering decisions |
 | `docs/deployment/EVIDENCE-TABLE-PERMISSIONS.md` | Production database-permission requirement for calculation evidence tables |
 | `docs/integration/CSC-DigiSign.md`, `docs/integration/HRMS.md` | External integration contracts, failure behaviour, and enablement |

@@ -1,10 +1,27 @@
 # Pending Business Decisions
 
-**Established 2026-08-13 by architect directive.** Business questions live here, not in `docs/ARCHITECT_REVIEW.md`. That document is for engineering review; this one is for decisions only CGPSC or the department can make.
+**Established 2026-08-13 by architect directive. Moved to `docs/` 2026-08-14.** Business questions live here, not in `docs/ARCHITECT_REVIEW.md`. That document is for engineering review; this one is for decisions only CGPSC or the department can make.
 
 Every item below is **blocked on a business answer**, not on engineering. None can be resolved by reading the PPT more carefully or by a design decision — each needs someone with authority over the promotion rules to say what the rule is.
 
-**Standing rule while an item is open:** the engine applies the printed rule, flags every case the unruled rule could have changed, and never guesses in either direction. A flagged case is visible on screen and recorded on the calculation run.
+**Standing rule while an item is open:** the engine applies the printed rule, flags every case the unruled rule could have changed, and never guesses in either direction. A flagged case is visible on screen, recorded on the calculation run, and **cannot be published** to a department.
+
+---
+
+## Blocking M7 closure
+
+**M7 is technically complete and its implementation is approved. It is not closed**, because four questions change what a published promotion list says. Business must answer them, or explicitly accept them as deferred.
+
+| # | The question in one line | What it changes |
+|---|---|---|
+| **BD-2** | Is reserved relaxation automatic, or the committee's discretion? | **Who is eligible.** Any DPC where a reserved category has fewer eligible officers than vacancies is provisional until answered |
+| **BD-3** | Does relaxation to 10 marks apply beyond Class-I→I? | **Who is eligible**, in every other class pair |
+| **BD-9** | When an officer's category has no vacancy, which waiting list do they go on? | **Which list an officer appears on.** The PPT's own example puts an SC officer on the *unreserved* waiting list; the system puts them on `SC_W` |
+| **BD-10** | Does a pending court case annotate the remark, hold the promotion, or disqualify? | **What the published remark says**, and possibly whether the promotion takes effect |
+
+**None of these is an engineering choice, and none has been guessed at.** BD-9 and BD-10 were found by comparing the system's output against the customer's own worked answer on slide 34, row by row — see `docs/UAT_BUSINESS_VALIDATION.md`, which puts all four to business users in plain language with the worked examples that expose them.
+
+---
 
 ---
 
@@ -20,6 +37,8 @@ Every item below is **blocked on a business answer**, not on engineering. None c
 | BD-6 | Circulation trigger — which rule governs? (Q12) | M9 | P2 | 2026-07-30 |
 | BD-7 | Proceedings/order PDF layout (Q7) | M7 | P2 | 2026-07-30 |
 | BD-8 | Objection handling (Q11) | M10 | P3 | 2026-07-30 |
+| BD-9 | Waiting-list placement when a category has no vacancy | **M7 closure** | **P1** | 2026-08-14 |
+| BD-10 | Does a court case annotate the remark? | **M7 closure** | P2 | 2026-08-14 |
 
 ---
 
@@ -127,6 +146,42 @@ Is a formal PDF generated for proceedings, and what is its layout? The PPT says 
 **Severity: P3. Blocks M10.**
 
 Is the objection deadline configurable? Does raising an objection notify the department, block the DPC, or only log?
+
+---
+
+---
+
+## BD-9 — Waiting-list placement when an officer's category has no vacancy
+
+**Raised:** 2026-08-14, M7 Phase 4 full PPT comparison. **Severity: P1 — it changes a published promotion list.**
+
+**What the PPT shows.** In the S34 worked example the vacancies are 1 UR and 1 ST. US8 (ST) takes the ST seat, so US3 (ST) waits on the ST list — `ST_W`. US4 is **SC**, and there is **no SC vacancy at all**; the PPT places US4 on the **unreserved** waiting list: **`UR_W`**.
+
+**What the system does.** `DpcCalculationService::placeOnLists()` suffixes the officer's own category — `SC_W` — producing a waiting list for a category that has no seat.
+
+**The rule this implies** — *an officer whose own category has no vacancy waits against the unreserved list* — **is stated nowhere in either deck.** It is visible only by reading S34's expected output.
+
+**Why this is a business decision, not an engineering one.** It is a reservation rule, and it sits in the frozen M5 engine. It also interacts with BD-2/BD-3: both concern how reserved-category officers are treated when their category's seats do not accommodate them.
+
+**What CGPSC must confirm:** when an eligible officer's reservation category has no vacancy in this DPC, do they wait against the unreserved list, against their own category's (empty) list, or not at all?
+
+**Current behaviour:** the officer waits under their own category code. Not changed unilaterally; pinned by test either way.
+
+---
+
+## BD-10 — Does a court case (`C.CASE`) annotate the remark?
+
+**Raised:** 2026-08-14, M7 Phase 4 full PPT comparison. **Severity: P2 — it changes what a published list says, not who is on it.**
+
+**What the PPT shows.** US4 carries `C.CASE` in the `NOTE` column, and S34 renders the remark as **`UR_W CC`** — the note composed onto the remark, exactly as `CIR` is composed for a held promotion.
+
+**What the system does.** The note is displayed in its own column; the remark reads `SC_W` (see BD-9) with no `CC`.
+
+**Why it is a business question.** The mechanism now exists — Phase 4 built exactly this composition for `CIR` — so carrying `CC` is small. What is *not* known is what a pending court case **does**: whether it merely annotates, whether it holds the promotion as `CIR` does, or whether it disqualifies. That is adjacent to **BD-1** (`PUNISHMENT`), and answering the two together would be sensible.
+
+**What CGPSC must confirm:** does a pending court case annotate the result only, reserve the promotion, or disqualify the officer?
+
+**Current behaviour:** the note is recorded and displayed, and affects nothing. Not implemented unilaterally.
 
 ---
 

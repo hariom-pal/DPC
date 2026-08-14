@@ -12,24 +12,35 @@ Every known limitation, deferred improvement and engineering recommendation, in 
 
 This register is append-only in spirit: items move to **Resolved** rather than disappearing. The architect review remains the place a risk is *raised* and discussed; this is the place it is *kept*.
 
+**One of three registers**, kept separate by architect directive: business questions live in `docs/PENDING_BUSINESS_DECISIONS.md`, and the rulings that constrain future work live in `docs/ARCHITECTURE_DECISIONS.md`. Several items here are *blocked by* a decision recorded there — TD-16, TD-19, TD-20 and TD-21 all exist because AD-15 forbids touching a frozen milestone for a small improvement.
+
 ---
 
 ## Open items
 
 ### P1 — Business, blocking
 
-These are not engineering debt. They are recorded here because they constrain what the system can correctly produce, and they are tracked in full in `docs/business/PENDING_BUSINESS_DECISIONS.md`.
+These are not engineering debt. They are recorded here because they constrain what the system can correctly produce, and they are tracked in full in `docs/PENDING_BUSINESS_DECISIONS.md`.
 
 | # | Item | Impact | Since |
 |---|---|---|---|
 | **BD-1** | Whether `PUNISHMENT` disqualifies an officer | Slide 33 marks two officers NE who the engine passes. Not implemented unilaterally. | M5 Ph4 |
-| **BD-2/BD-3** | Reserved relaxation — automatic or committee discretion, and its scope | **Blocks publishable results.** Any DPC where a reserved category has fewer eligible officers than vacancies produces a provisional list. | M5 Ph1 |
+| **BD-2/BD-3** | Reserved relaxation — automatic or committee discretion, and its scope | **Blocks publishable results.** Any DPC where a reserved category has fewer eligible officers than vacancies produces a provisional list, and a provisional list cannot be published. | M5 Ph1 |
+| **BD-9** | Which waiting list an officer joins when their category has no vacancy | **Blocks M7 closure, and fails *unsafely*.** The other open rules mark a result provisional and refuse publication; this one raises no flag at all — the system places the officer under their own category code, considers the calculation complete, and would publish it. It is the only open question that can produce a confidently wrong document rather than a blocked one. Ruled: **do not modify M5**; raised to CGPSC. | M7 Ph4 |
+| **BD-10** | What a pending court case (`C.CASE`) does | Blocks M7 closure. The published remark omits `CC`. Ruled: raise to CGPSC, implement no assumption. | M7 Ph4 |
 
 ### P2 — Engineering
 
 | # | Item | Detail | Recommendation | Since |
 |---|---|---|---|---|
-| **TD-1** | Evidence-table permissions not yet applied | Model-layer immutability cannot stop a query-builder mass update. Closing it is a deployment control, not code. | Apply `docs/deployment/EVIDENCE-TABLE-PERMISSIONS.md` at production rollout, **including the column-level `UPDATE` grant on `dpc_calculation_runs.status`** — revoking `UPDATE` outright breaks every calculation. | M5 Ph3 |
+| ~~**TD-17**~~ | ~~`CIR` not yet implemented~~ — **closed M7 Ph4** | The design placed holds in M7 Phase 3; the Phase 3 directive's "implement only" list did not include them, so they were not built. **The S34 result therefore cannot show that a promotion is reserved** — in the PPT's own example US8 is `ST SS CIR`, top-scoring, Super-Seated and held on a missing 2016 property return; today's result shows `ST SS` and omits the hold. A gap in the legal output, not a cosmetic one. | Add to Phase 4 before documents (documents must render the hold anyway), or run a short Phase 3b. Deferring to M9 is not viable — M9 *resolves* holds; M7 marks them (AQ-4). | M7 Ph3 |
+| **TD-18** | The approval *transition* carries no signature | **Largely closed in Phase 4:** both documents are signed through `SignatureService`, so an approved result is no longer unsigned. `approve_result` still declares `signature => false`, which is now correct rather than provisional — per Directive 3 the signature attests the **document**, not the transition. What remains is that the **real** CSC DigiSign provider is unimplemented, so production still refuses to sign. | Implement the CSC provider once BD-4 answers whether the API signs raw bytes or requires a PDF. | M7 Ph3 |
+| **TD-19** | `DpcProposal` has no `HasUuids` | Directive 2 requires an approved result to reference the proposal by UUID. The column was added and backfilled by migration, but new proposals get their UUID minted by `ProceedingService::open()` via a direct update, because adding `HasUuids` to the frozen `DpcProposal` model would modify M4. It works; it is a workaround. | One line in `DpcProposal` when the M4 freeze is next legitimately opened. Until then, a proposal that is never taken up for a proceeding keeps a null UUID. | M7 Ph4 |
+| **TD-20** | Notification recipient query duplicated | `SendDocumentPublicationNotification` repeats `SendWorkflowNotification`'s department-scoped role query. Extracting a shared resolver would be a functional change to frozen M6. | Extract `NotificationRecipientResolver` when that freeze is next opened. Two copies of "who should be told" is how one of them quietly stops matching the other. | M7 Ph4 |
+| **TD-21** | Calculation Engine Version is not on the run row | Directive 1 asks for it "for every calculation run". It is recorded on every calculate/recalculated timeline event, on the proceeding, and on every document — but not on `dpc_calculation_runs`, because that would mean editing frozen M5 source or writing to M5's table behind its own immutability guard. | Add the column properly when the M5 freeze is next opened; batch it rather than opening the freeze for this alone. | M7 Ph4 |
+| **TD-16** | Two content fingerprints of the same chart | M5's `DpcCalculationService::proposalFingerprint()` is `private` on a **frozen** class, so M7 computes its own in `ProceedingService::chartFingerprint()`. They are not identical by design — M5 fingerprints the *scoring input*, M7 the *whole department submission* including loyalty and property returns, which change no score but decide whether an officer is held — but they overlap, and two hashes of overlapping data can drift. | Either accept them as answering different questions (current position, documented in both docblocks), or approve extracting a shared, behaviour-preserving value object when M5's freeze is next opened for an approved reason. Raised for a ruling rather than resolved unilaterally. | M7 Ph1 |
+| **TD-15** | Archived SRS describes a different DPC proceeding | `docs/archive/DPC- SRS.docx` specifies per-member voting, free-text minutes, upload of an externally signed proceedings file, and a separate promotion-order generation and distribution module. **None appears in the PPT.** The PPT governs by standing rule, but the gap is large enough to surface as a UAT finding. | Confirm PPT precedence (M7 AQ-8), and ask CGPSC during UAT whether the Commission wants to record remarks against a proceeding — a small additive change if yes, a redesign if discovered after M7 ships. | M7 design |
+| **TD-1** | Evidence-table permissions not yet applied | Model-layer immutability cannot stop a query-builder mass update. Closing it is a deployment control, not code. | Apply `docs/deployment/EVIDENCE-TABLE-PERMISSIONS.md` at production rollout, **including the column-level `UPDATE` grant on `dpc_calculation_runs.status`** — revoking `UPDATE` outright breaks every calculation. **M7 adds four more evidence tables** (proceedings, overrides, holds, documents); `dpc_proceeding_documents` legitimately updates after insert, so it needs the same column-level care. | M5 Ph3 |
 | **TD-2** | `composer audit` fails on network timeout | `curl error 28` reaching packagist. **Observed twice** — including on the first gate run after this register was written. Not a finding; passes on retry. | CI must retry the audit step, or a build fails for reasons unrelated to the code — and the failure will look like a security gate failing. | M6 Ph4 |
 | **TD-3** | UUID backfills are row-by-row | MySQL and SQLite share no UUID function, so the migrations loop in PHP. Trivial at current volumes; `users` was the largest table touched. | If a future migration adds a UUID to a large table, write per-driver batched SQL instead. | M6 Ph2 |
 | **TD-4** | Timeline sort not covered by an index | Reads order by `(occurred_at, uuid)`; there is no composite index for it. Immaterial now. | Add `(subject_type, subject_id, occurred_at, uuid)` if the timeline grows large or export becomes routine. | M6 Ph4 |
@@ -63,6 +74,8 @@ Not debt — decisions made where the PPT was silent or ambiguous, recorded so t
 | Default DPC date optional | Requiring it would invent a rule the PPT does not state |
 | Scheduling not validated against the default date | Same reasoning; the default is guidance |
 | M1–M5 member columns treated as layout | Confirmed by architect as a UI representation, not a limit of five |
+| **Q12's two circulation triggers are the same rule** — "2 or more CR years missing" (Conventional deck C3) and "CR ≤ 4" (S14 label) | The chart carries **six** CR columns, so "2+ missing" and "4 or fewer present" are one condition stated from opposite ends. S33 shows both live: US6 has four CR grades and is `CIR`; US8 scores 20, qualifies for a Super Seat, and is still `CIR` on a missing 2016 property return. Recorded as an observation — the Q12 ruling remains M9's |
+| A hold (`CIR`) is a procedural reservation, not an eligibility verdict | S33's US8 scores 20, Super-Seats, and is held anyway. Merit and procedure are independent, which is why the hold sits outside the frozen engine (M7 design AQ-4) |
 
 ---
 
@@ -80,6 +93,7 @@ Kept so a fixed problem is not re-reported, and so the pattern that caused it st
 | A failing notification could roll back a workflow transition | Dispatch isolated in `WorkflowEngine::record()`; the obvious fix (queued + `afterCommit`) was insufficient | M6 Ph2 |
 | `dpc_time` read differently per database driver | Normalised to `H:i:s` on write | M6 Ph2 |
 | Timeline order non-deterministic within one second | Sort by `(occurred_at, uuid)` at every read site | M6 Ph4 |
+| Two simultaneous corrections could both be recorded with nothing superseding | The `(proceeding, sequence)` unique index added for Directive 1 makes a race fail loudly instead of quietly producing two corrections numbered 4. Raised in the M7 Phase 2 VAPT review and closed in Phase 3 as a side effect of an unrelated directive. | M7 Ph3 |
 | **TD-14** — M4, M5 and M6 uncommitted; last commit was `3133ac4 M3` | Committed and tagged **`v0.6.0-m6-complete`**. The loss risk is gone, and — the part that mattered more — the three freezes are now verifiable: `git diff v0.6.0-m6-complete -- <path>` mechanically answers whether frozen code has changed. Until the tag existed there was no commit at any milestone boundary to diff against, so a freeze breach during M7 would have been indistinguishable from M7's own work. | Baseline 2026-08-13 |
 
 **A pattern worth noting:** four of these were found by *applying a directive properly* rather than by testing the feature that directive concerned — the audit gap, the notification rollback, the driver-dependent time, and the ordering defect. Directives that look like documentation tasks have repeatedly turned out to be live bugs.
@@ -91,4 +105,4 @@ Kept so a fixed problem is not re-reported, and so the pattern that caused it st
 - A new limitation goes here **when it is found**, not when it is fixed.
 - An item moves to **Resolved** with how it was closed — never deleted.
 - Anything that would otherwise live only in a terminal or a superseded review belongs here.
-- Business questions live in `docs/business/PENDING_BUSINESS_DECISIONS.md`; only their engineering impact is summarised here.
+- Business questions live in `docs/PENDING_BUSINESS_DECISIONS.md`, and are put to business users in `docs/UAT_BUSINESS_VALIDATION.md`; only their engineering impact is summarised here.

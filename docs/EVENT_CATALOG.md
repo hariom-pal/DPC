@@ -14,9 +14,13 @@ Do not conflate them. They change for different reasons, at different times, and
 
 | Version | Current | What it describes | Where it lives | Bump when |
 |---|---|---|---|---|
-| **Workflow Version** | **1** | The shape of the state machines themselves — which transitions exist, and what each means | Documentation only (this file and `docs/WORKFLOWS.md`) | A transition is added, removed, or its meaning changes |
+| **Workflow Version** | **2** | The shape of the state machines themselves — which transitions exist, and what each means | Documentation only (this file and `docs/WORKFLOWS.md`) | A transition is added, removed, or its meaning changes |
 | **Schema Version** | **1** | The shape of a timeline row's `properties` | `activity_timelines.schema_version` | The meaning of an existing property key changes |
 | **Notification Payload Version** | **1** | The shape of the `WorkflowTransitioned` event object | `WorkflowTransitioned::PAYLOAD_VERSION` | The meaning of an existing event property changes |
+
+**Workflow Version moved from 1 to 2 in M7**, because M7 added a workflow — `dpc_proceeding`, with `open`, `approve_result` and `cancel_dpc`. That is exactly the condition the bump rule names, and applying it is the point of having stated the rule in advance.
+
+The other two versions did **not** move, and the contrast is the reason they are kept independent. M7 added timeline properties and event properties in quantity, but changed the meaning of no existing key, so a subscriber written against Schema Version 1 and Payload Version 1 keeps working untouched. Tying the three together would have forced every consumer to re-verify against a change that cannot affect them.
 
 **Why independent:** adding a transition (Workflow Version) does not change how an existing timeline row reads (Schema Version) and does not change the event object's shape (Payload Version). Tying them together would force consumers to re-verify against changes that cannot affect them.
 
@@ -34,7 +38,7 @@ The one event class every workflow publishes. Payload version **1**.
 
 | Property | Type | Notes |
 |---|---|---|
-| `workflow` | string | `pre_dpc`, `dpc_proposal`, `dpc_cgpsc` |
+| `workflow` | string | `pre_dpc`, `dpc_proposal`, `dpc_cgpsc`, `dpc_proceeding` |
 | `event` | string | The transition name |
 | `toState` | string | Resulting state |
 | `departmentId` | int\|null | Scopes the role-based recipients |
@@ -99,6 +103,84 @@ Payload = the timeline `properties` written for the event. Every timeline entry 
 **`scheduled_for`** is a resolved ISO-8601 instant; **`timezone`** is the zone the wall clock was entered in. A consumer takes whichever it needs, and events written before time-zone support exists remain correctly interpretable.
 
 **Supersession events carry the previous values** — `previous_dpc_date`, `previous_dpc_time`, `previous_allotted_to_name` — so old-beside-new is reproducible from the timeline without walking a `superseded_by_id` chain through business tables.
+
+### DPC Proceeding (`dpc_proceeding`) — M7
+
+Three of these are workflow transitions; the rest are **not**. A correction, a calculation, a hold and a publication all leave the DPC in exactly the same state they found it, so none is modelled as a transition — the ledger would otherwise claim a status change that did not occur (architect Directive 4, Phase 2).
+
+**Every event in this section carries `proceeding_uuid`** (architect Directive 3, Phase 2), so a consumer can tie any event back to the sitting that produced it without reading a business table.
+
+#### Workflow transitions
+
+| Event | Trigger | Payload | Timeline | Audit | Future subscribers |
+|---|---|---|---|---|---|
+| `dpc_proceeding.open` | Allottee opens the sitting on the scheduled date | proceeding_uuid, allotment_uuid, schedule_uuid, dpc_date, dpc_time, scheduled_for, timezone, opened_at, conducted_by_id/name, proposal_version | `dpc_proceeding.open` | ledger + `DpcProceeding` audit | Notifications (AO, AH) |
+| `dpc_proceeding.approve_result` — **"approved"** | `APPROVE BY CGPSC` (S34) | proceeding_uuid, run_uuid, rule_version, promotion_as_on_year, main_list_count, waiting_list_count, calculated_through_sequence, has_pending_decisions, closed_by_id/name, closed_at | `dpc_proceeding.approve_result` | ledger + audit | Notifications; **document generation**; M8 Review DPC |
+| `dpc_proceeding.cancel_dpc` — **"cancelled"** | `CANCEL DPC` (S33) | proceeding_uuid, cancellation_reason, closed_by_id/name, closed_at | `dpc_proceeding.cancel_dpc` | ledger + audit | Notifications |
+
+The transition names keep this project's imperative convention (`allot`, `accept`, `schedule`, `approve`); "approved" and "cancelled" name the same two events as facts.
+
+#### Corrections (S33 `EDIT` / `TRIBAL`)
+
+| Event | Trigger | Payload |
+|---|---|---|
+| `dpc_proceeding.correction` | The Commission corrects a chart entry | proceeding_uuid, override_uuid, correction_sequence, sn, officer_name, field, year, previous_value, **effective_value**, **submitted_value**, new_value, reason, applied_by_id/name, applied_at, superseded_override_uuid |
+| `dpc_proceeding.correction_withdrawn` | A correction is withdrawn — itself an appended correction restoring the previous value | as above, plus withdrawn_override_uuid |
+
+**Four value fields, not two, and each answers a different question** (architect Directive 3, Phase 3):
+
+- **`previous_value`** — what was in force immediately before this correction. After a chain, that is what the *previous correction* made it.
+- **`new_value`** — what this correction sets.
+- **`effective_value`** — what is in force once this event is applied. Equal to `new_value` for both a correction and a withdrawal; stated explicitly so a consumer never has to infer that a withdrawal's new value *is* the restoration.
+- **`submitted_value`** — the **department's own entry**. Without it, the old-beside-new display could not be rebuilt from the timeline alone once more than one correction had been made to the same cell.
+
+**`correction_sequence`** numbers corrections within a sitting from 1. It is what makes staleness decidable: `applied_at` has second granularity, so a correction and a recalculation inside one second are indistinguishable by time.
+
+#### Calculation (S33 `CALCULATE`)
+
+| Event | Trigger | Payload |
+|---|---|---|
+| `dpc_proceeding.calculate` | The **first** calculation in a sitting | proceeding_uuid, run_uuid, rule_version, calculation_engine_version, proposal_version, calculated_through_sequence, officers_considered, eligible_count, main_list_count, waiting_list_count, has_pending_decisions, supersedes_run_uuid (null) |
+| `dpc_proceeding.recalculated` | **Every subsequent** calculation | as above, with `supersedes_run_uuid` naming the run this one replaces |
+
+They are deliberately distinct: a recalculation supersedes a result the Commission may already have acted on, and a consumer that cannot tell the two apart cannot know that. Nothing is overwritten either way — each calculation is a new immutable run.
+
+**`calculation_engine_version`** (architect Directive 1, Phase 4) versions the *engine*; **`rule_version`** versions the *rules it applied*. They move independently: a government notification changes the rules without changing the engine, and a bug fix changes the engine without changing the rules.
+
+#### Held promotions (`CIR`)
+
+| Event | Trigger | Payload |
+|---|---|---|
+| `dpc_proceeding.hold` | A promotion is held — automatically from the chart, or by the Commission | proceeding_uuid, hold_uuid, sn, officer_name, reason_code, reason, detail, is_automatic, recorded_by_id/name, recorded_at |
+| `dpc_proceeding.hold_released` | The cause is corrected, or the Commission releases its own hold | as above, plus released_at |
+
+A hold is a **procedural reservation of the promotion action, not a verdict on merit** — S33's US8 scores 20, qualifies for a Super Seat, and is held anyway. **M9 (Circulation DPC) is the intended subscriber**: it resolves a hold and releases the promotion.
+
+#### Documents
+
+| Event | Trigger | Payload |
+|---|---|---|
+| `dpc_proceeding.document_generated` | A proceedings document or promotion list is rendered, stored and signed | proceeding_uuid, document_uuid, document_type, document_version, generator_version, calculation_engine_version, final_calculation_uuid, proposal_uuid, content_hash |
+| `dpc_proceeding.document_failed` | Generation failed | as above, plus failure_reason |
+| `dpc_proceeding.documents_published` | Documents released to the department | proceeding_uuid, document_uuids, published_at |
+
+**`document_failed` is a first-class event, not an error log.** The decision has already been taken and stands; what is missing is its rendering, and a subscriber watching for an approved DPC without a document is exactly what should notice.
+
+### `ProceedingDocumentsPublished` — M7
+
+The one published event that is **not** a `WorkflowTransitioned`. Publication changes no state, so it carries its own object rather than borrowing the workflow's.
+
+| Property | Type | Notes |
+|---|---|---|
+| `proceedingUuid` | string | |
+| `proposalUuid` | string | |
+| `finalCalculationUuid` | string\|null | |
+| `documentUuids` | list\<string\> | |
+| `departmentId` | int\|null | Scopes the recipients |
+| `dpcCode` | string\|null | The DPC ID as the department knows it |
+| `payloadVersion` | int | **1** |
+
+**Publication is refused while `has_pending_decisions` is true** (architect Directive 5, Phase 4), so this event never fires for a provisional result. A subscriber may treat its arrival as meaning the result is final.
 
 ---
 

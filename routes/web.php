@@ -25,6 +25,11 @@ use App\Http\Controllers\Auth\PasswordChangeController;
 use App\Http\Controllers\Auth\RegistrationController;
 use App\Http\Controllers\Auth\VerificationController;
 use App\Http\Controllers\Cgpsc\AllotmentController;
+use App\Http\Controllers\Cgpsc\ProceedingController;
+use App\Http\Controllers\Cgpsc\ProceedingCorrectionController;
+use App\Http\Controllers\Cgpsc\ProceedingDocumentController;
+use App\Http\Controllers\Cgpsc\ProceedingHoldController;
+use App\Http\Controllers\Cgpsc\ProceedingResultController;
 use App\Http\Controllers\Cgpsc\SchedulingController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Dpc\DpcCalculationController;
@@ -157,6 +162,39 @@ Route::middleware('auth')->group(function (): void {
                 Route::post('/schedules/{dpcProposal}', [SchedulingController::class, 'store'])->name('schedules.store');
                 Route::post('/schedules/{dpcProposal}/reschedule', [SchedulingController::class, 'reschedule'])->name('schedules.reschedule');
                 Route::get('/schedules/{dpcProposal}/history', [SchedulingController::class, 'history'])->name('schedules.history');
+
+                // The DPC sitting (M7 Phase 1, PPT S31–S34). `{proceeding}`
+                // binds by UUID — sequential ids never appear in a URL.
+                Route::get('/proceedings', [ProceedingController::class, 'index'])->name('proceedings.index');
+                Route::post('/proceedings/{dpcProposal}/open', [ProceedingController::class, 'open'])->name('proceedings.open');
+                Route::get('/proceedings/{proceeding}', [ProceedingController::class, 'show'])->name('proceedings.show');
+                Route::get('/proceedings/{proceeding}/history', [ProceedingController::class, 'history'])->name('proceedings.history');
+
+                // Commission corrections (M7 Phase 2, PPT S33 EDIT / TRIBAL).
+                // DELETE withdraws; it never deletes — the withdrawal is
+                // itself an appended correction.
+                Route::get('/proceedings/{proceeding}/corrections', [ProceedingCorrectionController::class, 'index'])->name('proceedings.corrections.index');
+                Route::post('/proceedings/{proceeding}/corrections', [ProceedingCorrectionController::class, 'store'])->name('proceedings.corrections.store');
+                Route::delete('/proceedings/{proceeding}/corrections/{correction}', [ProceedingCorrectionController::class, 'destroy'])->name('proceedings.corrections.destroy');
+
+                // CALCULATE, result, approval and cancellation (M7 Phase 3,
+                // PPT S33–S34).
+                Route::post('/proceedings/{proceeding}/calculate', [ProceedingResultController::class, 'calculate'])->name('proceedings.calculate');
+                Route::get('/proceedings/{proceeding}/result', [ProceedingResultController::class, 'show'])->name('proceedings.result');
+                Route::post('/proceedings/{proceeding}/approve', [ProceedingResultController::class, 'approve'])->name('proceedings.approve');
+                Route::post('/proceedings/{proceeding}/cancel', [ProceedingResultController::class, 'cancel'])->name('proceedings.cancel');
+
+                // Held promotions and generated documents (M7 Phase 4,
+                // PPT S33-S34, S45). Documents are a separate controller from
+                // approval: approval creates the decision, documents render it.
+                Route::post('/proceedings/{proceeding}/holds/detect', [ProceedingHoldController::class, 'detect'])->name('proceedings.holds.detect');
+                Route::post('/proceedings/{proceeding}/holds', [ProceedingHoldController::class, 'store'])->name('proceedings.holds.store');
+                Route::delete('/proceedings/{proceeding}/holds/{hold}', [ProceedingHoldController::class, 'destroy'])->name('proceedings.holds.destroy');
+
+                Route::get('/proceedings/{proceeding}/documents', [ProceedingDocumentController::class, 'index'])->name('proceedings.documents.index');
+                Route::post('/proceedings/{proceeding}/documents', [ProceedingDocumentController::class, 'store'])->name('proceedings.documents.store');
+                Route::post('/proceedings/{proceeding}/documents/publish', [ProceedingDocumentController::class, 'publish'])->name('proceedings.documents.publish');
+                Route::get('/proceedings/{proceeding}/documents/{document}', [ProceedingDocumentController::class, 'show'])->name('proceedings.documents.show');
             });
 
         // CGPSC Admin area (master data & user management).
