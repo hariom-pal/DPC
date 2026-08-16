@@ -18,8 +18,10 @@
     <nav class="app-shell-header navbar navbar-expand-lg navbar-dark shadow-sm" aria-label="Main navigation">
         <div class="container">
             <a class="navbar-brand d-flex align-items-center gap-2" href="{{ route('home') }}">
-                <img src="{{ asset('images/logo/cgpsc-logo.svg') }}" alt=""
-                     style="height:34px" class="bg-white rounded-circle p-1">
+                @include('partials.logo', [
+                    'which' => 'cgpsc', 'class' => 'bg-white rounded-circle p-1',
+                    'style' => 'height:34px', 'alt' => '',
+                ])
                 <span class="d-flex flex-column lh-sm">
                     <span class="fw-semibold">e-DPC Portal</span>
                     <span class="small fw-normal" style="font-size:.72rem;opacity:.85">

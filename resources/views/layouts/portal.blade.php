@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="{{ asset('css/portal.css') }}">
     @stack('styles')
 </head>
-<body>
+<body class="d-flex flex-column min-vh-100">
 {{-- Assessed on every government portal, and cheap to get right. --}}
 <a class="skip-link" href="#main">Skip to main content</a>
 
@@ -52,8 +52,10 @@
         <div class="container py-2 py-lg-3">
             <div class="row align-items-center g-3">
                 <div class="col-auto">
-                    <img src="{{ asset('images/logo/cgpsc-logo.svg') }}" alt="Chhattisgarh Public Service Commission"
-                         class="gov-logo">
+                    @include('partials.logo', [
+                        'which' => 'cgpsc', 'class' => 'gov-logo',
+                        'alt' => 'Chhattisgarh Public Service Commission',
+                    ])
                 </div>
                 <div class="col text-center">
                     <div class="brand-title">छत्तीसगढ़ लोक सेवा आयोग · Chhattisgarh Public Service Commission</div>
@@ -61,8 +63,10 @@
                     <div class="brand-hi">विभागीय पदोन्नति समिति प्रबंधन प्रणाली</div>
                 </div>
                 <div class="col-auto d-none d-sm-block">
-                    <img src="{{ asset('images/logo/csc-logo.svg') }}"
-                         alt="CSC e-Governance Services India Limited" class="gov-logo-sm">
+                    @include('partials.logo', [
+                        'which' => 'csc', 'class' => 'gov-logo-sm',
+                        'alt' => 'CSC e-Governance Services India Limited',
+                    ])
                 </div>
             </div>
         </div>
@@ -99,16 +103,18 @@
     </nav>
 </header>
 
-<main id="main">
+<main id="main" class="flex-grow-1">
     @yield('content')
 </main>
 
-<footer class="gov-footer pt-5 pb-4 mt-0">
+<footer class="gov-footer pt-5 pb-4 mt-auto">
     <div class="container">
         <div class="row g-4">
             <div class="col-lg-4">
                 <div class="d-flex align-items-center gap-3 mb-3">
-                    <img src="{{ asset('images/logo/cgpsc-logo.svg') }}" alt="" class="gov-logo-sm bg-white rounded p-1">
+                    @include('partials.logo', [
+                        'which' => 'cgpsc', 'class' => 'gov-logo-sm bg-white rounded p-1', 'alt' => '',
+                    ])
                     <div>
                         <h2 class="mb-1">Chhattisgarh Public Service Commission</h2>
                         <div class="small">छत्तीसगढ़ लोक सेवा आयोग</div>
@@ -150,9 +156,11 @@
                 </ul>
                 <div class="d-flex align-items-center gap-2">
                     <span class="small">Designed &amp; developed with</span>
-                    <img src="{{ asset('images/logo/csc-logo.svg') }}"
-                         alt="CSC e-Governance Services India Limited"
-                         style="height:34px" class="bg-white rounded p-1">
+                    @include('partials.logo', [
+                        'which' => 'csc', 'class' => 'bg-white rounded p-1',
+                        'style' => 'height:34px',
+                        'alt' => 'CSC e-Governance Services India Limited',
+                    ])
                 </div>
             </div>
         </div>

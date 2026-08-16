@@ -15,8 +15,10 @@
     <nav class="app-shell-header navbar navbar-dark shadow-sm sticky-header">
         <div class="container-fluid">
             <a class="navbar-brand fw-semibold d-flex align-items-center gap-2" href="{{ route('admin.dashboard') }}">
-                <img src="{{ asset('images/logo/cgpsc-logo.svg') }}" alt=""
-                     style="height:32px" class="bg-white rounded-circle p-1">
+                @include('partials.logo', [
+                    'which' => 'cgpsc', 'class' => 'bg-white rounded-circle p-1',
+                    'style' => 'height:32px', 'alt' => '',
+                ])
                 <span>e-DPC Portal — Administration</span>
             </a>
             <div class="d-flex align-items-center gap-2">

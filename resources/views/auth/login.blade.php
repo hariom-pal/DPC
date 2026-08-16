@@ -35,7 +35,9 @@
                 <div class="col-lg-5 order-lg-2 order-1">
                     <div class="gov-card p-4 p-lg-5">
                         <div class="text-center mb-4">
-                            <img src="{{ asset('images/logo/cgpsc-logo.svg') }}" alt="" style="height:56px" class="mb-3">
+                            @include('partials.logo', [
+                                'which' => 'cgpsc', 'class' => 'mb-3', 'style' => 'height:56px', 'alt' => '',
+                            ])
                             <h1 class="h4 mb-1">Login</h1>
                             <p class="text-body-secondary small mb-0">लॉग इन · Departmental Promotion Committee Portal</p>
                         </div>

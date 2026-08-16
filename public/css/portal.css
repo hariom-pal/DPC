@@ -151,9 +151,13 @@ a:focus-visible, button:focus-visible, .btn:focus-visible,
 
 .gov-card {
     background: #fff; border: 1px solid var(--gov-line); border-radius: var(--radius);
-    box-shadow: var(--shadow-xs); height: 100%;
+    box-shadow: var(--shadow-xs);
     transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
 }
+/* Equal-height behaviour is opt-in via Bootstrap's `.h-100` at the call site,
+   never baked in here. Baked in, a card that is the lone child of a column
+   stretches past its own content and paints over whatever follows it — which
+   is exactly how the registration form came to sit on top of the footer. */
 .gov-card:hover { transform: translateY(-3px); box-shadow: var(--shadow); border-color: #c6d7ec; }
 
 /* Quick-action tiles behave as links; the whole tile is the target. */

@@ -9,7 +9,9 @@
         <div class="col-lg-9">
 
             <div class="text-center mb-4">
-                <img src="{{ asset('images/logo/cgpsc-logo.svg') }}" alt="" style="height:56px" class="mb-3">
+                @include('partials.logo', [
+                    'which' => 'cgpsc', 'class' => 'mb-3', 'style' => 'height:56px', 'alt' => '',
+                ])
                 <h1 class="h4 mb-1">Registration of Department</h1>
                 <p class="text-body-secondary mb-0">विभाग का पंजीयन</p>
             </div>

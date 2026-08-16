@@ -24,7 +24,17 @@ All notable work on the ODPC Portal, in reverse chronological order. Business-ru
 
 - **`docs/DEMO_GUIDE.md`** — a non-technical presenter's guide: what the system solves, each role's actual powers (including what Super Admin **cannot** do), Review and Circulation explained in plain language, a **16-step screen-by-screen demo script** with what to click and what to say, expected questions with concise business answers, things to avoid saying, and a pre-demonstration checklist.
 
-**Verified:** home, login and registration return 200; all eight assets return 200; **no third-party host is referenced**; markup balanced; responsive classes across sm/md/lg/xl; all six error views render; full suite unchanged at 718.
+**Verified:** home, login and registration return 200; all assets return 200; **no third-party host is referenced**; markup balanced; responsive classes across sm/md/lg/xl; all six error views render; full suite unchanged at 718.
+
+### Follow-up fixes, same day
+
+- **The registration form was rendering on top of the footer**, and the cause was mine: `height: 100%` was baked into `.gov-card`. On a card that is the lone child of a column it stretches past its own content and paints over whatever follows. **Every grid card already carried Bootstrap's `.h-100` explicitly**, so equal-height behaviour is unaffected — it is now opt-in at the call site, where it belongs. Confirmed by rendering the page in headless Chromium before and after, rather than by reasoning about the markup, which was balanced and told me nothing.
+
+- **The public layout is now a flex column** (`min-vh-100`, `main.flex-grow-1`, `footer.mt-auto`), so a short page pins the footer to the bottom and a long one can never be overlapped by it — the whole class of problem, not just the one instance.
+
+- **The official logos are installed.** The CGPSC emblem from `psc.cg.gov.in` and the CSC e-Governance Services India Limited mark from `csc.gov.in`, replacing the placeholders. The CGPSC asset is only 96 × 96 and should be replaced with a higher-resolution copy when the Commission supplies one.
+
+- **`partials/logo.blade.php` now resolves the logo file format** — `.svg`, `.png`, `.webp`, `.jpg` in that order, falling back to the neutral placeholder if no real asset is present. Official artwork arrives as PNG far more often than SVG and gets replaced by people who should not have to edit a Blade template, so **every logo reference in the application goes through the resolver**: dropping a new file in with the same base name is the entire procedure.
 
 ## 2026-08-16 — M9 Phase 3: the prescribed form, and publication refused on BD-14
 

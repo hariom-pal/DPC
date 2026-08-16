@@ -1,19 +1,34 @@
 # Logos
 
-Both files here are **placeholders**, not official artwork.
+## What is installed
 
-| File | Replace with | Aspect |
+| File | Source | Notes |
 |---|---|---|
-| `cgpsc-logo.svg` | The official CGPSC emblem supplied by the Commission | ~1:1 |
-| `csc-logo.svg` | The latest official CSC e-Governance Services India Limited logo | ~5:2 |
+| `cgpsc-logo.png` | Official CGPSC emblem, from `psc.cg.gov.in` | 96 × 96. **Small** — replace with a higher-resolution copy from the Commission when one is available |
+| `csc-logo.png` | Official CSC e-Governance Services India Limited mark, from `csc.gov.in` | 141 × 60 |
 
-`../hero-building.svg` is a drawn illustration, not a photograph. Replace it with
-an official photograph if one is supplied (keep the 8:5 aspect ratio).
+## Replacing them
 
-**Why they are placeholders rather than approximations.** Reproducing an official
-emblem or a corporate mark from memory produces something that looks authentic and
-is wrong — on a government portal that is worse than an obvious placeholder, which
-nobody will mistake for the real thing and which is impossible to forget to replace.
+**Drop the new file in with the same base name. Nothing else changes.**
 
-**To replace:** drop the official file in with the same filename. No template, route
-or code change is needed — every reference is by filename.
+`resources/views/partials/logo.blade.php` resolves the extension itself, trying
+`.svg`, `.png`, `.webp`, `.jpg`, `.jpeg` in that order. So `cgpsc-logo.svg` from
+the Commission will be picked up ahead of the PNG automatically — delete the PNG
+or leave it, either works.
+
+Every reference in the application goes through that partial, so there is no
+template, layout, route or code change involved in swapping artwork.
+
+## Fallbacks
+
+`cgpsc-logo.fallback.svg` and `csc-logo.fallback.svg` are neutral placeholders.
+They are used **only** if no real asset is present, so a fresh checkout renders
+rather than showing a broken image. They are deliberately not imitations of the
+official marks: an approximated emblem looks authentic and is wrong, which on a
+government portal is worse than an obvious placeholder.
+
+## Hero image
+
+`../hero-building.svg` is a drawn illustration, not a photograph — there is no
+licensed photography in this project. Replace it with an official photograph if
+the Commission supplies one; keep the filename and the 8:5 aspect ratio.
