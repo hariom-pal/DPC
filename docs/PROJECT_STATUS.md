@@ -17,7 +17,7 @@
 | ✅ | **M7 Complete** — DPC Proceedings & Result Generation |
 | ✅ | **M8 Phase 3 Complete** — supersession, Review documents, `SUPERSEDED` watermark, publication |
 | ✅ | **M8 Complete (Frozen)** — Review DPC, all 3 phases. **M8 FREEZE ACTIVE from 2026-08-14** (AD-21). BD-11 deferred — it does not block M8 completion |
-| ⏳ | **M9 NOT STARTED** — and will not begin without approval |
+| 🟡 | **M9 Phase 1 Complete** — Circulation DPC: the aggregate and the department's side. Design approved; **AD-23** and **AD-24** govern it. Phases 2 and 3 not started |
 
 (M0 Foundation is complete and predates M1.)
 
@@ -93,17 +93,17 @@ A Review DPC has an origin, a chain (`chain_uuid`, `review_number`, `chain_depth
 
 **What the deferral does constrain.** Until CGPSC rules, the system records the supersession, notifies the department with both DPC codes, and **asserts nothing about the promotion itself** — no withdrawal, no reverted rank, no arrears. That behaviour is correct and shippable, but it is not a *policy*. **The ruling is required before the Review supersession policy is activated in production**, because the three plausible answers — the promotion stands and only the paper is corrected; it is withdrawn from the date of the Review; it is withdrawn retrospectively with recovery of pay — differ in what they do to a serving officer's substantive rank and pay. See `docs/ARCHITECT_REVIEW.md` §7.
 
-**M9 has NOT started.** No M9 code, migration, route, view or test exists.
+**M9 Phase 1 is complete (2026-08-16).** The circulation aggregate and the department's side: a note raised against a concluded DPC with promotions still held, the officers and their resolution evidence, AO submit → AH approve with signature, and its own workflow, policy and identifier. **A Circulation is its own aggregate and is not a DPC proposal (AD-24), and it performs no DPC execution (AD-23)** — 46 tests, and an architecture check that enforces both. **CR-ground holds are refused with a structured *Pending Business Decision (BD-15)* response**: detected, recorded, and neither calculated nor escalated. **Phases 2 and 3 have not started.**
 
 **All freezes hold, and there are now five.** M4 architecture-frozen, M5 engine-frozen, M6 frozen, M7 frozen from M8 onward, and **M8 frozen from 2026-08-14 (AD-21)** — the strictest of the five. Freeze verification runs at every phase boundary and has never been non-empty.
 
 ## Next Milestone
 
-**M9 — Circulation DPC (S45–S48, C3, C7). NOT STARTED, and will not begin without architect approval.**
+**M9 — Circulation DPC (S45–S48, C3, C7). Design approved 2026-08-16; PHASE 1 COMPLETE. Phases 2 and 3 not started.**
 
 M9 resolves a held promotion (`CIR`) from an earlier DPC — an officer missing 2+ years of CR or 1+ years of immovable-property declaration is included in the proceeding but their promotion decision is held, and CGPSC later signs a circulation note to finalise it. M7 already produces the held rows; M9 acts on them.
 
-**Two things should be settled before M9 opens:**
+**Two things remain to be settled, now for Phases 2 and 3 rather than for Phase 1:**
 
 1. **BD-11.** M9 faces the same supersession question M8 raised, from the other direction — a circulation note finalises a promotion within a DPC that could itself later be reviewed. BD-11's answer informs the design. *(BD-11 gates no milestone — neither M8's completion nor M9's start. It gates production activation of the supersession policy, and M9 inherits the same deferral.)*
 2. **Q12** — the circulation-trigger wording ambiguity ("2+ years CR missing" vs. "CR ≤ 4"), the same ambiguity that affects the eligibility engine.
@@ -228,24 +228,26 @@ Closed on architect approval of Phase 4, 2026-08-14, at tag `v0.7.0-m7-complete`
 
 Permanent four-part gate (ruled 2026-08-13) — every phase must pass all four before completion. Run with `composer gate`.
 
-**Re-run in full 2026-08-14.** The previous figures on this page (*607 passed / 1865 assertions*, *61 tables*) were **not reproducible** — the suite could not reach its end and `migrate:fresh` could not build M8's last table on MySQL. Both causes are fixed; `docs/ARCHITECT_REVIEW.md` §0.3 has the detail.
+**Re-run in full at M9 Phase 1 finalisation, 2026-08-16.** `composer audit` was clean on the **second** attempt; the first hit a network timeout and fell back to local cache (**TD-2**), which is recorded rather than reported as a clean first run.
+
+*Earlier history, kept because it is the reason these figures are now re-derived rather than copied: the figures once carried here (*607 passed / 1865 assertions*, *61 tables*) were **not reproducible** — the suite could not reach its end and `migrate:fresh` could not build M8's last table on MySQL. Both causes were fixed on 2026-08-14.*
 
 | Check | Result |
 |---|---|
 | Laravel Pint (PSR-12 + strict types) | **Passed** |
 | PHPStan / Larastan level 6 | **0 errors** |
-| `composer audit` | **No advisories** (first attempt) |
-| PHPUnit | **620 passed / 1902 assertions, 0 failing** |
+| `composer audit` | **No advisories** — second attempt; the first timed out to local cache (**TD-2**) |
+| PHPUnit | **666 passed / 2020 assertions, 0 failing** |
 
-Plus `php artisan migrate:fresh --seed`: **OK** — 43 migrations, **62 tables**, 10 seeders.
+Plus `php artisan migrate:fresh --seed`: **OK** — **44 migrations, 64 tables**, 10 seeders.
 
-**Two P0 defects were found by this gate run, both in M8, both fixed:** a **circular container dependency** among the four M8 decorators, which crashed the PHP process on every document generation (and, under this environment's `memory_limit=-1`, exhausted the host — the reported machine hang); and a **foreign-key identifier one character over MySQL's 64-character limit**, which meant `dpc_document_review_references` had never existed in the database at all. The second passed 84 tests because the suite runs on in-memory SQLite, which does not enforce that limit — raised as **TD-24**, and the most valuable process fix now available.
+**Two P0 defects were found by the 2026-08-14 gate run, both in M8, both fixed:** a **circular container dependency** among the four M8 decorators, which crashed the PHP process on every document generation (and, under this environment's `memory_limit=-1`, exhausted the host — the reported machine hang); and a **foreign-key identifier one character over MySQL's 64-character limit**, which meant `dpc_document_review_references` had never existed in the database at all. The second passed 84 tests because the suite runs on in-memory SQLite, which does not enforce that limit — raised as **TD-24**, and the most valuable process fix now available.
 
 **The gate is necessary, not sufficient (AD-17).** Six consecutive green gates once missed three P1 defects that the Demo Readiness Rule caught in an afternoon. Every phase since is checked against the PPT and demoed, not just gated.
 
 ## Test Status
 
-**620 passed / 1902 assertions, 0 failing**, 95 MB peak, 1m19s. M8 contributed 85.
+**666 passed / 2020 assertions, 0 failing**, verified at M9 Phase 1 finalisation (2026-08-16). M8 contributed 83; **M9 Phase 1 contributed 46**.
 
 **Run bounded** (`php -d memory_limit=2G vendor/bin/phpunit`). CLI `memory_limit` is `-1` in this environment, so a runaway takes the host down instead of reporting a fault — which is exactly what the container cycle did before it was fixed. A bounded limit is how a defect of that shape names the test it died on.
 

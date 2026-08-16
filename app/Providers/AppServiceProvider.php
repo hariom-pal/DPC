@@ -11,6 +11,8 @@ use App\Domain\Authentication\Listeners\SendOtpNotification;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Cgpsc\Models\DpcAllotment;
 use App\Domain\Cgpsc\Policies\DpcAllotmentPolicy;
+use App\Domain\Circulation\Models\DpcCirculation;
+use App\Domain\Circulation\Policies\DpcCirculationPolicy;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Policies\DpcProposalPolicy;
 use App\Domain\Proceeding\Documents\DocumentRenderer;
@@ -139,6 +141,9 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(DpcProposal::class, DpcProposalPolicy::class);
         Gate::policy(DpcAllotment::class, DpcAllotmentPolicy::class);
         Gate::policy(DpcProceeding::class, DpcProceedingPolicy::class);
+        // M9 Phase 1. A Circulation is its own aggregate (AD-24), so it has
+        // its own policy rather than borrowing the proposal's.
+        Gate::policy(DpcCirculation::class, DpcCirculationPolicy::class);
 
         // Architect Directive 3 (M8): the Review banner reaches M4's frozen
         // proposal screens from the layout rather than by editing each one.

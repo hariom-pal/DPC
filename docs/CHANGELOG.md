@@ -2,6 +2,32 @@
 
 All notable work on the ODPC Portal, in reverse chronological order. Business-rule changes are traceable to `docs/ODPC_NEW_FINAL.pptx` / `docs/CONVENTIONAL DPC PROCESS.pptx` slide numbers where applicable. This file, `docs/PROJECT_STATUS.md`, `docs/PROJECT_PROGRESS.md`, and `docs/ARCHITECT_REVIEW.md` are the only documents updated on an ongoing basis (see `docs/ARCHITECT_REVIEW.md` for the full documentation policy).
 
+## 2026-08-16 — M9 Phase 1: the circulation aggregate and the department's side
+
+First slice of M9 (PPT S45, S47; C3/C7). Two additive tables. **No file in M4, M5, M6, M7 or M8 was modified** — all five freeze diffs empty, including M8's view paths.
+
+- **A Circulation is its own aggregate, and the schema now says so (AD-24).** `dpc_circulations` and `dpc_circulation_items`; no `dpc_proposals` row of type `circulation` is created, nothing extends `DpcProposal`, and the origin is referenced by foreign key and never written. Its own `dpc_circulation` workflow in configuration, its own policy, and its own identifier — **`HE202600001/C1`, not a DPC ID.** Drawing from `dpc_id_sequences` would have consumed DPC serials for something that is not a DPC and produced a code indistinguishable from one.
+
+- **BD-15 is detected, refused in a structured way, and recorded — and nothing is decided.** A circulation covering a **CR-ground** hold returns a `PendingBusinessDecision` naming the officers affected, the question, and **what the system deliberately did not do**. No calculation, no scoring, no hold released, and **no automatic escalation to a Review** — escalating would answer the question by acting. The refusal is written to the DPC's timeline, because a case blocked on CGPSC must be distinguishable from one nobody raised. Screens get the structured panel; API callers get a `409` with the same shape.
+
+- **It is deliberately not a validation error.** A `PendingBusinessDecisionException` is not a `WorkflowException`: one says the caller did something they may not do, the other says the *system* cannot yet decide. Presenting a blocked case in red beside validation failures would teach a department that waiting on CGPSC is a mistake of theirs to fix.
+
+- **Why the CR ground is blocked at all, in one line:** the engine scores *"the five most recent **available** CR years"*, so a CR-held officer's window is incomplete by definition — supplying the grade grows it, makes a **Super Seat reachable for the first time** (it is refused on an incomplete window), and a Super Seat carries notional seniority that **reorders the main list for officers who were never notified**. Raised as **BD-15**, with **BD-12**, **BD-13** and **BD-14** alongside it.
+
+- **AD-23 now has a check, and writing it found a flaw in the obvious version.** A `str_contains` over raw source flags `CirculationService`'s own docblock, which names all ten forbidden classes in prose precisely so the next reader knows why they are absent — a check like that trains people to delete the explanation to go green. The test strips comments with `token_get_all` and reads what the parser sees, because **the rule is about reachability, not spelling.** It tests AD-23's full list, not the four names in the ruling: `ProceedingCalculationService` is M7's own entry point into the engine, and `ReviewAwareCalculationService` is M8's decorator **bound over M7's service in the container**, so a type-hint on the M7 class resolves to it.
+
+- **Nothing releases a hold.** `dpc_proceeding_holds.released_at` is M7's declared seam for M9, and Phase 2 writes it at signature (AQ-17) — not at raising, not at the department's approval. Three tests pin it. The item's foreign key to the hold is `restrictOnDelete`: a hold is the reason a promotion did not take effect, and no circulation may take one with it.
+
+- **Two deviations from the approved design, both narrowing and both flagged.** `dpc_circulation_documents` is **not** created — it belongs to Phase 3, which renders and signs the note, per the standing rule that a phase declares only what it implements. And `CirculationStatus` declares only the five states Phase 1 can reach; `consented` and `signed` arrive with the transitions that perform them.
+
+- **PHPStan caught a real API error before it shipped.** `cascadeOnDelete()` / `nullOnDelete()` / `restrictOnDelete()` take no constraint-name argument — PHP ignores extra arguments silently, so the migration *ran* and produced auto-generated names while appearing to set explicit ones. Corrected to `constrained(table, column, indexName)`, with every name well inside MySQL's 64-character limit. **This is TD-24's failure mode caught by a different gate**: the migration was green on SQLite either way.
+
+- **46 new tests / 118 assertions**, and the **full suite re-run at finalisation: 666 passed / 2020 assertions** (620 before, **+46**). Pint clean, PHPStan (Larastan level 6) 0 errors, `migrate:fresh --seed` OK — **44 migrations, 64 tables, 10 seeders**. `composer audit` clean **on the second attempt**: the first hit a network timeout and fell back to local cache, which is **TD-2** and is recorded rather than reported as a clean first run.
+
+- **Freeze verification against all five frozen milestones — every diff empty.** M4/M5/M6 against `v0.6.0-m6-complete`, M7 against `v0.7.0-m7-complete`, and **M8 against `v0.8.0-m8-phase3` including all four of AD-21's view paths**, which a diff scoped to `app/` alone would miss. No M4–M8 migration changed either.
+
+**Phase 1 is complete and stops here. Phase 2 has not begun.** Nine architect questions in §24 of the design remain unruled, and **BD-15 blocks nothing in Phase 1 — it is answered by refusal, not by waiting.**
+
 ## 2026-08-14 — M8 closure documentation synchronized
 
 **Documentation only. No source file, test, migration, view or route was touched; no gate was run; the `v0.8.0-m8-phase3` tag was not moved.** This entry closes the documentation half of M8: the freeze, the exception mechanism and BD-11's reclassification existed in the working tree but had never been committed, and two of the ten mandatory documents still described a milestone that had been superseded twice over.

@@ -32,6 +32,7 @@ use App\Http\Controllers\Cgpsc\ProceedingHoldController;
 use App\Http\Controllers\Cgpsc\ProceedingResultController;
 use App\Http\Controllers\Cgpsc\SchedulingController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\Dpc\CirculationController;
 use App\Http\Controllers\Dpc\DpcCalculationController;
 use App\Http\Controllers\Dpc\DpcImportController;
 use App\Http\Controllers\Dpc\DpcProposalController;
@@ -153,6 +154,28 @@ Route::middleware('auth')->group(function (): void {
                 Route::post('/{dpcProposal}/approve', [DpcProposalController::class, 'approve'])->name('approve');
                 Route::post('/{dpcProposal}/return', [DpcProposalController::class, 'return'])->name('return');
                 Route::post('/{dpcProposal}/cancel', [DpcProposalController::class, 'cancel'])->name('cancel');
+            });
+
+        // Circulation DPC — the department's side (M9 Phase 1, PPT S45/S47).
+        //
+        // Its own prefix, not a child of `dpc-proposals`: a Circulation is its
+        // own aggregate and is not a proposal (AD-24). Nesting it under the
+        // proposal routes would say the opposite in the one place a reader
+        // looks first.
+        Route::middleware('role:'.Role::AuthorizedOfficer->value.'|'.Role::AdministrativeHead->value)
+            ->prefix('dpc-circulations')
+            ->name('dpc-circulations.')
+            ->group(function (): void {
+                Route::get('/', [CirculationController::class, 'index'])->name('index');
+                // Declared before `{dpcCirculation}` so `create` is never
+                // mistaken for an identifier.
+                Route::get('/create', [CirculationController::class, 'create'])->name('create');
+                Route::post('/', [CirculationController::class, 'store'])->name('store');
+                Route::get('/{dpcCirculation}', [CirculationController::class, 'show'])->name('show');
+                Route::post('/{dpcCirculation}/submit', [CirculationController::class, 'submit'])->name('submit');
+                Route::post('/{dpcCirculation}/approve', [CirculationController::class, 'approve'])->name('approve');
+                Route::post('/{dpcCirculation}/return', [CirculationController::class, 'return'])->name('return');
+                Route::post('/{dpcCirculation}/cancel', [CirculationController::class, 'cancel'])->name('cancel');
             });
 
         // CGPSC workflow — allotment and scheduling (M6, PPT S26–S30).

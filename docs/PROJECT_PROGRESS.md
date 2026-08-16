@@ -21,7 +21,7 @@
 
 **Updated 2026-08-13 (post-approval):** documentation cleanup executed (archive/restore/delete per `docs/project-documentation-audit.md`); P0 rate-limiting gap closed (see Module 2); decisions Q4, Q9, Q10 ruled; **M4 COMPLETE — all 7 phases** (Post Selection, Committee, Working Officers + Vacancies, Seniority List, Evaluation/Tabulation Chart, Excel Import, Closeout) — 145 tests / 516 assertions passing, Pint clean, PHPStan 0 errors, `composer audit` clean, 50 DB tables. Applying the new **Demo Readiness Rule** caught three P1 defects that six consecutive green gates had missed (empty proposals were submittable and signable; the signed document contained only a header; the audit trail had never been tested anywhere in the project) — all fixed and covered. A **UAT Readiness Review** milestone sits between M6 and M7 (see `docs/design/05-milestones.md`). Full detail: `docs/ARCHITECT_REVIEW.md`, `docs/CHANGELOG.md`.
 
-**M8 COMPLETE (2026-08-14):** all three phases of Review DPC are built, tested and gate-green, committed and tagged `v0.8.0-m8-phase3`. **BD-11** (what supersession means for an officer already promoted) is a **Deferred Business Decision — Required before production activation of the Review supersession policy** by architect ruling of 2026-08-14 and **does not block M8 completion**. **No file in M4, M5, M6 or M7 was modified**, verified by full-repository diff at every phase boundary; M8 extends M7 by **decoration** (AD-20), with four decorators bound over it in the container. **M9 (Circulation DPC) has NOT started.** See the Implementation Summary at the end of this document for the current status, remaining milestones, pending decisions, debt, suggestions and next steps.
+**M8 COMPLETE (2026-08-14):** all three phases of Review DPC are built, tested and gate-green, committed and tagged `v0.8.0-m8-phase3`. **BD-11** (what supersession means for an officer already promoted) is a **Deferred Business Decision — Required before production activation of the Review supersession policy** by architect ruling of 2026-08-14 and **does not block M8 completion**. **No file in M4, M5, M6 or M7 was modified**, verified by full-repository diff at every phase boundary; M8 extends M7 by **decoration** (AD-20), with four decorators bound over it in the container. **M9 (Circulation DPC) Phase 1 is COMPLETE (2026-08-16)** — design approved, governed by **AD-23** (Circulation is Decision Resolution, not DPC Execution) and **AD-24** (Circulation is its own aggregate). Phases 2 and 3 have not started. See the Implementation Summary at the end of this document for the current status, remaining milestones, pending decisions, debt, suggestions and next steps.
 
 This document is the single source of truth for project status and for AI progress/suggestions going forward, per your instruction. It is replaced in full at each phase boundary and no additional progress markdown file is created. It supersedes any per-milestone status claims in older worklog files.
 
@@ -388,7 +388,7 @@ Scoring & Eligibility Engine        ✅ 100% (4 phases — ENGINE FROZEN)
 CGPSC Workflow (Allotment/Sched.)   ✅ 100% (4 phases — FROZEN)
 DPC Proceeding & Results            ✅ 100% (4 phases — FROZEN, closed v0.7.0-m7-complete)
 Review DPC                          ✅ 100% (3 phases) — COMPLETE; BD-11 deferred, not blocking
-Circulation DPC                     ⚪ 0%  — M9, NOT STARTED
+Circulation DPC                     🟡  Phase 1 of 3 complete — M9, Phases 2-3 not started
 Self-Inspection & Objection         ⚪ 0%  — M10
 Reports & Dashboards                ⚪ 0%  — M11 (gated on Q16: absent from both PPTs)
 CSC DigiSign / E-Signature          🟡 Partial (abstraction + Mock done; real CSC pending — BD-4)
@@ -475,32 +475,32 @@ Notes worth carrying forward that are not obvious from the diff:
 - **The provisional-result block fires on Reviews in practice**, not just in theory — US3's case is exactly BD-2/BD-3. The companion test shows the other side: a Review that corrects the very CR it was raised for produces a clean result and publishes.
 - **Four decorators, each with a test asserting a Fresh DPC is unaffected.** A decorator that changes behaviour for anything that is not a Review is a defect, and it would be invisible without those tests.
 
-### Codebase Inventory (live count, 2026-08-14)
+### Codebase Inventory (live count, 2026-08-16)
 
 | Metric | Count |
 |---|---|
-| Database tables (`migrate:fresh --seed`) | 62 |
-| Migrations | 43 files |
-| Models | 48 |
-| Controllers | 36 |
-| Domain Services | 31 |
-| Policies | 3 |
-| Form Requests | 39 |
+| Database tables (`migrate:fresh --seed`) | 64 |
+| Migrations | 44 files |
+| Models | 50 |
+| Controllers | 37 |
+| Domain Services | 34 |
+| Policies | 4 |
+| Form Requests | 40 |
 | Seeders | 10 |
-| Blade views | 84 |
-| Routes | 176 |
-| Test files | 51 |
+| Blade views | 88 |
+| Routes | 184 |
+| Test files | 55 |
 | Composer packages added beyond Laravel default | `spatie/laravel-permission`, `owen-it/laravel-auditing`, `predis/predis`, `larastan/larastan` (dev) |
 
-### Quality Gate (run 2026-08-14, this session)
+### Quality Gate (run in full 2026-08-16, M9 Phase 1 finalisation)
 
 | Check | Result |
 |---|---|
-| PHPUnit (`php -d memory_limit=2G vendor/bin/phpunit`) | **620 passed / 1902 assertions, 0 failing** |
+| PHPUnit — **complete suite** | **666 passed / 2020 assertions, 0 failing** |
 | Laravel Pint (`--test`) | **Passed** — PSR-12 + strict types, no violations |
 | PHPStan / Larastan (level 6) | **0 errors** |
-| `composer audit` | **No advisories** |
-| `php artisan migrate:fresh --seed` | **OK** — 43 migrations, **62 tables**, 10 seeders |
-| Freeze verification (M4/M5/M6/M7 vs. `v0.7.0-m7-complete`) | **Empty** |
+| `composer audit` | **No advisories** — second attempt; the first timed out to local cache (**TD-2**) |
+| `php artisan migrate:fresh --seed` | **OK** — 44 migrations, **64 tables**, 10 seeders |
+| Freeze verification — **M4/M5/M6, M7 and M8** (incl. AD-21's four view paths) | **All empty** |
 
 All four gate steps are mandatory per phase (`composer gate`). Golden cases run against the *shipped* configuration, so a rule change that would alter a promotion outcome fails the build; all 13 configurable business rules have at least one golden test. **The gate is necessary, not sufficient (AD-17)** — every phase is also PPT-verified and demoed.

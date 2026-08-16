@@ -42,6 +42,10 @@ Every item below is **blocked on a business answer**, not on engineering. None c
 | BD-9 | Waiting-list placement when a category has no vacancy | **M7 closure** | **P1** | 2026-08-14 |
 | BD-10 | Does a court case annotate the remark? | **M7 closure** | P2 | 2026-08-14 |
 | BD-11 | What happens to an officer already promoted under a reviewed DPC? | **Production activation of the Review supersession policy** — no milestone | **P1** | 2026-08-14 |
+| BD-12 | What if the record supplied to resolve a hold is **adverse**? | M9 Phase 2 | P1 | 2026-08-16 |
+| BD-13 | Is there a time limit on a held promotion? | Nothing — visibility only | P2 | 2026-08-16 |
+| BD-14 | From what date does a **circulated promotion** take effect? | **M9 Phase 3** | **P1** | 2026-08-16 |
+| BD-15 | May a **CR-ground** hold be routed to a Review instead of a Circulation? | **M9 — CR-ground circulations are refused today** | **P1** | 2026-08-16 |
 
 ---
 
@@ -229,6 +233,54 @@ The Review recalculates. Its result may differ from the original's. **The deck d
 **One consequence worth stating plainly.** A watermark tells a reader the list no longer governs; it does not tell them what happened to the promotion recorded on it. Between now and the ruling, anyone reading a superseded promotion list is reading a document whose legal effect is genuinely undetermined. Deferring BD-11 accepts that knowingly, which is why the answer is required **before the policy is activated in production** rather than merely desirable.
 
 ---
+
+## BD-15 — May a CR-ground hold be routed to a Review instead of a Circulation?
+
+**Severity: P1. Raised 2026-08-16, at M9 Phase 1. This is the one M9 is actively refusing on.**
+
+**The question.** S45 lists two grounds on which a promotion is reserved: *"CR not reported for two or more years"* and *"the immovable-property return not recorded for one or more years"*. It then says that when the resolution arrives, a decision is taken and the Commission's consent is obtained in the prescribed form — the circulation note.
+
+**For the property ground that works exactly as written**, and M9 implements it. **For the CR ground it does not**, and the reason is arithmetic rather than legal.
+
+**Why the CR ground is different.** The scoring engine uses *"the five most recent **available** CR years"* — a missing year is left out of the window, not scored as zero. So an officer held on the CR ground has an **incomplete window by definition**, and supplying the missing grade:
+
+- **changes the officer's marks**, because the window grows;
+- **makes a Super Seat reachable for the first time** — it is refused outright while the window is incomplete — and a Super Seat carries **notional seniority, which reorders the main list**;
+- can **disqualify the officer outright**, if the supplied CR is `घ`, or `ग` in the last year of a Class-I→I promotion.
+
+**Every one of those can change the position of a different officer** — someone below the held officer on the seniority list, who is not party to the circulation and receives no notice of it. A Review DPC has the safeguards for exactly this situation: stated grounds (S37), an Administrative Head's approval of a corrected chart, a sitting, supersession of the published list, and notification. A circulation note has none of them, deliberately.
+
+**Why we cannot simply check whether the mark changed.** Deciding whether a particular resolution *would* change anything is a scoring operation, and **AD-23 forbids a Circulation from performing one.** The test for admissibility would itself be the prohibited act. So the rule has to be categorical: either all CR-ground resolutions are circulations, or none are.
+
+**What the system does today, and why.** A circulation covering a CR-ground hold is **refused with a structured "Pending Business Decision (BD-15)" response** naming the officers affected. Nothing is calculated, nothing is scored, no hold is released, and **the case is not escalated to a Review automatically** — escalating would answer this question by acting. The refusal is recorded on the DPC's timeline, so a case waiting on CGPSC is distinguishable from one nobody raised.
+
+**What we need.** A ruling: may a CR-ground hold be resolved by circulation as S45 appears to allow, accepting that it re-decides the officer's marks and may move other officers on a published list — or must it be raised as a Review DPC?
+
+**Note the practical cost of leaving it open:** those officers' promotions stay reserved with no route to resolution, which is **BD-13 acquiring a second cause.**
+
+## BD-14 — From what date does a circulated promotion take effect?
+
+**Severity: P1. Raised 2026-08-16. Blocks M9 Phase 3 — what the circulation note says.**
+
+The origin DPC states *"PROMOTION AS ON 2017"*. A circulation resolving one of its held promotions may be raised in 2026. **Is the promotion effective from the original DPC's year, or from the date of the Commission's consent?**
+
+This is not a formatting question. **Retrospective seniority reaches every officer below the one promoted** — their relative position, and potentially their pay, changes with the answer. M7 captures `promotion_as_on_year` at approval and never derives it (AQ-7), so the field exists; what it should hold for a circulated promotion is unruled.
+
+## BD-12 — What if the record supplied to resolve a hold is adverse?
+
+**Severity: P1. Raised 2026-08-16. Blocks M9 Phase 2's decision set.**
+
+S45 describes a decision taken *once the resolution is received*. It does not describe the Commission **refusing** a promotion on the strength of what arrives. But a supplied CR of `घ` is a hard disqualifier, and a property return may show a declaration the department cannot accept.
+
+**Does the Commission have a refusal path, and if so, does refusing disturb a promotion list already published?** M9 offers two decisions today — consent, and return for further evidence — and deliberately does not invent a third (AD-2).
+
+## BD-13 — Is there a time limit on a held promotion?
+
+**Severity: P2. Raised 2026-08-16. Blocks nothing.**
+
+S45 sets none. A promotion may therefore remain reserved indefinitely, and until now nothing in the system would have said so.
+
+**M9 makes the age of a held promotion visible** (AQ-24) — showing how long something has been reserved is not a business rule. **Whether there is a limit, and what happens when it passes, is.**
 
 ## Closed items
 

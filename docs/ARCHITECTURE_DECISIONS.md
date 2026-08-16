@@ -326,6 +326,131 @@ Three artefacts, and only the first is prose:
 
 **What it forecloses**, as AD-15 requires this register to state: nothing that was previously possible. Before AD-22, AD-21 rule 5 required a mechanism that did not exist, so *no* change to M8 was possible by any route. This is strictly an unblocking decision — and the first request it is likely to receive is the batching of **TD-19, TD-20 and TD-21** against M4, M5 and M6, which §8 of the review has recommended since M6 and which is a **window**, not a single change.
 
+### AD-23 — Circulation is Decision Resolution, not DPC Execution
+
+**Decided:** 2026-08-16, on approval of the M9 design. **Status: ACTIVE.** **Applies to:** M9 (Circulation DPC) and anything built on it.
+
+**The rule, as ruled.** A Circulation implementation **SHALL NEVER** invoke:
+
+- `DpcCalculationService`
+- `EligibilityService`
+- `ZoneService`
+- `ProceedingService`
+
+**A Circulation resolves an already-decided held case and obtains Commission consent.** It must never perform **recalculation**, **eligibility determination**, **zone determination**, **DPC proceedings**, or **scoring**.
+
+**Violation of this rule shall be treated as an Architecture Defect.**
+
+#### The enforceable class list
+
+The rule names four classes. **One of them does not exist under that name, and two of the three that do can be reached without being named** — so the list below is what a check must actually test. This is the ruled rule applied to the codebase as it stands, not a widening of it.
+
+| Named in the ruling | Actual class | Note |
+|---|---|---|
+| `DpcCalculationService` | `App\Domain\Eligibility\Services\DpcCalculationService` | ✅ exists |
+| `EligibilityService` | `App\Domain\Eligibility\Services\EligibilityService` | ✅ exists |
+| **`ZoneService`** | **`App\Domain\Eligibility\Services\ZoneOfConsiderationService`** | ⚠️ **no class named `ZoneService` exists.** A rule naming a class that does not exist cannot be violated *or* enforced — the real name is recorded so the check bites |
+| `ProceedingService` | `App\Domain\Proceeding\Services\ProceedingService` | ✅ exists |
+
+**Also forbidden, because the ruling forbids the *acts* and these are how the acts are reached:**
+
+| Class | Why it is on the list |
+|---|---|
+| `App\Domain\Eligibility\Services\ScoringService` | The ruling forbids **scoring**. This is the class that scores |
+| `App\Domain\Eligibility\Services\SuperSeatService` | Super Seat is a scoring determination |
+| `App\Domain\Eligibility\Services\ExplainCalculationService` | Re-derives a calculation to explain it |
+| `App\Domain\Proceeding\Services\ProceedingCalculationService` | **M7's entry point into `DpcCalculationService`.** Forbidding only the callee would leave the caller open |
+| `App\Domain\Review\Services\ReviewAwareCalculationService` | **M8's decorator, bound over M7's service in the container.** A type-hint on the M7 class resolves to *this* — so a container binding can defeat a rule written against a class name alone |
+| `App\Domain\Proceeding\Services\ProceedingCorrectionService` | Assembles the effective chart — the input to a calculation, and a correction is a Review's act, not a Circulation's |
+
+**The last two rows are the substance of this section.** A check that greps for four class names would pass a Circulation that injects `ProceedingCalculationService`, or that type-hints `DocumentRenderer` and receives M8's decorator. **The rule is about reachability, not spelling.**
+
+#### What a Circulation may do instead
+
+Stated because a prohibition without an alternative gets worked around rather than obeyed.
+
+| Needs | Permitted route |
+|---|---|
+| The origin's approved result | Read `DpcCalculationRun` / `DpcCalculationResult` **as models**. Reading a stored decision is not making one |
+| The concluded proceeding | Read the `DpcProceeding` **model**. `ProceedingService` *conducts* a sitting; a Circulation never opens, corrects, calculates, approves or cancels one |
+| Whether an officer is held | `HoldService::activeBySn()` / `isHeld()` — **read-only queries**, not on the forbidden list |
+| Releasing the hold | Write `dpc_proceeding_holds.released_at` directly, at signature (AQ-21). **Not** `HoldService::release()`, which asserts an open proceeding and refuses automatic holds |
+| The `CIR` annotation on screen | Derived from **hold state**, never from a second calculation |
+
+#### Why this is a decision and not a code review note
+
+The M9 design already arranges for no path from a Circulation to the engine to exist. **This makes that arrangement a rule rather than a property of one implementation**, and the distinction matters because the next person to touch M9 will not have read the design.
+
+**The harm it prevents is specific and silent.** The officers below a held officer on the seniority list have a direct interest in whether that officer is promoted, and **they are not party to the circulation.** A Circulation that recalculated could change a mark, an eligibility verdict, a zone boundary, a rank, or another officer's list placement — and would do so with no stated reasons (S37), no AH approval of a corrected chart, no sitting, no supersession of the published list, and **no notice to the officer displaced.** That is a Review conducted without any of a Review's safeguards, and it would look, from the database, exactly like a clerical resolution.
+
+**"Architecture Defect" is the right severity**, not a style finding: the output would be a promotion list that is wrong in a way no gate detects, because every individual number in it would be internally consistent.
+
+#### How it is verified
+
+Alongside the freeze diffs, at **every M9 phase boundary**:
+
+1. **A dependency assertion** — no class under the Circulation namespace names any class in the forbidden list, in a constructor, a type-hint, a container resolution or a facade call.
+2. **A behavioural assertion** — after a complete circulation, the origin's `dpc_calculation_runs` row, its `dpc_calculation_results`, its documents and their **SHA-256 hashes** are byte-identical.
+3. **Every other officer's row is unchanged** — mark, remark, list and position. Only the resolved officer's `CIR` annotation differs.
+
+**Assertion 1 alone is insufficient**, which is why 2 and 3 exist: a violation could arrive through a container binding, a facade, or a model method that reaches the engine indirectly. **Assertion 2 alone is also insufficient** — it would pass a calculation that happened to reproduce the same numbers, which is the case most likely to occur and least likely to be noticed.
+
+#### What it forecloses
+
+**Stated as AD-15 requires.** If it is ever ruled that a score-changing CR resolution should be handled inside a Circulation (**AQ-16**, currently recommended the other way), **this decision blocks it** — and blocks it deliberately. The route would then be a Review, or a new decision here that supersedes this one and states what replaces the missing safeguards. **Not** an exception granted case by case, which is how a rule of this kind stops being one.
+
+It also forecloses reusing `ProceedingService` to open a "circulation sitting". There is no such thing in S45–S48: the deck shows a note signed, not a proceeding conducted.
+
+### AD-24 — Circulation is its own aggregate; it never reuses `dpc_proposals`
+
+**Decided:** 2026-08-16, ruling **AQ-15**. **Status: ACTIVE.** **Applies to:** M9 (Circulation DPC) and anything built on it. **Companion to AD-23.**
+
+**The rule, as ruled.**
+
+> **Circulation SHALL be its own aggregate. It SHALL NOT reuse, extend or specialize `dpc_proposals`.**
+>
+> **Reason:** a Circulation is **not a DPC lifecycle.** It is an independent Commission decision workflow that resolves an already-decided held case.
+
+**AD-23 and AD-24 are the same principle at two layers.** AD-23 forbids a Circulation from *doing* what a DPC does; AD-24 forbids it from *being* what a DPC is. Either alone leaks: a Circulation modelled as a `dpc_proposals` row would keep finding reasons to reach for the DPC services AD-23 forbids, and a Circulation that avoided those services while living in the proposals table would still inherit a lifecycle it does not have.
+
+#### What is now settled
+
+| | Ruling |
+|---|---|
+| **Storage** | `dpc_circulations` + `dpc_circulation_items` + `dpc_circulation_documents` — its own tables, as designed in `docs/design/10-m9-circulation-dpc.md` §11 |
+| **`dpc_proposals`** | **Referenced, never written.** `origin_dpc_proposal_id` is a foreign key to the DPC being resolved. No row of type `circulation` is ever created |
+| **Inheritance / extension** | **None.** No subclass of `DpcProposal`, no shared base, no single-table-inheritance discriminator, no polymorphic proposal interface |
+| **`dpc_types.circulation`** | Stays as **S47's type label only**. It is display master data, not a proposal discriminator |
+| **Lifecycle** | Its own `dpc_circulation` workflow definition in configuration (AD-11). **Not** M4's `dpc_proposal` workflow, not M6's, not M7's |
+| **Identifier** | Its own `circulation_code`, minted at department approval. **Not** a `dpc_code` — a Circulation is not a DPC and must not appear to have been one |
+
+#### Why the alternative was refused
+
+The alternative was available and looked cheaper: `dpc_types` already seeds `circulation`, S47 collects post-from, post-to, class and a proposal date exactly as a Fresh proposal does, and M8 had just set the precedent that a Review **is** a `dpc_proposals` row.
+
+**It fails on M4's submission gate.** A proposal cannot be submitted until the S14→S18 sequence is complete — post selection, committee, working officers and vacancies, seniority list, evaluation chart. **A Circulation has none of those and never will**, because everything they would contain was decided at the original sitting. That leaves exactly two escapes, and both are worse than the problem:
+
+1. **Copy the origin's chart** to satisfy the gate — which makes the Circulation a Review in all but name, and puts a full editable chart in front of a workflow that must not change a single mark (AD-23).
+2. **Bypass the gate** — which is **precisely TD-23**, the defect already on the register: M8's end-to-end test `forceFill`s past M4's `submit()` and the AH approval, and that is what hid the `sanctioned_post_count` failure until a gate run found it.
+
+**The M8 precedent does not transfer**, and the reason is worth stating because it is the argument most likely to be made. A Review **is** a DPC — S35 says its process is *exactly the same as Fresh*, and it genuinely runs proposal → allotment → scheduling → sitting → calculate → approve. A Circulation runs none of that. **The precedent is about Reviews being DPCs, not about everything downstream of a DPC being a proposal.**
+
+#### Consequence, including what it costs
+
+**What it costs.** M9 does not inherit M4's proposal scaffolding — department scoping, draft/submit/return/cancel, the AH signature step and the section-immutability idiom are re-expressed for the circulation aggregate rather than reused as code. That is real work, and it is the honest price of not modelling one thing as another.
+
+**What it buys, and why the price is right.** Three things, each of which would otherwise be a standing hazard:
+
+- **M4's frozen submission gate is never a problem to route around**, so TD-23's failure mode has no reason to recur in M9.
+- **TD-19 is avoided outright.** `DpcProposal` still lacks `HasUuids`, and every milestone that creates a proposal adds a caller to the direct-update workaround. M9 creates none, so it adds no fourth caller.
+- **A Circulation can never be mistaken for a DPC in a query, a report or a promotion list** — because it is not one, structurally, and no `WHERE dpc_type_id` filter has to remember to exclude it.
+
+#### What it forecloses
+
+**Stated as AD-15 requires.** If a later milestone wants a unified "all DPC artefacts" view — a dashboard, a department's full history, an M11 report — **it must union across `dpc_proposals` and `dpc_circulations` rather than query one table.** That is a deliberate cost, accepted here: the alternative is a proposals table whose rows mean different things depending on a type column, which is the shape that makes every later query subtly wrong.
+
+It also forecloses reaching for `DpcProposal`'s services to save effort during M9 implementation. **A Circulation that finds itself extending `DpcProposal` has breached this decision**, and — like AD-23 — that is an Architecture Defect rather than a design preference.
+
 ---
 
 ## Maintaining this file

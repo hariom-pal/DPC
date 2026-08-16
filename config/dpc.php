@@ -219,6 +219,35 @@ return [
             ],
         ],
 
+        /*
+        | Circulation DPC (PPT S45, S47; C3/C7 — M9). Runs on the
+        | `DpcCirculation` as subject: a Circulation is its own aggregate and
+        | never reuses, extends or specializes `dpc_proposals` (AD-24), so it
+        | carries its own workflow rather than borrowing M4's.
+        |
+        | Phase 1 declares only the department's transitions. `consent`,
+        | `return_to_department` and `sign` belong to the Commission and arrive
+        | with Phase 2, which performs them — a transition nothing can perform
+        | reads as supported behaviour when it is not.
+        |
+        | `approve` requires a signature (AQ-23): every department-originated
+        | artefact is signed by the Administrative Head before it reaches
+        | CGPSC, and a confirmation that a reserved promotion should proceed is
+        | at least as significant as the proposal that produced it.
+        |
+        | Note what is absent and stays absent: nothing here calculates,
+        | scores, determines eligibility or a zone, or conducts a proceeding
+        | (AD-23). A circulation resolves a decision already made.
+        */
+        'dpc_circulation' => [
+            'transitions' => [
+                'submit' => ['from' => ['draft', 'returned'], 'to' => 'submitted', 'role' => 'authorized_officer', 'signature' => false, 'notify' => ['administrative_head']],
+                'approve' => ['from' => ['submitted'], 'to' => 'approved', 'role' => 'administrative_head', 'signature' => true, 'notify' => ['authorized_officer']],
+                'return' => ['from' => ['submitted'], 'to' => 'returned', 'role' => 'administrative_head', 'signature' => false, 'notify' => ['authorized_officer']],
+                'cancel' => ['from' => ['draft', 'returned'], 'to' => 'cancelled', 'role' => 'authorized_officer', 'signature' => false, 'notify' => ['administrative_head']],
+            ],
+        ],
+
         // DPC Proposal (PPT S12–S25, M4). A single workflow approval covers
         // all sections the AH reviews (architect decision, 2026-08-13) — one
         // signature, one transition, one timeline entry, one audit event.
