@@ -1,13 +1,15 @@
 # M9 — Circulation DPC: Design
 
-**Status:** **APPROVED 2026-08-16. Phase 1 implemented** (46 tests, gate green). Phases 2 and 3 not started.
+**Status:** **APPROVED 2026-08-16. Phases 1 and 2 implemented** (72 M9 tests; full suite 692/2088, gate green at `f23c118`). **Phase 3 not started — unblocked by the AQ-22 ruling and the §23.1 implementation rule.**
 **Date:** 2026-08-16
 **PPT source:** `ODPC_NEW_FINAL.pptx` S45–S48 (+ C3, C7)
 **Depends on:** M4 (frozen), M5 (engine frozen), M6 (frozen), M7 (frozen), M8 (frozen — AD-21)
-**Governed by:** **AD-23** — Circulation is Decision Resolution, not DPC Execution · **AD-24** — Circulation is its own aggregate
+**Governed by:** **AD-23** — Circulation is Decision Resolution, not DPC Execution · **AD-24** — Circulation is its own aggregate · **AQ-22 ruled 2026-08-16**
 **Baseline:** `v0.8.0-m8-phase3` / `a60689d`
 
 > **AD-23 (2026-08-16) makes §6 a rule, not a design property.** A Circulation implementation **shall never** invoke `DpcCalculationService`, `EligibilityService`, `ZoneOfConsiderationService` or `ProceedingService`, and shall never perform recalculation, eligibility determination, zone determination, DPC proceedings or scoring. **Violation is an Architecture Defect.** The full enforceable class list — including the indirect routes a name-based check would miss — is in `docs/ARCHITECTURE_DECISIONS.md` AD-23.
+>
+> **AQ-22 (2026-08-16) rules the documents.** **M9 owns its own document type, document table and document renderer. M7's frozen `DocumentType` enum, `ProceedingDocumentService` and document pipeline SHALL NOT be opened or modified.** And **§23.1**: Phase 3 is implemented *completely*; if BD-14 is unresolved, publication is refused, the refusal displays **"Pending Business Decision (BD-14)"**, no effective date is invented, and rendering, signing, storage and verification remain fully implemented and testable.
 >
 > **AD-24 (2026-08-16) rules AQ-15.** **Circulation SHALL be its own aggregate. It SHALL NOT reuse, extend or specialize `dpc_proposals`** — a Circulation is not a DPC lifecycle; it is an independent Commission decision workflow that resolves an already-decided held case. §11's schema is confirmed as designed. **AD-23 and AD-24 are the same principle at two layers:** one forbids a Circulation from *doing* what a DPC does, the other from *being* what a DPC is.
 
@@ -72,7 +74,7 @@ Stated first, because the failure mode M8 warned about (§5, R7 of `09-m8-review
 | `dpc_proceeding_holds`, its append-only guard and its `released_at` seam | **M7** | The migration comment states outright: *"`released_at` is the declared seam for M9, which resolves a hold; M7 only marks it."* M9 writes **data** to it, never code |
 | `HoldReason`, `HoldService::activeBySn()`, `isHeld()` | **M7** | Read-only use |
 | The concluded proceeding, its approved calculation run and result | **M7** | Read-only. **Never recalculated** |
-| Document render → store → hash → sign → publish pipeline | **M7** | Reused as a *pipeline*, with M9's own document type — see **AQ-22** |
+| The render → store → hash → sign → publish **pattern** | **M7** | **AQ-22 ruled 2026-08-16: M9 owns its own document type, table and renderer.** M7's `DocumentType`, `ProceedingDocumentService` and document pipeline are **not opened and not modified** — the pattern is reused, the classes are not (§11) |
 | `SignatureService` and the Provider pattern behind `FEATURE_CSC_DIGISIGN` | M1 / AD-13 | Never mock-sign in production |
 | `WorkflowEngine`, driven by configuration | M3 / **AD-11** | M9 adds a `dpc_circulation` workflow **as configuration**, not as an engine |
 | `ActivityTimelineService`, versioned, actor-snapshotted, `(occurred_at, uuid)` ordered | M6 / AD-6, AD-7 | |
@@ -231,7 +233,13 @@ Unique `(dpc_circulation_id, dpc_proceeding_hold_id)`. Constraint names `fk_dpc_
 
 ### `dpc_circulation_documents` (new)
 
-M7's `DocumentType` enum is **frozen** and cannot gain a `circulation_note` case — an enum case cannot be decorated, so this would be a source edit inside a frozen milestone. M9 therefore carries its own document type and table, reusing M7's render → store → hash → sign → publish *pipeline* without modifying it (**AQ-22**).
+**Ruled 2026-08-16 (AQ-22): M9 owns its own document type, document table and document renderer. M7's frozen `DocumentType` enum, `ProceedingDocumentService` and document pipeline SHALL NOT be opened or modified.**
+
+The enum was the least of the coupling, and the ruling closes the deeper problem. **Every M7 entry point is hard-typed to `DpcProceeding`** — `ProceedingDocumentService::generate()`, `::publish()` and `DocumentRenderer::render()` all take one, and a Circulation has no proceeding of its own (AD-24). Reusing M7's pipeline would have meant either filing the note as a document *of the original DPC*, under M7's versioning and `verify()`, where a reader could not tell it apart — or adding a **fifth decorator** to a container graph that has already cycled once.
+
+**What is reused is `SignatureService` and the *pattern*, never M7's classes.** `SignatureService::sign(User $signer, Model $signable, ...)` accepts any model, and Phases 1 and 2 already sign a `DpcCirculation` through it; it is shared infrastructure, not frozen M7.
+
+**The duplication this accepts is real and is mitigated by asserting M7's own properties**, not by sharing its code: stored bytes are never rewritten, the SHA-256 is taken over stored bytes, `verify()` reads the stored artefact, and a published document stays downloadable.
 
 | Column | Type | Notes |
 |---|---|---|
@@ -506,7 +514,7 @@ Two independent records, as since M1: `owen-it/laravel-auditing` on the models, 
 | **TD-22** | Rule-reuse config override is process-global | Untouched — M9 never invokes the engine, so it never sets the override |
 | **TD-18** | The approval transition carries no signature | The `approve` and `sign` transitions here declare `signature: true`; whether the *transition* records it is the same open item |
 | **TD-6** | No SMS or e-mail gateway | §15 is untestable end-to-end in production until this lands. Unchanged |
-| **New, if AQ-22 is ruled otherwise** | Two document tables and two document-type enums | If the ruling is instead to open M7 for a `circulation_note` enum case, that is a **single-change Freeze Exception under AD-22** and must be recorded as such |
+| **Accepted by the AQ-22 ruling** | Two document tables and two document-type enums | **Ruled 2026-08-16.** The alternative — opening M7 for a `circulation_note` case — is **foreclosed**, so no Freeze Exception arises. The duplication is the accepted cost, mitigated by asserting M7's own immutability and hash properties rather than by sharing its code (§11) |
 
 ## 23. Phase breakdown
 
@@ -514,9 +522,28 @@ Two independent records, as since M1: `owen-it/laravel-auditing` on the models, 
 |---|---|---|---|
 | **1** ✅ **DONE 2026-08-16** | **The circulation aggregate and the department's side.** Delivered: `dpc_circulations` + `dpc_circulation_items`; `CirculationService` (`eligibleOrigins()`, `outstandingHolds()`, `assessGrounds()`, `raise()`); `CirculationWorkflowService`; the `dpc_circulation` workflow definition; `CirculationCodeService`; S47 and the index/show screens; AO submit → AH approve with signature; policy; timeline; **BD-15 detection and structured refusal**; and the AD-23/AD-24 architecture check | A department raises and approves a circulation against a concluded DPC with holds in force. The origin is provably untouched. **46 tests / 118 assertions** | Delivered under AD-24, AQ-18, AQ-19, AQ-23 as recommended |
 | **2** | **The Commission's side.** S46 entry; S48's before/after rendered from M7's stored result; per-officer `consent`; `return_to_department`; `sign` with OTP step-up; **hold resolution at signature**; notifications; replay test | A held promotion is released by a signed circulation, and the release is answerable per hold | AQ-16, AQ-17, AQ-20, AQ-21 |
-| **3** | **The prescribed form and closeout.** The circulation note document and the revised promotion list — rendered, stored, hashed, signed, published; the effective-date statement; full PPT verification; security, performance and VAPT reviews; demo readiness | The note S45 calls *"निर्धारित प्रारुप"* exists and is signed | **BD-14** (what the note says about the effective date), **BD-12**, AQ-22 |
+| **3** | **The prescribed form and closeout.** The circulation note document and the revised promotion list — rendered, stored, hashed, signed, published; full PPT verification; security, performance and VAPT reviews; demo readiness | The note S45 calls *"निर्धारित प्रारुप"* exists and is signed | **Unblocked.** AQ-22 ruled; BD-14 handled by the publication rule in §23.1 |
 
-**Phase 1 is the largest and is unblocked once the architect questions in §24 are ruled.** Phase 3 is small and is the only one holding business dependencies — stated here rather than discovered at closure, as M7 discovered BD-9 and BD-10.
+**Phase 1 is the largest and is unblocked once the architect questions in §24 are ruled.** Phase 3 is small, and its one business dependency is handled by the rule below rather than by waiting.
+
+### 23.1 Phase 3 implementation rule — ruled 2026-08-16
+
+> **M9 Phase 3 SHALL be implemented completely.**
+>
+> **If BD-14 remains unresolved:**
+>
+> - **publication SHALL be refused;**
+> - **the refusal SHALL explicitly display "Pending Business Decision (BD-14)";**
+> - **no effective date shall be invented;**
+> - **rendering, signing, storage and verification shall still be fully implemented and testable.**
+
+**This is M7 Directive 5's precedent applied**, not a new mechanism: a provisional result is built, stored and signed, and blocked at publication. BD-2, BD-3 and BD-10 keep results unpublishable today by exactly this route.
+
+**Why the block is at publication and not earlier.** Everything before publication is internal — a rendered, hashed, signed artefact that no department has acted on. **Publication is the point at which a document leaves the Commission and a department may act on it**, and an effective date is the thing a department would act on. Blocking earlier would leave the pipeline untested; blocking later would be too late.
+
+**Why the refusal must name BD-14 on screen.** A note that simply never publishes, with no reason given, reads as a system fault — and the department's response to a fault is to retry, escalate, or work around it. Phase 1's structured `PendingBusinessDecision` established the pattern: state the code, state the question, and **state what the system deliberately did not do.** The same shape applies here.
+
+**What the note may still state, because neither is an inference:** the origin DPC's `promotion_as_on_year`, captured at approval and never derived (AQ-7), and the date the reservation was released. **What it must not do is assert which of them governs** — that is BD-14, and it is a service-law consequence the Commission states, not a field the software computes.
 
 ## 24. Architect questions requiring approval
 
@@ -531,7 +558,7 @@ Two independent records, as since M1: `owen-it/laravel-auditing` on the models, 
 | **AQ-19** | **One circulation per officer, or one per DPC covering several held officers?** | **One per DPC, many items.** The note is per-DPC (singular *परिभ्रमण टीप*); the items are per-officer | Holds on one DPC are resolved at different times. One-per-officer would multiply notes; one-per-DPC without items could not record a partial resolution |
 | **AQ-20** | **Who signs on the Commission's side — the Chairman, or the origin DPC's allottee?** S46 says *"CHAIRMAN/ MEMBER"* | **The origin's allottee**, with the Chairman able to act only after re-allotting the origin to himself | **AQ-6 reused verbatim** — exactly one actor accountable for a DPC, and the person who held the promotion is the person who releases it |
 | **AQ-21** | **May M9 write `dpc_proceeding_holds.released_at`, a column in frozen M7?** | **Yes**, at signature only. It is a **data** write, not a source change; AD-15 and AD-21 freeze code, and M7's migration declares this column as M9's seam while its model guard permits that column and no other | If the answer is no, M9 needs a parallel resolution flag and the hold's own `active` scope stops telling the truth — two sources for one fact |
-| **AQ-22** | **Documents:** M7's `DocumentType` enum is frozen and an enum case cannot be decorated. Does M9 get its own document type and table, or does M7 open for a new case? | **M9's own**, reusing M7's render → store → sign → publish pipeline unmodified | Adding an enum case is a source edit inside a frozen milestone — a single-change **Freeze Exception under AD-22** if ruled the other way, and it must then be recorded as one |
+| **AQ-22** ✅ **RULED 2026-08-16** | **Documents:** does M9 get its own document type and table, or does M7 open for a new case? | **RULED: M9 owns its own document type, document table and document renderer. M7's frozen `DocumentType` enum, `ProceedingDocumentService` and document pipeline SHALL NOT be opened or modified.** | Settled. **No Freeze Exception is required or permitted for this** — the alternative that would have needed one is now foreclosed. The decorator count stays at four, which matters: the 2026-08-14 gate run proved four was already enough to produce a container cycle |
 | **AQ-23** | **Does the department's side require AH approval and signature, or does the AO raise straight to the Commission?** The deck shows neither | **AH approval with signature**, mirroring M4 | Every department-originated artefact in this system is signed by the AH before it reaches CGPSC. A confirmation that a promotion now proceeds is at least as significant as the proposal that produced it |
 | **AQ-24** | **Should a held promotion's age be surfaced** — a list of holds outstanding, with how long? | **Yes**, as visibility only, in Phase 1 | BD-13 (a time limit) is a business rule and is not being invented. **Showing** how long a promotion has been reserved is not a rule, and without it an indefinite hold is invisible |
 

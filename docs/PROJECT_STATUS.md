@@ -17,7 +17,7 @@
 | ✅ | **M7 Complete** — DPC Proceedings & Result Generation |
 | ✅ | **M8 Phase 3 Complete** — supersession, Review documents, `SUPERSEDED` watermark, publication |
 | ✅ | **M8 Complete (Frozen)** — Review DPC, all 3 phases. **M8 FREEZE ACTIVE from 2026-08-14** (AD-21). BD-11 deferred — it does not block M8 completion |
-| 🟡 | **M9 Phases 1–2 Complete** — Circulation DPC: the aggregate, the department's side, and the Commission's consent with hold release at signature. **AD-23** and **AD-24** govern it. Phase 3 not started |
+| 🟡 | **M9 Engineering Complete (all 3 phases)** — Circulation DPC: the aggregate, the department's side, the Commission's consent with hold release at signature, and the prescribed form. **AD-23**, **AD-24** and the **AQ-22** ruling govern it. **Publication blocked on BD-14** (§23.1) |
 
 (M0 Foundation is complete and predates M1.)
 
@@ -61,7 +61,7 @@ Until the first of these tags existed there was no commit at any milestone bound
 
 ## Overall Progress
 
-**~82% by milestone count** — M0 Foundation, M1 Auth/RBAC/Registration, M2 Master Data/User Management, M3 Pre-DPC Proposal, **M4 DPC Proposal**, **M5 Scoring & Eligibility Engine**, **M6 CGPSC Workflow**, **M7 DPC Proceedings & Results** and **M8 Review DPC** are built. Nine of eleven milestones; M9 (Circulation DPC), M10 (Self-Inspection & Objection) and M11 (Reports, Audit UI, Hardening) remain.
+**~91% by milestone count** — M0 through **M9 Circulation DPC** are built. Ten of eleven milestone slots; **M10 (Self-Inspection & Objection)** and **M11 (Reports, Audit UI, Hardening)** remain. Two milestones are built but not closed for business reasons only: **M8 pending BD-11** (deferred) and **M9 pending BD-14**, which blocks publication of a circulation note and nothing else.
 
 This is a milestone-count estimate, not effort-weighted. M4 and M5 were the two largest and are both frozen. M8 was the smallest of the workflow milestones by new code and the largest by leverage — it added **no** new workflow, engine, renderer or proceeding.
 
@@ -93,13 +93,17 @@ A Review DPC has an origin, a chain (`chain_uuid`, `review_number`, `chain_depth
 
 **What the deferral does constrain.** Until CGPSC rules, the system records the supersession, notifies the department with both DPC codes, and **asserts nothing about the promotion itself** — no withdrawal, no reverted rank, no arrears. That behaviour is correct and shippable, but it is not a *policy*. **The ruling is required before the Review supersession policy is activated in production**, because the three plausible answers — the promotion stands and only the paper is corrected; it is withdrawn from the date of the Review; it is withdrawn retrospectively with recovery of pay — differ in what they do to a serving officer's substantive rank and pay. See `docs/ARCHITECT_REVIEW.md` §7.
 
-**M9 Phase 1 is complete (2026-08-16).** The circulation aggregate and the department's side: a note raised against a concluded DPC with promotions still held, the officers and their resolution evidence, AO submit → AH approve with signature, and its own workflow, policy and identifier. **A Circulation is its own aggregate and is not a DPC proposal (AD-24), and it performs no DPC execution (AD-23)** — 46 tests, and an architecture check that enforces both. **CR-ground holds are refused with a structured *Pending Business Decision (BD-15)* response**: detected, recorded, and neither calculated nor escalated. **Phase 2 is complete (2026-08-16).** The Commission's side: a decision per held officer, `APPROVE BY CGPSC`, return-for-evidence, and the signature — **which is the operative act (AQ-17)**. Holds are released inside the signature transaction and only for officers consented to; a note that is never signed leaves every promotion reserved. **Only the Member who conducted the original DPC may act (AQ-20), and the Chairman is not exempt.** S48's before-and-after is **one stored result rendered twice**, with the `CIR` annotation from hold state — a test asserts the run, results, rows and proceeding are byte-identical after signature. **Phase 3 has not started.**
+**M9 Phase 1 is complete (2026-08-16).** The circulation aggregate and the department's side: a note raised against a concluded DPC with promotions still held, the officers and their resolution evidence, AO submit → AH approve with signature, and its own workflow, policy and identifier. **A Circulation is its own aggregate and is not a DPC proposal (AD-24), and it performs no DPC execution (AD-23)** — 46 tests, and an architecture check that enforces both. **CR-ground holds are refused with a structured *Pending Business Decision (BD-15)* response**: detected, recorded, and neither calculated nor escalated. **Phase 2 is complete (2026-08-16).** The Commission's side: a decision per held officer, `APPROVE BY CGPSC`, return-for-evidence, and the signature — **which is the operative act (AQ-17)**. Holds are released inside the signature transaction and only for officers consented to; a note that is never signed leaves every promotion reserved. **Only the Member who conducted the original DPC may act (AQ-20), and the Chairman is not exempt.** S48's before-and-after is **one stored result rendered twice**, with the `CIR` annotation from hold state — a test asserts the run, results, rows and proceeding are byte-identical after signature. **Phase 3 is complete (2026-08-16).** The prescribed form S45 calls *निर्धारित प्रारुप*: the circulation note and the revised promotion list, rendered → stored → SHA-256 → signed → verifiable, with download, verification and full document history. **M9 owns its document type, table and renderer (AQ-22)** — M7's `DocumentType`, `ProceedingDocumentService`, renderer and views are untouched, verified by diff.
+
+**Publication is refused while BD-14 is unresolved (§23.1)**, displaying **"Pending Business Decision (BD-14)"**, inventing no effective date, and leaving rendering, signing, storage and verification fully working. The note states the origin's promotion-as-on year *and* the release date, and **asserts neither as governing** — that is BD-14. The answer will be applied as **configuration** (`dpc.circulation.effective_date_basis`), with no code change.
+
+**M9 engineering is complete. Closure is pending BD-14** — the same shape as M8's closure pending BD-11.
 
 **All freezes hold, and there are now five.** M4 architecture-frozen, M5 engine-frozen, M6 frozen, M7 frozen from M8 onward, and **M8 frozen from 2026-08-14 (AD-21)** — the strictest of the five. Freeze verification runs at every phase boundary and has never been non-empty.
 
 ## Next Milestone
 
-**M9 — Circulation DPC (S45–S48, C3, C7). Design approved 2026-08-16; PHASES 1 AND 2 COMPLETE. Phase 3 not started.**
+**M9 — Circulation DPC (S45–S48, C3, C7). Design approved 2026-08-16; ALL THREE PHASES COMPLETE. Closure pending BD-14.**
 
 M9 resolves a held promotion (`CIR`) from an earlier DPC — an officer missing 2+ years of CR or 1+ years of immovable-property declaration is included in the proceeding but their promotion decision is held, and CGPSC later signs a circulation note to finalise it. M7 already produces the held rows; M9 acts on them.
 
@@ -228,7 +232,7 @@ Closed on architect approval of Phase 4, 2026-08-14, at tag `v0.7.0-m7-complete`
 
 Permanent four-part gate (ruled 2026-08-13) — every phase must pass all four before completion. Run with `composer gate`.
 
-**Re-run in full at M9 Phase 2 finalisation, 2026-08-16.** `composer audit` was clean on the **second** attempt; the first hit a network timeout and fell back to local cache (**TD-2**), which is recorded rather than reported as a clean first run. **TD-2 has now fired at two consecutive finalisations**, which makes it a reliability problem in the gate rather than an intermittent annoyance.
+**Re-run in full at M9 Phase 3 finalisation, 2026-08-16.** `composer audit` was clean on the **second** attempt; the first hit a network timeout and fell back to local cache (**TD-2**), which is recorded rather than reported as a clean first run. **Three consecutive finalisations have now needed a retry on `composer audit`** — two network timeouts falling back to a stale cache (TD-2), and one usage-output response. That is a reliability problem in the gate, not an intermittent annoyance.
 
 *Earlier history, kept because it is the reason these figures are now re-derived rather than copied: the figures once carried here (*607 passed / 1865 assertions*, *61 tables*) were **not reproducible** — the suite could not reach its end and `migrate:fresh` could not build M8's last table on MySQL. Both causes were fixed on 2026-08-14.*
 
@@ -237,9 +241,9 @@ Permanent four-part gate (ruled 2026-08-13) — every phase must pass all four b
 | Laravel Pint (PSR-12 + strict types) | **Passed** |
 | PHPStan / Larastan level 6 | **0 errors** |
 | `composer audit` | **No advisories** — second attempt; the first timed out to local cache (**TD-2**) |
-| PHPUnit | **692 passed / 2088 assertions, 0 failing** |
+| PHPUnit | **718 passed / 2178 assertions, 0 failing** |
 
-Plus `php artisan migrate:fresh --seed`: **OK** — **44 migrations, 64 tables**, 10 seeders.
+Plus `php artisan migrate:fresh --seed`: **OK** — **45 migrations, 65 tables**, 10 seeders.
 
 **Two P0 defects were found by the 2026-08-14 gate run, both in M8, both fixed:** a **circular container dependency** among the four M8 decorators, which crashed the PHP process on every document generation (and, under this environment's `memory_limit=-1`, exhausted the host — the reported machine hang); and a **foreign-key identifier one character over MySQL's 64-character limit**, which meant `dpc_document_review_references` had never existed in the database at all. The second passed 84 tests because the suite runs on in-memory SQLite, which does not enforce that limit — raised as **TD-24**, and the most valuable process fix now available.
 
@@ -247,7 +251,7 @@ Plus `php artisan migrate:fresh --seed`: **OK** — **44 migrations, 64 tables**
 
 ## Test Status
 
-**692 passed / 2088 assertions, 0 failing**, verified at M9 Phase 2 finalisation (2026-08-16). M8 contributed 83; **M9 contributed 72 — 46 in Phase 1, 26 in Phase 2**.
+**718 passed / 2178 assertions, 0 failing**, verified at M9 Phase 3 finalisation (2026-08-16). M8 contributed 83; **M9 contributed 98 — 46 in Phase 1, 26 in Phase 2, 26 in Phase 3**.
 
 **Run bounded** (`php -d memory_limit=2G vendor/bin/phpunit`). CLI `memory_limit` is `-1` in this environment, so a runaway takes the host down instead of reporting a fault — which is exactly what the container cycle did before it was fixed. A bounded limit is how a defect of that shape names the test it died on.
 

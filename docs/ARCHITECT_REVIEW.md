@@ -13,11 +13,11 @@ Phase 3 only. **M9 has not begun.**
 
 ## 0. Current Session
 
-**Updated:** 2026-08-16 · **M9 Phase 2 finalisation — full gate, decisions verified, committed, pushed** · Section replaced in full, not appended.
+**Updated:** 2026-08-16 · **M9 Phase 3 finalisation — full gate, decisions verified, committed, pushed** · Section replaced in full, not appended.
 
 ### 0.1 Prompt received
 
-> M9 Phase 2 Finalization. Run the complete quality gate: Pint, PHPStan (Larastan level 6), the complete PHPUnit suite, `composer audit`, `php artisan migrate:fresh --seed`. Verify AD-21, AD-23, AD-24. Verify freeze against M4, M5, M6, M7, M8. Update `ARCHITECT_REVIEW.md`, `CHANGELOG.md`, `PROJECT_STATUS.md`, `PROJECT_PROGRESS.md`. Create ONE commit — `feat(m9): Circulation DPC Phase 2` — push to origin. Do not implement Phase 3. Stop for Architect review.
+> M9 Phase 3 finalisation. Run the complete quality gate: Pint, PHPStan (Larastan level 6), the complete PHPUnit suite, `composer audit`, `php artisan migrate:fresh --seed`. Verify AD-21, AD-23, AD-24, AQ-22. Verify freeze against M4, M5, M6, M7, M8. Update `ARCHITECT_REVIEW.md`, `CHANGELOG.md`, `PROJECT_STATUS.md`, `PROJECT_PROGRESS.md`. Create one commit — `feat(m9): Circulation DPC Phase 3` — push to origin. **Do NOT close M9.** Stop for Architect review.
 
 ### 0.2 Quality gate — actual verified results
 
@@ -27,72 +27,79 @@ Phase 3 only. **M9 has not begun.**
 |---|---|---|
 | **1** | Laravel Pint | ✅ **Pass** |
 | **2** | PHPStan / Larastan level 6 | ✅ **0 errors** |
-| **3** | **Complete** PHPUnit suite | ✅ **692 passed / 2088 assertions, 0 failing** — exit 0, 197s |
+| **3** | **Complete** PHPUnit suite | ✅ **718 passed / 2178 assertions, 0 failing** — exit 0, 135s |
 | **4** | `composer audit` | ⚠️→✅ **No advisories** — second attempt; see §0.3 |
-| **5** | `php artisan migrate:fresh --seed` | ✅ **OK** — 44 migrations, **64 tables**, 10 seeders |
+| **5** | `php artisan migrate:fresh --seed` | ✅ **OK** — **45 migrations, 65 tables**, 10 seeders |
 
-**692 = 666 + 26.** The suite gained exactly Phase 2's 26 tests and lost none — Phase 2 changed no existing test's outcome. **The schema is unchanged from Phase 1** (44 migrations, 64 tables), which is the expected result: Phase 1 created the columns Phase 2 fills, so Phase 2 added no migration at all.
+**718 = 692 + 26.** The suite gained exactly Phase 3's 26 tests and lost none. **That closes the specific risk flagged before finalisation**: Phase 3 modified a shared Blade partial (`_pending-business-decision`), which is the kind of change that reaches other tests. It did not.
 
-### 0.3 TD-2 has now fired at two consecutive finalisations
+Schema **+1 migration, +1 table** — `dpc_circulation_documents`, as designed.
 
-`composer audit` again failed to reach the network on the first attempt and fell back to local cache:
+### 0.3 The audit gate has now needed a retry at three consecutive finalisations
 
-```
-curl error 28 while downloading https://repo.packagist.org/packages.json:
-Resolving timed out after 10000 milliseconds
-package information was loaded from the local cache and may be out of date
-```
+**This time the symptom differed**, so it is recorded precisely rather than filed under the same heading:
 
-It still printed *"No security vulnerability advisories found"* — **from a cache that may be stale.** The second attempt reached the network and returned clean.
+- **M9 Phase 1 finalisation** — network timeout; fell back to a possibly-stale local cache and still printed *"no advisories"*. **TD-2.**
+- **M9 Phase 2 finalisation** — the same.
+- **M9 Phase 3 finalisation (this one)** — the first invocation returned **composer's usage output** rather than a result. The second returned clean, exit 0, with no cache warning.
 
-**Recorded as "clean on the second attempt", as it was at Phase 1 finalisation.** Twice in a row changes what this is: not an intermittent annoyance but **a gate that reports a pass it did not verify**, on the one check whose whole purpose is to be current. A security question answered from a cache is the failure mode this project has already corrected three published figures for. **TD-2 should be raised in priority** — a `--no-cache` or explicit-failure mode would make the difference visible instead of silent.
+**Three for three.** Whether all three share a cause is not something I can assert, and I am not going to file the third under TD-2 to make the pattern tidier. What is assertable: **the gate whose entire purpose is to be current has needed a retry every time it has been run at a milestone boundary**, and a gate that sometimes answers from a stale cache and sometimes does not answer at all is not yet a gate anyone should rely on.
 
-### 0.4 The three decisions, verified rather than assumed
+### 0.4 The four decisions, verified rather than assumed
 
 | Decision | How it was checked | Result |
 |---|---|---|
-| **AD-21** — M8 freeze | `git diff --name-only v0.8.0-m8-phase3 -- app/Domain/Review` **plus all four view paths** the decision names | ✅ **0 files** |
-| **AD-23** — no DPC execution | Every Circulation source file, **comments stripped via `token_get_all`**, scanned for all ten forbidden classes — including `ProceedingCalculationService` and the container-bound `ReviewAwareCalculationService`. Scope now includes `app/Http/Controllers/Cgpsc`, where Phase 2 put the Commission's controller | ✅ **No violation** |
-| **AD-24** — own aggregate | No model extends `DpcProposal`; table is `dpc_circulations`; `'dpc_proposal'` appears in no circulation service | ✅ **Holds** |
+| **AD-21** — M8 freeze | `git diff --name-only v0.8.0-m8-phase3 -- app/Domain/Review` **plus all four view paths** | ✅ **0 files** |
+| **AD-23** — no DPC execution | **22** Circulation source files across `app/Domain/Circulation`, `app/Http/Controllers/Dpc` and `app/Http/Controllers/Cgpsc`, **comments stripped via `token_get_all`**, scanned for all ten forbidden classes | ✅ **No violation** |
+| **AD-24** — own aggregate | No model extends `DpcProposal`; own tables, own workflow, own document layer | ✅ **Holds** |
+| **AQ-22** — M9's own document layer | `git diff` on `DocumentType.php`, `ProceedingDocumentService.php`, M7's `Documents/` directory, and M7's `proceedings`/`promotion-list` views | ✅ **Byte-identical** |
 
-**AD-23 is also verified behaviourally, which matters more than the scan.** After a full signature the origin's calculation run, its results, the evaluation rows and the proceeding are **byte-identical**, and no calculation run is created. A dependency check proves nothing is *named*; the byte-identity test proves nothing was *done*.
+**AD-23 is also verified behaviourally**, which is the stronger check: generating documents creates **no calculation run** and leaves the pinned run byte-identical. A scan proves nothing is *named*; only that test proves nothing was *done*.
 
-### 0.5 Freeze verified per milestone, not in aggregate
+**AQ-22 is verified three ways** — by diff, by a test asserting M7's enum still holds exactly `proceedings` and `promotion_list`, and by a test asserting M9's renderer is **not** an instance of M7's contract.
+
+### 0.5 Freeze verified per milestone
 
 | Milestone | Baseline | Result |
 |---|---|---|
 | **M4** — `app/Domain/Dpc` | `v0.6.0-m6-complete` | **0 files** |
 | **M5** — `app/Domain/Eligibility` | `v0.6.0-m6-complete` | **0 files** |
 | **M6** — `app/Domain/Cgpsc` | `v0.6.0-m6-complete` | **0 files** |
-| **M7** — `app/Domain/Proceeding` | `v0.7.0-m7-complete` | **0 files** |
+| **M7** — `app/Domain/Proceeding` **and its document views** | `v0.7.0-m7-complete` | **0 files** |
 | **M8** — `app/Domain/Review` + four view paths | `v0.8.0-m8-phase3` | **0 files** |
 
-**Checked individually rather than as one combined path list**, because a combined diff reports a single number and cannot say *which* freeze held.
+**Checked individually rather than as one combined path list**, because a combined diff reports one number and cannot say which freeze held.
 
-**One migration differs from the M8 tag, and it is not a breach.** It is **M9 Phase 1's own** `2026_08_16_300001_create_circulation_tables.php`, added after the tag and committed in `a716dcf`. **No M4–M8 migration changed.** Worth stating explicitly: the naive count reads `1` and means nothing of the sort.
+**M7 was checked more widely than usual this phase**, and deliberately: Phase 3 is the milestone most likely to have reached into M7's document layer, so `resources/views/documents/{proceedings,promotion-list,_header,_footer,_styles}.blade.php` were diffed as well as `app/Domain/Proceeding`. All unchanged.
 
-### 0.6 What Phase 2 delivered
+The migrations differing from the M8 tag are **M9's own two** — Phase 1's and Phase 3's. **No M4–M8 migration changed.**
 
-Recorded in full in the CHANGELOG; the four things that decide whether it was built correctly:
+### 0.6 What Phase 3 delivered
 
-- **The signature is the operative act (AQ-17).** A decision alone releases nothing; a note consented but never signed leaves every promotion reserved; signing releases only what was consented to. Four tests.
-- **S48's before-and-after is one stored result rendered twice**, from the run the proceeding **pinned at approval** rather than "latest", with `CIR` derived from hold state. Never recalculated.
-- **Only the Member who conducted the origin DPC may act (AQ-20)** — the Chairman is not exempt, and both refusals are tested.
-- **Two decisions, not three.** Consent and return. No refusal was invented (**BD-12**), and a test asserts the enum has exactly two cases so a third cannot arrive quietly.
+All twelve scope items; the four that decide whether it was built correctly:
 
-**And one thing that did *not* happen: TD-20 did not become a fourth copy.** The workflow engine already reaches named user ids alongside department roles, and already carries the transition's remark into the message — so the Commission is notified by naming the origin's allottee, and the signed message names the officers released, with no listener of its own.
+- **§23.1 to the letter.** Publication refused; the refusal's title **is** the literal string `Pending Business Decision (BD-14)`, asserted with `assertSame` and asserted to reach the screen; no effective date invented; **rendering, signing, storage and verification all work with BD-14 open** — the load-bearing test, because a guard that also blocked generation would satisfy "refuse" and ship an untested pipeline.
+- **M9's own document layer (AQ-22)** — enum, status enum, table, renderer contract, HTML renderer, service, controller, views. M7's untouched.
+- **The full pipeline works**: render → store → SHA-256 → sign → verify, with download, verification, and version history where regenerating never overwrites.
+- **BD-14 as configuration, not a constant** (AD-3). Two tests show the far side: set `dpc.circulation.effective_date_basis`, and publication succeeds and the note states the basis. **CGPSC's answer will be applied with no code change.**
 
-### 0.7 Prohibitions honoured
+**Two real defects were found by the tests during the phase**, both in code written this phase and both mine: an immutability guard that left `content_hash` editable on a signed document, and authorisation gated on `sign` — true only while the note is `consented` — which made every document action unreachable the moment it became legitimate.
 
-**Phase 3 was not implemented.** No document is rendered, stored, hashed, signed as a form, or published; `dpc_circulation_documents` does not exist, and a test asserts that. **No architecture was revisited** — nothing was added to or amended in `ARCHITECTURE_DECISIONS.md`. **Only issues discovered by the gate were fixed, and the gate discovered none** — the two defects fixed during Phase 2 (a `static` closure that reached for an uncaptured variable, and a test asserting on an officer the fixture never creates) were found and fixed before this prompt.
+### 0.7 M9 is NOT closed
+
+**Instructed, and correct.** M9's **engineering** is complete across all three phases. **Closure is pending BD-14**, exactly as M8's is pending BD-11.
+
+**What that costs today, stated plainly:** the circulation note and revised promotion list are generated, signed, hashed and verifiable, and **they cannot reach the department**. The system is right to block them — publishing a promotion document whose effective date nobody has ruled is worse than not publishing it — but the block is not free, and the officers whose promotions were released by a signed note have no document to show for it.
+
+**No tag was created.** M9 is not closed, so there is no milestone boundary to tag.
 
 ### 0.8 Current git status
 
 | | |
 |---|---|
-| **Commit** | `feat(m9): Circulation DPC Phase 2` |
+| **Commit** | `feat(m9): Circulation DPC Phase 3` |
 | **Branch** | `feature/m0-setup` → pushed to `origin/feature/m0-setup` |
-| **Tags** | `v0.6.0-m6-complete`, `v0.7.0-m7-complete`, `v0.8.0-m8-phase3` — **unmoved**. **No M9 tag**: a phase is not a milestone boundary |
+| **Tags** | `v0.6.0-m6-complete`, `v0.7.0-m7-complete`, `v0.8.0-m8-phase3` — **unmoved. No M9 tag** |
 | **Working tree** | Clean, apart from this file recording its own commit |
 | **Frozen milestones** | **Untouched** — five diffs, all empty |
 
@@ -102,47 +109,46 @@ Recorded in full in the CHANGELOG; the four things that decide whether it was bu
 
 | # | Question | Severity | Status |
 |---|---|---|---|
-| **BD-12** | What if the supplied record is **adverse**? | **P1** | **Live since Phase 2.** There is no refusal path by design. An adverse record can only be returned for evidence, and the promotion stays reserved |
-| **BD-15** | May a **CR-ground** hold be routed to a Review? | **P1** | Live since Phase 1. Those officers still have no route to resolution |
-| **BD-14** | From what date does a **circulated promotion** take effect? | **P1** | **Blocks Phase 3** — the note cannot state an effective date nobody has ruled |
-| **BD-13** | Time limit on a held promotion? | P2 | Blocks nothing. Now with **three** causes feeding it: BD-15, BD-12, and AQ-20's missing substitute |
-| **BD-11** | Supersession and an officer already promoted | P1 | Deferred. Inherited unchanged |
-| **BD-2 / BD-3 / BD-9 / BD-10** | Reserved relaxation; waiting-list; court case | P1/P2 | Open, inherited through the origin's result |
+| **BD-14** | From what date does a circulated promotion take effect? | **P1** | **The only thing between M9 and closure.** Documents generate, sign and verify; publication alone is blocked. **Holding signed, verifiable documents out of departments' hands today** |
+| **BD-15** | May a CR-ground hold be routed to a Review? | **P1** | Live since Phase 1; those officers have no route to resolution |
+| **BD-12** | What if the supplied record is adverse? | P1 | Live since Phase 2; no refusal path exists |
+| **BD-13** | Time limit on a held promotion? | P2 | Three causes feed it |
+| **BD-11** | Supersession and an officer already promoted | P1 | Deferred; **M8's closure is pending it, exactly as M9's is pending BD-14** |
+| **BD-2 / BD-3 / BD-9 / BD-10** | Reserved relaxation; waiting-list; court case | P1/P2 | Inherited through the origin's result |
+
+**Two milestones are now built and unclosed for business reasons only.** That is the pattern to watch: the engineering keeps finishing ahead of the rulings, and each unclosed milestone carries real cases.
 
 ### 0.10 Technical debt
 
 | # | Status after this phase |
 |---|---|
-| **TD-2** | **Fired at two consecutive finalisations** (§0.3). Now a gate-reliability problem, not an annoyance. **Raise its priority** |
-| **TD-24** | **Still open.** Phase 2 added no schema so it did not bite — **but Phase 3 adds `dpc_circulation_documents`**, and the last time a milestone added a table on an unclosed TD-24 the table never existed in the real database |
-| **TD-20** | **Unchanged at three copies, and M9 is no longer the reason** to extract it (§0.6). Still worth doing |
-| **TD-19 / TD-21 / TD-22** | Untouched by construction — M9 creates no proposal row and never invokes the engine |
-| **TD-23** | Not repeated. M9's tests drive the real path throughout |
+| **TD-2** | **Three consecutive finalisations have needed a retry on `composer audit`** (§0.3). It should be made to fail loudly rather than answer from cache — and the third symptom differed, so the cause may not be one thing |
+| **TD-24** | **Still open.** Phase 3 added the table the last review warned about; its three foreign-key names were checked against 64 characters **by hand**, which is exactly what step 1 would automate. Longest: `fk_dpc_circ_doc_generated_by` (28) |
+| **TD-20** | Unchanged at three copies. Phase 3 added no listener |
+| **TD-19 / TD-21 / TD-22 / TD-23** | Unchanged |
 
 ### 0.11 Warnings
 
-1. **P1 — TD-24 must be closed before Phase 3.** Phase 3 adds a document table with foreign keys, which is precisely the shape that shipped a P0 in M8 while 83 SQLite tests stayed green. It needs no Freeze Exception.
-2. **P1 — BD-14 blocks Phase 3's substance**, not its polish. The prescribed form has to state from what date a circulated promotion takes effect, and retrospective seniority reaches every officer below.
-3. **P1 — AQ-20 has an unruled operational consequence.** Only the Member who conducted the origin DPC may act. **If that Member has retired or left, nobody can sign the circulation**, and no delegation rule exists. The same shape as AD-22's missing Architect delegate. Raised, not invented.
-4. **P2 — TD-2 is now a pattern.** Two finalisations, two silent cache fallbacks on a security gate.
-5. **P2 — BD-12 is live and has no workaround.** An adverse record can only be returned, so the promotion stays reserved indefinitely.
-6. **P2 — BD-9 still fails silently**, and M9 inherits the origin's result wholesale.
+1. **P1 — BD-14 is the only thing between M9 and closure**, and it is holding signed, verifiable documents out of departments' hands. **It should go to CGPSC first** of the four open business questions.
+2. **P1 — `composer audit` has needed a retry three times out of three.** A security gate that answers from a stale cache, or does not answer at all, is not yet dependable. TD-2's priority should rise and its scope be re-examined.
+3. **P2 — AQ-20's deadlock now reaches further.** If the origin DPC's allottee has left the Commission, nobody can sign the note **or** produce its documents. Still unruled.
+4. **P2 — TD-24 step 1 would have automated a manual check Phase 3 just performed by hand.** Minutes of work.
+5. **P2 — the immutability narrowing means a failed generation cannot be retried in place** — a retry produces a new version. I believe that is correct; it is worth confirming in review.
+6. **P2 — BD-9 still fails silently**, and M9's revised promotion list reproduces the origin's result wholesale.
 
 ### 0.12 Exact next recommended prompt
 
 Copy-paste, verbatim:
 
-> Close **TD-24** before Phase 3: run the test suite against MySQL rather than in-memory SQLite. No Freeze Exception is required — a CI and configuration change touching no production code inside a frozen boundary. Then raise **TD-2**'s priority and make `composer audit` fail loudly rather than falling back to a stale cache.
+> Put **BD-14** to CGPSC through `docs/UAT_BUSINESS_VALIDATION.md` in plain language with a worked example: a circulated promotion resolved in 2026 against a DPC whose promotion-as-on year is 2017 — does it take effect retrospectively or from the Commission's consent, and what does that do to officers promoted in between? **It is the only thing between M9 and closure.** Raise **BD-15**, **BD-12** and **BD-13** alongside it.
 
-Then, before Phase 3:
+Then, independently:
 
-> Rule on **AQ-22** — does M9 get its own document type, or does M7's frozen `DocumentType` enum open for a `circulation_note` case? If the latter, it is a single-change Freeze Exception under AD-22 and must be recorded as one.
+> Rule who may act on a circulation when the **origin DPC's allottee has left the Commission** — it now blocks signing *and* document production. Consider a standing rule about absent named actors, the same gap AD-22 §0.4 left open for the Architect. Record as an AD.
 
-> Rule on whether the **origin DPC's allottee may be substituted** when they have left the Commission. Today nobody else can sign a circulation, and no delegation rule exists.
+> Raise **TD-2**'s priority and make `composer audit` fail loudly rather than answering from a stale cache — it has needed a retry at three consecutive finalisations. Then take **TD-24 step 1**: a test asserting every foreign-key and index name is within MySQL's 64-character limit.
 
-> Put **BD-14**, **BD-12**, **BD-15** and **BD-13** to CGPSC through `docs/UAT_BUSINESS_VALIDATION.md`, in plain language with a worked example each. **BD-14 blocks Phase 3; BD-15 and BD-12 are holding real cases.**
-
-**M9 Phase 3 has not begun and does not begin without approval.** Phase 2 signs a plain-text statement of what was consented to; the prescribed form — rendered, hashed, published, with the revised promotion list — is Phase 3.
+**M9 is not closed.** Its engineering is complete; closure is pending BD-14.
 
 <!-- CURRENT SESSION — END. Historical architect review follows; preserve verbatim. -->
 

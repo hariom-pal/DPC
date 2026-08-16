@@ -22,9 +22,14 @@
         <p class="mb-1 small text-uppercase fw-semibold">Officers affected</p>
         <ul class="mb-2">
             @foreach ($pending['affected'] as $officer)
+                {{-- The panel is shared across business decisions, and their
+                     payloads differ: BD-15 names a hold ground, BD-14 names a
+                     release date. Neither is assumed. --}}
                 <li>
                     SN {{ $officer['sn'] }} — {{ $officer['officer_name'] }}
-                    <span class="text-body-secondary">({{ $officer['reason'] }})</span>
+                    @if (! empty($officer['reason']))
+                        <span class="text-body-secondary">({{ $officer['reason'] }})</span>
+                    @endif
                 </li>
             @endforeach
         </ul>

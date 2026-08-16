@@ -454,6 +454,42 @@ return [
     |
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | Circulation DPC (PPT S45–S48, C3/C7 — M9)
+    |--------------------------------------------------------------------------
+    |
+    | Its own block, because a Circulation is its own aggregate (AD-24) and
+    | shares no configuration with the proceeding.
+    |
+    */
+
+    'circulation' => [
+
+        'documents' => [
+            'disk' => env('DPC_CIRCULATION_DISK', 'local'),
+            'generator_version' => env('DPC_CIRCULATION_GENERATOR_VERSION', 'circ-html-v1'),
+        ],
+
+        /*
+        | BD-14 — from what date does a circulated promotion take effect?
+        |
+        | **null means unresolved**, and while it is null the documents are
+        | generated, stored, hashed, signed and verifiable but **publication is
+        | refused** with "Pending Business Decision (BD-14)" (design §23.1).
+        |
+        | Expressed as configuration rather than as a constant because business
+        | rules live in configuration (AD-3): when CGPSC rules, the answer is
+        | applied by setting this value — no code change, no redeploy of
+        | business logic, and the ruling is auditable as a configuration change.
+        |
+        | Permitted values once ruled: `origin_dpc_year` (retrospective to the
+        | DPC's promotion-as-on year) or `consent_date` (from the Commission's
+        | consent). **Nothing here guesses which**, and no default is supplied.
+        */
+        'effective_date_basis' => env('DPC_CIRCULATION_EFFECTIVE_DATE_BASIS'),
+    ],
+
     'application' => [
         'version' => env('APP_VERSION', '0.0.0-dev'),
         'git_commit' => env('APP_GIT_COMMIT', 'unknown'),

@@ -126,4 +126,21 @@ class DpcCirculationPolicy
     {
         return $this->consent($user, $circulation);
     }
+
+    /**
+     * Generating, publishing and managing the circulation's documents —
+     * M9 Phase 3.
+     *
+     * **A separate ability from `sign`, and it has to be.** `sign` is only
+     * true while the note is `consented`; documents are produced *after* it is
+     * signed. Reusing `sign` would have made every document action
+     * unreachable the moment the note was signed — which is exactly when they
+     * become possible.
+     */
+    public function manageDocuments(User $user, DpcCirculation $circulation): bool
+    {
+        return $user->is_active
+            && $user->hasAnyRole([Role::Chairman->value, Role::Member->value])
+            && $circulation->status === CirculationStatus::Signed;
+    }
 }

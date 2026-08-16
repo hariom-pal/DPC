@@ -2,6 +2,34 @@
 
 All notable work on the ODPC Portal, in reverse chronological order. Business-rule changes are traceable to `docs/ODPC_NEW_FINAL.pptx` / `docs/CONVENTIONAL DPC PROCESS.pptx` slide numbers where applicable. This file, `docs/PROJECT_STATUS.md`, `docs/PROJECT_PROGRESS.md`, and `docs/ARCHITECT_REVIEW.md` are the only documents updated on an ongoing basis (see `docs/ARCHITECT_REVIEW.md` for the full documentation policy).
 
+## 2026-08-16 — M9 Phase 3: the prescribed form, and publication refused on BD-14
+
+Third slice of M9 (PPT S45, S48; C3/C7). One additive table. **No file in M4, M5, M6, M7 or M8 was modified** — and specifically **M7's `DocumentType`, `ProceedingDocumentService`, renderer and document views are untouched**, verified by diff.
+
+- **M9 owns its document layer, per the AQ-22 ruling.** Its own `CirculationDocumentType` (`circulation_note`, `revised_promotion_list`), its own `CirculationDocumentStatus`, its own `dpc_circulation_documents` table, and its own `CirculationDocumentRenderer` contract with an HTML implementation bound in the container. **The enum was the least of the coupling:** every M7 entry point — `generate()`, `publish()`, `render()` — is hard-typed to `DpcProceeding`, and a Circulation has none (AD-24). Reuse would have meant filing the note among the *original DPC's* documents, or a **fifth decorator** in a container graph that has already cycled once.
+
+- **What is reused is `SignatureService` and the pattern, never M7's classes.** `sign(User, Model $signable, …)` accepts any model — Phases 1 and 2 already sign a `DpcCirculation` through it. The duplication AQ-22 accepts is mitigated by **asserting the same properties M7 asserts**: stored bytes never rewritten, SHA-256 over stored bytes, `verify()` against the stored artefact, published documents downloadable.
+
+- **§23.1 implemented exactly.** While BD-14 is unresolved: publication is **refused**, the refusal displays **"Pending Business Decision (BD-14)"** verbatim, **no effective date is invented**, and **rendering, signing, storage and verification all work completely**. The last clause has its own test, because a guard that also disabled generation would satisfy "refuse" and defeat the ruling.
+
+- **The note states two facts and asserts neither as governing:** the origin DPC's `promotion_as_on_year`, captured at approval and never derived (AQ-7), and the date the reservation was released. Which governs seniority and pay is BD-14 — a service-law consequence the Commission states, not a field the renderer computes. A test asserts the phrase *"asserts neither as the effective date"* appears and that no effective-date basis is printed.
+
+- **BD-14 is expressed as configuration, not as a constant** (AD-3): `dpc.circulation.effective_date_basis` is null until CGPSC rules. Two tests show the other side — set it, and publication succeeds and the note states the basis. **The ruling will be applied by configuration, with no code change and no redeploy of business logic.**
+
+- **The revised promotion list is the stored result with `CIR` cleared for released officers only.** US9, held on a different ground and not on the note, keeps theirs. Generating documents creates no calculation run and leaves the pinned run byte-identical (AD-23).
+
+- **Two real defects found by the tests, both in code written this phase.** The document **immutability guard was too permissive**: the columns generation writes stayed writable forever, so `content_hash` was editable on a signed document — precisely the guarantee the guard exists to provide. It now **narrows once the document is generated** to `published_at` alone. And **authorisation used the `sign` ability**, which is only true while the note is `consented` — making every document action unreachable the moment the note was signed, which is exactly when they become possible. A separate `manageDocuments` ability replaces it.
+
+- **A Phase 2 guard fired as designed.** `test_phase_3_is_not_present` asserted `dpc_circulation_documents` did not exist; Phase 3 created it. Rewritten to assert what is now true *and* to keep Phase 2's real claim: signing alone produces no document.
+
+- **26 new tests / 89 assertions**; **98 passed / 276 assertions** across M9; and the **full suite re-run at finalisation: 718 passed / 2178 assertions** (692 before, **+26**). Pint clean, PHPStan (Larastan level 6) 0 errors, `migrate:fresh --seed` OK — **45 migrations, 65 tables, 10 seeders**. `composer audit` clean **on the second attempt**: the first invocation returned composer's usage output rather than a result. **Three consecutive finalisations have now needed a retry on this gate** — the two before it were network timeouts falling back to a stale cache (**TD-2**); this symptom differed, and both are recorded rather than smoothed over.
+
+- **All four governing decisions verified, not assumed.** **AD-21**: the M8 diff, including all four view paths, is empty. **AD-23**: a comment-stripped scan of **22** Circulation source files across three controller roots finds no forbidden service reachable. **AD-24**: no model extends `DpcProposal`. **AQ-22**: `DocumentType`, `ProceedingDocumentService`, M7's `Documents/` directory and M7's document views are **byte-identical**.
+
+- **Freeze verified per milestone:** M4, M5, M6 (`v0.6.0-m6-complete`), M7 (`v0.7.0-m7-complete`) and M8 (`v0.8.0-m8-phase3`) — **every diff empty**. The migrations differing from the M8 tag are **M9's own two**, added after it.
+
+**Phase 3 completes M9's engineering. Publication remains blocked until CGPSC answers BD-14.**
+
 ## 2026-08-16 — M9 Phase 2: the Commission's consent, and hold release at signature
 
 Second slice of M9 (PPT S46, S48). **No migration** — Phase 1 created the columns Phase 2 fills, which is what the design predicted. **No file in M4, M5, M6, M7 or M8 was modified**; all five freeze diffs empty.

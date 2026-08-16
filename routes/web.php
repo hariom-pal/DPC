@@ -26,6 +26,7 @@ use App\Http\Controllers\Auth\RegistrationController;
 use App\Http\Controllers\Auth\VerificationController;
 use App\Http\Controllers\Cgpsc\AllotmentController;
 use App\Http\Controllers\Cgpsc\CirculationConsentController;
+use App\Http\Controllers\Cgpsc\CirculationDocumentController;
 use App\Http\Controllers\Cgpsc\ProceedingController;
 use App\Http\Controllers\Cgpsc\ProceedingCorrectionController;
 use App\Http\Controllers\Cgpsc\ProceedingDocumentController;
@@ -233,6 +234,15 @@ Route::middleware('auth')->group(function (): void {
                 Route::post('/circulations/{dpcCirculation}/consent', [CirculationConsentController::class, 'consent'])->name('circulations.consent');
                 Route::post('/circulations/{dpcCirculation}/sign', [CirculationConsentController::class, 'sign'])->name('circulations.sign');
                 Route::post('/circulations/{dpcCirculation}/return', [CirculationConsentController::class, 'returnToDepartment'])->name('circulations.return');
+
+                // Circulation documents (M9 Phase 3, PPT S45/S48). Publication
+                // is refused while BD-14 is unresolved (design §23.1); the
+                // documents are still generated, signed and verifiable.
+                Route::get('/circulations/{dpcCirculation}/documents', [CirculationDocumentController::class, 'index'])->name('circulations.documents.index');
+                Route::post('/circulations/{dpcCirculation}/documents', [CirculationDocumentController::class, 'store'])->name('circulations.documents.store');
+                Route::post('/circulations/{dpcCirculation}/documents/publish', [CirculationDocumentController::class, 'publish'])->name('circulations.documents.publish');
+                Route::get('/circulations/{dpcCirculation}/documents/{document}', [CirculationDocumentController::class, 'download'])->name('circulations.documents.download');
+                Route::post('/circulations/{dpcCirculation}/documents/{document}/verify', [CirculationDocumentController::class, 'verify'])->name('circulations.documents.verify');
 
                 Route::get('/proceedings/{proceeding}/documents', [ProceedingDocumentController::class, 'index'])->name('proceedings.documents.index');
                 Route::post('/proceedings/{proceeding}/documents', [ProceedingDocumentController::class, 'store'])->name('proceedings.documents.store');

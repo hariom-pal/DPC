@@ -11,6 +11,8 @@ use App\Domain\Authentication\Listeners\SendOtpNotification;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Cgpsc\Models\DpcAllotment;
 use App\Domain\Cgpsc\Policies\DpcAllotmentPolicy;
+use App\Domain\Circulation\Documents\CirculationDocumentRenderer;
+use App\Domain\Circulation\Documents\HtmlCirculationDocumentRenderer;
 use App\Domain\Circulation\Models\DpcCirculation;
 use App\Domain\Circulation\Policies\DpcCirculationPolicy;
 use App\Domain\Dpc\Models\DpcProposal;
@@ -86,6 +88,13 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(ResultApprovalService::class, ReviewAwareApprovalService::class);
         $this->app->bind(ProceedingDocumentService::class, ReviewAwareDocumentService::class);
         $this->app->bind(DocumentRenderer::class, ReviewAwareDocumentRenderer::class);
+
+        // M9 Phase 3. **M9's own renderer, by architect ruling (AQ-22)** —
+        // M7's `DocumentRenderer` is hard-typed to `DpcProceeding` and is
+        // neither implemented nor decorated here. Bound to the contract so a
+        // PDF renderer can replace the HTML one later without touching the
+        // pipeline (AQ-3's reasoning, applied to M9).
+        $this->app->bind(CirculationDocumentRenderer::class, HtmlCirculationDocumentRenderer::class);
 
         $this->app->bind(SmsSender::class, function (): SmsSender {
             // No real gateway has been contracted yet; the flag exists so
