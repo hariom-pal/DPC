@@ -5,14 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'Admin') — {{ __('messages.app_name') }}</title>
+    <link rel="icon" href="{{ asset('favicon.ico') }}">
+    <meta name="theme-color" content="#0b4f9e">
     <link rel="stylesheet" href="{{ asset('vendor/bootstrap/css/bootstrap.min.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/portal.css') }}">
     @stack('styles')
 </head>
-<body class="bg-body-tertiary">
-    <nav class="navbar navbar-dark shadow-sm" style="background-color:#0b3d2e;">
+<body>
+    <nav class="app-shell-header navbar navbar-dark shadow-sm sticky-header">
         <div class="container-fluid">
-            <a class="navbar-brand fw-semibold" href="{{ route('admin.dashboard') }}">
-                {{ __('messages.app_name') }} — Admin
+            <a class="navbar-brand fw-semibold d-flex align-items-center gap-2" href="{{ route('admin.dashboard') }}">
+                <img src="{{ asset('images/logo/cgpsc-logo.svg') }}" alt=""
+                     style="height:32px" class="bg-white rounded-circle p-1">
+                <span>e-DPC Portal — Administration</span>
             </a>
             <div class="d-flex align-items-center gap-2">
                 <span class="text-white small d-none d-md-inline">{{ auth()->user()->name }}</span>
@@ -68,6 +73,7 @@
     </div>
 
     <script src="{{ asset('vendor/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
+    <script src="{{ asset('js/portal.js') }}" defer></script>
     @stack('scripts')
 </body>
 </html>

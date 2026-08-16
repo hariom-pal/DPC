@@ -1,14 +1,33 @@
-@extends('layouts.app')
+@extends('layouts.portal')
 
-@section('title', 'Department Registration — ' . __('messages.app_name'))
+@section('title', 'Department Registration — e-DPC Portal')
 
 @section('content')
+    <div class="py-5" style="background:linear-gradient(180deg,#eef4fb 0%,var(--gov-surface) 55%)">
+    <div class="container py-lg-3">
     <div class="row justify-content-center">
         <div class="col-lg-9">
-            <div class="card border-0 shadow-sm">
-                <div class="card-body p-4">
-                    <h1 class="h4 mb-1 text-center">Registration of Department</h1>
-                    <p class="text-center text-muted">विभाग का पंजीयन</p>
+
+            <div class="text-center mb-4">
+                <img src="{{ asset('images/logo/cgpsc-logo.svg') }}" alt="" style="height:56px" class="mb-3">
+                <h1 class="h4 mb-1">Registration of Department</h1>
+                <p class="text-body-secondary mb-0">विभाग का पंजीयन</p>
+            </div>
+
+            {{-- What happens next, said before the form rather than after it:
+                 a registrant who does not know the Commission must approve
+                 will assume the portal is broken when nothing happens. --}}
+            <div class="alert alert-info d-flex gap-2 align-items-start mb-4">
+                @include('partials.icon', ['name' => 'flow-check', 'size' => 20])
+                <div class="small">
+                    <strong class="d-block mb-1">What happens after you submit</strong>
+                    Your details are verified by e-mail and mobile OTP. The Commission then approves the
+                    registration and issues credentials to the Authorized Officer and the Administrative Head.
+                </div>
+            </div>
+
+            <div class="gov-card">
+                <div class="card-body p-4 p-lg-5">
 
                     @include('partials.alerts')
 
@@ -107,10 +126,12 @@
                             </div>
                         </div>
 
-                        <button type="submit" class="btn btn-success">Register / पंजीकृत करें</button>
+                        <button type="submit" class="btn btn-primary btn-lg px-4">Register / पंजीकृत करें</button>
                     </form>
                 </div>
             </div>
         </div>
+    </div>
+    </div>
     </div>
 @endsection

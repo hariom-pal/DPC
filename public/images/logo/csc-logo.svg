@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  PLACEHOLDER — not the official CSC e-Governance Services India Limited logo.
+
+  Neutral by design, for the same reason as the CGPSC placeholder: an
+  approximated corporate mark is worse than an obvious placeholder.
+
+  Replace with the latest official CSC asset, keeping the filename and roughly
+  a 5:2 aspect ratio.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 250 100" width="250" height="100" role="img" aria-label="CSC e-Governance Services India Limited logo placeholder">
+  <rect x="1.5" y="1.5" width="247" height="97" rx="12" fill="#ffffff" stroke="#dde5ee" stroke-width="3"/>
+  <rect x="16" y="26" width="52" height="48" rx="10" fill="#0b4f9e"/>
+  <text x="42" y="58" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif"
+        font-size="21" font-weight="700" fill="#ffffff">CSC</text>
+  <text x="80" y="45" font-family="Segoe UI, Arial, sans-serif" font-size="15"
+        font-weight="600" fill="#1b2733">e-Governance Services</text>
+  <text x="80" y="63" font-family="Segoe UI, Arial, sans-serif" font-size="12"
+        fill="#5b6b7c">India Limited</text>
+  <text x="80" y="79" font-family="Segoe UI, Arial, sans-serif" font-size="8"
+        fill="#8a99a8" letter-spacing="1.2">PLACEHOLDER</text>
+</svg>

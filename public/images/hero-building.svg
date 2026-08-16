@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Generic secretariat-style illustration for the hero panel.
+
+  Drawn rather than photographed: the project has no licensed photography, and
+  an unlicensed government building photograph on a government portal is a
+  problem nobody wants to discover later. Replace with an official photograph
+  if CGPSC supplies one — keep the filename and the 8:5 aspect ratio.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" width="800" height="500" role="img" aria-label="Illustration of a government secretariat building">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0b4f9e"/>
+      <stop offset="100%" stop-color="#1a6fc4"/>
+    </linearGradient>
+    <linearGradient id="stone" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity=".97"/>
+      <stop offset="100%" stop-color="#e3ecf7" stop-opacity=".92"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="800" height="500" fill="url(#sky)"/>
+  <circle cx="640" cy="110" r="140" fill="#ffffff" opacity=".07"/>
+  <circle cx="150" cy="80" r="90" fill="#ffffff" opacity=".05"/>
+
+  <!-- dome -->
+  <path d="M400 118 C346 118 314 158 314 196 L486 196 C486 158 454 118 400 118 Z" fill="url(#stone)"/>
+  <rect x="392" y="92" width="16" height="30" rx="4" fill="url(#stone)"/>
+  <circle cx="400" cy="88" r="10" fill="#f2a900"/>
+  <rect x="300" y="196" width="200" height="16" rx="4" fill="url(#stone)"/>
+
+  <!-- portico -->
+  <rect x="292" y="212" width="216" height="14" rx="3" fill="url(#stone)"/>
+  <g fill="url(#stone)">
+    <rect x="308" y="226" width="22" height="140" rx="4"/>
+    <rect x="352" y="226" width="22" height="140" rx="4"/>
+    <rect x="396" y="226" width="22" height="140" rx="4"/>
+    <rect x="440" y="226" width="22" height="140" rx="4"/>
+    <rect x="470" y="226" width="22" height="140" rx="4"/>
+  </g>
+
+  <!-- wings -->
+  <rect x="150" y="250" width="150" height="116" rx="6" fill="url(#stone)" opacity=".95"/>
+  <rect x="500" y="250" width="150" height="116" rx="6" fill="url(#stone)" opacity=".95"/>
+  <g fill="#0b4f9e" opacity=".22">
+    <rect x="170" y="272" width="24" height="34" rx="3"/><rect x="206" y="272" width="24" height="34" rx="3"/>
+    <rect x="242" y="272" width="24" height="34" rx="3"/><rect x="170" y="318" width="24" height="34" rx="3"/>
+    <rect x="206" y="318" width="24" height="34" rx="3"/><rect x="242" y="318" width="24" height="34" rx="3"/>
+    <rect x="520" y="272" width="24" height="34" rx="3"/><rect x="556" y="272" width="24" height="34" rx="3"/>
+    <rect x="592" y="272" width="24" height="34" rx="3"/><rect x="520" y="318" width="24" height="34" rx="3"/>
+    <rect x="556" y="318" width="24" height="34" rx="3"/><rect x="592" y="318" width="24" height="34" rx="3"/>
+  </g>
+
+  <!-- plinth & steps -->
+  <rect x="120" y="366" width="560" height="20" rx="4" fill="url(#stone)"/>
+  <rect x="150" y="386" width="500" height="14" rx="3" fill="#ffffff" opacity=".72"/>
+  <rect x="180" y="400" width="440" height="14" rx="3" fill="#ffffff" opacity=".58"/>
+  <rect x="210" y="414" width="380" height="14" rx="3" fill="#ffffff" opacity=".44"/>
+
+  <!-- flag -->
+  <rect x="676" y="176" width="4" height="190" fill="#ffffff" opacity=".85"/>
+  <path d="M680 182 L742 196 L680 210 Z" fill="#ff671f"/>
+  <path d="M680 210 L742 224 L680 238 Z" fill="#046a38"/>
+
+  <rect y="440" width="800" height="60" fill="#ffffff" opacity=".07"/>
+</svg>

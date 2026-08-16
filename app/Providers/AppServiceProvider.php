@@ -34,6 +34,7 @@ use App\Domain\Review\Services\ReviewAwareDocumentService;
 use App\Domain\Shared\Events\WorkflowTransitioned;
 use App\Domain\Shared\Listeners\SendWorkflowNotification;
 use App\Enums\Feature;
+use App\Http\View\Composers\PortalStatisticsComposer;
 use App\Http\View\Composers\ReviewDpcComposer;
 use App\Integrations\Contracts\DirectoryProvider;
 use App\Integrations\Contracts\HrmsProvider;
@@ -157,6 +158,11 @@ class AppServiceProvider extends ServiceProvider
         // Architect Directive 3 (M8): the Review banner reaches M4's frozen
         // proposal screens from the layout rather than by editing each one.
         View::composer('layouts.app', ReviewDpcComposer::class);
+
+        // Live counts for the public landing page. Presentation wiring only —
+        // no business logic, no policy, and guarded so a database or cache
+        // failure can never take down the front door.
+        View::composer('welcome', PortalStatisticsComposer::class);
 
         $this->configureRateLimiting();
     }

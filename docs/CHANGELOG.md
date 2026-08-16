@@ -2,6 +2,30 @@
 
 All notable work on the ODPC Portal, in reverse chronological order. Business-rule changes are traceable to `docs/ODPC_NEW_FINAL.pptx` / `docs/CONVENTIONAL DPC PROCESS.pptx` slide numbers where applicable. This file, `docs/PROJECT_STATUS.md`, `docs/PROJECT_PROGRESS.md`, and `docs/ARCHITECT_REVIEW.md` are the only documents updated on an ongoing basis (see `docs/ARCHITECT_REVIEW.md` for the full documentation policy).
 
+## 2026-08-16 — Demo readiness: public home page and presentation improvements
+
+**Presentation only. No business logic, no route, no controller, no service, no policy, no permission, no workflow, no database change, no milestone work.** The full suite stays at **718 passed / 2178 assertions** — unchanged, which is the check that matters for a change of this kind.
+
+- **A new public landing page** at `/`, built as a government portal rather than a placeholder: sticky utility bar and masthead, primary navigation, hero with feature badges, quick actions, About, a ten-stage process flow, system features, six role cards with purpose and responsibilities, live statistics, notice board, user manual and contact panels, an FAQ, and a full footer. Its own `layouts/portal.blade.php`, so the authenticated shell stays separate.
+
+- **The statistics are real, not illustrative.** Six live counts through a view composer — the same presentation-wiring pattern the Review banner already uses, since the `/` route is a closure and could not be changed. **Every read is guarded**: a missing table, an unavailable database or cache degrades to zero rather than a 500. The home page is the first thing anyone sees, and it failing because a `COUNT(*)` failed would be the worst possible first impression. Final values render server-side, so the figures are correct with JavaScript disabled and the counter merely animates to where it already is.
+
+- **Logos are honest placeholders, not approximations.** `public/images/logo/{cgpsc-logo,csc-logo}.svg` are neutral marks that nobody will mistake for the real thing, with a README stating what to replace them with and the aspect ratios. **Reproducing an official emblem or a corporate mark from memory would produce something that looks authentic and is wrong** — on a government portal that is worse than an obvious placeholder, and a placeholder is impossible to forget to replace. The hero is a drawn SVG for the same reason: no licensed photography exists, and an unlicensed government building photograph is a problem nobody wants to discover later.
+
+- **A design system in `public/css/portal.css`** — blue/white government palette, typography scale, soft shadows, rounded cards, glass panels only where content sits on the hero gradient. Applied to tables, forms, alerts, badges, buttons, empty states and loading indicators. **No CDN, no web font, no build step**: the portal must render completely on a machine with no internet access, and the project has no Node toolchain by decision.
+
+- **Accessibility, because a government portal is assessed on it:** skip-to-content link, a working A- / A / A+ font-size control that persists, visible keyboard focus, `aria-labelledby` on every section, alt text on every image, and `prefers-reduced-motion` respected. There is no flashy motion to begin with.
+
+- **Icons are inline SVG** (`partials/icon.blade.php`), not an icon font or a sprite CDN. An icon that silently fails to load is worse than no icon.
+
+- **Six error pages** (403, 404, 419, 429, 500, 503) that explain what happened and what to do — including the reassurance that a failed action saved nothing partly, which is true and is what a user actually wants to know.
+
+- **Login, registration and dashboard reworked** for presentation only: every field name, route, validation binding and role check is untouched. Registration gained a "what happens next" notice before the form, because a registrant who does not know the Commission must approve will assume the portal is broken when nothing happens. The dashboard now shows role-appropriate workspace tiles and a real empty state.
+
+- **`docs/DEMO_GUIDE.md`** — a non-technical presenter's guide: what the system solves, each role's actual powers (including what Super Admin **cannot** do), Review and Circulation explained in plain language, a **16-step screen-by-screen demo script** with what to click and what to say, expected questions with concise business answers, things to avoid saying, and a pre-demonstration checklist.
+
+**Verified:** home, login and registration return 200; all eight assets return 200; **no third-party host is referenced**; markup balanced; responsive classes across sm/md/lg/xl; all six error views render; full suite unchanged at 718.
+
 ## 2026-08-16 — M9 Phase 3: the prescribed form, and publication refused on BD-14
 
 Third slice of M9 (PPT S45, S48; C3/C7). One additive table. **No file in M4, M5, M6, M7 or M8 was modified** — and specifically **M7's `DocumentType`, `ProceedingDocumentService`, renderer and document views are untouched**, verified by diff.

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  PLACEHOLDER — not the official CGPSC emblem.
+
+  Deliberately a neutral mark rather than an imitation of the Commission's
+  actual emblem or the State Emblem of India: reproducing official insignia
+  from memory would put an inaccurate government mark on a government portal.
+
+  Replace this file with the official asset supplied by CGPSC, keeping the
+  filename and roughly the 1:1 aspect ratio. Nothing else needs to change.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="CGPSC logo placeholder">
+  <circle cx="60" cy="60" r="57" fill="#ffffff" stroke="#0b4f9e" stroke-width="4"/>
+  <circle cx="60" cy="60" r="47" fill="none" stroke="#0b4f9e" stroke-width="1.5" opacity=".55"/>
+  <path d="M60 26 L70 48 L94 50 L76 66 L81 90 L60 78 L39 90 L44 66 L26 50 L50 48 Z"
+        fill="#0b4f9e" opacity=".14"/>
+  <text x="60" y="58" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif"
+        font-size="25" font-weight="700" fill="#0b4f9e">CGPSC</text>
+  <text x="60" y="76" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif"
+        font-size="9.5" fill="#5b6b7c">CHHATTISGARH</text>
+  <text x="60" y="88" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif"
+        font-size="8" fill="#8a99a8" letter-spacing="1.2">PLACEHOLDER</text>
+</svg>
