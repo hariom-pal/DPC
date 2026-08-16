@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Circulation\Models;
 
+use App\Domain\Circulation\Enums\CirculationDecision;
 use App\Domain\Proceeding\Enums\HoldReason;
 use App\Domain\Proceeding\Models\DpcProceedingHold;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -34,7 +35,7 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property string $resolution_detail
  * @property string|null $resolution_reference
  * @property Carbon $resolution_received_on
- * @property string|null $decision
+ * @property CirculationDecision|null $decision
  * @property Carbon|null $hold_released_at
  */
 class DpcCirculationItem extends Model implements Auditable
@@ -82,6 +83,7 @@ class DpcCirculationItem extends Model implements Auditable
         return [
             'sn' => 'integer',
             'reason_code' => HoldReason::class,
+            'decision' => CirculationDecision::class,
             'resolution_received_on' => 'date',
             'decided_at' => 'datetime',
             'hold_released_at' => 'datetime',
@@ -128,6 +130,7 @@ class DpcCirculationItem extends Model implements Auditable
             'reason' => $this->reason_code->label(),
             'resolution_reference' => $this->resolution_reference,
             'resolution_received_on' => $this->resolution_received_on->toDateString(),
+            'decision' => $this->decision?->value,
         ];
     }
 }

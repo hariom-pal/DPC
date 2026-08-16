@@ -95,7 +95,15 @@ class CirculationWorkflowService
                 'circulation_code' => $locked->circulation_code ?? $this->codes->next($locked),
             ])->save();
 
-            $this->record($locked, 'approve', $from, $def, $actor, $request, null, $signature->id);
+            // M9 Phase 2 — notification framework. The department's roles are
+            // reached by the `notify` list; **the Commission is not**, because
+            // CGPSC users hold no department and no role-plus-department query
+            // can find them. The origin DPC's allottee is named outright, which
+            // is the mechanism M6 added for exactly this.
+            $this->record(
+                $locked, 'approve', $from, $def, $actor, $request, null, $signature->id,
+                array_filter([$locked->originProceeding?->conducted_by]),
+            );
 
             return $locked->fresh();
         });
@@ -155,6 +163,7 @@ class CirculationWorkflowService
 
     /**
      * @param  array{from:list<string>,to:string,role:string,signature:bool,notify:list<string>}  $def
+     * @param  list<int>  $notifyUserIds
      */
     private function record(
         DpcCirculation $circulation,
@@ -165,6 +174,7 @@ class CirculationWorkflowService
         Request $request,
         ?string $remarks = null,
         ?int $signatureId = null,
+        array $notifyUserIds = [],
     ): void {
         $this->engine->record(
             $circulation,
@@ -178,6 +188,7 @@ class CirculationWorkflowService
             $signatureId,
             $circulation->department_id,
             $circulation->toTimelineProperties(),
+            $notifyUserIds,
         );
     }
 

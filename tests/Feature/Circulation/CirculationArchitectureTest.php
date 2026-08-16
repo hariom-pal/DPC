@@ -68,6 +68,10 @@ class CirculationArchitectureTest extends TestCase
         $roots = [
             dirname(__DIR__, 3).'/app/Domain/Circulation',
             dirname(__DIR__, 3).'/app/Http/Controllers/Dpc',
+            // M9 Phase 2 put the Commission's controller here. Adding the root
+            // is not optional: a check that does not look at new code is a
+            // check that goes green as the rule stops being enforced.
+            dirname(__DIR__, 3).'/app/Http/Controllers/Cgpsc',
         ];
 
         $files = [];
@@ -205,8 +209,17 @@ class CirculationArchitectureTest extends TestCase
         // *pattern*, not of the proposal's workflow, and the distinction is
         // the name the engine is asked for.
         $declared = array_keys($config['workflows']['dpc_circulation']['transitions']);
-        $this->assertEqualsCanonicalizing(['submit', 'approve', 'return', 'cancel'], $declared);
-        $this->assertTrue($config['workflows']['dpc_circulation']['transitions']['approve']['signature']);
+        $this->assertEqualsCanonicalizing(
+            ['submit', 'approve', 'return', 'cancel', 'consent', 'return_to_department', 'sign'],
+            $declared,
+        );
+
+        // Both signing points carry a signature: the department's approval
+        // (AQ-23) and the Commission's consent, which is the operative act.
+        $transitions = $config['workflows']['dpc_circulation']['transitions'];
+        $this->assertTrue($transitions['approve']['signature']);
+        $this->assertTrue($transitions['sign']['signature']);
+        $this->assertFalse($transitions['consent']['signature']);
     }
 
     public function test_the_workflow_service_runs_under_the_circulation_workflow_name(): void

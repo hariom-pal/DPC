@@ -245,6 +245,29 @@ return [
                 'approve' => ['from' => ['submitted'], 'to' => 'approved', 'role' => 'administrative_head', 'signature' => true, 'notify' => ['authorized_officer']],
                 'return' => ['from' => ['submitted'], 'to' => 'returned', 'role' => 'administrative_head', 'signature' => false, 'notify' => ['authorized_officer']],
                 'cancel' => ['from' => ['draft', 'returned'], 'to' => 'cancelled', 'role' => 'authorized_officer', 'signature' => false, 'notify' => ['administrative_head']],
+
+                /*
+                | Phase 2 — the Commission's side.
+                |
+                | The role is `member` because that is the role the origin
+                | DPC's allottee holds. Being *that* allottee is enforced by
+                | policy and service, not by role (AQ-20, reusing AQ-6): the
+                | person who held the promotion is the person who releases it,
+                | and a Chairman is not exempt.
+                |
+                | `consent` and `sign` are separate on purpose. The Commission's
+                | decision on each officer and its signature on the note are
+                | different acts, and C3 names the signature as what the note is
+                | sent for. Collapsing them would make the per-officer
+                | decisions unrecorded intent.
+                |
+                | `sign` carries the signature and is where holds are released
+                | (AQ-17) — never at consent, and never at the department's
+                | approval.
+                */
+                'consent' => ['from' => ['approved'], 'to' => 'consented', 'role' => 'member', 'signature' => false, 'notify' => ['authorized_officer', 'administrative_head']],
+                'return_to_department' => ['from' => ['approved', 'consented'], 'to' => 'returned', 'role' => 'member', 'signature' => false, 'notify' => ['authorized_officer', 'administrative_head']],
+                'sign' => ['from' => ['consented'], 'to' => 'signed', 'role' => 'member', 'signature' => true, 'notify' => ['authorized_officer', 'administrative_head']],
             ],
         ],
 

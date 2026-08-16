@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Circulation\Policies;
 
 use App\Domain\Authentication\Models\User;
+use App\Domain\Circulation\Enums\CirculationStatus;
 use App\Domain\Circulation\Models\DpcCirculation;
 use App\Enums\Role;
 
@@ -88,5 +89,41 @@ class DpcCirculationPolicy
     public function return(User $user, DpcCirculation $circulation): bool
     {
         return $this->approve($user, $circulation);
+    }
+
+    // ------------------------------------------- the Commission (M9 Phase 2)
+
+    /**
+     * Deciding an officer and consenting to the note.
+     *
+     * **No department check** — CGPSC users hold none, and a circulation
+     * reaches the Commission precisely by leaving its department's control,
+     * exactly as M6's and M7's policies work.
+     *
+     * **Being the origin DPC's allottee is not expressible as a role**, so it
+     * is asserted in the service (AQ-20). This gate is the coarse one: an
+     * active Member or Chairman, on a note the Commission is actually holding.
+     */
+    public function consent(User $user, DpcCirculation $circulation): bool
+    {
+        return $user->is_active
+            && $user->hasAnyRole([Role::Chairman->value, Role::Member->value])
+            && $circulation->status->isWithCommission();
+    }
+
+    /**
+     * Signing — the operative act. Only from `consented`, because a note is
+     * signed after its officers are decided, never before.
+     */
+    public function sign(User $user, DpcCirculation $circulation): bool
+    {
+        return $user->is_active
+            && $user->hasAnyRole([Role::Chairman->value, Role::Member->value])
+            && $circulation->status === CirculationStatus::Consented;
+    }
+
+    public function returnToDepartment(User $user, DpcCirculation $circulation): bool
+    {
+        return $this->consent($user, $circulation);
     }
 }

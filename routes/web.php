@@ -25,6 +25,7 @@ use App\Http\Controllers\Auth\PasswordChangeController;
 use App\Http\Controllers\Auth\RegistrationController;
 use App\Http\Controllers\Auth\VerificationController;
 use App\Http\Controllers\Cgpsc\AllotmentController;
+use App\Http\Controllers\Cgpsc\CirculationConsentController;
 use App\Http\Controllers\Cgpsc\ProceedingController;
 use App\Http\Controllers\Cgpsc\ProceedingCorrectionController;
 use App\Http\Controllers\Cgpsc\ProceedingDocumentController;
@@ -222,6 +223,16 @@ Route::middleware('auth')->group(function (): void {
                 Route::post('/proceedings/{proceeding}/holds/detect', [ProceedingHoldController::class, 'detect'])->name('proceedings.holds.detect');
                 Route::post('/proceedings/{proceeding}/holds', [ProceedingHoldController::class, 'store'])->name('proceedings.holds.store');
                 Route::delete('/proceedings/{proceeding}/holds/{hold}', [ProceedingHoldController::class, 'destroy'])->name('proceedings.holds.destroy');
+
+                // Circulation DPC — the Commission's side (M9 Phase 2, PPT
+                // S46/S48). `{dpcCirculation}` binds by UUID. Declared before
+                // the document routes so nothing shadows it.
+                Route::get('/circulations', [CirculationConsentController::class, 'index'])->name('circulations.index');
+                Route::get('/circulations/{dpcCirculation}', [CirculationConsentController::class, 'show'])->name('circulations.show');
+                Route::post('/circulations/{dpcCirculation}/items/{item}/decide', [CirculationConsentController::class, 'decide'])->name('circulations.decide');
+                Route::post('/circulations/{dpcCirculation}/consent', [CirculationConsentController::class, 'consent'])->name('circulations.consent');
+                Route::post('/circulations/{dpcCirculation}/sign', [CirculationConsentController::class, 'sign'])->name('circulations.sign');
+                Route::post('/circulations/{dpcCirculation}/return', [CirculationConsentController::class, 'returnToDepartment'])->name('circulations.return');
 
                 Route::get('/proceedings/{proceeding}/documents', [ProceedingDocumentController::class, 'index'])->name('proceedings.documents.index');
                 Route::post('/proceedings/{proceeding}/documents', [ProceedingDocumentController::class, 'store'])->name('proceedings.documents.store');

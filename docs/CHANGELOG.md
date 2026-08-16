@@ -2,6 +2,34 @@
 
 All notable work on the ODPC Portal, in reverse chronological order. Business-rule changes are traceable to `docs/ODPC_NEW_FINAL.pptx` / `docs/CONVENTIONAL DPC PROCESS.pptx` slide numbers where applicable. This file, `docs/PROJECT_STATUS.md`, `docs/PROJECT_PROGRESS.md`, and `docs/ARCHITECT_REVIEW.md` are the only documents updated on an ongoing basis (see `docs/ARCHITECT_REVIEW.md` for the full documentation policy).
 
+## 2026-08-16 — M9 Phase 2: the Commission's consent, and hold release at signature
+
+Second slice of M9 (PPT S46, S48). **No migration** — Phase 1 created the columns Phase 2 fills, which is what the design predicted. **No file in M4, M5, M6, M7 or M8 was modified**; all five freeze diffs empty.
+
+- **The signature is the operative act, and consent is recorded intent (AQ-17).** The Commission decides each officer, consents to the note, and signs — three transitions, deliberately not two. **Holds are released inside the signature transaction, after the signature succeeds**, and only for officers the Commission actually consented to. A note that is consented but never signed leaves every promotion reserved; a note where every officer was returned signs cleanly and releases nothing. Both are tested.
+
+- **The one write M9 makes into a frozen milestone's table.** `dpc_proceeding_holds.released_at` is the seam M7's own migration declared for M9, and the hold model's guard permits that column and no other (AQ-21). **`HoldService::release()` is deliberately not used** — it asserts an open proceeding and refuses automatic holds, which is correct for a sitting in progress and wrong for a DPC that concluded. That case is precisely the one M7 could not serve and left a seam for.
+
+- **S48's before-and-after is one stored result rendered twice.** The obvious implementation recalculates with the hold cleared — and that would change marks, could make a Super Seat reachable, and could move officers who are not party to the circulation and have no notice of it. So `CirculationResultService` reads `DpcCalculationRun` and `DpcCalculationResult` **as models**, from the run the proceeding pinned at approval rather than from "latest", and the `CIR` annotation comes from **hold state**. A test asserts the run, results, evaluation rows and proceeding are **byte-identical** after a full signature, and that an officer on a different hold, not on the note, is identical in both columns.
+
+- **Only the Member who conducted the original DPC may act (AQ-20).** AQ-6 reused verbatim: holding the `member` role is not the same as being *this* DPC's member, and **the Chairman is not exempt** — both refusals are tested. The person who held the promotion is the person who releases it.
+
+- **Two decisions, not three.** Consent, and return for further evidence. S45 describes no power to refuse a promotion on the strength of a circulation, so none was invented — that is **BD-12**, and a test asserts the enum has exactly two cases so a third cannot arrive quietly.
+
+- **The notification framework added no fourth copy of the recipient query (TD-20).** The workflow engine already reaches department-scoped roles *and* named user ids, so the Commission — who hold no department — is reached by naming the origin's allottee on the department's approval, and the signed message names the **officers released** by carrying them in the transition's own remark. Design §15 required the message to name officers rather than only the DPC; it does, without a dedicated listener.
+
+- **A Phase 1 guard fired exactly as designed.** `test_phase_2_transitions_are_not_declared_yet` failed the moment Phase 2 declared `consent`, `return_to_department` and `sign`. That is the test doing its job, not a regression: it has been rewritten to assert the complete Phase 1+2 set, and the architecture test's workflow assertion with it.
+
+- **Two defects found and fixed during the phase.** A `static` closure in `CirculationResultService` reached for `$circulation` it had not captured — caught by the Commission screen test rather than by review. And a test asserted on a `US1` the fixture never creates; replaced with a stronger assertion on the officer who *is* held on another ground and not on the note.
+
+- **72 tests / 186 assertions** across M9 (46 from Phase 1, **+26 from Phase 2**), and the **full suite re-run at finalisation: 692 passed / 2088 assertions** (666 before, **+26**). Pint clean, PHPStan (Larastan level 6) 0 errors, `migrate:fresh --seed` OK — **44 migrations, 64 tables, 10 seeders, unchanged from Phase 1 because Phase 2 added no schema**. `composer audit` clean **on the second attempt**; the first hit a network timeout and fell back to local cache — **TD-2, which has now fired at two consecutive finalisations.**
+
+- **All three governing decisions verified, not assumed.** **AD-21**: the M8 diff, including all four view paths, is empty. **AD-23**: a comment-stripped scan of every Circulation source file — now including `app/Http/Controllers/Cgpsc` — finds no forbidden service reachable. **AD-24**: no model extends `DpcProposal`, the table is `dpc_circulations`, and `dpc_proposal` appears in no circulation service.
+
+- **Freeze verified per milestone, not in aggregate:** M4, M5, M6 (against `v0.6.0-m6-complete`), M7 (`v0.7.0-m7-complete`) and M8 (`v0.8.0-m8-phase3`) — **every diff empty**. The one migration that differs from the M8 tag is **M9 Phase 1's own**, added after it; no M4–M8 migration changed.
+
+**Phase 3 has not begun.** Phase 2 signs a plain-text statement of what was consented to; the prescribed form — the rendered, hashed, published circulation note and the revised promotion list — is Phase 3, and `dpc_circulation_documents` still does not exist. A test asserts that.
+
 ## 2026-08-16 — M9 Phase 1: the circulation aggregate and the department's side
 
 First slice of M9 (PPT S45, S47; C3/C7). Two additive tables. **No file in M4, M5, M6, M7 or M8 was modified** — all five freeze diffs empty, including M8's view paths.

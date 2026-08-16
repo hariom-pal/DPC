@@ -50,6 +50,10 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property Carbon|null $returned_at
  * @property string|null $return_remarks
  * @property Carbon|null $cancelled_at
+ * @property int|null $consented_by
+ * @property string|null $consented_by_name
+ * @property Carbon|null $consented_at
+ * @property int|null $signature_id
  */
 class DpcCirculation extends Model implements Auditable
 {
@@ -79,6 +83,11 @@ class DpcCirculation extends Model implements Auditable
         'returned_at',
         'return_remarks',
         'cancelled_at',
+        // Phase 2 — the Commission's side.
+        'consented_by',
+        'consented_by_name',
+        'consented_at',
+        'signature_id',
     ];
 
     /**
@@ -107,6 +116,7 @@ class DpcCirculation extends Model implements Auditable
             'approved_at' => 'datetime',
             'returned_at' => 'datetime',
             'cancelled_at' => 'datetime',
+            'consented_at' => 'datetime',
         ];
     }
 
@@ -177,6 +187,22 @@ class DpcCirculation extends Model implements Auditable
     public function isEditable(): bool
     {
         return $this->status->isEditable();
+    }
+
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function consentedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'consented_by');
+    }
+
+    /**
+     * Every officer on the note has been decided — the note may be signed.
+     */
+    public function isFullyDecided(): bool
+    {
+        return $this->items()->whereNull('decision')->doesntExist();
     }
 
     /**
