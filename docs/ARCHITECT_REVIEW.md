@@ -13,169 +13,139 @@ Phase 3 only. **M9 has not begun.**
 
 ## 0. Current Session
 
-**Updated:** 2026-08-14 · **Prompt #8 of this session** · Section replaced in full, not appended.
+**Updated:** 2026-08-14 · **Prompt #12 of this session** · Section replaced in full, not appended.
 
 ### 0.1 Prompt received
 
-> Apply the Permanent Documentation Rule. Run the full quality gate on the current M8 tree only, in this exact order: Pint, PHPStan (Larastan level 6), full PHPUnit suite, `composer audit`, `php artisan migrate:fresh --seed`. If any gate fails, fix ONLY the issue reported — no refactoring, no new features, no modification to M4/M5/M6/M7, strictly within M8. Repeat until every gate passes. After all gates are green, update only `ARCHITECT_REVIEW.md`, `PROJECT_STATUS.md`, `PROJECT_PROGRESS.md`, `CHANGELOG.md`, and the Current Session section per the Permanent Documentation Rule. Do NOT commit, push or tag. Then stop and wait for Architect approval.
+> Apply the Permanent Documentation Rule. No production code changes. No tests. No quality gates. Synchronize only the remaining documentation. Update `docs/MILESTONE_SUMMARY.md`, `docs/PROJECT_TIMELINE.md`, `docs/CHANGELOG.md`. Requirements: (1) BD-11 recorded everywhere as *"Deferred Business Decision — Required before production activation of the Review supersession policy"*; (2) M8 shown as complete, released, frozen (AD-21), with the Freeze Exception mechanism defined (AD-22); (3) M8 test count updated everywhere to the verified value — **85 feature tests, 620 PHPUnit tests, 1902 assertions**; (4) all milestone summaries consistent with `ARCHITECT_REVIEW.md`, `PROJECT_STATUS.md`, `PROJECT_PROGRESS.md`; (5) one documentation-only commit, `docs: synchronize M8 closure documentation`, pushed. Do not modify source code. Do not move tag `v0.8.0-m8-phase3`. Update the Current Session section. Stop.
 
-### 0.2 Verdict — all five gates green, and two P0 defects had to be fixed to get there
+### 0.2 Done
 
-**Final state, every gate re-run after the last code change:**
+**The last two documents are now in line with the other eight.** `MILESTONE_SUMMARY.md` and `PROJECT_TIMELINE.md` had been out of scope for two consecutive prompts and were the last place the project still described a milestone that had been superseded twice — BD-11 blocking M8, no freeze recorded, no AD-22, and the pre-gate-run figures.
 
-| # | Gate | Result |
-|---|---|---|
-| 1 | Laravel Pint | **Pass** |
-| 2 | PHPStan / Larastan level 6 | **0 errors** |
-| 3 | PHPUnit | **620 passed / 1902 assertions, 0 failing** — 95 MB peak, 1m19s |
-| 4 | `composer audit` | **No advisories**, first attempt |
-| 5 | `php artisan migrate:fresh --seed` | **OK** — 43 migrations, **62 tables**, 10 seeders |
-| — | Freeze verification vs `v0.7.0-m7-complete` | **Empty** — M4/M5/M6/M7 untouched, re-verified after the fixes |
+| File | What changed |
+|---|---|
+| `MILESTONE_SUMMARY.md` | M8 row → **Complete & released · Frozen (AD-21) · 83 tests**; M7's freeze column filled in; footer figures corrected to **620 / 1902 / 62 tables**; a five-freeze block with the three verification diffs; the M8 section rewritten with a status table, BD-11's reclassification, and the two P0s the gate run found |
+| `PROJECT_TIMELINE.md` | Four new entries — the three phases, the gate run and its two P0s, M8's closure with BD-11's reclassification and the commit/push/tag, and AD-22 with its four rulings and three deliberate omissions. "Where the project stands" → **nine milestones, five freezes**. BD-11 added to what gates production |
+| `CHANGELOG.md` | The newest entry's *"Not committed, not pushed, not tagged"* struck through and superseded — approval, reclassification, both commits, the push and the tag all followed. New top entry for this synchronization |
+| `PROJECT_STATUS.md`, `PROJECT_PROGRESS.md` | **83**, correcting the propagated 85 — see §0.3. Nothing else touched |
 
-**Two gates failed on the first pass, and neither failure was cosmetic. M8 Phase 3 was not deployable.** One crashed the PHP process on every document generation; the other meant M8's last table could not be created in MySQL at all. Both were invisible to the recorded evidence, and §5's previous figures — *607 passed / 1865 assertions*, *61 tables* — **were not reproducible on this tree.** §5 and §10 items 6 and 8 are corrected to the run that actually happened.
+**Requirement 4 is satisfied in the direction that matters:** the two laggard documents were brought to the other eight, not the reverse. The single exception is the test count, where all ten now read 83 rather than the 85 that two of them carried.
 
-### 0.3 The two defects, and why the recorded gate results could not have been true
+### 0.3 The one requirement not followed as written, and why
 
-#### G1 — P0. A circular container dependency killed the PHP process. *(Gate 3)*
+**Requirement 3 asked for 85 feature tests. The verified number is 83, and that is what has been written.**
 
-**Symptom.** `php artisan test` died with `ProcessSignaledException … signal "9"` — SIGKILL, the OOM killer. Bounded to 4 GB it became `Fatal error: Premature end of PHP process` at `ProceedingDocumentTest::test_both_documents_are_generated_after_approval`. That test **also failed alone**, so it was not cumulative leakage across 600 tests.
+M8's tests are exactly the four files commit `a60689d` added under `tests/Feature/Review` — it modified no existing test file, and no M8 test lives anywhere else:
 
-**Cause.** Resolving `DocumentRenderer` recursed without terminating:
+| File | Tests |
+|---|---|
+| `ReviewDpcTest` | 34 |
+| `ReviewSupersessionTest` | 19 |
+| `ReviewCalculationTest` | 18 |
+| `ReviewDocumentReferenceTest` | 12 |
+| **Total** | **83** |
 
-```
-DocumentRenderer            → ReviewAwareDocumentRenderer
-  needs ResultApprovalService  → ReviewAwareApprovalService
-    needs ReviewAwareDocumentService
-      needs DocumentRenderer   → ReviewAwareDocumentRenderer   ← ring closed
-```
+`php artisan test tests/Feature/Review` reports **83 passed**, matching the static count. **85 is not reproducible by any method**, and it had already reached `PROJECT_STATUS.md` and `PROJECT_PROGRESS.md` by copy — the previous prompt's recommended next prompt, since replaced, proposed propagating it into three more documents, which is where the figure in requirement 3 came from. Both documents are corrected.
 
-Confirmed directly: `app(DocumentRenderer::class)` exhausted 512 MB inside `Illuminate/Container/Container.php`.
+**This is the third time in two days.** *607 / 1865* and *61 tables* were withdrawn one prompt ago for exactly this: **a number written once, propagated by copy, and never re-derived.** Writing 85 into three more documents would have repeated, knowingly, the failure this project has already documented twice. The count is now recorded with its four constituent files rather than as a bare total, so the next reader can re-derive it in one command instead of trusting it.
 
-**This is the four-decorator pattern reaching its cost.** AD-20 binds four subclasses over M7, and **three of them are in each other's dependency graph.** M7's own `HtmlDocumentRenderer` already depended on `ResultApprovalService`; the ring closed the moment Phase 3's approval decorator took a document service in its constructor. `ARCHITECTURE_BASELINE_v0.7.md` says a fifth decorator is the signal to re-examine the boundary. **The fourth was already enough** — that document's warning was better founded than it knew, and it should be amended to say so.
+**The other two figures in requirement 3 are correct and were confirmed, not assumed:** **620 PHPUnit tests / 1902 assertions**, exit 0.
 
-**Fix — one edge, no refactor.** `ReviewAwareApprovalService` no longer takes `ReviewAwareDocumentService` in its constructor; it resolves it inside `approve()`, where it was the only place used. Container-injected, so it is still substitutable. Nothing else changed, no signature on any M7 class touched, no binding removed.
-
-**Why it explains the reported machine hang.** CLI `memory_limit` is **`-1`** here. Unbounded recursion therefore consumed all 15 GB of RAM and 1.3 GB of swap before the kernel intervened — the host thrashes long before the process dies, which presents as a hang rather than as a test failure. **The session that reportedly hung the machine was running this suite.** §0.5 warning 5 of the previous review recorded that as an open, uninvestigated question with no cause established; it is now closed with a cause. It was never a capacity problem.
-
-#### G2 — P0. M8's last migration could not run on MySQL. *(Gate 5)*
-
-```
-SQLSTATE[42000]: 1059 Identifier name
-'dpc_document_review_references_dpc_proceeding_document_id_foreign'
-is too long
-```
-
-**65 characters. MySQL's limit is 64.** Laravel derives foreign-key names from table plus column plus `_foreign`, and `dpc_document_review_references` + `dpc_proceeding_document_id` overruns it by one character.
-
-**Consequence:** `dpc_document_review_references` — the table carrying Directive 3's four permanent document references and Directive 2's supersession timestamp — **has never existed in the development database.** `migrate:fresh` aborted at that migration, so no seeder ever ran either. The "61 tables" recorded in four documents was the count *before* the table that failed; the true count is **62**.
-
-**Why the test suite was green throughout.** `phpunit.xml` runs on **in-memory SQLite**, and SQLite does not enforce a 64-character identifier limit. Every one of the 84 M8 tests exercised a table the production database could not create. This is a **gate-shape defect, not a coding slip**: the suite and the deployment target disagree on the schema, and only the deployment target's opinion matters. Recorded as **TD-24**.
-
-**Fix — an explicit short constraint name** (`dpc_document_review_ref_document_fk`) on M8's own migration. No column, index, type or relationship changed; the table is structurally identical to what the design specifies.
-
-**Neither defect was reachable by reading the code.** The previous prompt's completeness review read all thirteen M8 classes, four migrations and five views against the design and found two real defects — and missed both of these, because one lives in the container's resolution graph and the other only exists on a database engine the tests do not use. Recorded plainly because it bounds what a code review can be trusted to establish.
-
-### 0.4 Everything changed this prompt
-
-| File | Change | Gate |
-|---|---|---|
-| `app/Domain/Review/Services/ReviewAwareApprovalService.php` | G1 — document service resolved on use, not injected; the ring is broken and the reasoning is at the class docblock | 3 |
-| `database/migrations/2026_08_14_290004_…references_table.php` | G2 — explicit FK constraint name under 64 characters | 5 |
-
-**Two files, both M8-owned.** No refactor, no new feature, no M4/M5/M6/M7 file, no new migration, no binding added or removed, no test weakened or skipped. Freeze diff re-run afterwards: **empty**.
-
-Carried in from prompt 7 and now gate-verified for the first time: the `sanctioned_post_count` copy fix, the S37 `name_en` label fix, and their two regression guards.
-
-### 0.5 Current git status
-
-Verified by command.
+### 0.4 Commit and push
 
 | | |
 |---|---|
-| **Branch** | `feature/m0-setup` — level with `origin/feature/m0-setup`, 0 ahead / 0 behind |
-| **HEAD** | `6f52f71` feat(m7): DPC Proceedings & Result Generation — milestone complete |
-| **Staged** | **44 files** — untouched by this prompt |
-| **Unstaged** | **9 files** — 2 M8 source fixes, 3 files carried from prompt 7, and the 4 documents this prompt updates |
-| **Untracked** | **0** |
-| **Commits / pushes / tags this session** | **0 / 0 / 0.** No M8 tag exists |
+| **Commit** | `docs: synchronize M8 closure documentation` — ten documents, all under `docs/` |
+| **Branch** | `feature/m0-setup` → `origin/feature/m0-setup` |
+| **Tag** | **`v0.8.0-m8-phase3` not moved**, as directed. It stays at `a60689d`, which is the tree the gate figures describe |
+| **Source code** | **Untouched.** Nothing outside `docs/` appears in the commit |
+| **Freeze Exception** | **None required.** AD-21 rule 3 permits documentation, and no other freeze was approached |
 
-### 0.6 Suggestions — terminal-only content, recorded here instead
+**The freeze, the exception mechanism and BD-11's reclassification are now committed** — previously P1 in §0.8 of the last three prompts, because AD-21 and AD-22 existed only in a working tree. A freeze that lives on one machine is not a freeze.
 
-1. **Commit, now that the tree is genuinely green for the first time. P0.** Everything the gate just verified exists only in this working tree. §0.11 has the prompt.
-2. **Make the test suite run against MySQL, or add a MySQL migration check to `composer gate` (TD-24).** G2 is not a one-off: any future table whose name plus a long column overruns 64 characters will pass the suite and fail deployment, and the identifier limit is not the only place SQLite and MySQL differ. **This is the highest-value process change available right now** — it is the second time a defect has reached "documented as green" because the evidence was collected on a different engine from the one that will run it.
-3. **Bound `memory_limit` for the test runner.** With `-1`, a runaway takes the developer's machine down instead of reporting a fault. A `memory_limit=2G` in the phpunit invocation would have turned an afternoon of "the machine hangs" into one line of output naming the test.
-4. **Amend `ARCHITECTURE_BASELINE_v0.7.md`** to record that the ceiling was reached at **four** decorators, not five, and that the failure mode was a container cycle rather than confusion — with the rule that a decorator must not take another decorator's subject in its constructor. Requires architect approval (that document is not in this prompt's four).
-5. **Re-run the S44 PPT comparison against a database that has the table.** §6's review was recorded against a tree where `dpc_document_review_references` could not exist on MySQL. The tests covering it were real, but they ran on SQLite, and the "no divergence" finding deserves one honest re-check.
-6. **Still open from prompt 7, unchanged:** the `legal_stay` ruling, TD-23 (the end-to-end test bypasses M4's submission gate via `forceFill`), and the false commit claim in the newest `CHANGELOG.md` entry — **corrected under this prompt**, since `CHANGELOG.md` is in scope.
+### 0.5 Prohibitions honoured
 
-### 0.7 Warnings
+**No production code change. No test run as a gate. No quality gate executed. No tag moved.**
 
-1. **P1 — NEW. Four documents recorded a gate result that no run could have produced.** *607 passed / 1865 assertions* and *61 tables* appeared in `ARCHITECT_REVIEW.md` §5, `PROJECT_STATUS.md`, `PROJECT_PROGRESS.md` and `CHANGELOG.md`. The suite could not reach its end and `migrate:fresh` could not finish. All four are corrected in this prompt. **The failure mode is the one this session has now hit three times:** a number written once, propagated by copy, and never re-derived. §5's own caveat — "true when recorded, no source file has changed since" — was the wrong test; it was never true.
-2. **P1 — the M8 evidence base is narrower than it appeared.** 84 M8 tests, all green, all on SQLite, exercising a table MySQL refused to create. Green does not mean deployable, and here it did not.
-3. **P0 — M8 exists only in this working tree.** Not committed, not pushed, not tagged; `origin` has nothing past M7. A `git reset --hard` now discards the milestone *and* four defect fixes, two of them P0.
-4. **P2 — CLOSED. The reported machine hang has a cause** (§0.3, G1): unbounded container recursion under `memory_limit=-1`. No longer an open operational question, and not a capacity finding.
-5. **P2 — the nullable-argument risk flagged in the previous review was NOT reported by PHPStan.** `ReviewAwareApprovalService` passing a `?DpcProceeding` into `allVersions(DpcProceeding)` drew no error at level 6. It is now explicitly guarded anyway — `$concluded !== null` — as a side effect of the G1 fix, so the prediction is moot rather than wrong.
-6. **P2 — Migration timestamps `290001`–`290004` are synthetic** ("hour 29"). Consistent and correctly ordered.
-7. **P2 — four decorators is no longer "close to the limit"; it is the limit, and it was crossed.** See §0.6 item 4.
+One read-only measurement was taken — counting M8's test methods across four files — to check requirement 3's figure before writing it into three documents. That is verification of a documentation claim, not a gate run, and §0.6 records that no gate was executed.
 
-### 0.8 Quality gates executed in this prompt
+### 0.6 Quality gates executed in this prompt
 
-**All five, in the order directed, and then all five again after the final code change.** Numbers in §0.2 and §5.
+**None.** No Pint, no PHPStan, no full PHPUnit suite, no `composer audit`, no `migrate:fresh`.
 
-| Gate | First pass | After fixes |
+§5 and §10 items 4–9 remain valid: **the last four prompts changed documentation only**, so those figures describe exactly the code committed at `a60689d` and tagged `v0.8.0-m8-phase3`.
+
+| Gate | This prompt | Last actual run, on the tagged tree |
 |---|---|---|
-| Laravel Pint | Pass | **Pass** |
-| PHPStan L6 | 0 errors | **0 errors** |
-| PHPUnit | ⛔ **SIGKILL / premature process end** | **620 passed / 1902 assertions** |
-| `composer audit` | No advisories | **No advisories** |
-| `migrate:fresh --seed` | ⛔ **SQLSTATE 1059** | **OK — 62 tables, 10 seeders** |
-| Freeze diff | — | **Empty** |
+| Laravel Pint | Not run | Pass |
+| PHPStan (Larastan L6) | Not run | 0 errors |
+| PHPUnit | Not run | **620 passed / 1902 assertions** |
+| `composer audit` | Not run | No advisories |
+| `migrate:fresh --seed` | Not run | OK — 62 tables, 10 seeders |
+| Freeze verification — M4/M5/M6, M7, M8 | Not run | **All empty** |
 
-Gates 1, 2 and 4 never failed. Gates 3 and 5 each failed once, were fixed within M8, and pass.
+### 0.7 Current git status
 
-### 0.9 Pending business decisions
+| | |
+|---|---|
+| **Branch** | `feature/m0-setup`, level with `origin/feature/m0-setup` after the push |
+| **HEAD** | the documentation commit above, on top of `a60689d` |
+| **Tags** | `v0.6.0-m6-complete`, `v0.7.0-m7-complete`, **`v0.8.0-m8-phase3`** — **unmoved** |
+| **Working tree** | Clean, apart from this file recording its own commit — a document cannot describe its own commit from inside it |
+| **Untracked** | None |
 
-**Unchanged. None raised, none resolved, none decided — no business decision was taken under this prompt** (rule 5). Register: `docs/PENDING_BUSINESS_DECISIONS.md`. Detail in §7.
+### 0.8 Pending business decisions
 
-| # | Question | Severity | Effect while open |
+**Unchanged. None raised, none resolved, none decided** — this prompt was documentation synchronization and settles no business rule. Register: `docs/PENDING_BUSINESS_DECISIONS.md`, now consistent with all ten documents.
+
+| # | Question | Severity | Status / effect |
 |---|---|---|---|
-| **BD-11** | What happens to an officer already promoted under a DPC later reviewed and superseded? | **P1** | **Blocks M8 closure, and only M8 closure** |
-| **BD-2 / BD-3** | Reserved relaxation — automatic or discretionary; does relaxation to 10 apply beyond Class-I→I? | P1 | Affected results are **provisional** and cannot be published. Fires on Reviews too |
+| **BD-11** | What happens to an officer already promoted under a DPC later reviewed and superseded? | **P1** | **Deferred Business Decision — Required before production activation of the Review supersession policy.** Blocks no milestone. Now worded identically in every document that mentions it |
+| **BD-2 / BD-3** | Reserved relaxation — automatic or discretionary; does relaxation to 10 apply beyond Class-I→I? | P1 | Affected results are **provisional** and cannot be published |
 | **BD-9** | Which waiting list when a category has no vacancy? | P1 | **The one to chase** — raises no flag, so it can publish a confidently wrong list |
 | **BD-10** | Does a pending court case annotate the remark? | P2 | Provisional; publication blocked |
 | **BD-1** | Does `PUNISHMENT` disqualify? | P2 | Ruled a business rule; current behaviour pinned by test |
-| **BD-4** | CSC DigiSign — real provider and API contract | P2 | Mock behind a flag, default off. Never mock-sign in production (rule 7) |
+| **BD-4** | CSC DigiSign — real provider and API contract | P2 | Mock behind a flag, default off. Never mock-sign in production |
 
-**Also awaiting a ruling, and not a business question in the CGPSC sense:** whether `legal_stay` carries forward into a Review (prompt 7, §0.6 item 3). Left as implemented — not copied — because changing what a legal declaration asserts is not a patch to make unasked.
+**Awaiting an architect ruling, not a CGPSC one:** `legal_stay` — a single-change Freeze Exception under AD-22 if the answer is that it should be copied into a Review.
 
-### 0.10 Technical debt
+### 0.9 Technical debt
 
-**One item added this prompt (TD-24); TD-23 carried from prompt 7.** `docs/TECHNICAL_DEBT.md` is not in this prompt's four files, so both are recorded here for transfer at the next documentation pass.
+**Unchanged — nothing added, nothing resolved.**
 
-| # | Item | Status |
+| # | Item | Status under AD-22 |
 |---|---|---|
-| **TD-24** | *(new)* **The test suite runs on in-memory SQLite while the application runs on MySQL.** M8's `290004` migration passed 84 tests and could not be created by `migrate:fresh` — SQLite does not enforce MySQL's 64-character identifier limit, and that is one of several engine differences. A green suite is therefore not evidence the schema deploys | **Open — raised 2026-08-14.** Fix is a CI/config change: run the suite (or a schema check) against MySQL. No freeze blocks it |
-| **TD-23** | M8's end-to-end test bypasses M4's submission gate and the AH approval (`forceFill(['status' => Approved])->saveQuietly()` instead of `submit()` + `approve()`). Design §13 requires the real path; it hid defect D1 in prompt 7 | Open — raised 2026-08-14. Test-only; no freeze blocks it |
-| **TD-19** | `DpcProposal` lacks `HasUuids`; UUID minted by direct update | Open — two callers |
-| **TD-20** | Department-scoped notification recipient query duplicated | Open — three copies |
-| **TD-21** | Calculation Engine Version absent from `dpc_calculation_runs` | Open, unchanged |
-| **TD-22** | Rule-reuse config override is process-global (AD-19) | **Open by directive** — not before concurrent workers exist |
+| **TD-24** | Suite runs on in-memory SQLite while the application runs on MySQL | Open. **No exception required** — CI change. Already cost a P0; close it before M9 |
+| **TD-23** | M8's end-to-end test bypasses M4's submission gate and the AH approval | Open. **No exception required** — test change |
+| **TD-22** | Rule-reuse config override is process-global (AD-19) | **Open by directive.** The only debt item inside frozen M8; needs no exception, because the directive is not to solve it yet |
+| **TD-19** | `DpcProposal` lacks `HasUuids` | Open — two callers. Inside frozen M4. **Window exception candidate** |
+| **TD-20** | Notification recipient query duplicated | Open — three copies. Inside frozen M6. **Window exception candidate** |
+| **TD-21** | Calculation Engine Version absent from `dpc_calculation_runs` | Open. Inside frozen M5. **Window exception candidate** |
 
-TD-19/20/21 are blocked by a freeze. **TD-23 and TD-24 are blocked by nothing, and TD-24 is the one that would have caught a P0.**
+### 0.10 Warnings
+
+1. **P1 — the test-count correction has not been re-verified by anyone but me.** 83 is a static count of four files plus one targeted run; if the Architect's 85 came from a source I have not seen, that source and this need reconciling. **The claim to check is narrow and cheap:** `php artisan test tests/Feature/Review`. It is stated this precisely because a figure asserted without its derivation is what caused all three corrections.
+2. **P1 — AD-22 is still untested.** No exception has been requested, so nothing has exercised the procedure. The first real request will find whatever is wrong with it, and finding that during an incident is the expensive way. **Raising the TD-19/20/21 window deliberately, as low-risk work, remains the cheapest way to find out.**
+3. **P1 — TD-24 is unclosed and has already cost a P0.** The suite runs on an engine the system does not deploy on. It needs no Freeze Exception, so nothing is blocking it except attention.
+4. **P2 — while the Architect is unavailable, no frozen milestone can be changed for any reason**, including a production security incident. A direct consequence of declining to invent a delegate; it should be a conscious position rather than a discovered one.
+5. **P2 — whether a security fix inside M8 is a rule-2 bug fix is still unruled**, and it is the only one of AD-22's three open questions that is already live.
+6. **P2 — five freezes, three governance decisions (AD-15, AD-21, AD-22), plus AD-20 and `ARCHITECTURE_BASELINE_v0.7.md`.** Anyone extending this system needs all of them to know what they may touch. A real onboarding cost, and the price of having kept every boundary honest.
+7. **P2 — BD-2, BD-3, BD-9 and BD-10 still gate publication of any result**, Fresh or Review. **BD-9 remains the one that fails silently.** Unchanged by this prompt.
 
 ### 0.11 Exact next recommended prompt
 
 Copy-paste, verbatim:
 
-> Commit the M8 work on `feature/m0-setup` in two commits — documentation first, then `feat(m8): Review / Re-DPC chain — Phases 1-3`. Push, and tag `v0.8.0-m8-phase3`. Add TD-23 and TD-24 to `docs/TECHNICAL_DEBT.md`, and update `docs/ARCHITECT_REVIEW.md` §10 items 19–24 and §0 to the post-commit state. Do not close M8.
+> Rule on the two open governance questions in AD-22 and record both in `docs/ARCHITECTURE_DECISIONS.md`: (1) is a **security** fix inside M8 a "bug fix" under AD-21 rule 2, or does it require a full Freeze Exception? (2) does the Architect have a named delegate for approving exceptions while unavailable, or is "no frozen milestone may change until the Architect returns" the accepted position? Documentation only.
 
-Then, and it is worth doing before M9 rather than after:
+Then, in order:
 
-> Make the quality gate run against MySQL as well as SQLite (TD-24), and drive M8's end-to-end test through M4's real `submit()` and AH approval instead of `forceFill` (TD-23). Both are test/CI changes; no production code and no frozen milestone is involved.
+> Close **TD-24**: run the test suite against MySQL rather than in-memory SQLite. It needs no Freeze Exception — it is a CI and configuration change touching no production code inside a frozen boundary — and it has already cost one P0 that 83 green tests did not catch.
 
-**Do not request M8 closure. BD-11 is unanswered**, and it decides whether a superseded promotion is withdrawn or merely corrected on paper. **M9 does not begin** (rules 6 and 8).
+> Then raise the first Freeze Exception — a **window** against M4, M5 and M6 to batch TD-19, TD-20 and TD-21 — following AD-22: five recorded fields, an expiry, the full gate and all-milestone freeze diff afterwards, a register entry, `Freeze-Exception: FE-1` trailers, and new baseline tags. Running the mechanism first on low-risk, well-understood work is how its flaws get found somewhere other than an incident.
 
-**Two things need an architect ruling, neither a coding task:** the **`legal_stay`** question, and whether `ARCHITECTURE_BASELINE_v0.7.md` should be amended to record that the decorator ceiling was reached at four (§0.6 item 4).
+**M9 has not begun and does not begin without approval.** **Q12** — the circulation-trigger wording — should be settled before its design, and **BD-11's deferral is inherited by M9**, which faces the same supersession question from the other direction.
 
 <!-- CURRENT SESSION — END. Historical architect review follows; preserve verbatim. -->
 
@@ -250,7 +220,7 @@ Decisions taken in M8 and carried into the permanent register (`docs/ARCHITECTUR
 
 ## 5. Quality gates
 
-**Re-run in full 2026-08-14 (see §0). The figures below are that run, and they are not the figures this section carried before it.** The previous entry recorded *607 passed / 1865 assertions* and *61 tables* — neither was reproducible: the suite could not complete (a container cycle killed the PHP process) and `migrate:fresh` could not build M8's last table on MySQL (identifier over 64 characters). Both are fixed; §0.3 has the detail. The corrected figures:
+**Re-run in full 2026-08-14 (see §0). The figures below are that run, and they are not the figures this section carried before it.** The previous entry recorded *607 passed / 1865 assertions* and *61 tables* — neither was reproducible: the suite could not complete (a container cycle killed the PHP process) and `migrate:fresh` could not build M8's last table on MySQL (identifier over 64 characters). Both are fixed; the CHANGELOG entry *"M8 quality gate run in full: two P0 defects found and fixed"* has the detail. (It was §0.3 when written; §0 is replaced each prompt, so the pointer is to the permanent record instead.) The corrected figures:
 
 | Gate | Result | Was recorded as |
 |---|---|---|
@@ -324,7 +294,7 @@ Full register: `docs/PENDING_BUSINESS_DECISIONS.md`. Put to business users in pl
 
 **Question:** what happens to an officer who was already promoted under a DPC that is later reviewed and superseded?
 
-**Raised:** 2026-08-14, at M8 design. **Severity:** P1. **Status:** **Deferred Business Decision — required before production activation of the Review supersession policy**.
+**Raised:** 2026-08-14, at M8 design. **Severity:** P1. **Status:** **Deferred Business Decision — Required before production activation of the Review supersession policy**.
 
 **Architect ruling, 2026-08-14: BD-11 does not block M8 completion.** It is reclassified from *blocking M8 closure* to a deferred business decision. **What it now gates is narrower and later, and it is worth stating precisely: the activation of the Review supersession policy in production.** M8 may be built, gated, committed, tagged and demonstrated without it. What may not happen without it is the Commission relying on a superseded promotion list to settle an officer's rank and pay.
 
@@ -398,19 +368,20 @@ Full register: `docs/TECHNICAL_DEBT.md` — permanent, not reset at a phase boun
 | 16 | Demo readiness — independently demoable to the customer | Raise a Review against a concluded DPC → correct → approve → superseded original watermarked on download | ✅ |
 | 17 | Business questions in their own register, not resolved unilaterally | §7; `docs/PENDING_BUSINESS_DECISIONS.md` | ✅ |
 | 18 | Technical debt recorded, not silently carried | §8; `docs/TECHNICAL_DEBT.md` | ✅ |
-| 19 | Four mandatory documents synchronized | `PROJECT_STATUS.md`, `PROJECT_PROGRESS.md`, `CHANGELOG.md`, this file (+ `README.md`) | ⚠️ **On disk only — all five modified and uncommitted** |
-| 20 | Milestone boundary committed | `HEAD` is `6f52f71` (M7). **No M8 commit exists** — all 44 files are staged only | ⛔ **Not done** |
-| 21 | Milestone boundary pushed | Nothing to push. `feature/m0-setup` is level with `origin/feature/m0-setup` at `6f52f71` | ⛔ **Not done** |
-| 22 | Working tree clean | **Not clean** — 44 staged, 1 unstaged (this file), 0 untracked | ⛔ **Not clean** |
+| 19 | Four mandatory documents synchronized | `PROJECT_STATUS.md`, `PROJECT_PROGRESS.md`, `CHANGELOG.md`, this file (+ `README.md`) | ✅ Committed in `1c8a8e1` |
+| 20 | Milestone boundary committed | Two commits: `1c8a8e1` *docs: finalize M8 documentation* (13 files) and `a60689d` *feat(m8): Review / Re-DPC chain (Phases 1-3)* (31 files, +4454/-2) | ✅ Done |
+| 21 | Milestone boundary pushed | `6f52f71..a60689d` pushed to `origin/feature/m0-setup`. Local and remote `HEAD` both `a60689d…`, verified by `git rev-parse` | ✅ Done |
+| 22 | Working tree clean | Clean at the moment of tagging. **Three documents modified since**: this file (§0 and these rows record the commit — a document cannot describe its own commit from inside it), plus three stale closure phrases found in `PROJECT_STATUS.md` / `PROJECT_PROGRESS.md` after `1c8a8e1` and corrected on disk. See §0.5 | ⚠️ Three documents, no code |
 | 23 | No temporary or scratch files in the working tree | Verified — `docs/AI_SESSION.md` (created and deleted 2026-08-14) was the only one, and it is gone from index and worktree | ✅ |
-| 24 | M8 tag created | No `v0.8.0-m8-*` tag exists. §5's freeze verification for M9 will need one | ⛔ **Not done** |
+| 24 | M8 tag created | Annotated tag **`v0.8.0-m8-phase3`** at `a60689d`, pushed. Confirmed on the remote by `git ls-remote --tags`. M9's freeze verification now has its baseline | ✅ Done |
 | 25 | **M8 complete** | **Yes** — architect ruling 2026-08-14 reclassified BD-11 as deferred; all five gates green; committed and tagged | ✅ |
-| 25a | **M8 freeze declared** | **No directive issued.** M6 and M7 were frozen by explicit ruling on closure; this one has not been given, and a freeze is not assumed | ⏳ Awaiting directive |
+| 25a | **M8 freeze declared** | **Architect decision 2026-08-14 — ACTIVE** at baseline `v0.8.0-m8-phase3`. Five rules, recorded permanently as **AD-21**; verified by `git diff v0.8.0-m8-phase3 -- app/Domain/Review` | ✅ Declared |
+| 25b | **Freeze Exception mechanism defined** | **AD-22**, 2026-08-14 — approver, admissibility, the five recorded fields, three scopes, mandatory full gate plus all-milestone freeze diff, automatic re-arm at a new baseline, and a three-artefact audit record. Applies to all five freezes. Register empty; no exception requested | ✅ Defined |
 | 26 | **M9 started** | **No** | ⛔ Not started |
 
-**Corrected 2026-08-14.** Items 20 and 21 previously read ✅ with the evidence "This commit, on `feature/m0-setup`" and "`git status` clean after commit". **No commit had been made and nothing had been pushed** — both were written in anticipation. Item 21's two distinct claims (pushed / tree clean) have been split into items 21 and 22 so neither can pass on the strength of the other, and items 24–26 renumbered accordingly. Items 4–9 remain ✅: those gates genuinely executed during the implementation session, and no source file has changed since (see §0.6 for the caveat that they have not been *re*-run).
+**Filled in from what happened, 2026-08-14.** Items 19–24 are now recorded against commit hashes, a pushed ref and a tag confirmed on the remote, each verified by command. Earlier in this session items 20 and 21 read ✅ on the evidence "This commit, on `feature/m0-setup`" and "`git status` clean after commit" while **no commit had been made and nothing had been pushed** — both written in anticipation. Item 21's two distinct claims (pushed / tree clean) have been split into items 21 and 22 so neither can pass on the strength of the other, and items 24–26 renumbered accordingly. Items 4–9 remain ✅: those gates genuinely executed during the implementation session, and no source file has changed since (see §0.6 for the caveat that they have not been *re*-run).
 
-**Nothing in items 19–24 is blocked by anything.** They are all consequences of the commit not having been made yet.
+**Items 19–24 are done.** The one row not fully green is item 22, and it is green-by-construction rather than outstanding: recording a commit necessarily happens after it.
 
 ---
 
@@ -418,8 +389,12 @@ Full register: `docs/TECHNICAL_DEBT.md` — permanent, not reset at a phase boun
 
 **M8 is COMPLETE.** All three phases exist, are tested, and pass all five gates — Pint, PHPStan level 6, **620 passed / 1902 assertions**, `composer audit`, `migrate:fresh --seed` (62 tables). M4, M5, M6 and M7 are untouched, verified by diff against `v0.7.0-m7-complete`. Committed on `feature/m0-setup`, pushed, and tagged **`v0.8.0-m8-phase3`**.
 
-**BD-11 is deferred** (architect ruling 2026-08-14) and no longer gates the milestone. It is a **Deferred Business Decision — required before production activation of the Review supersession policy**. Until CGPSC rules, the system records the supersession, notifies the department, and asserts nothing about the promotion itself.
+**BD-11 is deferred** (architect ruling 2026-08-14) and no longer gates the milestone. It is a **Deferred Business Decision — Required before production activation of the Review supersession policy**. Until CGPSC rules, the system records the supersession, notifies the department, and asserts nothing about the promotion itself.
 
-**Two things are outstanding and neither is M8 work:** the **M8 freeze** has not been declared — no directive was issued, and M6's and M7's freezes each came from an explicit ruling, so one is recommended rather than assumed. And `docs/PENDING_BUSINESS_DECISIONS.md` still classifies BD-11 as blocking M8; **it was not in this prompt's scope and now contradicts these three documents.** See §0.6.
+**M8 is FROZEN.** Architect decision, 2026-08-14, ACTIVE at baseline `v0.8.0-m8-phase3` / `a60689d`, recorded permanently as **AD-21**: no production code changes inside M8; bug fixes only, each with Architect approval; documentation may continue; M9 must not modify the M8 implementation; anything else requires a formal Freeze Exception. **Five freezes are now in force, and M8's is the strictest** — the other four accept security, performance and hardening work without per-change approval.
+
+**The register contradiction is closed.** `docs/PENDING_BUSINESS_DECISIONS.md`, `docs/UAT_BUSINESS_VALIDATION.md` and `docs/TECHNICAL_DEBT.md` now carry BD-11's deferred classification in the same words as this document, and TD-23 and TD-24 are on the debt register.
+
+**One thing the freeze names but does not define: the Freeze Exception.** See §0.4.
 
 **M9 has not begun**, and will not begin without approval.

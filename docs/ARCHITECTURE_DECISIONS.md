@@ -175,6 +175,30 @@ A frozen milestone accepts bug fixes, security fixes, performance work, VAPT fin
 
 **What it forecloses.** Several small improvements are visibly blocked by it — `HasUuids` on `DpcProposal` (TD-19), a shared notification recipient resolver (TD-20), the engine version on the run row (TD-21), a shared content fingerprint (TD-16). Each was left undone rather than take the freeze quietly. They should be batched into the next legitimate opening.
 
+### AD-21 — M8 Freeze (Review DPC)
+
+**Declared:** 2026-08-14 by architect decision. **Status: ACTIVE.** **Baseline:** `v0.8.0-m8-phase3` / `a60689d`.
+
+M8 (Review DPC) is frozen. The rules, as declared:
+
+| # | Rule |
+|---|---|
+| **1** | **No production code changes inside M8.** |
+| **2** | **Only bug fixes, and only with Architect approval.** |
+| **3** | **Documentation may continue.** |
+| **4** | **M9 development must not modify the M8 implementation.** |
+| **5** | **Any future change requires a formal Freeze Exception.** |
+
+**Verification.** `git diff --name-only v0.8.0-m8-phase3 -- app/Domain/Review` must be empty, alongside the existing checks for M4/M5/M6 (`v0.6.0-m6-complete`) and M7 (`v0.7.0-m7-complete`). M8's decorators, its four tables and its views are all reachable from `app/Domain/Review`, `resources/views/dpc/reviews`, `resources/views/documents/review-context.blade.php`, `resources/views/documents/superseded-watermark.blade.php` and `resources/views/partials/review-banner.blade.php` — the view paths matter, because M8's UI deliberately lives outside M4's frozen screens (Phase 1, Directive 3) and a diff scoped to `app/` alone would miss them.
+
+**This freeze is stricter than AD-15's**, and the difference is deliberate rather than accidental. Under AD-15 a frozen milestone accepts bug fixes, security fixes, performance work, VAPT findings and hardening **without per-change approval**. M8 accepts **bug fixes only, each individually approved**, and anything else needs a Freeze Exception. Read together with AD-15, M8 is the most tightly held milestone in the project.
+
+**Consequence.** Rule 4 is the one that will be tested first. M9 (Circulation DPC) resolves a held promotion from an earlier DPC and faces the same supersession question M8 raised; the temptation will be to reach into M8 rather than decorate it. **AD-20 is the answer** — M9 extends M8 the way M8 extended M7, and rule 4 plus the diff check is what makes that non-optional.
+
+**What it forecloses, stated as AD-15 requires.** Nothing on the debt register is inside M8 except **TD-22**, which is already open by directive and is not to be solved before concurrent workers exist. **TD-23** is a test change and **TD-24** a CI change; neither touches M8 production code, so neither needs an exception. The freeze therefore costs nothing today — which is the right moment to declare one.
+
+**Rule 5's mechanism is defined in AD-22**, added 2026-08-14 — while no exception was pending, which was the point. Until then rule 5 required a Freeze Exception that did not exist, so no change to M8 was possible by any route. AD-22 applies to all five freezes, not only this one.
+
 ### AD-16 — Migrations are additive; approved phases are not refactored without approval
 
 **Decided:** 2026-08-13.
@@ -196,6 +220,111 @@ Every phase additionally carries Security, Performance, VAPT and full-PPT review
 `Model::preventSilentlyDiscardingAttributes()` is enabled outside production.
 
 **Consequence.** Twice in M7 a newly added column failed to reach its model: `update()` discards non-fillable attributes and **reports success**, so the write vanished with no error anywhere and surfaced much later as a puzzling assertion failure. Deliberately not enabled in production — a request that would have half-worked should not become a 500 in front of a user.
+
+---
+
+### AD-22 — The Freeze Exception mechanism
+
+**Decided:** 2026-08-14, closing the gap **AD-21 rule 5** opened by requiring "a formal Freeze Exception" without defining one.
+
+**Scope: governance only.** This defines how a frozen milestone is opened, recorded and re-closed. It settles no business rule, changes no code, and grants no exception.
+
+**It applies to every freeze in force** — M4 (AD-15, architecture), M5 (engine), M6, M7 and M8 (AD-21) — not only to M8. A single mechanism is the point: five freezes with five procedures is how one of them quietly stops being enforced.
+
+#### 1. Who approves
+
+**The Architect, and no one else.** A Freeze Exception is the only route through a freeze, so the authority to grant one is the authority that declared it.
+
+**No delegate is defined, deliberately.** Naming a stand-in would invent an organisational structure this project has not stated. **The consequence is real and should be understood rather than discovered:** while the Architect is unavailable, no frozen milestone can be changed for any reason — including a production security incident. If that is not acceptable, the remedy is a stated delegate or a standing pre-authorisation for a named class of change, and either is an architect decision, not one to be assumed here.
+
+#### 2. When it may be requested
+
+**Before the work starts. Always.**
+
+An exception requested after the code is written is not an exception; it is a request to ratify a breach, and approving one teaches that the freeze is negotiable after the fact. The freeze diff is what makes the boundary checkable, and it cannot distinguish "approved beforehand" from "explained afterwards" — only the record can, and the record must therefore precede the work.
+
+A request is admissible when **all** of the following hold. They are deliberately narrow:
+
+| | Condition |
+|---|---|
+| **a** | The change cannot be made **outside** the frozen milestone. Decoration (**AD-20**) is the first thing to rule out — M8 extended completed M7 with no M7 file touched, and that is the standing pattern |
+| **b** | It is a **defect, security, performance, VAPT or hardening** change — never a feature, workflow change, schema redesign or refactor (**AD-15**). A freeze that admits features is not a freeze |
+| **c** | The frozen milestone is **committed and tagged**, so "unchanged" is a checkable claim rather than an assertion |
+
+**Two situations are explicitly not exceptions, because treating them as such would inflate the mechanism until it means nothing:**
+
+- **Documentation.** Permitted outright under AD-21 rule 3, and the equivalent has always been true of the earlier freezes.
+- **Tests and CI.** Changing a test, a fixture or a gate step touches no production code inside the frozen boundary. **TD-23** (drive M8's end-to-end test through M4's real `submit()`) and **TD-24** (run the suite against MySQL) are therefore ordinary work needing no exception — which matters, because TD-24 has already cost a P0 and must not sit behind a governance queue.
+
+**The emergency case is not carved out, and that is a decision rather than an oversight.** A production security incident inside a frozen milestone still requires an exception, because the alternative is an undefined path that gets used under pressure and documented afterwards, if at all. What the mechanism owes such a case is **speed**, not a bypass: a request is five fields, and §7's record can be completed after the fix ships provided the approval itself preceded it.
+
+**One reading needs the Architect's confirmation and is not settled here.** AD-21 rule 2 admits "only bug fixes with Architect approval", while AD-15 lets the other four freezes take security, performance and hardening work without per-change approval. On a strict reading a **security** fix in M8 is not a "bug fix" and needs a full exception, making M8 harder to patch than M4. That may be intended. **Recorded as an open question rather than resolved by interpretation**, because reading a rule broadly to make it convenient is how a freeze erodes.
+
+#### 3. What must be recorded
+
+Five fields, before approval:
+
+| Field | Content |
+|---|---|
+| **Milestone and baseline** | Which freeze, and the tag it is measured against — e.g. M8 at `v0.8.0-m8-phase3` |
+| **What and why** | The defect or finding, and the evidence for it. A reproduction, a failing test, a VAPT finding, or a stated risk |
+| **Why it cannot be done outside the freeze** | Explicitly why **AD-20** decoration does not solve it. This is the field that does the work: most requests should fail here |
+| **Blast radius** | The files and tables expected to change, named in advance — so the freeze diff after the work can be compared against what was authorised, not merely inspected |
+| **Scope** | Single change, window, or milestone — see §4 |
+
+#### 4. Scope of an exception
+
+| Scope | Ruling |
+|---|---|
+| **Single change** | **The default, and what "exception" means.** It authorises one named change against one baseline, and it closes when that change is committed |
+| **Time window** | **Permitted, but only with an explicit expiry and a stated purpose** — e.g. batching TD-19, TD-20 and TD-21 into one opening, which §8 has recommended since M6. It expires on the stated date whether the work is finished or not; unfinished work needs a fresh request. **A window without an expiry is a revoked freeze that still calls itself frozen** |
+| **Milestone-wide** | **Not an exception. That is unfreezing the milestone**, and it requires a new architect decision superseding the freeze in this register — not an entry in the exception log |
+
+**A window is the higher-risk form**, because it is open when nobody is watching it. Any window should therefore name its own end date and the specific items it covers, and both belong in the record.
+
+#### 5. Gates after the work
+
+**All five, plus freeze verification. Without exception, and re-run rather than inherited:**
+
+Laravel Pint · PHPStan (Larastan level 6) · PHPUnit · `composer audit` · `php artisan migrate:fresh --seed` · the freeze diff for **every** milestone under freeze, not only the one opened.
+
+**Every milestone, because a change inside one freeze is exactly the kind of change that reaches into another.** This is not hypothetical here: the M8 gate run of 2026-08-14 found a **circular container dependency** among decorators spanning M7 and M8 that no single-milestone check would have located, and a **migration that could not run on MySQL** while 84 tests passed on SQLite.
+
+**And the freeze diff must be compared against §3's declared blast radius**, not merely read. A non-empty diff is expected after an approved exception — that is the point of granting one. What must be verified is that it contains **only** what was authorised. A diff nobody compares to a prior claim tells you a file changed, not whether it should have.
+
+**The exception is not complete until the gate is green.** Approval authorises the work; the gate closes it.
+
+#### 6. Does the freeze re-arm
+
+**Yes. Automatically, and without a further decision.**
+
+An exception suspends the freeze for exactly what §4 defined and no longer. On the last commit of the authorised work the freeze is **fully active again at a new baseline**: a new tag is cut, and every subsequent freeze diff is measured against it. **The old baseline is not reused** — the milestone has legitimately changed, and continuing to diff against a superseded tag would report an authorised change as a breach for the rest of the project's life.
+
+**A window expires on its stated date whether or not the work finished.** Nothing re-arms it, because nothing disarmed it beyond that date.
+
+#### 7. Audit record
+
+**The record lives in this file, in the register below** — not in `docs/ARCHITECT_REVIEW.md`, which is **replaced in full at every phase**. That distinction is the reason `TECHNICAL_DEBT.md` and this file exist at all: a decision recorded only in the review section survives exactly one prompt.
+
+Three artefacts, and only the first is prose:
+
+1. **A register entry here**, added when the exception is **approved** and completed when the gate closes it.
+2. **A commit trailer** on every commit made under the exception — `Freeze-Exception: FE-<n>` — so the authorisation is reachable from the code, by `git log --grep`, by anyone who never reads this file.
+3. **A tag at the new baseline** (§6), which is what the next freeze diff measures against.
+
+**Git is the tamper-evident part; the prose is the reasoning.** A register entry can be edited afterwards. A commit trailer and a tag are what an auditor can check independently, years later, against a milestone whose outputs may be contested in CAT or the High Court — which is the standard this system is held to.
+
+#### The Freeze Exception Register
+
+**No exception has been requested or granted.** M4, M5, M6, M7 and M8 are all unopened.
+
+| # | Milestone / baseline | What | Scope | Approved | Gate green | New baseline |
+|---|---|---|---|---|---|---|
+| — | *(none)* | | | | | |
+
+**Consequence.** The mechanism costs a request and a gate run — deliberately more than a code change and deliberately less than a milestone decision. The cost is the point: it should be cheaper to decorate (AD-20) or to wait for a batched window than to open a freeze, so that opening one stays rare enough to mean something.
+
+**What it forecloses**, as AD-15 requires this register to state: nothing that was previously possible. Before AD-22, AD-21 rule 5 required a mechanism that did not exist, so *no* change to M8 was possible by any route. This is strictly an unblocking decision — and the first request it is likely to receive is the batching of **TD-19, TD-20 and TD-21** against M4, M5 and M6, which §8 of the review has recommended since M6 and which is a **window**, not a single change.
 
 ---
 

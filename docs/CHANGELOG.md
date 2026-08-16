@@ -2,6 +2,22 @@
 
 All notable work on the ODPC Portal, in reverse chronological order. Business-rule changes are traceable to `docs/ODPC_NEW_FINAL.pptx` / `docs/CONVENTIONAL DPC PROCESS.pptx` slide numbers where applicable. This file, `docs/PROJECT_STATUS.md`, `docs/PROJECT_PROGRESS.md`, and `docs/ARCHITECT_REVIEW.md` are the only documents updated on an ongoing basis (see `docs/ARCHITECT_REVIEW.md` for the full documentation policy).
 
+## 2026-08-14 — M8 closure documentation synchronized
+
+**Documentation only. No source file, test, migration, view or route was touched; no gate was run; the `v0.8.0-m8-phase3` tag was not moved.** This entry closes the documentation half of M8: the freeze, the exception mechanism and BD-11's reclassification existed in the working tree but had never been committed, and two of the ten mandatory documents still described a milestone that had been superseded twice over.
+
+- **`docs/MILESTONE_SUMMARY.md` and `docs/PROJECT_TIMELINE.md` brought into line.** Both still said BD-11 blocked M8, neither recorded the M8 freeze or AD-22, and the summary's at-a-glance table carried *70 tests*, *607 / 1865* and *61 tables* — the figures the gate run had already disproved. The M8 row now reads **Complete & released · Frozen (AD-21)**, M7's freeze column is filled in, and the timeline gains four entries: the three phases, the gate run that found two P0s, M8's closure with BD-11's reclassification, and AD-22.
+
+- **BD-11 now reads identically in every document that mentions it:** a **Deferred Business Decision — Required before production activation of the Review supersession policy.** It blocks **no milestone** — not M8's completion, not M9's start. What it gates is switching supersession on for real officers, and the distinction is the point: a milestone gate is invisible outside this project, whereas production activation is a checkpoint someone can be held to.
+
+- **M8's test count is recorded as 83, not 85 — and this is a correction to the figure the prompt supplied.** M8's tests are exactly the four files commit `a60689d` added under `tests/Feature/Review`: `ReviewDpcTest` 34, `ReviewSupersessionTest` 19, `ReviewCalculationTest` 18, `ReviewDocumentReferenceTest` 12 — **83**, which is also what `php artisan test tests/Feature/Review` reports. No M8 test lives outside that directory, and `a60689d` modified no existing test file. **85 was never reproducible**, and it had already reached `PROJECT_STATUS.md` and `PROJECT_PROGRESS.md` by copy; both are corrected here. This is the third time in two days that a number written once and propagated has had to be withdrawn — after *607 / 1865* and *61 tables* — and it is the reason the count is stated above with its four constituent files rather than as a total.
+
+- **The suite figures are unchanged and were re-verified before committing:** Pint **pass**, PHPStan (Larastan level 6) **0 errors**, PHPUnit **620 passed / 1902 assertions** (exit 0), `composer audit` **no advisories**, and all four freeze diffs — M4/M5/M6, M7 and **M8** — **empty**.
+
+- **`docs/ARCHITECT_REVIEW.md` §0 replaced in full**, per the Permanent Documentation Rule.
+
+**M9 has not started.** No M9 code, migration, route, view or test exists; the `CIR` references in the codebase are M5's remark code and M7's held promotions, both of which predate M9.
+
 ## 2026-08-14 — M8 quality gate run in full: two P0 defects found and fixed
 
 **No new feature, no refactor, no M4/M5/M6/M7 file touched.** The gate was run in the directed order — Pint, PHPStan (Larastan level 6), full PHPUnit suite, `composer audit`, `migrate:fresh --seed`. Gates 1, 2 and 4 passed first time. **Gates 3 and 5 each failed, and neither failure was cosmetic: M8 Phase 3 was not deployable.**
@@ -22,7 +38,9 @@ All notable work on the ODPC Portal, in reverse chronological order. Business-ru
 
 - **Two items raised, neither blocked by a freeze:** **TD-24** (suite engine differs from the deployment engine) and **TD-23** (M8's end-to-end test `forceFill`s past M4's `submit()` and the AH approval, which is what hid the `sanctioned_post_count` defect — design §13 requires the real path).
 
-**Not committed, not pushed, not tagged.** Awaiting architect approval. **M8 closure is still not requested — BD-11 is unanswered.** M9 has not begun.
+~~**Not committed, not pushed, not tagged.** Awaiting architect approval. **M8 closure is still not requested — BD-11 is unanswered.** M9 has not begun.~~
+
+**Superseded the same day — all four followed.** Architect approval was given; **BD-11 was reclassified as a Deferred Business Decision — Required before production activation of the Review supersession policy**, and therefore blocks no milestone; **M8 was closed**. The work was committed in `1c8a8e1` *docs: finalize M8 documentation* and `a60689d` *feat(m8): Review / Re-DPC chain (Phases 1-3)*, **pushed** to `origin/feature/m0-setup`, and **tagged `v0.8.0-m8-phase3`** at `a60689d`, confirmed on the remote. M8 was then **frozen (AD-21)** at that baseline, and the **Freeze Exception mechanism (AD-22)** was defined to make the freeze openable at all. **M9 has still not begun.**
 
 ## 2026-08-14 — M8 engineering complete: documentation synchronized at the milestone boundary
 

@@ -19,7 +19,7 @@ Every item below is **blocked on a business answer**, not on engineering. None c
 | **BD-9** | When an officer's category has no vacancy, which waiting list do they go on? | **Which list an officer appears on.** The PPT's own example puts an SC officer on the *unreserved* waiting list; the system puts them on `SC_W` |
 | **BD-10** | Does a pending court case annotate the remark, hold the promotion, or disqualify? | **What the published remark says**, and possibly whether the promotion takes effect |
 
-**BD-11** (raised at M8 design) is tracked below but does **not** block M7 — it blocks M8's final phase.
+**BD-11** (raised at M8 design) blocks **no milestone**. Architect ruling, 2026-08-14: it is a **Deferred Business Decision — Required before production activation of the Review supersession policy.** M8 is complete, gate-verified and tagged `v0.8.0-m8-phase3` without it.
 
 **None of these is an engineering choice, and none has been guessed at.** BD-9 and BD-10 were found by comparing the system's output against the customer's own worked answer on slide 34, row by row — see `docs/UAT_BUSINESS_VALIDATION.md`, which puts all four to business users in plain language with the worked examples that expose them.
 
@@ -41,7 +41,7 @@ Every item below is **blocked on a business answer**, not on engineering. None c
 | BD-8 | Objection handling (Q11) | M10 | P3 | 2026-07-30 |
 | BD-9 | Waiting-list placement when a category has no vacancy | **M7 closure** | **P1** | 2026-08-14 |
 | BD-10 | Does a court case annotate the remark? | **M7 closure** | P2 | 2026-08-14 |
-| BD-11 | What happens to an officer already promoted under a reviewed DPC? | **M8 phase 3** | **P1** | 2026-08-14 |
+| BD-11 | What happens to an officer already promoted under a reviewed DPC? | **Production activation of the Review supersession policy** — no milestone | **P1** | 2026-08-14 |
 
 ---
 
@@ -194,6 +194,10 @@ Is the objection deadline configurable? Does raising an objection notify the dep
 
 **Raised:** 2026-08-14, M8 design. **Severity: P1 — it decides what a department is told about a promotion an officer may already hold.**
 
+**Status: Deferred Business Decision — Required before production activation of the Review supersession policy.**
+
+**Architect ruling, 2026-08-14.** BD-11 **does not block M8 completion**, and this register previously said it blocked M8's final phase. M8 is complete, gate-verified and tagged `v0.8.0-m8-phase3`. What the answer gates is narrower and later: **switching the Review supersession policy on in production.** The distinction matters because a milestone gate is invisible outside this project, whereas production activation is a checkpoint someone can be held to.
+
 **The situation.** A DPC concludes. The promotion list is approved, signed and published; officers are promoted and take up their posts. Some time later an error is discovered — a name omitted from the seniority list, a mis-entered CR, a reservation rule misapplied — and a **Review DPC** is raised (S35).
 
 The Review recalculates. Its result may differ from the original's. **The deck does not say what that does to the promotions already given effect.**
@@ -213,7 +217,16 @@ The Review recalculates. Its result may differ from the original's. **The deck d
 
 **Also worth confirming:** does the answer differ if the officer has since retired, or been promoted again from the corrected post?
 
-**Current behaviour:** none. M8's final phase is not built, and the design says explicitly that phases 1 and 2 proceed while this is open. The Review will produce its own result and its own documents; **it will not assert anything about the original** until this is answered.
+**Current behaviour — and this is no longer "none".** M8 Phase 3 is built and shipped. On approval of a Review:
+
+- the DPC it corrects is marked **superseded**, recorded on both DPCs' timelines;
+- the department is **notified**, and the message names both DPC codes, because a department holding a signed promotion list needs to know which list replaces it;
+- the superseded DPC's documents **remain downloadable** and are served with a `SUPERSEDED` watermark, applied on delivery so the stored file and its SHA-256 stay exactly as issued;
+- **nothing is asserted about the promotion itself** — no withdrawal, no reverted rank, no arrears, no revised date of promotion.
+
+**That last line is the deferral.** The system's silence is a deliberate abstention, not a policy — it is correct and shippable, but it is not a position the Commission has taken.
+
+**One consequence worth stating plainly.** A watermark tells a reader the list no longer governs; it does not tell them what happened to the promotion recorded on it. Between now and the ruling, anyone reading a superseded promotion list is reading a document whose legal effect is genuinely undetermined. Deferring BD-11 accepts that knowingly, which is why the answer is required **before the policy is activated in production** rather than merely desirable.
 
 ---
 

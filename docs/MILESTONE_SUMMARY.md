@@ -17,13 +17,21 @@ One page per milestone: what it delivered, what governs it now, and what it left
 | **M4** | DPC Proposal (detailed) — 7 phases | S12–S25 | ✅ Complete | **Architecture frozen** | 145 |
 | **M5** | Scoring & Eligibility Engine — 4 phases | S18, S33, C4–C6 | ✅ Complete | **Engine frozen** | 146 |
 | **M6** | CGPSC Workflow — 4 phases | S26–S30 | ✅ Complete | **Frozen** | 77 |
-| **M7** | DPC Proceedings & Result Generation — 4 phases | S31–S34, S45 | ✅ **Complete** | — | 169 |
-| **M8** | Review DPC | S35–S44 | 🟡 3 of 3 phases — closure pending BD-11 | — | 70 |
+| **M7** | DPC Proceedings & Result Generation — 4 phases | S31–S34, S45 | ✅ **Complete** | **Frozen** (from M8) | 169 |
+| **M8** | Review DPC — 3 phases | S35–S44 | ✅ **Complete & released** | **Frozen — AD-21** | 83 |
 | **M9** | Circulation DPC | S45–S48 | ⚪ Not started | — | — |
 | **M10** | Self-Inspection & Objection | S49–S51 | ⚪ Not started | — | — |
 | **M11** | Notifications · Reports · Dashboards · Audit UI · Hardening | — | ⚪ Not started | — | — |
 
-**607 tests / 1865 assertions.** Pint clean · PHPStan (Larastan level 6) 0 errors · `composer audit` clean · `migrate:fresh --seed` OK, 61 tables.
+**620 PHPUnit tests / 1902 assertions.** Pint clean · PHPStan (Larastan level 6) 0 errors · `composer audit` clean · `migrate:fresh --seed` OK, 62 tables. Verified by the full gate run of 2026-08-14 and re-verified before the M8 documentation commit.
+
+**Five freezes are in force** — M4 (architecture), M5 (engine), M6, M7 and M8 (**AD-21**). The mechanism for opening any of them is **AD-22**, the Freeze Exception; its register is empty and no exception has been requested. Verification is a diff per freeze:
+
+```
+git diff --name-only v0.6.0-m6-complete -- app/Domain/{Dpc,Eligibility,Cgpsc}   # M4/M5/M6
+git diff --name-only v0.7.0-m7-complete -- app/Domain/Proceeding                # M7
+git diff --name-only v0.8.0-m8-phase3   -- app/Domain/Review                    # M8 (+ its view paths)
+```
 
 ---
 
@@ -120,9 +128,17 @@ One page per milestone: what it delivered, what governs it now, and what it left
 
 ---
 
-## M8 — Review DPC 🟡 *all phases built, closure pending*
+## M8 — Review DPC ✅ *(complete, released, frozen)*
 
-**All three phases complete; closure held on BD-11.** Design at `docs/design/09-m8-review-dpc.md`.
+**All three phases complete, released and frozen.** Design at `docs/design/09-m8-review-dpc.md`. Closed, committed and tagged **`v0.8.0-m8-phase3`** / `a60689d` on 2026-08-14, pushed to `origin/feature/m0-setup`.
+
+| | |
+|---|---|
+| **Status** | ✅ Complete · Released · **Frozen (AD-21)** |
+| **Freeze** | **AD-21**, ACTIVE from 2026-08-14 at baseline `v0.8.0-m8-phase3`. Stricter than AD-15: **bug fixes only, each individually approved**; anything else needs a Freeze Exception |
+| **Freeze Exception mechanism** | **AD-22**, defined 2026-08-14 — approver, admissibility, five recorded fields, three scopes, mandatory full gate plus an all-milestone freeze diff, automatic re-arm at a new baseline, three-artefact audit record. Governs all five freezes. **Register empty; none requested** |
+| **BD-11** | **Deferred Business Decision — Required before production activation of the Review supersession policy.** Blocks no milestone |
+| **Tests** | **83 feature tests** across four files in `tests/Feature/Review`, within a suite of **620 PHPUnit tests / 1902 assertions** |
 
 **The smallest milestone since M2, by design rather than by ambition.** S35 says outright that *"the Review DPC process will be exactly the same as the Fresh DPC process"*, and S36–S44 bear it out: every screen already exists. M8 adds no new workflow, no new engine, no new renderer and no new proceeding — it adds an **origin** (which DPC is being corrected, and why), **copy-on-create** so the department corrects rather than retypes, and the answer to what a Review does to the original.
 
@@ -134,9 +150,16 @@ One page per milestone: what it delivered, what governs it now, and what it left
 
 **M8 introduced the decoration pattern** — four subclasses bound over M7 in the container, so M8 changes how M7 approves, renders and serves without modifying a byte of it. Documented, with its costs and limits, in `docs/ARCHITECTURE_BASELINE_v0.7.md`.
 
-**Still blocked:** **BD-11** — what supersession means for an officer already promoted. It gates closure, and nothing else.
+**BD-11 is deferred, not outstanding.** Architect ruling, 2026-08-14: what supersession means for an officer already promoted under the reviewed DPC is a **Deferred Business Decision — Required before production activation of the Review supersession policy.** It gates **no milestone** — not M8's completion, not M9's start. The three plausible answers (the promotion stands and only the paper is corrected; it is withdrawn from the date of the Review; it is withdrawn retrospectively with recovery of pay) differ in what they do to a serving officer's substantive rank and pay, so the system records the supersession, notifies the department, and asserts nothing about the promotion itself. That is shippable behaviour and it is not a settled policy — which is why the ruling is required **before the policy is switched on in production** rather than merely desirable.
 
 **One finding in existing schema:** `review_reason_id` is singular; S37's reasons are checkboxes. Fixed additively, with the frozen column left unused rather than repurposed.
+
+**The milestone that found the decorator pattern's ceiling — by hitting it.** The full gate run of 2026-08-14 turned up **two P0 defects that 83 green tests had not**, and neither was cosmetic:
+
+- **A circular container dependency spanning M7 and M8** killed the PHP process on every document generation. Three of AD-20's four decorators sit in each other's dependency graph, and M7's own renderer already depended on the approval service, so Phase 3's constructor closed the ring. `ARCHITECTURE_BASELINE_v0.7.md` had warned that a *fifth* decorator was the signal to re-examine the boundary; **the fourth was already enough.** Fixed by resolving the document service inside `approve()` rather than in the constructor — one edge, no refactor.
+- **A foreign-key identifier 65 characters long against MySQL's limit of 64**, which meant `dpc_document_review_references` **had never been created in the real database**. It survived a green suite because the suite runs on in-memory SQLite, which does not enforce the limit (**TD-24**). A green suite was not evidence the schema deploys.
+
+> **What it changed.** Both were found by *running* the gate rather than reading the code — and the second is the counter-example to the pattern in the closing section below: here the gate did prove something the disciplines had missed. The lesson recorded is narrower and sharper: **the suite must run against the engine the system deploys on.**
 
 ---
 

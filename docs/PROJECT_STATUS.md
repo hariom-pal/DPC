@@ -16,7 +16,7 @@
 | ✅ | **M7 Design Approved** — `docs/design/08-m7-proceedings.md`; all 8 questions ruled |
 | ✅ | **M7 Complete** — DPC Proceedings & Result Generation |
 | ✅ | **M8 Phase 3 Complete** — supersession, Review documents, `SUPERSEDED` watermark, publication |
-| ✅ | **M8 Complete** — Review DPC, all 3 phases built, tested and gate-green. **BD-11 deferred by architect ruling 2026-08-14** — it does not block M8 completion |
+| ✅ | **M8 Complete (Frozen)** — Review DPC, all 3 phases. **M8 FREEZE ACTIVE from 2026-08-14** (AD-21). BD-11 deferred — it does not block M8 completion |
 | ⏳ | **M9 NOT STARTED** — and will not begin without approval |
 
 (M0 Foundation is complete and predates M1.)
@@ -25,9 +25,9 @@
 
 **On M7 — COMPLETE (closed 2026-08-14).** All four phases delivered and approved: the proceeding lifecycle, the S33 editable workspace with append-only corrections, `CALCULATE` against the frozen M5 engine with stale-calculation protection, the S34 result, `APPROVE BY CGPSC`, `CANCEL DPC`, held promotions (`CIR`), and the proceedings document and promotion list rendered, stored, signed and published — 169 tests. **No file in M4, M5 or M6 was modified**, verified by full-repository diff at every phase boundary.
 
-**On M8 — COMPLETE (2026-08-14).** A Review DPC has an origin, a chain (`chain_uuid`, `review_number`, `chain_depth`, the original's version), coded reasons and a chart copied from the original — with the original never touched. It runs the full M6/M7 pipeline, calculates under **the original's configuration snapshot** (AQ-11), and on approval **supersedes** the DPC it corrects: recorded on both timelines, notified to the department, and shown on the superseded DPC's documents as a `SUPERSEDED` watermark **applied on delivery so the stored artefact and its hash stay exactly as issued**. 85 tests. **BD-11 is the only thing standing between M8 and closure** — what supersession means for an officer already promoted. The system records the supersession and tells the department; it asserts nothing about the promotion itself.
+**On M8 — COMPLETE (2026-08-14).** A Review DPC has an origin, a chain (`chain_uuid`, `review_number`, `chain_depth`, the original's version), coded reasons and a chart copied from the original — with the original never touched. It runs the full M6/M7 pipeline, calculates under **the original's configuration snapshot** (AQ-11), and on approval **supersedes** the DPC it corrects: recorded on both timelines, notified to the department, and shown on the superseded DPC's documents as a `SUPERSEDED` watermark **applied on delivery so the stored artefact and its hash stay exactly as issued**. 83 feature tests. **BD-11 is deferred and blocks nothing** — a **Deferred Business Decision — Required before production activation of the Review supersession policy** (architect ruling 2026-08-14). The system records the supersession and tells the department; it asserts nothing about the promotion itself, and must not until CGPSC rules.
 
-**M8's closure is withheld for a business reason only, as M7's was.** Four carried-forward questions change what a published promotion list says: **BD-2** and **BD-3** (reserved relaxation), **BD-9** (which waiting list an officer joins when their category has no vacancy) and **BD-10** (what a pending court case does). They constrain what may be *published*, not what is built, and **M7 is not reopened for them** (architect ruling): a result affected by BD-2/BD-3 or BD-10 is marked provisional and cannot be published. **BD-9 is the exception and the one to chase** — it raises no flag, so it can produce a confidently wrong published list rather than a blocked one. BD-9 and BD-10 were found by comparing the system's output against the customer's own worked answer on slide 34, row by row. All are put to business users in plain language in `docs/UAT_BUSINESS_VALIDATION.md`. **M5 is not to be modified for BD-9** (architect ruling) — it is raised to CGPSC instead.
+**M8 is complete; four business questions remain open and none of them blocks it.** Four carried-forward questions change what a published promotion list says: **BD-2** and **BD-3** (reserved relaxation), **BD-9** (which waiting list an officer joins when their category has no vacancy) and **BD-10** (what a pending court case does). They constrain what may be *published*, not what is built, and **M7 is not reopened for them** (architect ruling): a result affected by BD-2/BD-3 or BD-10 is marked provisional and cannot be published. **BD-9 is the exception and the one to chase** — it raises no flag, so it can produce a confidently wrong published list rather than a blocked one. BD-9 and BD-10 were found by comparing the system's output against the customer's own worked answer on slide 34, row by row. All are put to business users in plain language in `docs/UAT_BUSINESS_VALIDATION.md`. **M5 is not to be modified for BD-9** (architect ruling) — it is raised to CGPSC instead.
 
 ### Repository baseline
 
@@ -38,7 +38,10 @@ Tagged **`v0.7.0-m7-complete`** / `6f52f71` on branch `feature/m0-setup`, 2026-0
 ```
 git diff v0.6.0-m6-complete -- app/Domain/{Dpc,Eligibility,Cgpsc}   # M4/M5/M6
 git diff v0.7.0-m7-complete -- app/Domain/Proceeding                # M7, from M8 onward
+git diff v0.8.0-m8-phase3  -- app/Domain/Review                     # M8, from M9 onward
 ```
+
+**The M8 check must also cover its views**, because M8's UI deliberately sits outside M4's frozen screens: `resources/views/dpc/reviews/`, `resources/views/documents/review-context.blade.php`, `resources/views/documents/superseded-watermark.blade.php` and `resources/views/partials/review-banner.blade.php`. A diff scoped to `app/` alone would miss them.
 
 Until the first of these tags existed there was no commit at any milestone boundary, so no freeze breach could have been detected by diff (**TD-14**, closed).
 
@@ -78,21 +81,21 @@ This is a milestone-count estimate, not effort-weighted. M4 and M5 were the two 
 
 ## Current Work
 
-**M8 — Review DPC: COMPLETE (all three phases, 2026-08-14).** BD-11 is a **Deferred Business Decision — required before production activation of the Review supersession policy** and, by architect ruling of 2026-08-14, **does not block M8 completion**.
+**M8 — Review DPC: COMPLETE (all three phases, 2026-08-14).** BD-11 is a **Deferred Business Decision — Required before production activation of the Review supersession policy** and, by architect ruling of 2026-08-14, **does not block M8 completion**.
 
 A Review DPC has an origin, a chain (`chain_uuid`, `review_number`, `chain_depth`, the original's content fingerprint) and coded reasons; the chart arrives pre-filled and **the original is never touched**. It runs the full M6/M7 pipeline — allotted, accepted, scheduled, opened, calculated and approved exactly as a Fresh DPC, which is what S35's *"exactly the same process"* promised. It calculates under **the original's configuration snapshot**, never today's rules (AQ-11). On approval it **supersedes** the DPC it corrects (AQ-9): recorded on both timelines, notified to the department with both DPC codes, and shown on the superseded DPC's documents as a `SUPERSEDED` watermark **applied on delivery, so the stored artefact and its hash stay exactly as issued**.
 
-**85 tests for M8. No file in M4, M5, M6 or M7 was modified** — verified by full-repository diff at every phase boundary, and notable because M8 changes how M7 approves a result, renders a document and serves one. It does that with **four decorators** bound over M7 in the container (**AD-20**), each returning the parent's behaviour untouched for a Fresh DPC, each with a test asserting so.
+**83 feature tests for M8. No file in M4, M5, M6 or M7 was modified** — verified by full-repository diff at every phase boundary, and notable because M8 changes how M7 approves a result, renders a document and serves one. It does that with **four decorators** bound over M7 in the container (**AD-20**), each returning the parent's behaviour untouched for a Fresh DPC, each with a test asserting so.
 
 **Phase 3 specifically** delivered supersession taking legal effect at approval, the Review documents' provenance block (AQ-13), the `SUPERSEDED` watermark, the derived configuration-snapshot UUID, and publication — 19 new tests.
 
-**BD-11 is deferred, not outstanding work.** Architect ruling, 2026-08-14: what supersession means for an officer already promoted under the reviewed DPC is a **Deferred Business Decision — required before production activation of the Review supersession policy**, and it does not block M8 completion. Nothing in M8's engineering scope waits on it.
+**BD-11 is deferred, not outstanding work.** Architect ruling, 2026-08-14: what supersession means for an officer already promoted under the reviewed DPC is a **Deferred Business Decision — Required before production activation of the Review supersession policy**, and it does not block M8 completion. Nothing in M8's engineering scope waits on it.
 
 **What the deferral does constrain.** Until CGPSC rules, the system records the supersession, notifies the department with both DPC codes, and **asserts nothing about the promotion itself** — no withdrawal, no reverted rank, no arrears. That behaviour is correct and shippable, but it is not a *policy*. **The ruling is required before the Review supersession policy is activated in production**, because the three plausible answers — the promotion stands and only the paper is corrected; it is withdrawn from the date of the Review; it is withdrawn retrospectively with recovery of pay — differ in what they do to a serving officer's substantive rank and pay. See `docs/ARCHITECT_REVIEW.md` §7.
 
 **M9 has NOT started.** No M9 code, migration, route, view or test exists.
 
-**All prior freezes hold.** M4 architecture-frozen, M5 engine-frozen, M6 frozen, M7 frozen from M8 onward. Freeze verification runs at every phase boundary and has never been non-empty.
+**All freezes hold, and there are now five.** M4 architecture-frozen, M5 engine-frozen, M6 frozen, M7 frozen from M8 onward, and **M8 frozen from 2026-08-14 (AD-21)** — the strictest of the five. Freeze verification runs at every phase boundary and has never been non-empty.
 
 ## Next Milestone
 
@@ -102,7 +105,7 @@ M9 resolves a held promotion (`CIR`) from an earlier DPC — an officer missing 
 
 **Two things should be settled before M9 opens:**
 
-1. **BD-11.** M9 faces the same supersession question M8 raised, from the other direction — a circulation note finalises a promotion within a DPC that could itself later be reviewed. BD-11's answer informs the design. *(BD-11 gates M8's closure, not M9's start — but sequencing them together is cheaper.)*
+1. **BD-11.** M9 faces the same supersession question M8 raised, from the other direction — a circulation note finalises a promotion within a DPC that could itself later be reviewed. BD-11's answer informs the design. *(BD-11 gates no milestone — neither M8's completion nor M9's start. It gates production activation of the supersession policy, and M9 inherits the same deferral.)*
 2. **Q12** — the circulation-trigger wording ambiguity ("2+ years CR missing" vs. "CR ≤ 4"), the same ambiguity that affects the eligibility engine.
 
 **Recommended before M9, at the M8 closure boundary:** one authorised freeze opening to batch **TD-19, TD-20 and TD-21** (see `docs/ARCHITECT_REVIEW.md` §8). All three are small, well-understood changes blocked only by AD-15, and TD-20 now has three copies of the same query.
@@ -121,7 +124,7 @@ M9 resolves a held promotion (`CIR`) from an earlier DPC — an officer missing 
 
 **Business questions are in `docs/PENDING_BUSINESS_DECISIONS.md`.** Five are open, and the ones that matter for a publishable result are:
 
-- **BD-11 — what happens to an officer already promoted under a reviewed DPC?** P1, and now a **Deferred Business Decision — required before production activation of the Review supersession policy** (architect ruling 2026-08-14). **Blocks nothing in the build.** The three plausible answers differ in what they do to a serving officer's substantive rank and pay, so the system records the supersession and decides nothing — which is shippable behaviour but not a settled policy.
+- **BD-11 — what happens to an officer already promoted under a reviewed DPC?** P1, and now a **Deferred Business Decision — Required before production activation of the Review supersession policy** (architect ruling 2026-08-14). **Blocks nothing in the build.** The three plausible answers differ in what they do to a serving officer's substantive rank and pay, so the system records the supersession and decides nothing — which is shippable behaviour but not a settled policy.
 - **BD-2 / BD-3 — reserved relaxation:** automatic or committee discretion, and does relaxation to 10 apply beyond Class-I→I? A result they could have changed is marked **provisional** and **cannot be published**. This fires on Reviews too — US3's case is exactly it.
 - **BD-9 — which waiting list does an officer join when their own category has no vacancy?** **The one to chase**, because it raises no flag: it can produce a confidently wrong *published* list rather than a blocked one. **M5 is not modified for it** (ruling) — it is raised to CGPSC.
 - **BD-10 — does a pending court case annotate the remark?** Marks the result provisional; publication blocked.
@@ -145,7 +148,7 @@ Formal record of closed milestones. A closed milestone is approved, gate-checked
 | **M6** | CGPSC Workflow — 4 phases | **2026-08-13** | **Frozen.** No further functional changes; bug fixes only. |
 | **M5** | Scoring & Eligibility Engine — 4 phases | **2026-08-13** | **Engine frozen.** Eligibility Algorithm, Scoring Algorithm, Zone Logic, Super Seat Logic. Changes only through Configuration, Master Data, or Government Notification — never source code. Bug and security fixes remain permitted. |
 | **M7** | DPC Proceedings & Result Generation — 4 phases | **2026-08-14** | **Frozen from M8 onward.** Extended only by decoration (AD-20); bug fixes only. Verified by `git diff v0.7.0-m7-complete -- app/Domain/Proceeding`. |
-| **M8** | Review DPC — 3 phases | **2026-08-14** | **Freeze not yet declared.** M8 is complete and tagged `v0.8.0-m8-phase3`; no freeze directive has been issued, and one is recommended rather than assumed — see `docs/ARCHITECT_REVIEW.md` §0. |
+| **M8** | Review DPC — 3 phases | **2026-08-14** | **FROZEN — ACTIVE from 2026-08-14 (AD-21).** No production code changes inside M8; bug fixes only, with Architect approval; documentation may continue; M9 must not modify M8; any other change requires a formal Freeze Exception. Verified by `git diff v0.8.0-m8-phase3 -- app/Domain/Review`. |
 
 ### M5 closure detail
 
@@ -205,9 +208,21 @@ Closed on architect approval of Phase 4, 2026-08-14, at tag `v0.7.0-m7-complete`
 
 **Four additive migrations, nothing altered or dropped:** `dpc_review_links`, `dpc_proposal_review_reasons`, `dpc_review_calculations`, `dpc_document_review_references`.
 
-**BD-11, and what deferring it means:** it decides whether a superseded promotion is withdrawn or merely superseded on paper — a service-law question about a serving officer's substantive rank and pay, not an engineering one. Ruled a **Deferred Business Decision — required before production activation of the Review supersession policy** on 2026-08-14. M8 ships without it; **the Review supersession policy is not activated in production until CGPSC rules.** Full statement in `docs/ARCHITECT_REVIEW.md` §7.
+**BD-11, and what deferring it means:** it decides whether a superseded promotion is withdrawn or merely superseded on paper — a service-law question about a serving officer's substantive rank and pay, not an engineering one. Ruled a **Deferred Business Decision — Required before production activation of the Review supersession policy** on 2026-08-14. M8 ships without it; **the Review supersession policy is not activated in production until CGPSC rules.** Full statement in `docs/ARCHITECT_REVIEW.md` §7.
 
-**Freeze not yet declared.** M8 is not frozen because it is not closed. It will be frozen on closure, like M6 and M7 before it.
+**M8 FREEZE — DECLARED AND ACTIVE.** Architect decision, **2026-08-14**. Baseline `v0.8.0-m8-phase3` / `a60689d`. Recorded permanently as **AD-21**.
+
+| # | Rule |
+|---|---|
+| **1** | No production code changes inside M8 |
+| **2** | Only bug fixes, and only with Architect approval |
+| **3** | Documentation may continue |
+| **4** | M9 development must not modify the M8 implementation |
+| **5** | Any future change requires a formal **Freeze Exception** |
+
+**This is the strictest freeze in the project.** M4, M5, M6 and M7 accept bug fixes, security fixes, performance work, VAPT findings and hardening without per-change approval (AD-15). M8 accepts **bug fixes only, each individually approved**, and anything else needs a Freeze Exception. All four earlier freezes remain in force alongside it.
+
+**One thing the declaration names but does not define: the Freeze Exception itself.** Nothing in the project says who grants one, what record it leaves, or whether it reopens the freeze for a single change or for a window. Best settled while no exception is pending.
 
 ## Build Status
 
