@@ -21,6 +21,7 @@ class DepartmentMasterSeeder extends Seeder
             ['code' => 'SE', 'name' => 'School Education Department'],
             ['code' => 'HE', 'name' => 'Higher Education Department'],
             ['code' => 'FIN', 'name' => 'Finance Department'],
+            ['code' => 'HLT', 'name' => 'Health Department'],
             ['code' => 'AGR', 'name' => 'Agriculture Department'],
             ['code' => 'ME', 'name' => 'Medical Education Department'],
             ['code' => 'LAB', 'name' => 'Labour Department'],

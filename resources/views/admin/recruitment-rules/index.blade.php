@@ -13,7 +13,7 @@
             <table class="table table-striped mb-0 align-middle">
                 <thead>
                     <tr>
-                        <th>Cadre</th><th>Ver.</th><th>GO No.</th><th>Effective</th>
+                        <th>Cadre</th><th>Ver.</th><th>GO No.</th><th>Feeder Cadres → Min. Qualification</th><th>Effective</th>
                         <th>Direct %</th><th>Promo %</th><th>GO PDF</th><th>Status</th><th class="text-end">Actions</th>
                     </tr>
                 </thead>
@@ -23,6 +23,28 @@
                             <td>{{ $rule->cadre?->name }}</td>
                             <td>v{{ $rule->version }}</td>
                             <td>{{ $rule->government_order_number }}</td>
+                            <td class="small">
+                                @forelse ($rule->feeders as $feeder)
+                                    <div>
+                                        {{ $feeder->feederCadre?->name ?? '—' }}
+                                        <span class="text-body-secondary">
+                                            · {{ rtrim(rtrim(number_format((float) $feeder->promotion_percentage, 2, '.', ''), '0'), '.') }}% share
+                                            @if ($feeder->experienceLabel())
+                                                · {{ $feeder->experienceLabel() }}
+                                            @endif
+                                            @if ($feeder->qualificationLabel())
+                                                · {{ $feeder->qualificationLabel() }}
+                                                @unless ($feeder->qualification_id)
+                                                    {{-- Legacy free text that matched no master row. --}}
+                                                    <span class="badge text-bg-warning" title="Not linked to the Qualification master">unmapped</span>
+                                                @endunless
+                                            @endif
+                                        </span>
+                                    </div>
+                                @empty
+                                    <span class="text-body-secondary">Direct recruitment only</span>
+                                @endforelse
+                            </td>
                             <td>{{ $rule->effective_from?->format('d-m-Y') }} — {{ $rule->effective_to?->format('d-m-Y') ?? 'current' }}</td>
                             <td>{{ $rule->direct_recruitment_pct }}</td>
                             <td>{{ $rule->promotion_recruitment_pct }}</td>
@@ -48,7 +70,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="9" class="text-center text-muted py-4">No recruitment rules yet.</td></tr>
+                        <tr><td colspan="10" class="text-center text-muted py-4">No recruitment rules yet.</td></tr>
                     @endforelse
                 </tbody>
             </table>

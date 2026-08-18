@@ -7,11 +7,13 @@ use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\CadreController;
 use App\Http\Controllers\Admin\CommitteeConfigurationController;
 use App\Http\Controllers\Admin\CommitteeTypeController;
+use App\Http\Controllers\Admin\DepartmentController;
 use App\Http\Controllers\Admin\DesignationController;
 use App\Http\Controllers\Admin\DistrictController;
 use App\Http\Controllers\Admin\DpcTypeController;
 use App\Http\Controllers\Admin\IntegrationStatusController;
 use App\Http\Controllers\Admin\PayScaleController;
+use App\Http\Controllers\Admin\QualificationController;
 use App\Http\Controllers\Admin\RecruitmentRuleController;
 use App\Http\Controllers\Admin\ReservationCategoryController;
 use App\Http\Controllers\Admin\ReservationPolicyController;
@@ -257,6 +259,9 @@ Route::middleware('auth')->group(function (): void {
             ->group(function (): void {
                 Route::get('/', [AdminDashboardController::class, 'index'])->name('dashboard');
                 Route::get('/integrations', IntegrationStatusController::class)->name('integrations');
+                // Department Master — the catalogue registration (S6) draws
+                // from. Registration still owns the registration transition.
+                Route::resource('departments', DepartmentController::class)->except(['show']);
                 Route::resource('districts', DistrictController::class)->except(['show']);
                 Route::resource('designations', DesignationController::class)->except(['show']);
                 Route::resource('pay-scales', PayScaleController::class)
@@ -275,6 +280,9 @@ Route::middleware('auth')->group(function (): void {
                     ->parameters(['dpc-types' => 'dpcType'])
                     ->except(['show']);
                 Route::resource('cadres', CadreController::class)->except(['show']);
+                // The controlled list a recruitment rule's minimum qualification
+                // is chosen from (replaces the free-text field).
+                Route::resource('qualifications', QualificationController::class)->except(['show']);
                 Route::resource('reservation-policies', ReservationPolicyController::class)
                     ->parameters(['reservation-policies' => 'reservationPolicy'])
                     ->except(['show']);

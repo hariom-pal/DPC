@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  PLACEHOLDER — not the official Digital India logo.
+
+  Neutral by design, for the same reason as the CGPSC and CSC placeholders: the
+  Digital India mark is a Government of India mark with a defined wordmark,
+  colour and tagline, and approximating it from memory would put an inaccurate
+  government mark on a government portal. An obvious placeholder is the lesser
+  of the two.
+
+  Replace with the official asset from digitalindia.gov.in (or as supplied by
+  the Department), keeping the filename `digital-india-logo` and roughly a 5:2
+  aspect ratio. Any of .svg / .png / .webp / .jpg is picked up automatically —
+  see README.md in this directory. Nothing else needs to change.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 250 100" width="250" height="100" role="img" aria-label="Digital India logo placeholder">
+  <rect x="1.5" y="1.5" width="247" height="97" rx="12" fill="#ffffff" stroke="#dde5ee" stroke-width="3"/>
+  <rect x="16" y="26" width="52" height="48" rx="10" fill="#0b4f9e"/>
+  <text x="42" y="58" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif"
+        font-size="21" font-weight="700" fill="#ffffff">DI</text>
+  <text x="80" y="45" font-family="Segoe UI, Arial, sans-serif" font-size="16"
+        font-weight="600" fill="#1b2733">Digital India</text>
+  <text x="80" y="63" font-family="Segoe UI, Arial, sans-serif" font-size="11"
+        fill="#5b6b7c">Power To Empower</text>
+  <text x="80" y="79" font-family="Segoe UI, Arial, sans-serif" font-size="8"
+        fill="#8a99a8" letter-spacing="1.2">PLACEHOLDER</text>
+</svg>

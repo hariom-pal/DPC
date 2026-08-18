@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace App\Domain\Department\Models;
 
 use App\Domain\Authentication\Models\User;
+use App\Domain\Dpc\Models\DpcIdSequence;
+use App\Domain\Dpc\Models\DpcProposal;
+use App\Domain\Master\Models\Cadre;
 use App\Domain\Master\Models\District;
 use App\Enums\DepartmentStatus;
 use App\Support\Concerns\Blameable;
@@ -64,6 +67,33 @@ class Department extends Model implements Auditable
     public function district(): BelongsTo
     {
         return $this->belongsTo(District::class);
+    }
+
+    /**
+     * @return HasMany<Cadre, $this>
+     */
+    public function cadres(): HasMany
+    {
+        return $this->hasMany(Cadre::class);
+    }
+
+    /**
+     * @return HasMany<DpcProposal, $this>
+     */
+    public function dpcProposals(): HasMany
+    {
+        return $this->hasMany(DpcProposal::class);
+    }
+
+    /**
+     * Issued DPC ID counters. Their existence is what makes `code` immutable:
+     * the code is the prefix of every ID already handed out.
+     *
+     * @return HasMany<DpcIdSequence, $this>
+     */
+    public function dpcIdSequences(): HasMany
+    {
+        return $this->hasMany(DpcIdSequence::class);
     }
 
     /**

@@ -47,7 +47,7 @@
         </div>
     </div>
 
-    {{-- Masthead: CGPSC left, title centre, CSC right --}}
+    {{-- Masthead: CGPSC left, title centre, Digital India right --}}
     <div class="gov-masthead">
         <div class="container py-2 py-lg-3">
             <div class="row align-items-center g-3">
@@ -64,8 +64,8 @@
                 </div>
                 <div class="col-auto d-none d-sm-block">
                     @include('partials.logo', [
-                        'which' => 'csc', 'class' => 'gov-logo-sm',
-                        'alt' => 'CSC e-Governance Services India Limited',
+                        'which' => 'digital-india', 'class' => 'gov-logo-sm',
+                        'alt' => 'Digital India',
                     ])
                 </div>
             </div>

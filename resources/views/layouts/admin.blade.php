@@ -37,6 +37,8 @@
                 <div class="list-group list-group-flush">
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.dashboard') ? 'active' : '' }}"
                        href="{{ route('admin.dashboard') }}">Dashboard</a>
+                    <a class="list-group-item list-group-item-action fw-semibold {{ request()->routeIs('admin.departments.*') ? 'active' : '' }}"
+                       href="{{ route('admin.departments.index') }}">Departments</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.districts.*') ? 'active' : '' }}"
                        href="{{ route('admin.districts.index') }}">Districts</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.designations.*') ? 'active' : '' }}"
@@ -45,6 +47,8 @@
                        href="{{ route('admin.pay-scales.index') }}">Pay Scales</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.cadres.*') ? 'active' : '' }}"
                        href="{{ route('admin.cadres.index') }}">Cadres</a>
+                    <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.qualifications.*') ? 'active' : '' }}"
+                       href="{{ route('admin.qualifications.index') }}">Qualifications</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.reservation-policies.*') ? 'active' : '' }}"
                        href="{{ route('admin.reservation-policies.index') }}">Reservation Policies</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.reservation-rosters.*') ? 'active' : '' }}"
@@ -76,6 +80,9 @@
 
     <script src="{{ asset('vendor/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
     <script src="{{ asset('js/portal.js') }}" defer></script>
+    {{-- Enhances any <select data-searchable> into a type-to-filter dropdown.
+         Deferred and additive: without it the selects stay plain and usable. --}}
+    <script src="{{ asset('js/searchable-select.js') }}" defer></script>
     @stack('scripts')
 </body>
 </html>

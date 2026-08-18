@@ -346,3 +346,57 @@ a.gov-card:hover { color: inherit; }
     .gov-card, .gov-card:hover { transition: none; transform: none; }
     .is-busy::after { animation: none; }
 }
+
+/* ---------------------------------------------------------------------------
+   Searchable dropdown (public/js/searchable-select.js)
+
+   A progressive enhancement over a native <select>: the select keeps the name,
+   the value and the validation, and is only visually replaced once the script
+   has taken over. `.ss-native` is therefore applied by the script, never in the
+   markup — without JS the plain dropdown must remain visible and usable.
+   --------------------------------------------------------------------------- */
+.ss-wrap { position: relative; }
+.ss-native { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+             overflow: hidden; clip: rect(0, 0, 0, 0); border: 0; }
+.ss-list { position: absolute; z-index: 1056; left: 0; right: 0; top: 100%;
+           max-height: 15rem; overflow-y: auto; background: #fff;
+           border: 1px solid #c9d4e0; border-radius: .375rem;
+           box-shadow: 0 .5rem 1rem rgba(11, 79, 158, .12); }
+.ss-option { padding: .35rem .6rem; cursor: pointer; font-size: .9rem; }
+.ss-option:hover, .ss-option.is-active { background: #eaf2fb; }
+.ss-option[aria-selected="true"] { font-weight: 600; }
+.ss-empty { padding: .5rem .6rem; font-size: .85rem; color: #6b7c8d; }
+
+/* A sentence of guidance under a column heading.
+   `.table > thead th` is uppercase, letter-spaced and nowrap, which is right for a
+   heading and wrong for the sentence explaining it — this puts the sentence back
+   to normal prose and lets it wrap inside its column. */
+.th-note {
+    display: block; white-space: normal; text-transform: none;
+    letter-spacing: 0; font-weight: 400; font-size: .75rem;
+    line-height: 1.25; color: #5b6b7c; margin-top: .15rem;
+}
+
+/* Feeder grid wrapper.
+   Bootstrap's .table-responsive sets overflow-x:auto, which creates a clipping
+   context and cuts off the searchable dropdown inside a row. The grid's table has
+   min-width:56rem, so from the lg breakpoint up there is nothing to scroll and the
+   overflow can be visible; below it, scrolling matters more than an uncropped
+   dropdown list. */
+.feeder-grid { overflow-x: auto; }
+@media (min-width: 992px) { .feeder-grid { overflow: visible; } }
+
+/* The running totals — the feeder Promotion Share column, and DR + PR.
+   Both rules on this screen say "must equal 100%", so both are shown the same
+   way: the number, then ✓ or ✗. */
+.share-total { font-weight: 600; }
+.share-total.is-balanced { color: #146c43; }
+.share-total.is-unbalanced { color: #b02a37; }
+
+/* DR + PR sits beside two inputs rather than in a table footer, so it needs a
+   box of its own to line up with them. */
+.split-total-box {
+    background: #f8f9fa;
+    min-height: calc(1.5em + .75rem + 2px);  /* .form-control height, so the row aligns */
+    display: flex; align-items: center; flex-wrap: wrap; gap: .25rem;
+}

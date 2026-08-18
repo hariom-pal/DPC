@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Admin;
 
+use App\Domain\Master\Enums\ExperienceUnit;
 use App\Domain\Master\Models\Cadre;
+use App\Domain\Master\Models\Qualification;
 use App\Domain\Master\Models\RecruitmentRule;
 use App\Domain\Master\Requests\RecruitmentRuleRequest;
 use App\Domain\Master\Services\RecruitmentRuleService;
@@ -28,7 +30,10 @@ class RecruitmentRuleController extends Controller
     public function index(): View
     {
         return view('admin.recruitment-rules.index', [
-            'rules' => RecruitmentRule::query()->with('cadre')->orderByDesc('id')->paginate(20),
+            'rules' => RecruitmentRule::query()
+                ->with(['cadre', 'feeders.feederCadre', 'feeders.qualification'])
+                ->orderByDesc('id')
+                ->paginate(20),
         ]);
     }
 
@@ -56,7 +61,7 @@ class RecruitmentRuleController extends Controller
                 ->with('status', 'Only draft rules can be edited. Create a new version to amend an active rule.');
         }
 
-        $recruitmentRule->load('feeders');
+        $recruitmentRule->load('feeders.feederCadre', 'feeders.qualification');
 
         return view('admin.recruitment-rules.form', $this->formData($recruitmentRule));
     }
@@ -103,13 +108,29 @@ class RecruitmentRuleController extends Controller
     }
 
     /**
+     * The form needs every active cadre with its department, because the feeder
+     * picker is filtered client-side to the target cadre's own department — a
+     * feeder from another department is rejected server-side, so offering one
+     * would be offering a choice that cannot be saved.
+     *
      * @return array<string, mixed>
      */
     private function formData(RecruitmentRule $rule): array
     {
         return [
             'rule' => $rule,
-            'cadres' => Cadre::query()->where('status', MasterStatus::Active->value)->orderBy('name')->get(),
+            'cadres' => Cadre::query()
+                ->with('department:id,code,name')
+                ->where('status', MasterStatus::Active->value)
+                ->orderBy('name')
+                ->get(),
+            // Alphabetical, deliberately. Insertion order would read
+            // school-leaving-upwards on a fresh database but not on one where the
+            // later entries were added by a subsequent seed, and a dropdown whose
+            // order depends on deployment history is worse than one that is merely
+            // alphabetical. The search box is what actually finds an entry.
+            'qualifications' => Qualification::query()->selectable()->orderBy('name_en')->get(),
+            'units' => ExperienceUnit::cases(),
             'statuses' => MasterStatus::cases(),
         ];
     }

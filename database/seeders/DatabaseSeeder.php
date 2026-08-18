@@ -16,6 +16,7 @@ class DatabaseSeeder extends Seeder
             DesignationSeeder::class,
             PayScaleSeeder::class,
             LookupMasterSeeder::class,
+            QualificationSeeder::class,
             DepartmentMasterSeeder::class,
             CadreSeeder::class,
             CommitteeMasterSeeder::class,
