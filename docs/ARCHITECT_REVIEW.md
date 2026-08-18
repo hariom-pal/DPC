@@ -14,7 +14,7 @@
 
 ## 0. Current Session
 
-**Updated:** 2026-08-18 · **M9 closure readiness confirmed — see §0.13.1, which is the section to read first.** §0.1–§0.12 hold the completed documentation consolidation plan, retained rather than replaced because it is a deliverable, not working notes. **No code touched; nothing merged, deleted or moved.**
+**Updated:** 2026-08-18 · **M9 closure readiness confirmed (§0.13.1) and the repository is clean (§0.13.2). Read those two first.** §0.1–§0.12 hold the completed documentation consolidation plan, retained rather than replaced because it is a deliverable, not working notes. **No code touched; nothing merged, deleted or moved.**
 
 ### 0.1 Prompt received
 
@@ -389,7 +389,26 @@ Appendix D  Register index — which document owns which kind of fact
 5. Declare the **M9 freeze** as a new AD in the shape of AD-21, at that baseline. **Until this exists, M9 is the only built milestone whose "has it changed?" cannot be answered by diff.**
 6. Update items 20–23 above, `PROJECT_STATUS.md`, `PROJECT_PROGRESS.md`, `MILESTONE_SUMMARY.md` and `CHANGELOG.md`.
 
-**One housekeeping item stands between here and a clean boundary:** the working tree carries one uncommitted file — this one, holding the consolidation plan (§0.1–§0.12) and this readiness record. **Commit it before closure**, so the boundary is anchored to a commit rather than a working tree. That is the failure mode **TD-14** already cost this project once.
+#### 0.13.2 Repository state — clean, and waiting on BD-14 alone
+
+**Verified 2026-08-18, after the closure-readiness commit.**
+
+| Check | Result |
+|---|---|
+| Tracked changes | ✅ **None** — `git status --short` empty |
+| Untracked files | ✅ **None** — 0, counted with `--untracked-files=all` |
+| Stashes, merge/rebase/cherry-pick in progress | ✅ **None** |
+| Last commit | `4bc5215` *docs(m9): confirm closure readiness; record documentation consolidation plan* |
+| Branch | `feature/m0-setup`, **5 commits ahead of `origin`** — see below |
+| Closure checklist (§0.13) | ✅ **19 green, 4 blocked** — unchanged |
+| Full gate, re-run before the commit | ✅ 798 / 2404 · Pint pass · PHPStan L6 0 errors · `composer audit` clean |
+| Five freeze diffs | ✅ **All empty** |
+
+**The housekeeping item flagged in the readiness record is closed.** The consolidation plan and this readiness record were uncommitted when §0.13.1 was written; they are now committed, so **M9's boundary is anchored to a commit rather than to a working tree**. That was the failure mode **TD-14** already cost this project once, and it is the precondition for a freeze diff meaning anything.
+
+**One item is deliberately left undone: the branch is 5 commits ahead of `origin` and has not been pushed.** Pushing was not requested and is not required for closure readiness — every verification above is local and reproducible. It is recorded because an unpushed boundary is a single-machine boundary, and M8's own checklist treated "committed" and "pushed" as two separate rows for exactly that reason.
+
+**Nothing else remains. M9 is not tagged, not frozen and not closed** — all three are blocked on **BD-14**, and each is blocked by the one before it. **No engineering, documentation, gate or repository-hygiene task is outstanding.**
 
 ### 0.14 For the Architect — copy-paste
 
