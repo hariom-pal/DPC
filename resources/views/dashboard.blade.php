@@ -17,6 +17,14 @@
         </div>
     </div>
 
+    {{-- What is waiting, by role. Counts only; every card links to the screen
+         that governs the work. --}}
+    @foreach ($summaries as $group)
+        <div class="mb-3 mb-lg-4">
+            @include('partials.summary-cards', ['group' => $group])
+        </div>
+    @endforeach
+
     <div class="row g-3 g-lg-4">
         {{-- Identity card --}}
         <div class="col-lg-4">
@@ -48,18 +56,57 @@
                 <p class="small text-body-secondary mb-3">Only the areas your role permits are shown.</p>
 
                 @php
+                    /*
+                     * Tiles are per role, and the wording is per role too: the
+                     * same screen is a different job to a Chairman and to a
+                     * Member, and a tile that promises an action the reader
+                     * cannot take is the problem this list exists to avoid.
+                     */
+                    $isAO = $user->hasRole(\App\Enums\Role::AuthorizedOfficer->value);
+                    $isAH = $user->hasRole(\App\Enums\Role::AdministrativeHead->value);
+                    $isChairman = $user->hasRole(\App\Enums\Role::Chairman->value);
+                    $isMember = $user->hasRole(\App\Enums\Role::Member->value);
+
                     $tiles = [];
-                    if ($user->hasAnyRole([\App\Enums\Role::AuthorizedOfficer->value, \App\Enums\Role::AdministrativeHead->value])) {
-                        $tiles[] = ['paperless', 'Pre-DPC Proposals', 'Prepare and submit the preliminary proposal.', route('pre-dpc.index')];
-                        $tiles[] = ['workflow', 'DPC Proposals', 'The full proposal — committee, vacancies, seniority, chart.', route('dpc-proposals.index')];
+
+                    if ($isAO || $isAH) {
+                        $tiles[] = ['paperless', 'Pre-DPC Proposals',
+                            $isAO
+                                ? 'Prepare and submit the preliminary proposal.'
+                                : 'Approve or return the proposal the Authorized Officer submitted.',
+                            route('pre-dpc.index')];
+                        $tiles[] = ['workflow', 'DPC Proposals',
+                            $isAO
+                                ? 'The full proposal — committee, vacancies, seniority, chart.'
+                                : 'Review and approve the proposal, then forward it to CGPSC.',
+                            route('dpc-proposals.index')];
                         $tiles[] = ['circulate', 'Circulation DPC', 'Resolve a promotion the Commission reserved.', route('dpc-circulations.index')];
                     }
-                    if ($user->hasAnyRole([\App\Enums\Role::Chairman->value, \App\Enums\Role::Member->value])) {
-                        $tiles[] = ['workflow', 'Allotments', 'Allot a forwarded DPC to a Member.', route('cgpsc.allotments.index')];
-                        $tiles[] = ['flow-check', 'Schedules', 'Accept an allotment and schedule the sitting.', route('cgpsc.schedules.index')];
-                        $tiles[] = ['audit', 'Proceedings', 'Conduct the sitting, calculate and approve.', route('cgpsc.proceedings.index')];
+
+                    /*
+                     * Allotment is the Chairman's alone (PPT S28, DpcAllotmentPolicy::allot).
+                     * A Member reaches the DPCs allotted to *them* through
+                     * Schedules, so the tile would only have led them to a
+                     * screen whose one action is hidden from them.
+                     */
+                    if ($isChairman) {
+                        $tiles[] = ['workflow', 'Allotments', 'Allot a forwarded DPC to yourself or a Member.', route('cgpsc.allotments.index')];
+                    }
+
+                    if ($isChairman || $isMember) {
+                        $tiles[] = ['flow-check', 'Schedules',
+                            $isMember && ! $isChairman
+                                ? 'Accept a DPC allotted to you and schedule the sitting.'
+                                : 'Acceptance and scheduling across the Commission.',
+                            route('cgpsc.schedules.index')];
+                        $tiles[] = ['audit', 'Proceedings',
+                            $isMember && ! $isChairman
+                                ? 'Conduct your sitting, calculate and approve.'
+                                : 'Conduct the sitting, calculate and approve.',
+                            route('cgpsc.proceedings.index')];
                         $tiles[] = ['circulate', 'Circulations', 'Consent to and sign circulation notes.', route('cgpsc.circulations.index')];
                     }
+
                     if ($user->hasRole(\App\Enums\Role::Admin->value)) {
                         $tiles[] = ['admin', 'Administration', 'Master data, users and integration status.', route('admin.dashboard')];
                     }

@@ -6,6 +6,7 @@ namespace App\Http\Controllers\PreDpc;
 
 use App\Domain\Master\Models\Cadre;
 use App\Domain\Master\Models\PayScale;
+use App\Domain\Master\Models\Qualification;
 use App\Domain\PreDpc\Models\PreDpcProposal;
 use App\Domain\PreDpc\Requests\ReturnPreDpcProposalRequest;
 use App\Domain\PreDpc\Requests\SavePreDpcProposalRequest;
@@ -13,6 +14,7 @@ use App\Domain\PreDpc\Services\PreDpcProposalService;
 use App\Domain\Shared\Workflow\WorkflowException;
 use App\Domain\Shared\Workflow\WorkflowTransition;
 use App\Enums\MasterStatus;
+use App\Enums\Role;
 use App\Enums\ServiceClass;
 use App\Http\Controllers\Controller;
 use Illuminate\Contracts\View\View;
@@ -35,11 +37,15 @@ class PreDpcProposalController extends Controller
 
     public function create(Request $request): View
     {
+        $this->authorizeAuthoring($request);
+
         return view('pre-dpc.form', $this->formData($request, new PreDpcProposal));
     }
 
     public function store(SavePreDpcProposalRequest $request): RedirectResponse
     {
+        $this->authorizeAuthoring($request);
+
         $department = $request->user()->department;
         abort_if($department === null, 403);
 
@@ -74,7 +80,7 @@ class PreDpcProposalController extends Controller
     public function show(Request $request, PreDpcProposal $preDpc): View
     {
         $this->authorizeDepartment($request, $preDpc);
-        $preDpc->load('posts.feeders.feederCadre', 'posts.payScale', 'approver', 'signature');
+        $preDpc->load('posts.feeders.feederCadre', 'posts.feeders.qualification', 'posts.payScale', 'approver', 'signature');
 
         return view('pre-dpc.show', [
             'proposal' => $preDpc,
@@ -137,6 +143,26 @@ class PreDpcProposalController extends Controller
         abort_unless($preDpc->department_id === $this->departmentId($request), 403);
     }
 
+    /**
+     * Authoring a Pre-DPC is the Authorized Officer's alone.
+     *
+     * PPT S7: *"यह प्रविष्ठी डी.पी.सी. हेतु अधिकृत अधिकारी द्वारा की जाएगी एवं
+     * प्रशासकीय प्रमुख द्वारा प्रविष्ठी का अनुमोदन किया जाएगा"* — the entry is
+     * made by the Authorized Officer and approved by the Administrative Head.
+     * Two levels, and the second reviews the first; an AH who authored the
+     * proposal would be approving their own work.
+     *
+     * Until now the route's `role:` middleware admitted both, so an AH could
+     * create a draft — and then get stuck, because `edit`, `submit` and
+     * `cancel` are all `$isAO` on the show screen. The draft could be neither
+     * progressed nor removed. This closes that at the entry point, which is
+     * where the PPT puts the boundary.
+     */
+    private function authorizeAuthoring(Request $request): void
+    {
+        abort_unless($request->user()?->hasRole(Role::AuthorizedOfficer->value) === true, 403);
+    }
+
     private function departmentId(Request $request): ?int
     {
         return $request->user()->department_id;
@@ -153,6 +179,7 @@ class PreDpcProposalController extends Controller
             'proposal' => $proposal,
             'payScales' => PayScale::query()->where('status', MasterStatus::Active->value)->orderBy('label')->get(),
             'cadres' => Cadre::query()->where('department_id', $departmentId)->where('status', MasterStatus::Active->value)->orderBy('name')->get(),
+            'qualifications' => Qualification::query()->selectable()->orderBy('name_en')->get(),
             'classes' => ServiceClass::cases(),
         ];
     }

@@ -9,7 +9,20 @@
 
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h1 class="h4 mb-0">DPC Proposals / डी.पी.सी. प्रस्ताव</h1>
-                <a href="{{ route('dpc-proposals.create') }}" class="btn btn-success btn-sm">+ New Proposal</a>
+                {{-- Creating a proposal is the Authorized Officer's alone (PPT
+                     S12) — the Administrative Head approves what the AO
+                     prepared. `@can` asks the same Policy the controller
+                     enforces, so the button and the 403 can never disagree. --}}
+                @can('create', App\Domain\Dpc\Models\DpcProposal::class)
+                    <div class="d-flex gap-2">
+                        <a href="{{ route('dpc-proposals.create') }}" class="btn btn-success btn-sm">+ New Proposal</a>
+                        {{-- Review DPC (PPT S35–S37). The screen has existed
+                             since M8; until now nothing linked to it. --}}
+                        <a href="{{ route('dpc-proposals.reviews.create') }}" class="btn btn-outline-warning btn-sm">
+                            + Review DPC
+                        </a>
+                    </div>
+                @endcan
             </div>
 
             <div class="card border-0 shadow-sm">

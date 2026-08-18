@@ -19,11 +19,15 @@ One page per milestone: what it delivered, what governs it now, and what it left
 | **M6** | CGPSC Workflow — 4 phases | S26–S30 | ✅ Complete | **Frozen** | 77 |
 | **M7** | DPC Proceedings & Result Generation — 4 phases | S31–S34, S45 | ✅ **Complete** | **Frozen** (from M8) | 169 |
 | **M8** | Review DPC — 3 phases | S35–S44 | ✅ **Complete & released** | **Frozen — AD-21** | 83 |
-| **M9** | Circulation DPC | S45–S48 | ⚪ Not started | — | — |
+| **M9** | Circulation DPC — 3 phases | S45–S48 | 🟡 **Engineering complete — NOT closed** | — (no freeze until closure) | 98 |
 | **M10** | Self-Inspection & Objection | S49–S51 | ⚪ Not started | — | — |
 | **M11** | Notifications · Reports · Dashboards · Audit UI · Hardening | — | ⚪ Not started | — | — |
 
-**620 PHPUnit tests / 1902 assertions.** Pint clean · PHPStan (Larastan level 6) 0 errors · `composer audit` clean · `migrate:fresh --seed` OK, 62 tables. Verified by the full gate run of 2026-08-14 and re-verified before the M8 documentation commit.
+**798 PHPUnit tests / 2404 assertions.** Pint clean · PHPStan (Larastan level 6) 0 errors · `composer audit` clean · migrations run clean, **66 tables**. Verified by the full gate run of 2026-08-18.
+
+**M9 is the active milestone.** All three phases are built and gate-verified; **closure is blocked on BD-14** — from what date a circulated promotion takes effect. That is a CGPSC decision, not engineering work: the note renders, signs, stores and verifies, and refuses only to *publish*, displaying "Pending Business Decision (BD-14)" rather than inventing an effective date. **No freeze is applied to M9 until it is closed**, so the five freezes below remain the complete set.
+
+> **This row read "⚪ Not started" until 2026-08-18**, three phases after the fact, because this table is updated "at each milestone closure" and M9 has not closed. A milestone that stalls on a business decision therefore never gets its row updated — which is exactly when an accurate status matters most. The status column now tracks *engineering* state, and the freeze column tracks closure.
 
 **Five freezes are in force** — M4 (architecture), M5 (engine), M6, M7 and M8 (**AD-21**). The mechanism for opening any of them is **AD-22**, the Freeze Exception; its register is empty and no exception has been requested. Verification is a diff per freeze:
 

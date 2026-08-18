@@ -2,6 +2,64 @@
 
 All notable work on the ODPC Portal, in reverse chronological order. Business-rule changes are traceable to `docs/ODPC_NEW_FINAL.pptx` / `docs/CONVENTIONAL DPC PROCESS.pptx` slide numbers where applicable. This file, `docs/PROJECT_STATUS.md`, `docs/PROJECT_PROGRESS.md`, and `docs/ARCHITECT_REVIEW.md` are the only documents updated on an ongoing basis (see `docs/ARCHITECT_REVIEW.md` for the full documentation policy).
 
+## 2026-08-18 — Pre-DPC screen: post, feeder cadre and qualification from the masters
+
+**No workflow, eligibility rule or calculation changed. All five freezes verified empty.** Suite **782 → 798** (2404 assertions); **16 new tests, none modified.** Pint pass · PHPStan 0 errors · `composer audit` clean.
+
+Business asked for the Pre-DPC screen's **Minimum Qualification** to be a dropdown from the master, **Post Name** and **Feeder Post** to come from the Cadre master, and **every feeder field to carry a label**. All four were free text or unlabelled.
+
+**This reverses a position taken the previous day** and is worth naming: the 2026-08-17 round made the Recruitment Rule master referential and deliberately left the Pre-DPC as text, resolving it at projection. Business has now said where the integrity requirement applies. Resolving text afterwards is a guess about what somebody meant; capturing a reference is a record of what they chose. The guess was good — 11 of 15 rows mapped — but the four it missed are the argument: `12rth` and `10tth`, hand-typed and unmappable. A dropdown cannot produce them.
+
+- **Two of the four fields needed no migration.** `pre_dpc_posts.cadre_id` and `pre_dpc_post_feeders.feeder_cadre_id` have existed since M3 and `feeder_cadre_id` was **already validated** — the form simply never offered them. Only `qualification_id` is new (additive, nullable, backfilled by the same normalised match the recruitment-rule backfill uses; `min_qualification` kept as the legacy record).
+- **The feeder grid had no header row at all** — four bare inputs identified only by placeholder text, which vanishes the moment anything is typed. Now five labelled columns with notes, in the **same vocabulary as the Recruitment Rule screen**, because that is what these entries are projected into.
+- **Choosing a post fills in Class and Pay Scale** from the cadre; both stay editable, because the Pre-DPC registers what the Government Order says.
+- **New set-level rules**: no self-feeder, no duplicate feeder in a post, no duplicate post in a proposal. These are not tidiness — `recruitment_rule_feeders` carries a unique index on (rule, feeder cadre), so without them a department could approve a Pre-DPC whose projection **fails on a database constraint inside the approval transaction, after the proposal was digitally signed.**
+- **Backward compatible by construction.** `post_name`/`feeder_name` stay `required` and stored; the request derives them from the chosen cadres. A caller posting only text — the demo seeder, `PreDpcWorkflowTest`, any existing API client — behaves exactly as before, cadres created from names at approval and qualification text resolved at projection. A caller sending both keeps its own name. `PreDpcWorkflowTest` passes **unmodified**; `demo:seed --force` rebuilds with **all seven DPC IDs unchanged**.
+- `amend()` carries the references forward — without it an amendment would quietly downgrade a referenced proposal to a text one **and look correct**, because the names travel with it.
+- The **show screen now displays the minimum qualification**, which it never did; it and the feeder read through `feederLabel()` / `qualificationLabel()`, which prefer the master and fall back to the text. A stored reference the master no longer offers is kept and labelled *"(no longer in the master)"* rather than falling back to "— Select —", which would let a user re-save a blank over real data.
+
+**⚠ Raised as BD-18 — a consequence, not a defect.** Department registration creates no cadres, and until now **the Pre-DPC was itself what created them**. A reference cannot be chosen from an empty list, so **a newly registered department can no longer file a Pre-DPC** until its master is populated — which only the CGPSC Admin can now do. The screen says so plainly and disables the form rather than appearing broken; existing departments are unaffected. Whether first-time cadre registration is now the Commission's job is a business decision, not an engineering one.
+
+**Verified in a real browser**, not only in tests: 13 assertions on the grid, then a full save — the stored row carries `cadre_id`, `feeder_cadre_id` and `qualification_id` with `min_qualification` null. Pure references, no text. Screenshot in `docs/design/pre-dpc/`.
+
+## 2026-08-18 — Pre-M10 verification sweep: Recruitment Rule DR/PR, role-based UI, PPT/SRS gap analysis
+
+**No milestone opened or closed. All five freezes verified empty.** Suite **759 → 782** (2351 assertions); **23 new tests, none modified.** Pint pass · PHPStan 0 errors · `composer audit` clean.
+
+**Most of what was asked for already existed.** Six items were requested; **four needed no code.** Verification was the substance — full findings in `docs/ARCHITECT_REVIEW.md` §0.
+
+### Recruitment Rule — DR % + PR % (the one genuine gap in item 1)
+
+- **`DR + PR` must total exactly 100%**, enforced in `RecruitmentRuleRequest::validateRecruitmentSplit()` **and** `SavePreDpcProposalRequest::withValidator()`. Both, because approving a Pre-DPC projects its posts into the Recruitment Rule master — validating only at the master would let a department approve a Pre-DPC that writes a rule the admin screen then refuses to re-save, the same drift `normaliseShares()` had to be introduced to prevent. **Traceable to PPT S9/S11 by worked example** (every row reads DR 0 / PR 100; no example in either deck leaves a remainder) **plus explicit business instruction of 2026-08-18.**
+- **Write-path only.** Existing rows are never rewritten — one development row (`Junior Assistant`, DR 0 / PR 1) still reads, lists and opens, and is refused only on save. Rescaling a Government Order's own percentages would be inventing policy. Pinned by `test_an_existing_unbalanced_rule_is_still_readable`.
+- The error is reported against its **own key** (`recruitment_split`), not against either field: neither number is wrong alone, and blaming one tells the user to change the wrong one. It names the actual total and the shortfall.
+- Tolerance is **one hundredth of a percent**, identical to the Promotion Share rule, so the two "must equal 100%" rules on the screen cannot disagree about what *exactly* means.
+- **Labels and width:** `Direct Recruitment — DR (%)` / `Promotion — PR (%)`, required markers, `%` affixes, widened from `col-md-3`, moved to **their own row** with a live total shown exactly like the feeder Promotion Share total. Screenshots in `docs/design/recruitment-rule/`.
+- The **same two fields on the Pre-DPC screen** were `col-md-1` boxes too narrow to display `100.00`; widened with full labels and a per-card live total. **No field name changed, so no API changed.**
+
+**Items 1 A–E were already delivered on 2026-08-17** and were re-verified against the running application rather than taken from the worklog. Left alone.
+
+### Role-based UI visibility — four defects fixed
+
+The complaint was that users are offered buttons returning *Unauthorized*. That was **not** true of the codebase as a whole — M9 is `@can`-gated throughout, M6/M7 gate on Policy-derived flags, and M3/M4 detail screens gate on role **and** workflow state. **The defects were at the entry points, which nobody had gated because they are "just lists".**
+
+- **`dpc-proposals/index`** — *+ New Proposal* was shown to the AH; `DpcProposalPolicy::create` is AO-only, so **clicking it returned 403.** This is precisely the reported bug. Now `@can('create', …)`.
+- **`pre-dpc/index`** — *+ New Proposal* was shown to the AH **and the backend allowed it**, producing a draft the AH could then neither edit, submit nor cancel — a dead-end record. Button gated **and** `authorizeAuthoring()` added. **PPT S7 is explicit**: the entry is made by the AO, approved by the AH.
+- **Dashboard** — the *Allotments* tile and the *Awaiting allotment* counter were shown to Members. Allotment is the **Chairman's alone (PPT S28)**. Both are now Chairman-only; a Member's own queue was always *"Allotted to you, not yet accepted"*.
+- **`cgpsc/proceedings/index`** — *Open Workspace* appeared whenever a proceeding existed, but `view` is Chairman **or** the conductor, and **after a re-allotment those differ from the current allottee**, who is who the row is listed for. Now `@can('view', …)`; otherwise the row reads *"Conducted by …"*.
+
+**Also fixed:** **Review DPC (PPT S35–S37) had no UI entry point.** Route, controller, service, view and 83 tests all shipped in M8; `grep -rn "reviews.create" resources/views/` returned nothing. **The feature was unreachable.** A *+ Review DPC* button now sits beside *+ New Proposal*, behind the same Policy. Completing delivered scope, not new scope.
+
+**No backend authorization was weakened.** `tests/Feature/RoleBasedUiVisibilityTest.php` (14 tests) asserts **both halves of every case** — the button is absent for the role that cannot use it, **and** the route still refuses that role. Asserting only absence is what makes hiding a button security theatre.
+
+### Findings recorded, not implemented
+
+- **AD-25 (proposed)** — a DPC proposal is bound to the Recruitment Rule that sanctions its post pair. **`dpc_proposals` today references neither a Pre-DPC nor a rule**, and `SaveDpcProposalRequest` never checks that a rule links `post_from` to `post_to`, so **a DPC can be created, signed and forwarded for a promotion path no approved Pre-DPC ever sanctioned.** Not built: it is a schema and workflow change to **frozen M4** and needs a Freeze Exception under AD-22. Recommended before M10 opens.
+- **BD-16** — does business mean the Recruitment Rule the Pre-DPC produced (recommended), or the Pre-DPC document itself?
+- **BD-17** — **what is the SRS's standing?** AD-1 rules it *"must not be implemented from"*, yet an SRS-vs-code gap analysis was commissioned. The analysis was produced under AD-1; the reading needs confirming. It also asks whether the SRS's **video conferencing and real-time voting** are withdrawn — the PPT specifies a document-and-signature process and the build follows it.
+- **Excel upload (item 4) required no work.** The PPT demands it at S16, S17 and S18 (*"प्रविष्ट करें अथवा अपलोड करें"*, with an `UPLOAD` button drawn on each slide) and the SRS at Screen 5. **All three have been implemented since M4 Phase 6** — staged Preview → Validation → Error Report → Commit, sharing `DpcRowRules` with manual entry so the two paths cannot drift.
+- **S49–S51 (self-inspection) remain the only unimplemented PPT screens** — M10, not started, as previously recorded.
+
 ## 2026-08-16 — Demo readiness: public home page and presentation improvements
 
 **Presentation only. No business logic, no route, no controller, no service, no policy, no permission, no workflow, no database change, no milestone work.** The full suite stays at **718 passed / 2178 assertions** — unchanged, which is the check that matters for a change of this kind.

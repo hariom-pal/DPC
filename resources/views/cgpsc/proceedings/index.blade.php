@@ -62,11 +62,26 @@
                                         @endif
                                     </td>
                                     <td>
-                                        @if ($proceeding)
+                                        {{-- `@can`, not `@if ($proceeding)`.
+                                             Reading a proceeding belongs to the
+                                             Chairman and to the Member who
+                                             conducted it — and after a
+                                             re-allotment those are not the same
+                                             person as the current allottee, who
+                                             is who this row is listed for. The
+                                             plain @if offered that Member a
+                                             button that could only 403. --}}
+                                        @if ($proceeding && auth()->user()->can('view', $proceeding))
                                             <a class="btn btn-sm btn-outline-primary"
                                                href="{{ route('cgpsc.proceedings.show', $proceeding) }}">Open Workspace</a>
                                             <a class="btn btn-sm btn-link"
                                                href="{{ route('cgpsc.proceedings.history', $proceeding) }}">History</a>
+                                        @elseif ($proceeding)
+                                            <span class="text-muted small">
+                                                {{-- The stored name, not the relation: it is already
+                                                     on the row, and it is what the record says. --}}
+                                                Conducted by {{ $proceeding->conducted_by_name ?: 'another Member' }}
+                                            </span>
                                         @elseif ($schedule && $isAllottee($allotment))
                                             <form method="POST"
                                                   action="{{ route('cgpsc.proceedings.open', $proposal) }}"

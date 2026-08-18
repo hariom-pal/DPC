@@ -1,6 +1,6 @@
 # DPC Project — Status
 
-**Last updated:** 2026-08-14. This is the single page to read first when returning to the project. Full detail: `docs/PROJECT_PROGRESS.md`. Pending decisions/findings: `docs/ARCHITECT_REVIEW.md`. Business questions: `docs/PENDING_BUSINESS_DECISIONS.md`, put to business users in `docs/UAT_BUSINESS_VALIDATION.md`. Known limitations & deferred items: `docs/TECHNICAL_DEBT.md`. Architecture rulings: `docs/ARCHITECTURE_DECISIONS.md`. Per-milestone summary: `docs/MILESTONE_SUMMARY.md`. History: `docs/PROJECT_TIMELINE.md`. Workflows: `docs/WORKFLOWS.md`. Business decisions: `docs/PENDING_BUSINESS_DECISIONS.md`. Integrations: `docs/INTEGRATION_ROADMAP.md`. UAT: `docs/UAT_CHECKLIST.md`, `docs/DEMO_SCRIPT.md`. History: `docs/CHANGELOG.md`. Source of truth for business rules: `docs/ODPC_NEW_FINAL.pptx` + `docs/CONVENTIONAL DPC PROCESS.pptx`.
+**Last updated:** 2026-08-18. This is the single page to read first when returning to the project. Full detail: `docs/PROJECT_PROGRESS.md`. Pending decisions/findings: `docs/ARCHITECT_REVIEW.md`. Business questions: `docs/PENDING_BUSINESS_DECISIONS.md`, put to business users in `docs/UAT_BUSINESS_VALIDATION.md`. Known limitations & deferred items: `docs/TECHNICAL_DEBT.md`. Architecture rulings: `docs/ARCHITECTURE_DECISIONS.md`. Per-milestone summary: `docs/MILESTONE_SUMMARY.md`. History: `docs/PROJECT_TIMELINE.md`. Workflows: `docs/WORKFLOWS.md`. Business decisions: `docs/PENDING_BUSINESS_DECISIONS.md`. Integrations: `docs/INTEGRATION_ROADMAP.md`. UAT: `docs/UAT_CHECKLIST.md`, `docs/DEMO_SCRIPT.md`. History: `docs/CHANGELOG.md`. Source of truth for business rules: `docs/ODPC_NEW_FINAL.pptx` + `docs/CONVENTIONAL DPC PROCESS.pptx`.
 
 ## Current Status
 
@@ -80,6 +80,21 @@ This is a milestone-count estimate, not effort-weighted. M4 and M5 were the two 
 - 🟡 Audit trail (owen-it audit + Activity Timeline live; no browser UI yet — scoped to M11)
 
 ## Current Work
+
+**2026-08-18 — Pre-M10 verification sweep. No milestone opened or closed; all five freezes verified empty. Suite 759 → 782.**
+
+A six-item client brief was answered by **verification, not implementation**: four of the six were already built. Full findings in `docs/ARCHITECT_REVIEW.md` §0. What matters at this level:
+
+- **One genuine gap in the Recruitment Rule screen** — `DR % + PR %` had no total validation. Now enforced in the master **and** in the Pre-DPC that projects into it, write-path only so no stored Government Order is rewritten. Labels and widths fixed on both screens.
+- **Four role-based UI defects fixed**, all at entry points rather than in the workflow screens: the AH was offered *+ New Proposal* on both the DPC list (403) and the Pre-DPC list (**worse — the backend allowed it, producing a draft the AH could neither edit, submit nor cancel**); Members saw the Chairman's allotment tile and counter; and *Open Workspace* appeared to a re-allotted Member who could not open it. **No backend check was weakened** — 14 new tests assert both halves of every case.
+- **Review DPC (PPT S35–S37) had no UI entry point.** Delivered in M8 with 83 tests, and unreachable from any screen. Now linked from the DPC list behind the same Policy.
+- **Excel upload (S16/S17/S18) needed no work** — implemented since M4 Phase 6, all three templates, staged Preview → Validation → Error Report → Commit.
+
+**Later the same day — the Pre-DPC screen became master-sourced.** Post Name, Feeder Cadre and Minimum Qualification are now dropdowns from the Cadre and Qualification masters, and the feeder grid — which had **no header row at all** — has five labelled columns. Two of the three foreign keys already existed and were unused by the form; only `qualification_id` is new. Backward compatible by construction: `PreDpcWorkflowTest` passes unmodified and `demo:seed` rebuilds with all seven DPC IDs unchanged. Suite **782 → 798**. **⚠ Raised as BD-18:** department registration creates no cadres and the Pre-DPC used to create them by name, so **a newly registered department can no longer file one** until a CGPSC Admin populates its master. Existing departments are unaffected; the screen says so and disables the form rather than appearing broken.
+
+**⚠ The finding that needs a decision: `dpc_proposals` references neither a Pre-DPC nor a Recruitment Rule.** `SaveDpcProposalRequest` never checks that a rule links `post_from` to `post_to`, so **a department can create, sign and forward a DPC for a promotion path no approved Pre-DPC ever sanctioned.** Raised as **AD-25 (proposed)** and **BD-16**; it needs a **Freeze Exception under AD-22** against M4 and was deliberately **not** implemented. **Recommended before M10 opens** — M10's self-inspection screen would otherwise render an authoritative view of a proposal with no Government Order behind it. **BD-17** additionally asks what standing the SRS now has, since AD-1 says it must not be implemented from.
+
+---
 
 **M8 — Review DPC: COMPLETE (all three phases, 2026-08-14).** BD-11 is a **Deferred Business Decision — Required before production activation of the Review supersession policy** and, by architect ruling of 2026-08-14, **does not block M8 completion**.
 

@@ -453,6 +453,52 @@ It also forecloses reaching for `DpcProposal`'s services to save effort during M
 
 ---
 
+### AD-25 — A DPC proposal is bound to the Recruitment Rule that sanctions its post pair
+
+**Proposed:** 2026-08-18. **Status: PROPOSED — NOT DECIDED, NOTHING BUILT.** **Would apply to:** M4 (`dpc_proposals`), and therefore **requires a Freeze Exception under AD-22.** **Companion question:** BD-16.
+
+**This entry records a recommendation, not a ruling.** It is here rather than only in `ARCHITECT_REVIEW.md` because that file is replaced in full at every phase, and a recommendation that needs a freeze exception must outlive the session that made it.
+
+#### The gap
+
+Business stated on 2026-08-18: *"Approved Pre-DPC should be used while creating DPC."* **Today nothing links them.**
+
+- `dpc_proposals` has **no** reference to a Pre-DPC or to a Recruitment Rule.
+- `DpcProposalController::formData()` offers **every active cadre in the department**.
+- `SaveDpcProposalRequest` checks only that both cadres exist, are `active` and share the department — **never that a Recruitment Rule links the pair.**
+
+So a department can create, complete, sign and forward a DPC for a promotion path **no approved Pre-DPC ever sanctioned** — Teacher → Principal, when the Schedule-IV ladder says Teacher → Head Master → Lecturer → Principal. The Commission would allot, schedule and conduct a sitting on a promotion with **no Government Order behind it**. Two details make it worse: the Cadre master is **cumulative and never pruned**, so a post dropped in a later Pre-DPC version stays selectable forever; and a department with **no approved Pre-DPC at all** can still create a DPC if cadres exist from any other source.
+
+**The PPT shows the dependency by construction rather than stating it.** S7 makes the Pre-DPC the register of the posts on which promotion is available *and the cadres from which promotion may occur*; S14's two dropdowns then contain **exactly the three posts entered on S9**. The SRS is silent.
+
+#### The proposal
+
+**Bind the DPC to the active Recruitment Rule, not to the Pre-DPC document.**
+
+| | Ruling sought |
+|---|---|
+| **Validation** | An **active Recruitment Rule for `post_to_cadre_id`** must list `post_from_cadre_id` among its feeders, effective on `proposal_date`. The message names the sanctioned feeders rather than saying "invalid" |
+| **Selection** | `formData()` offers only sanctioned pairs; choosing the target filters the source list, as the Recruitment Rule screen already does |
+| **Persistence** | `dpc_proposals.recruitment_rule_id` — **nullable** FK, `ON DELETE RESTRICT`, pinned at creation |
+| **Existing rows** | **Not backfilled.** Reported by `php artisan dpc:unlinked-proposals`, in the shape of the existing `qualifications:unmapped` |
+| **Empty state** | *"No promotion path is sanctioned for this post. An approved Pre-DPC must list it first."* — never a silently empty dropdown |
+
+**Why the rule and not a `pre_dpc_proposal_id`.** Approving a Pre-DPC projects its posts and feeders into the Cadre and Recruitment Rule masters — **architect ruling Q1: the masters are the single source of truth.** An approved Pre-DPC *is* the Recruitment Rule. Binding to the rule therefore binds to the sanction **and to the version in force on the proposal date**, which a direct FK does not: a later Pre-DPC amendment leaves a `pre_dpc_proposal_id` pointing at a superseded version. A direct FK would also **contradict Q1**, reintroducing the Pre-DPC as a runtime dependency after it was deliberately dissolved into the masters.
+
+**Nullable is deliberate.** Pre-existing proposals have no answer, and **inventing one would be worse than recording that it is unknown** — the same reasoning that left `qualification_id` null for unmatched legacy text rather than guessing.
+
+#### Consequence, including what it costs
+
+**What it costs.** It **changes what a department may submit** — post pairs accepted today would be refused. That is a business-workflow change, which is why it needs BD-16 confirmed and a freeze exception, and why it was **not** implemented in the session that found it. Departments whose Cadre master is populated from seeders rather than from an approved Pre-DPC would find DPC creation blocked until a Pre-DPC is approved; that is the intended effect, but it is a migration burden for any environment already in that state, and `dpc:unlinked-proposals` exists to size it before the rule is switched on.
+
+**What it forecloses.** Once a DPC pins a `recruitment_rule_id`, **a Recruitment Rule cited by a proposal cannot be hard-deleted** (`ON DELETE RESTRICT`), and rule versioning becomes load-bearing for legal provenance rather than merely informative.
+
+**Estimated cost: 1 migration, 2 request classes, 1 controller method, 1 command, ~10 tests.** The work is small; the approval is the obstacle.
+
+**Recommended before M10 opens.** M10's self-inspection screen (S49–S51) shows an officer the record held *for a specific DPC*. If that DPC can exist on an unsanctioned path, M10 renders an authoritative-looking screen about a proposal with no Government Order behind it. **The gap gets more expensive once M10 exists, not less.**
+
+---
+
 ## Maintaining this file
 
 - A decision goes here when it **constrains future work**, not merely when it is made.

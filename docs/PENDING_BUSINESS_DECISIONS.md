@@ -46,6 +46,9 @@ Every item below is **blocked on a business answer**, not on engineering. None c
 | BD-13 | Is there a time limit on a held promotion? | Nothing — visibility only | P2 | 2026-08-16 |
 | BD-14 | From what date does a **circulated promotion** take effect? | **M9 Phase 3** | **P1** | 2026-08-16 |
 | BD-15 | May a **CR-ground** hold be routed to a Review instead of a Circulation? | **M9 — CR-ground circulations are refused today** | **P1** | 2026-08-16 |
+| BD-16 | Does "Approved Pre-DPC used while creating DPC" mean the **Recruitment Rule** it produced, or the Pre-DPC **document**? | **AD-25 / the M4 freeze exception** | **P1** | 2026-08-18 |
+| BD-17 | **What is the SRS's standing?** AD-1 says it must not be implemented from, yet an SRS-vs-code gap analysis was requested. Are video conferencing and real-time voting withdrawn? | **M10/M11 scope** | **P1** | 2026-08-18 |
+| BD-18 | **Who registers a department's cadres first?** The Pre-DPC now selects posts from the Cadre master, so a newly registered department can no longer create them by typing | **Onboarding a new department** | **P1** | 2026-08-18 |
 
 ---
 
@@ -281,6 +284,68 @@ S45 describes a decision taken *once the resolution is received*. It does not de
 S45 sets none. A promotion may therefore remain reserved indefinitely, and until now nothing in the system would have said so.
 
 **M9 makes the age of a held promotion visible** (AQ-24) — showing how long something has been reserved is not a business rule. **Whether there is a limit, and what happens when it passes, is.**
+
+## BD-16 — "Approved Pre-DPC used while creating DPC": the rule, or the document?
+
+**Severity: P1. Raised 2026-08-18. Blocks AD-25 and the M4 freeze exception it needs.**
+
+Business has stated the requirement as: *"Approved Pre-DPC should be used while creating DPC."* Today **nothing links them** — `dpc_proposals` has no reference to a Pre-DPC, and the DPC's post dropdowns offer every active cadre in the department. A DPC can therefore be created, signed and forwarded for a promotion path **that no approved Pre-DPC ever sanctioned**. The full finding is `docs/ARCHITECT_REVIEW.md` §0.7.
+
+**The question is which of two things business means**, because they lead to different schemas:
+
+1. **The Recruitment Rule the Pre-DPC produced** — approving a Pre-DPC projects its posts and feeders into the Cadre and Recruitment Rule masters (architect ruling Q1: the masters are the single source of truth). Binding the DPC to the **active rule** binds it to the sanction *and to the version in force on the proposal date*. **This is the recommendation** (Option B, §0.7.2).
+2. **The Pre-DPC document itself** — a direct `pre_dpc_proposal_id`. Simpler to explain, but it reintroduces the Pre-DPC as a runtime dependency after it was deliberately dissolved into the masters, and it points at a version that a later amendment supersedes.
+
+**What the system does today:** neither. The gap is recorded, not silently patched, because closing it changes what a department may submit — permanent rule 2 — and M4 is architecture-frozen.
+
+**Ask business one question:** *when the DPC screen refuses a promotion path, should the reason be "no Government Order sanctions this promotion" (the rule), or "your approved Pre-DPC does not list it" (the document)?*
+
+## BD-17 — What is the SRS's standing? (Raised by an SRS-vs-code gap analysis being requested)
+
+**Severity: P1. Raised 2026-08-18. Blocks M10/M11 scope.**
+
+**This is a question about a document's authority, not about a feature.**
+
+**AD-1 (2026-07-30, standing) rules:** *"`ODPC_NEW_FINAL.pptx` and `CONVENTIONAL DPC PROCESS.pptx` govern. On conflict, the PPTs win. `docs/archive/` — **including the SRS** — is historical reference and **must not be implemented from**."*
+
+On 2026-08-18 the client asked for an **SRS vs Code gap analysis** as a named deliverable, alongside the PPT one. **That request is only meaningful if the SRS carries some authority**, which AD-1 says it does not. The two cannot both be right, and the gap analysis was produced under AD-1 — i.e. SRS divergences are reported as **findings**, not as defects — but that reading should be confirmed rather than assumed.
+
+**What actually diverges.** The SRS and the PPT describe different meetings:
+
+| | SRS §3.5 | PPT S31–S34 |
+|---|---|---|
+| The sitting | *"Video conferencing integration (WebRTC / MS Teams / Zoom API)"*, *"digital note-taking during meeting"*, *"real-time voting and decision recording"* | The allotted Member opens a workspace, corrects the chart, presses `CALCULATE`, approves and signs |
+| Changes on the day | implied live deliberation | **S31: no change made by the department on the DPC date is valid** |
+
+**The build follows the PPT**, per AD-1. The consequence is that **video conferencing and real-time voting will not be built under the current design.** Two further SRS items are scheduled rather than refused — **Excel/PDF export** and the **audit-trail UI** (both SRS §3.7) are M11 — and **2FA** (§3.1) is hardening.
+
+**Two questions, and the first governs the second:**
+
+1. **Does AD-1 still stand?** If yes, the SRS is reference material, this entry closes, and no SRS-only feature is a defect. If the SRS has been promoted to a requirements source, **AD-1 must be superseded by a new AD** and the roadmap re-scoped.
+2. **If AD-1 stands: confirm video conferencing and real-time voting are withdrawn.** Saying so costs nothing and closes the question permanently. If they are genuinely required, they are a milestone of their own and the proceeding workflow needs rethinking — **cheap to establish now, very expensive to discover during UAT.**
+
+## BD-18 — Who registers a department's cadres first?
+
+**Severity: P1. Raised 2026-08-18. Blocks nothing already built; blocks onboarding a *new* department.**
+
+**The change that caused it.** Business asked on 2026-08-18 for the Pre-DPC screen's Post Name and Feeder Post to be selected from the Cadre master rather than typed. That was implemented. It has a consequence nobody stated, and it is not reversible by a UI tweak.
+
+**What used to happen.** Department registration creates **no cadres** — verified in `RegistrationController`. Until this change, **the Pre-DPC was itself what created them**: on approval, `PreDpcProposalService::projectToMasters()` called `Cadre::updateOrCreate(['department_id','name'])` for every post. A department typed *"Deputy Secretary"*, and the master grew a row. The department bootstrapped its own master.
+
+**What happens now.** A reference cannot be chosen from an empty list. **A newly registered department has zero cadres and therefore cannot file a Pre-DPC at all** until somebody populates its master. The only routes in are the CGPSC Admin's Cadre screen and a seeder.
+
+**What the system does today.** It says so, and refuses to present a form that cannot be completed:
+
+> *No post is registered for your department yet. Posts and feeder cadres on this form are chosen from the Cadre master, which the CGPSC Administration maintains for each department. Ask the Commission to register your department's sanctioned posts, then return to this screen.*
+
+*Add Post* and *Save Draft* are disabled. Existing departments are unaffected — their masters are already populated, by the very mechanism this change removes.
+
+**The question:** *is first-time cadre registration now the Commission's job?*
+
+1. **Yes — the Commission registers each department's sanctioned posts.** Defensible, arguably more correct for a government system: a department should not be able to invent its own sanctioned posts, and Schedule-IV is a published Government Order, not departmental data. **Cost:** an Admin step is inserted into onboarding, and no department can start unaided.
+2. **No — departments must stay self-sufficient.** Then the master needs a way to be filled without an Admin: seed the cadres at registration from the department's Schedule-IV, or let the AO add a cadre inline from the Pre-DPC screen. **Cost:** the department can still invent posts, which is what selecting from a master was meant to stop — so this answer partly undoes the request.
+
+**Both are small to implement.** The decision is about who owns a department's post list, which is not an engineering question. Until it is answered, onboarding a *new* department requires a CGPSC Admin to add its cadres first, and that should be written into the onboarding runbook whichever way this goes.
 
 ## Closed items
 

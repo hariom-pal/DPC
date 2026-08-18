@@ -132,6 +132,8 @@ The institutional authority the whole process runs under.
 
 **How to explain it in one breath:** *the Review is a fresh sitting on corrected data, which references the original, states why it was raised, and replaces it — without ever altering the original record.*
 
+**Where to start it (2026-08-18):** as the **Authorized Officer**, *DPC Proposals → **+ Review DPC***, beside *+ New Proposal*. The button is new; the feature is not. Until this date the screen existed with no link to it anywhere in the application, so a presenter had to type the URL. The Administrative Head does not see either button — raising a proposal is the AO's, approving it is the AH's.
+
 **Four things worth showing or saying:**
 
 1. The chart arrives **pre-filled** from the original. The department corrects; it does not retype.
@@ -197,7 +199,7 @@ Two independent records, and it is worth naming both:
 | 12 | Point at an officer marked **CIR** | Do not click | "This promotion is reserved — the record is incomplete. The officer still took part." | `CIR` on the list |
 | 13 | **APPROVE BY CGPSC** | Approve | "The result is approved and the proceedings and promotion list are generated and signed." | Documents generated |
 | 14 | **Documents** | Download one, then press **Verify** | "The document carries a content hash. This is how a department proves its copy is the copy the Commission issued." | Verification confirms the file is intact |
-| 15 | **Review DPC** (if time) | Show a Review's chain screen | "A concluded DPC can be corrected without touching the original. The Review supersedes it, and the old documents are watermarked but stay readable." | The correction chain |
+| 15 | **Review DPC** (if time) | As the **AO**, *DPC Proposals → + Review DPC*, then show a Review's chain screen | "A concluded DPC can be corrected without touching the original. The Review supersedes it, and the old documents are watermarked but stay readable." | The correction chain |
 | 16 | **Circulation** (if time) | Open a signed circulation's before/after | "The reserved promotion is released. Nothing was recalculated and nobody else moved." | The two result tables |
 
 **If you are short of time, drop steps 4, 5, 7 and 8.** Never drop **9, 10, 11 and 14** — corrections, calculation, explanation and verification are the four that convince people.

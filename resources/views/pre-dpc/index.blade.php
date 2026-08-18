@@ -9,7 +9,13 @@
 
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h1 class="h4 mb-0">Pre-DPC Proposals / प्री-डी.पी.सी. प्रस्ताव</h1>
-                <a href="{{ route('pre-dpc.create') }}" class="btn btn-success btn-sm">+ New Proposal</a>
+                {{-- Authoring is the Authorized Officer's alone (PPT S7); the
+                     Administrative Head approves what the AO prepared. The
+                     controller refuses the same thing, so the button and the
+                     403 cannot disagree. --}}
+                @if (auth()->user()->hasRole(\App\Enums\Role::AuthorizedOfficer->value))
+                    <a href="{{ route('pre-dpc.create') }}" class="btn btn-success btn-sm">+ New Proposal</a>
+                @endif
             </div>
 
             <div class="card border-0 shadow-sm">

@@ -153,10 +153,12 @@ None is signed: allotment and scheduling are administrative acts, not legally si
 
 | Workflow | Event | Authorized Officer | Administrative Head | Chairman | Member | Admin |
 |---|---|:---:|:---:|:---:|:---:|:---:|
+| `pre_dpc` | **create / edit draft** | ✅ | | | | |
 | `pre_dpc` | submit | ✅ | | | | |
 | `pre_dpc` | approve | | ✅ | | | |
 | `pre_dpc` | return | | ✅ | | | |
 | `pre_dpc` | cancel | ✅ | | | | |
+| `dpc_proposal` | **create (Fresh and Review)** | ✅ | | | | |
 | `dpc_proposal` | submit | ✅ | | | | |
 | `dpc_proposal` | approve | | ✅ | | | |
 | `dpc_proposal` | return | | ✅ | | | |
@@ -170,6 +172,10 @@ None is signed: allotment and scheduling are administrative acts, not legally si
 **Ownership scoping is separate from the role.** Department workflows additionally require the actor to belong to the proposal's department. CGPSC users hold **no** department — a DPC reaches CGPSC precisely by leaving its department's control — so `dpc_cgpsc` scopes on role, and from Phase 2 on whether a Member is *this* DPC's allottee.
 
 Admin provisions accounts and master data; it performs no workflow transition.
+
+**The two `create` rows were added on 2026-08-18** because they were the matrix's blind spot. Every transition had always been role-gated, but *creation* is not a transition — it is what produces the record a transition later acts on — so it sat outside this table, and outside the checks that reference it. **`pre_dpc` creation was in fact open to the Administrative Head**, who could produce a draft and then neither edit, submit nor cancel it, because all three of those *are* transitions and all three are the AO's. PPT S7 is explicit that the entry is made by the Authorized Officer and approved by the Administrative Head, so creation is now gated to match, and the matrix states it.
+
+**The UI renders from these rules; it does not restate them.** `resources/views/**` asks the Policy (`@can`) or the same role predicate the controller uses, so a button cannot outlive the permission behind it. `tests/Feature/RoleBasedUiVisibilityTest.php` asserts **both halves** of each case — the control is absent for the role that cannot use it, **and** the route still refuses that role. Hiding a control is a usability measure; the backend check is the security measure, and neither substitutes for the other.
 
 ---
 

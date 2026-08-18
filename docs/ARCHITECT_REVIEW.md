@@ -1,11 +1,10 @@
-# Architect Review — M8 Phase 3
+# Architect Review
 
-**Date:** 2026-08-14
-**Subject:** M8 Phase 3 — supersession takes legal effect, Review documents, SUPERSEDED watermark, publication
-**Design:** `docs/design/09-m8-review-dpc.md` (approved)
-**Baseline:** `v0.7.0-m7-complete` / `6f52f71`
+**Date:** 2026-08-18
+**Subject:** Pre-M10 verification sweep — Recruitment Rule screen (item 1F), PPT/SRS gap analysis, Pre-DPC→DPC linkage, Excel upload, role-based UI; then the Pre-DPC screen made master-sourced (§0.11a)
+**Baseline:** `v0.8.0-m8-phase3`; M9 engineering complete, **closure pending BD-14**
 
-Phase 3 only. **M9 has not begun.**
+**No milestone was opened or closed.** §0 is this session; §1 onward is the historical record from M8 Phase 3 and earlier, preserved verbatim.
 
 ---
 
@@ -13,142 +12,320 @@ Phase 3 only. **M9 has not begun.**
 
 ## 0. Current Session
 
-**Updated:** 2026-08-16 · **M9 Phase 3 finalisation — full gate, decisions verified, committed, pushed** · Section replaced in full, not appended.
+**Updated:** 2026-08-18 · **Pre-M10 verification sweep — Recruitment Rule screen, PPT/SRS gap analysis, Pre-DPC→DPC linkage, Excel upload, role-based UI** · Section replaced in full, not appended.
 
 ### 0.1 Prompt received
 
-> M9 Phase 3 finalisation. Run the complete quality gate: Pint, PHPStan (Larastan level 6), the complete PHPUnit suite, `composer audit`, `php artisan migrate:fresh --seed`. Verify AD-21, AD-23, AD-24, AQ-22. Verify freeze against M4, M5, M6, M7, M8. Update `ARCHITECT_REVIEW.md`, `CHANGELOG.md`, `PROJECT_STATUS.md`, `PROJECT_PROGRESS.md`. Create one commit — `feat(m9): Circulation DPC Phase 3` — push to origin. **Do NOT close M9.** Stop for Architect review.
+> Six items, in the client's own numbering: **(1)** Recruitment Rule UI improvements A–F; **(2)** verify complete PPT implementation with a comparison table; **(3)** verify the Pre-DPC → DPC relationship against business's latest requirement that *"Approved Pre-DPC should be used while creating DPC"*; **(4)** verify whether the PPT requires Excel upload during DPC creation and implement it if missing; **(5)** deliverables — UI improvements, PPT vs code gap, SRS vs code gap, missing business requirements, recommendation before M10 freeze; **(6)** role-based UI cleanup so no user is offered an action that returns Unauthorized. *"Do NOT blindly implement. First verify… Then implement only the changes that are valid."*
 
-### 0.2 Quality gate — actual verified results
+### 0.2 The short answer
 
-**All five run in the directed order. All five pass. Nothing needed fixing.**
+**Four of the six items were already built.** Verification, not implementation, was the substance of this session. What was actually built is small and is listed in §0.4. What was *found* is larger and is the reason this section is long.
 
-| # | Gate | Result |
-|---|---|---|
-| **1** | Laravel Pint | ✅ **Pass** |
-| **2** | PHPStan / Larastan level 6 | ✅ **0 errors** |
-| **3** | **Complete** PHPUnit suite | ✅ **718 passed / 2178 assertions, 0 failing** — exit 0, 135s |
-| **4** | `composer audit` | ⚠️→✅ **No advisories** — second attempt; see §0.3 |
-| **5** | `php artisan migrate:fresh --seed` | ✅ **OK** — **45 migrations, 65 tables**, 10 seeders |
-
-**718 = 692 + 26.** The suite gained exactly Phase 3's 26 tests and lost none. **That closes the specific risk flagged before finalisation**: Phase 3 modified a shared Blade partial (`_pending-business-decision`), which is the kind of change that reaches other tests. It did not.
-
-Schema **+1 migration, +1 table** — `dpc_circulation_documents`, as designed.
-
-### 0.3 The audit gate has now needed a retry at three consecutive finalisations
-
-**This time the symptom differed**, so it is recorded precisely rather than filed under the same heading:
-
-- **M9 Phase 1 finalisation** — network timeout; fell back to a possibly-stale local cache and still printed *"no advisories"*. **TD-2.**
-- **M9 Phase 2 finalisation** — the same.
-- **M9 Phase 3 finalisation (this one)** — the first invocation returned **composer's usage output** rather than a result. The second returned clean, exit 0, with no cache warning.
-
-**Three for three.** Whether all three share a cause is not something I can assert, and I am not going to file the third under TD-2 to make the pattern tidier. What is assertable: **the gate whose entire purpose is to be current has needed a retry every time it has been run at a milestone boundary**, and a gate that sometimes answers from a stale cache and sometimes does not answer at all is not yet a gate anyone should rely on.
-
-### 0.4 The four decisions, verified rather than assumed
-
-| Decision | How it was checked | Result |
-|---|---|---|
-| **AD-21** — M8 freeze | `git diff --name-only v0.8.0-m8-phase3 -- app/Domain/Review` **plus all four view paths** | ✅ **0 files** |
-| **AD-23** — no DPC execution | **22** Circulation source files across `app/Domain/Circulation`, `app/Http/Controllers/Dpc` and `app/Http/Controllers/Cgpsc`, **comments stripped via `token_get_all`**, scanned for all ten forbidden classes | ✅ **No violation** |
-| **AD-24** — own aggregate | No model extends `DpcProposal`; own tables, own workflow, own document layer | ✅ **Holds** |
-| **AQ-22** — M9's own document layer | `git diff` on `DocumentType.php`, `ProceedingDocumentService.php`, M7's `Documents/` directory, and M7's `proceedings`/`promotion-list` views | ✅ **Byte-identical** |
-
-**AD-23 is also verified behaviourally**, which is the stronger check: generating documents creates **no calculation run** and leaves the pinned run byte-identical. A scan proves nothing is *named*; only that test proves nothing was *done*.
-
-**AQ-22 is verified three ways** — by diff, by a test asserting M7's enum still holds exactly `proceedings` and `promotion_list`, and by a test asserting M9's renderer is **not** an instance of M7's contract.
-
-### 0.5 Freeze verified per milestone
-
-| Milestone | Baseline | Result |
-|---|---|---|
-| **M4** — `app/Domain/Dpc` | `v0.6.0-m6-complete` | **0 files** |
-| **M5** — `app/Domain/Eligibility` | `v0.6.0-m6-complete` | **0 files** |
-| **M6** — `app/Domain/Cgpsc` | `v0.6.0-m6-complete` | **0 files** |
-| **M7** — `app/Domain/Proceeding` **and its document views** | `v0.7.0-m7-complete` | **0 files** |
-| **M8** — `app/Domain/Review` + four view paths | `v0.8.0-m8-phase3` | **0 files** |
-
-**Checked individually rather than as one combined path list**, because a combined diff reports one number and cannot say which freeze held.
-
-**M7 was checked more widely than usual this phase**, and deliberately: Phase 3 is the milestone most likely to have reached into M7's document layer, so `resources/views/documents/{proceedings,promotion-list,_header,_footer,_styles}.blade.php` were diffed as well as `app/Domain/Proceeding`. All unchanged.
-
-The migrations differing from the M8 tag are **M9's own two** — Phase 1's and Phase 3's. **No M4–M8 migration changed.**
-
-### 0.6 What Phase 3 delivered
-
-All twelve scope items; the four that decide whether it was built correctly:
-
-- **§23.1 to the letter.** Publication refused; the refusal's title **is** the literal string `Pending Business Decision (BD-14)`, asserted with `assertSame` and asserted to reach the screen; no effective date invented; **rendering, signing, storage and verification all work with BD-14 open** — the load-bearing test, because a guard that also blocked generation would satisfy "refuse" and ship an untested pipeline.
-- **M9's own document layer (AQ-22)** — enum, status enum, table, renderer contract, HTML renderer, service, controller, views. M7's untouched.
-- **The full pipeline works**: render → store → SHA-256 → sign → verify, with download, verification, and version history where regenerating never overwrites.
-- **BD-14 as configuration, not a constant** (AD-3). Two tests show the far side: set `dpc.circulation.effective_date_basis`, and publication succeeds and the note states the basis. **CGPSC's answer will be applied with no code change.**
-
-**Two real defects were found by the tests during the phase**, both in code written this phase and both mine: an immutability guard that left `content_hash` editable on a signed document, and authorisation gated on `sign` — true only while the note is `consented` — which made every document action unreachable the moment it became legitimate.
-
-### 0.7 M9 is NOT closed
-
-**Instructed, and correct.** M9's **engineering** is complete across all three phases. **Closure is pending BD-14**, exactly as M8's is pending BD-11.
-
-**What that costs today, stated plainly:** the circulation note and revised promotion list are generated, signed, hashed and verifiable, and **they cannot reach the department**. The system is right to block them — publishing a promotion document whose effective date nobody has ruled is worse than not publishing it — but the block is not free, and the officers whose promotions were released by a signed note have no document to show for it.
-
-**No tag was created.** M9 is not closed, so there is no milestone boundary to tag.
-
-### 0.8 Current git status
-
-| | |
-|---|---|
-| **Commit** | `feat(m9): Circulation DPC Phase 3` |
-| **Branch** | `feature/m0-setup` → pushed to `origin/feature/m0-setup` |
-| **Tags** | `v0.6.0-m6-complete`, `v0.7.0-m7-complete`, `v0.8.0-m8-phase3` — **unmoved. No M9 tag** |
-| **Working tree** | Clean, apart from this file recording its own commit |
-| **Frozen milestones** | **Untouched** — five diffs, all empty |
-
-### 0.9 Pending business decisions
-
-**None resolved, none invented.**
-
-| # | Question | Severity | Status |
+| # | Item | Verified state | Action taken |
 |---|---|---|---|
-| **BD-14** | From what date does a circulated promotion take effect? | **P1** | **The only thing between M9 and closure.** Documents generate, sign and verify; publication alone is blocked. **Holding signed, verifiable documents out of departments' hands today** |
-| **BD-15** | May a CR-ground hold be routed to a Review? | **P1** | Live since Phase 1; those officers have no route to resolution |
-| **BD-12** | What if the supplied record is adverse? | P1 | Live since Phase 2; no refusal path exists |
-| **BD-13** | Time limit on a held promotion? | P2 | Three causes feed it |
-| **BD-11** | Supersession and an officer already promoted | P1 | Deferred; **M8's closure is pending it, exactly as M9's is pending BD-14** |
-| **BD-2 / BD-3 / BD-9 / BD-10** | Reserved relaxation; waiting-list; court case | P1/P2 | Inherited through the origin's result |
+| **1 A–E** | Target Cadre from master; Feeder **Cadre** searchable, FK, multiple; Promotion Share (%) labelled + totals 100%; Minimum Experience + Years/Months; Qualification Master | **Already built** 2026-08-17 | None — left alone |
+| **1 F** | DR % / PR % width, labels, **DR + PR = 100** | Labels present, **validation absent**, fields too narrow | **Built** |
+| **2** | Every PPT screen and business rule | 51 of 52 slides implemented; **S49–S51 not started (M10)** | **Documented** — §0.6 |
+| **3** | DPC references Approved Pre-DPC | **It does not.** Real functional gap | **Documented + recommended; not implemented** — §0.7 |
+| **4** | Excel upload at DPC creation | **Already built** (M4 Phase 6) for all three PPT upload points | None — verified only, §0.8 |
+| **6** | Role-based UI visibility | Mostly correct; **four concrete defects** | **Fixed** — §0.9 |
 
-**Two milestones are now built and unclosed for business reasons only.** That is the pattern to watch: the engineering keeps finishing ahead of the rulings, and each unclosed milestone carries real cases.
+**One item was deliberately not implemented.** Item 3 is a schema and workflow change to **M4, which is architecture-frozen (AD-15/AD-16)**, and the client's own permanent rule 2 forbids changing a business workflow without explicit approval. It is specified in full, costed, and put to the Architect as **AD-25 (proposed)** and to business as **BD-16**. Implementing it silently would have broken two standing rules to satisfy a third.
 
-### 0.10 Technical debt
+### 0.3 Audit before code — what item 1 asked for that already existed
 
-| # | Status after this phase |
+The client's item 1 reads as six new requirements. Five had been delivered the previous day and are recorded in `docs/worklog/2026-08-17-recruitment-rule-master-data-integrity.md` and `…-screen-usability.md`. **They were re-verified against the running application rather than taken from the worklog**, because a worklog is a claim and the screen is the evidence:
+
+| Asked for | Verified in code | Verdict |
+|---|---|---|
+| **A** Target Post from Cadre Master | `form.blade.php` — `<select data-searchable>` over `$cadres`; `cadre_id` → `Rule::exists('cadres','id')` | ✅ present |
+| **B** Rename to "Feeder Cadre", searchable, no free text, multiple | Column header reads *Feeder Cadre*; `feeder_cadre_id` non-nullable FK; add/remove rows; `distinct` + DB unique index; `different:cadre_id`; same-department check | ✅ present |
+| **C** "Promotion Share (%)" label on every row + total = 100% | Header label, per-column helper text, live running total, `validateShareTotal()` | ✅ present |
+| **D** "Minimum Experience" + Years/Months, default Years | `min_experience_unit` + `ExperienceUnit` enum; defaulted in `prepareForValidation()` | ✅ present |
+| **E** Qualification Master, no free text | `qualifications` table, CRUD screen, `qualification_id` FK, free-text input **absent** from the form | ✅ present |
+| **F** DR/PR width, labels, **DR + PR = 100** | Labels present; **no sum validation anywhere**; both fields `col-md-3`, too narrow for `100.00` | ❌ **gap** |
+
+**Only F was missing, and only the validation half of F was substantive.** That is the whole of what item 1 required this session.
+
+### 0.4 What was built
+
+#### F.1 — DR % + PR % must total exactly 100%
+
+Enforced server-side in **two** places, deliberately:
+
+| Where | Why there |
 |---|---|
-| **TD-2** | **Three consecutive finalisations have needed a retry on `composer audit`** (§0.3). It should be made to fail loudly rather than answer from cache — and the third symptom differed, so the cause may not be one thing |
-| **TD-24** | **Still open.** Phase 3 added the table the last review warned about; its three foreign-key names were checked against 64 characters **by hand**, which is exactly what step 1 would automate. Longest: `fk_dpc_circ_doc_generated_by` (28) |
-| **TD-20** | Unchanged at three copies. Phase 3 added no listener |
-| **TD-19 / TD-21 / TD-22 / TD-23** | Unchanged |
+| `RecruitmentRuleRequest::validateRecruitmentSplit()` | The screen the client named |
+| `SavePreDpcProposalRequest::withValidator()` | **Because approving a Pre-DPC projects its posts into that same master.** Validating only at the master would let a department approve a Pre-DPC that silently writes a rule the admin screen then refuses to re-save — the exact drift that `RecruitmentRuleService::normaliseShares()` had to be introduced to prevent for the feeder Promotion Share column. One rule, enforced at both ends, is the only version of this that cannot rot |
 
-### 0.11 Warnings
+**Traceability (permanent rule 17).** The PPT states the rule by example rather than in words: **every row of S9 and S11 reads DR 0 / PR 100**, and the seeded Schedule-IV ladder runs 100/0, 50/50, 25/75 and 0/100. **No worked example anywhere in either deck leaves a remainder.** SRS Screen 4 lists *Promotional Percentage* with no counterpart and states no total. So the rule is: **PPT by worked example + explicit business instruction of 2026-08-18.** Recorded here rather than assumed.
 
-1. **P1 — BD-14 is the only thing between M9 and closure**, and it is holding signed, verifiable documents out of departments' hands. **It should go to CGPSC first** of the four open business questions.
-2. **P1 — `composer audit` has needed a retry three times out of three.** A security gate that answers from a stale cache, or does not answer at all, is not yet dependable. TD-2's priority should rise and its scope be re-examined.
-3. **P2 — AQ-20's deadlock now reaches further.** If the origin DPC's allottee has left the Commission, nobody can sign the note **or** produce its documents. Still unruled.
-4. **P2 — TD-24 step 1 would have automated a manual check Phase 3 just performed by hand.** Minutes of work.
-5. **P2 — the immutability narrowing means a failed generation cannot be retried in place** — a retry produces a new version. I believe that is correct; it is worth confirming in review.
-6. **P2 — BD-9 still fails silently**, and M9's revised promotion list reproduces the origin's result wholesale.
+**It is a write-path rule only, and that is deliberate.** Existing rows are never rewritten. One development row (`Junior Assistant`, DR 0 / PR 1, created during last session's browser driving) does not satisfy it; it is still read, listed and editable, and is only refused **on save**. Silently rescaling a Government Order's own percentages would be inventing policy — the same reason the Promotion Share migration refused to invent a total for an all-zero set. A test pins this: `test_an_existing_unbalanced_rule_is_still_readable`.
 
-### 0.12 Exact next recommended prompt
+**The error is reported against its own key, `recruitment_split`, not against either field.** Neither number is wrong on its own; it is the pair that does not add up, and blaming one of them tells the user to change the field they may not have meant to. The message names the actual total and the shortfall — *"They currently total 80% — 20% of the posts is unaccounted for."*
 
-Copy-paste, verbatim:
+**Tolerance is one hundredth of a percent**, identical to the Promotion Share rule, so the two "must equal 100%" rules on the screen cannot disagree about what *exactly* means. `33.33 + 66.67` passes.
 
-> Put **BD-14** to CGPSC through `docs/UAT_BUSINESS_VALIDATION.md` in plain language with a worked example: a circulated promotion resolved in 2026 against a DPC whose promotion-as-on year is 2017 — does it take effect retrospectively or from the Commission's consent, and what does that do to officers promoted in between? **It is the only thing between M9 and closure.** Raise **BD-15**, **BD-12** and **BD-13** alongside it.
+#### F.2 — Width and labels
 
-Then, independently:
+- `Direct Recruitment (%)` → **`Direct Recruitment — DR (%)`**, `Promotion (%)` → **`Promotion — PR (%)`**, both with the required-marker they lacked and a `%` input-group affix.
+- Both widened from `col-md-3` to `col-md-4 col-lg-3` and moved onto **their own row** with a live **DR + PR** total beside them, shown exactly like the feeder Promotion Share total — number, then ✓ or ✗. They are the only two fields on the screen that constrain each other; showing them together is what makes the constraint legible.
 
-> Rule who may act on a circulation when the **origin DPC's allottee has left the Commission** — it now blocks signing *and* document production. Consider a standing rule about absent named actors, the same gap AD-22 §0.4 left open for the Architect. Record as an AD.
+#### F.3 — The same fields on the Pre-DPC screen
 
-> Raise **TD-2**'s priority and make `composer audit` fail loudly rather than answering from a stale cache — it has needed a retry at three consecutive finalisations. Then take **TD-24 step 1**: a test asserting every foreign-key and index name is within MySQL's 64-character limit.
+`resources/views/pre-dpc/form.blade.php` carried DR % and PR % as **`col-md-1` boxes too narrow to display `100.00`**, labelled only by abbreviation. Since the new validation fires on that screen, a user has to be able to see the numbers it is complaining about. Widened to `col-md-3`, full labels, `%` affix, per-card live total. **No field name changed**, so no API changed.
 
-**M9 is not closed.** Its engineering is complete; closure is pending BD-14.
+#### 0.4.1 Verification of the built work
+
+- **782 tests pass** (2351 assertions) — up from 759; **23 new**, none modified.
+- **Pint pass · PHPStan (Larastan L6) 0 errors · `composer audit` no advisories.**
+- **All five freezes verified empty** — `git diff v0.6.0-m6-complete -- app/Domain/{Dpc,Eligibility,Cgpsc}`, `v0.7.0-m7-complete -- app/Domain/Proceeding`, `v0.8.0-m8-phase3 -- app/Domain/Review`. Nothing.
+- **Driven over HTTP against the running application**, not asserted only in tests: posting DR 30 / PR 50 returns 302, renders *"…currently total 80% — 20% of the posts is unaccounted for"*, and **writes no row** (`GO/SMOKE/1` count = 0).
+
+### 0.5 Documents read for this review
+
+`docs/ODPC_NEW_FINAL.pptx` (52 slides, via `docs/design/reference/odpc_new_final.extracted.txt`), `docs/CONVENTIONAL DPC PROCESS.pptx` (7 slides), and **`docs/archive/DPC- SRS.docx` extracted afresh** — the SRS had not previously been quoted field-by-field in this file, and item 5 asks for an SRS-vs-code gap specifically.
+
+### 0.6 PPT vs Code — the comparison table item 2 asked for
+
+**Format as requested: PPT Requirement → Implemented → Missing → Different Implementation.**
+
+#### 0.6.1 By screen
+
+| PPT | Requirement | Implemented | Missing | Different implementation |
+|---|---|---|---|---|
+| S5–S6 | Department registration; AO + AH credentials by SMS/email | ✅ M1 | — | Live SMS gateway not connected (**TD-6**) — mechanism works, delivery does not |
+| S7–S9 | Pre-DPC: posts sanctioned for promotion — pay scale, DR %, PR %, feeder cadres, per-cadre %, experience **in years** | ✅ M3 | — | **Experience now carries a Years/Months unit** — a superset of S9, business-requested 2026-08-18. **Minimum Qualification exists and is not on S9 at all** — see §0.6.3 |
+| S10–S11 | AH approves the Pre-DPC entry | ✅ M3 | — | — |
+| S12–S14 | DPC proposal: post to/from + class, DPC type, legal-stay declaration, proposal date | ✅ M4 | — | Post dropdowns list **all active cadres**, not the Pre-DPC's sanctioned posts — **this is item 3, §0.7** |
+| S15 | DPC committee details | ✅ M4 | — | — |
+| S16 | Officers under consideration + sanctioned count + vacancy breakdown; **"प्रविष्ट करें अथवा अपलोड करें"** | ✅ M4 | — | — |
+| S17 | Final seniority list + zone `2×V+4`; entry **or** upload | ✅ M4 / M5 | — | — |
+| S18 | Tabulation chart — loyalty, immovable property, year-wise CR, note; entry **or** upload | ✅ M4 | — | — |
+| S19–S25 | AH reviews all five sections and approves; digital signature | ✅ M4 Phase 7 | — | Aadhaar-OTP e-sign is the **mock provider**; real CSC pending **BD-4** |
+| S26–S28 | Chairman allotment + re-allotment + allotment report | ✅ M6 | — | — |
+| S29–S30 | Member acceptance, scheduling, re-scheduling | ✅ M6 | — | — |
+| S31–S33 | The sitting: editable workspace, CALCULATE, marks and remarks | ✅ M7 | — | Corrections are **append-only** rather than in-place edits — stronger than S33, and required for an auditable record |
+| S34 | Main List + Waiting List; APPROVE BY CGPSC | ✅ M7 | — | A result affected by **BD-2/BD-3/BD-10** is marked *provisional* and cannot be published — declines to guess |
+| S35–S40 | Review DPC: reasons, chart correction, AH approval | ✅ M8 | — | **Had no UI entry point until this session** — §0.9 |
+| S41–S43 | Action on Review DPC | ✅ M8 | — | — |
+| S44–S48 | Circulation DPC: note, per-officer consent, revised list, prescribed form | ✅ M9 | — | **Publication blocked on BD-14**; CR-ground holds refused pending **BD-15** |
+| **S49–S51** | **Self-inspection: officer views own data, PRINT, RAISE OBJECTION before the deadline** | ❌ | **Entire feature — M10, not started** | — |
+| S52 | Closing slide | n/a | — | — |
+
+#### 0.6.2 By business rule (Conventional DPC deck, C4–C6)
+
+| Rule | Implemented | Where |
+|---|---|---|
+| CR grades क+/क/ख/ग/घ = 4/3/2/1/0 | ✅ | `ScoringService` |
+| Tribal-area service **+1** | ✅ | `ScoringService` |
+| No CR may be **घ (0)** in the last 5 years | ✅ | `EligibilityService` |
+| Class-I→I: last year's CR may not be **ग (1)** | ✅ | `EligibilityService`, configuration-driven per class pair |
+| Thresholds ≥15 / ≥13 / ≥11 / ≥10 by class pair | ✅ | `RuleSet` — configuration, not code |
+| Zone: 1 vacancy → 5 officers; else **2×V+4** | ✅ | `ZoneOfConsiderationService` |
+| Non-Class-I→I: all officers meeting the experience bar | ✅ | `ZoneOfConsiderationService` |
+| Super-seat at 20/20, actual seniority decides ties | ✅ | `SuperSeatService` |
+| Reserved zone ×7 expansion | ✅ | `ZoneOfConsiderationService` |
+| **Reserved relaxation to 10 marks** | ⛔ **Blocked, not missing** | **BD-2 / BD-3** — refuses to guess; result marked provisional |
+| 5 most recent available CR years | ✅ | M5 engine rule |
+
+**Every rule the two decks state is implemented, except the one that is deliberately blocked on a business ruling.** That is the correct state, not a gap.
+
+#### 0.6.3 Two places where the code exceeds the PPT — declared, not hidden
+
+Permanent rule 12 requires a mismatch to be documented before it is implemented. Both of these were implemented before this session; both are recorded here because neither had been stated as a *deviation* in this file.
+
+| Item | PPT reference | SRS reference | Current code | Reason for change | Recommendation |
+|---|---|---|---|---|---|
+| **Minimum Qualification** on a feeder cadre | **Absent.** S9/S11 columns are: पद नाम, वेतनमान, DR %, PR %, संवर्ग, %, अनुभव | **Absent.** SRS Screen 4 lists Promotion Post, Feeder Post, Minimum Service, Recruitment Rule No, Promotional Percentage | `qualifications` master + `qualification_id` FK on `recruitment_rule_feeders`; free text retained as the legacy record | Explicit business instruction, 2026-08-17 ("Create a Qualification Master… Qualification must be selected from Qualification Master") | **Keep.** It is optional (`nullable`), so a Schedule-IV rule that imposes no qualification is still expressible, and it does not enter any calculation. **No eligibility path reads it** — verified by grep, not assumed |
+| **Experience unit** (Years / Months) | S9 header reads **"अनुभव वर्षों में"** — years only | *"Minimum Service Required — Numeric — Required years of service"* — years only | `min_experience_unit`, default `years`, backfilled explicitly | Explicit business instruction, 2026-08-17 | **Keep.** Additive, defaulted, and not required on the wire, so every pre-existing caller is unaffected — `RecruitmentRuleTest` passes unmodified |
+
+**Neither changes a promotion outcome.** `promotion_percentage`, `min_experience_years` and `qualification_id` are read only inside the Master module and the Pre-DPC projection; no eligibility, scoring, zone, proceeding, review or circulation path reads any of them.
+
+### 0.7 Item 3 — Pre-DPC → DPC. **The finding of this session.**
+
+#### 0.7.1 The five questions, answered
+
+**1 · What does the PPT specify?**
+
+S7 makes the Pre-DPC the register of *"विभाग में उपलब्ध पदोन्नति के पदों का विवरण… संवर्ग जिनसे पदोन्नति हो सकती है"* — the posts on which promotion is available **and the cadres from which promotion may occur**. S14 then offers the DPC's *"पद नाम जिस पर पदोन्नति होनी है"* and *"जिससे"* as **dropdowns whose options are exactly the three posts entered on S9** — DEPUTY SECRETARY, UNDER SECRETARY, SECTION OFFICER. **The PPT shows the dependency by construction: the DPC's post list is the Pre-DPC's post list.** It nowhere states the constraint in words.
+
+**2 · What does the SRS specify?**
+
+Screen 4, *Feeder Cadre Management* — Promotion Post, Feeder Post, Minimum Service Required, Recruitment Rule No, Promotional Percentage — establishes the feeder relationship as master data. §3.3 requires *"auto-validation for eligibility criteria"* on proposal submission. **The SRS neither states nor forbids the linkage.** It is silent.
+
+**3 · What does the current code implement?**
+
+Approving a Pre-DPC calls `PreDpcProposalService::projectToMasters()`, which upserts each post into `cadres` and each feeder into `recruitment_rules` / `recruitment_rule_feeders` (architect ruling Q1 — the masters are the single source of truth). **So the Pre-DPC's content does reach the DPC — but only by having been dissolved into the Cadre master.**
+
+**4 · Does DPC reference Approved Pre-DPC?**
+
+**No — and not indirectly either, in the way that matters.**
+
+- `dpc_proposals` has **no `pre_dpc_proposal_id`** column. Verified against the migration.
+- `grep -rn "pre_dpc\|PreDpc" app/Domain/Dpc/ app/Http/Controllers/Dpc/` returns **nothing**.
+- `DpcProposalController::formData()` offers **every active cadre in the department**.
+- `SaveDpcProposalRequest` validates only that both cadres exist, are `active`, and share the department — **it never checks that a Recruitment Rule links `post_from` to `post_to`.**
+
+**5 · Is it a functional gap?** **Yes, and it is a correctness gap rather than a cosmetic one.**
+
+A department can create, complete, sign and forward a DPC for a post pair **that no approved Pre-DPC ever sanctioned** — for example promoting Teacher → Principal when the approved Schedule-IV ladder says Teacher → Head Master → Lecturer → Principal. Nothing refuses it at any stage. The Commission would then allot, schedule and conduct a sitting on a promotion path with **no Government Order behind it**, and the first place the defect could surface is a court challenge to the promotion.
+
+**Two aggravating details found while verifying:**
+
+- The Cadre master is **cumulative and never pruned**. A post that appeared in Pre-DPC v1 and was dropped in v2 remains an `active` cadre, so it stays selectable indefinitely.
+- A department with **no approved Pre-DPC at all** can still create a DPC, provided cadres exist from any other source (the Admin's Cadre screen, or a seeder). The Pre-DPC stage is, today, skippable.
+
+#### 0.7.2 Recommended architecture
+
+**Three options were considered. The middle one is recommended.**
+
+| | Option A — validate only | **Option B — reference the rule (recommended)** | Option C — FK to the Pre-DPC |
+|---|---|---|---|
+| **Change** | Add a `withValidator()` check that an active Recruitment Rule links the pair; filter the dropdowns to sanctioned pairs | A, **plus** persist `recruitment_rule_id` on `dpc_proposals`, resolved at creation | Persist `pre_dpc_proposal_id` |
+| **Schema** | none | +1 nullable FK | +1 nullable FK |
+| **Answers "was this sanctioned?"** | at creation only | **at creation and forever after** | yes |
+| **Survives a later Pre-DPC amendment** | ❌ | **✅ — the rule version is pinned** | ⚠️ points at a superseded version |
+| **Fits the existing architecture** | ✅ | **✅ — consistent with the Q1 ruling that the masters are the source of truth** | ❌ **contradicts Q1** — reintroduces the Pre-DPC as a runtime dependency after it was deliberately dissolved into the masters |
+| **Backfillable** | n/a | ✅ — existing DPCs resolve by post pair, or stay null and are reported | ⚠️ ambiguous where several versions match |
+
+**Recommendation: Option B.** The business requirement is *"Approved Pre-DPC should be used while creating DPC."* An approved Pre-DPC **is** the Recruitment Rule, by the Q1 ruling — so binding a DPC to the rule binds it to the Pre-DPC, and binds it to the *version in force on the day*, which a direct FK does not. Concretely:
+
+1. `SaveDpcProposalRequest` gains a rule that an **active Recruitment Rule for `post_to_cadre_id`** must list `post_from_cadre_id` among its feeders, effective on `proposal_date`. Message names the sanctioned feeders for that post rather than saying "invalid".
+2. `formData()` offers only sanctioned pairs; picking the target filters the source list, as the Recruitment Rule screen already does.
+3. `dpc_proposals.recruitment_rule_id` — **nullable** FK, `ON DELETE RESTRICT`, set at creation. Nullable because pre-existing rows have no answer and **inventing one would be worse than recording that it is unknown**.
+4. A backfill **report**, not a backfill: `php artisan dpc:unlinked-proposals`, in the shape of the existing `qualifications:unmapped`.
+5. The empty-state says what to do — *"No promotion path is sanctioned for this post. An approved Pre-DPC must list it first."* — rather than presenting an empty dropdown.
+
+**Estimated cost: 1 migration, 2 request classes, 1 controller method, 1 command, ~10 tests.** Small. **It is the approval, not the work, that is the obstacle.**
+
+#### 0.7.3 Why it was not implemented in this session
+
+Three standing rules point the same way, and they are the client's own:
+
+- **M4 is architecture-frozen** (AD-15/AD-16) — *"no new features, workflow changes, schema changes."* This is all three.
+- **Permanent rule 2** — *"Never change business workflow unless explicitly approved."* Refusing a post pair that is accepted today changes what a department may submit.
+- **Permanent rule 12** — *"If any mismatch exists: do NOT guess. Document it first. Then recommend the correct implementation."* Item 3 asks to *verify* and *recommend*; it does not ask to build.
+
+**Raised as `AD-25` (proposed, awaiting Architect approval) and `BD-16` (awaiting business confirmation).** It needs a **Freeze Exception under AD-22** to proceed. **Recommended for M10** — see §0.11.
+
+### 0.8 Item 4 — Excel upload. Already built; nothing to implement.
+
+**Does the PPT require it?** **Yes, explicitly, at three points**, and the wording is the same each time — *"विवरण प्रविष्ट करें **अथवा** विवरण अपलोड करें"*, entry **or** upload, with an `UPLOAD` button drawn on the slide:
+
+| PPT | Section |
+|---|---|
+| **S16** | Officers under consideration |
+| **S17** | Final seniority list |
+| **S18** | Tabulation / evaluation chart |
+
+**Does the SRS require it?** **Yes.** Screen 5, *Seniority List Management*: *"Upload Seniority List — File Upload — **Excel file format**"*. §3.7 additionally requires export to PDF/Excel.
+
+**Does the code support it?** **Yes — all three, and it predates this session (M4 Phase 6).**
+
+- `App\Domain\Import\Enums\ImportTemplate` has exactly three cases, named for the slides they serve: `CurrentlyWorkingUs` (S16), `FinalSeniorityListUs` (S17), `EvaluationChartUs` (S18).
+- Staged pipeline — **Preview → Validation → Error Report → Commit**. Nothing is written until the officer confirms.
+- Per-row rules come from `DpcRowRules`, **shared with manual entry**, so the two paths cannot drift.
+- Headers accept **both** the PPT's own Hindi-context English (`NAME OF US`, `DATE OF POSTING ON US`, `CAT`) and this system's field names, so a file exported from the system re-imports unedited.
+- `reservation_category` is matched as a **code**, not an id — a department filling in a spreadsheet has no access to primary keys.
+- Upload widget is on all three section screens; `maatwebsite/excel ^3.1` is a first-class dependency.
+
+**Nothing was implemented for item 4.** Building it again would have duplicated a working, tested pipeline.
+
+**One residual gap, for completeness:** SRS §3.7 also asks for **export** to Excel/PDF. Export exists for signed documents (PDF) but there is **no Excel export** of a promotion list or a status report. That belongs to **M11 (Reports)** and is recorded in §0.10.
+
+### 0.9 Item 6 — Role-based UI. Four defects found, four fixed.
+
+**The audit first.** The complaint was that users are offered buttons that return *Unauthorized*. That is **not** true of the codebase as a whole, and saying so precisely matters more than agreeing:
+
+- **M9 (Circulation) is exemplary** — every action is behind `@can`, asking the same Policy the controller enforces.
+- **M6/M7 (Commission)** gate on `$isChairman`, `$isAllottee`, `$canAct`, all Policy-derived.
+- **M3/M4 detail screens** gate on `$isAO` / `$isAH` **combined with workflow state**, which already satisfies the client's rule 11.
+
+**The defects were at the entry points — the index screens and the dashboard — which nobody had gated because they are "just lists".**
+
+| # | Defect | Consequence before | Fix |
+|---|---|---|---|
+| **1** | `dpc-proposals/index` — **+ New Proposal** shown to everyone who can see the list. `DpcProposalPolicy::create` is **AO-only** | **An AH clicking it got a 403.** This is precisely the reported bug | `@can('create', DpcProposal::class)` — the same Policy the controller calls |
+| **2** | `pre-dpc/index` — **+ New Proposal** shown to the AH, and the **backend allowed it** | Worse than a 403: the AH created a draft they could then neither edit, submit nor cancel — every one of those is `$isAO` on the show screen. **A dead-end record.** | Button gated **and** `PreDpcProposalController::authorizeAuthoring()` added. **PPT S7 is explicit** — the entry is made by the AO and approved by the AH; an AH authoring it would be approving their own work |
+| **3** | Dashboard — **Allotments** tile and **"Awaiting allotment"** counter shown to Members. Allotment is the **Chairman's alone** (PPT S28) | A Member was sent to a screen whose only action is hidden from them, and shown a number they can do nothing about | Tile and counter are now Chairman-only. A Member's own queue is *"Allotted to you, not yet accepted"*, which was always there |
+| **4** | `cgpsc/proceedings/index` — **Open Workspace** shown whenever a proceeding exists | `DpcProceedingPolicy::view` is Chairman **or** the conductor. **After a re-allotment those differ from the current allottee**, who is who the row is listed for → 403 | `@can('view', $proceeding)`; otherwise the row says *"Conducted by …"*, which is more useful than a button |
+
+**Also fixed, and found only because of this sweep:** `dpc-proposals.reviews.create` — **Review DPC (PPT S35–S37), delivered in M8, had no link anywhere in the UI.** `grep -rn "reviews.create" resources/views/` returned nothing. The route, controller, request, service, view and 83 tests all existed; **the feature was unreachable.** A **+ Review DPC** button now sits beside **+ New Proposal**, gated by the same Policy. This is completing delivered scope, not new scope.
+
+**Tone was corrected alongside visibility.** The AO and AH now read different descriptions of the same tile — *"Prepare and submit"* vs *"Approve or return the proposal the Authorized Officer submitted"* — because the same screen is a different job to each, and a tile that promises an action the reader cannot take is the problem this work exists to remove.
+
+**Backend authorization was not weakened anywhere.** `tests/Feature/RoleBasedUiVisibilityTest.php` (14 tests) asserts **both halves of every case** — the button is absent for the role that cannot use it, **and** the route still refuses that role. Asserting only absence would let a later change quietly drop the backend check and stay green, which is what makes hiding a button security theatre rather than usability.
+
+### 0.10 Deliverable 4 — missing business requirements, consolidated
+
+**Ranked by consequence, not by document order.**
+
+| # | Requirement | Source | Status | Consequence today |
+|---|---|---|---|---|
+| **1** | **DPC must be created from an Approved Pre-DPC** | Business, 2026-08-18; PPT S14 by construction | ❌ **Gap — §0.7** | A DPC can run on an unsanctioned promotion path |
+| **2** | **Self-inspection & objection** (S49–S51) — officer views own data, PRINT, RAISE OBJECTION | PPT S49–S51 | ❌ **M10, not started** | Officers cannot see or contest their own record before the DPC date |
+| **3** | Reserved relaxation to 10 marks | Conventional deck C5 | ⛔ **Blocked — BD-2/BD-3** | Affected results marked provisional, cannot be published |
+| **4** | Reports & analytics; **Excel/PDF export** of lists and status reports | SRS §3.7, Screen 13 | ❌ **M11, not started** | No management reporting |
+| **5** | Audit-trail **UI** | SRS §3.7 | 🟡 Data captured; no browser UI | Auditors cannot self-serve — **M11** |
+| **6** | Real CSC eSign (Aadhaar OTP) | PPT S8/S10/S13 etc. | 🟡 Mock provider works | **BD-4** — never mock-sign in production |
+| **7** | Live SMS gateway | PPT S5 | 🟡 Mechanism works | **TD-6** — OTP undeliverable, so no officer can verify |
+| **8** | HRMS import of service records | SRS §3.2 | 🟡 Provider + flag, mock only | **BD-5** — manual entry and Excel cover it |
+| **9** | **Video conferencing** (WebRTC / Teams / Zoom) | SRS §3.5 | ❌ **Not implemented, and not in the PPT** | See below |
+| **10** | **Real-time voting** during the meeting | SRS §3.5 | ❌ **Not implemented, and not in the PPT** | See below |
+| **11** | 2FA on login | SRS §3.1 | 🟡 OTP exists; not a second factor over a password | Hardening — **M11** |
+
+**On the SRS column generally, and on rows 9 and 10 in particular — a standing-of-the-document question, raised by this session's own brief.**
+
+**AD-1 (standing) rules that the two PPT decks are the only source of business requirements, and that `docs/archive/` — including the SRS — *"is historical reference and must not be implemented from."*** This session was nevertheless asked for an **SRS vs Code gap analysis** as a named deliverable. **Those two positions cannot both be right.** The analysis above was produced **under AD-1**: an SRS-only item is reported as a *finding*, never as a defect. That reading should be confirmed, not assumed — **raised as BD-17.**
+
+Concretely, rows 9 and 10 are where it bites. The SRS describes a **live meeting** — video conferencing, digital note-taking, real-time voting. The PPT describes a **document-and-signature process**: the Member opens a workspace, corrects, calculates, approves and signs, and **S31 states that no change made by the department on the DPC date is valid**, which is the opposite of a live deliberation. The build follows the PPT, correctly under AD-1 — **but it means two named SRS features will never be built under the current design, and nobody has said so out loud.** Rows 4, 5 and 11 are the softer case: SRS-only, but *scheduled* (M11) rather than refused, so they need no ruling.
+
+### 0.11 Deliverable 5 — recommendation before the M10 freeze
+
+**Ordered. Items 1 and 2 should be settled before M10 opens, not during it.**
+
+1. **Rule AD-25 (Pre-DPC → DPC linkage) and confirm BD-16.** M10's officer self-inspection screen shows an officer the record held *for a specific DPC*. If that DPC can exist on an unsanctioned promotion path, M10 renders an authoritative-looking screen about a proposal with no Government Order behind it. **The gap gets more expensive once M10 exists, not less.** Recommended: approve Option B, take it as a **Freeze Exception under AD-22 at the M9→M10 boundary**, batched with the debt below.
+2. **Answer BD-17 (video conferencing / real-time voting).** It is the only open question that could change the *shape* of the system rather than a value in it. Cheap to answer now; very expensive to discover during UAT.
+3. **Close BD-14** — the single thing between M9 and closure. **Do not open M10 with M9 unclosed**; that is how two milestones end up half-closed at once.
+4. **Batch the standing debt into the same freeze exception** — **TD-19, TD-20, TD-21** (all small, all blocked only by AD-15), plus **TD-2** (`composer audit` has now needed a retry at three consecutive finalisations, and a gate that answers from a stale cache is not a gate).
+5. **Then open M10 (S49–S51).** Note it inherits **BD-8 (objection handling)** — S51's *RAISE OBJECTION* is its central action and there is no ruling yet on what happens to one. **BD-8 should be answered before M10 Phase 2**, not at its end.
+6. **Not before UAT, but before production:** TD-6 (SMS gateway), TD-1 (evidence-table grants), TD-8 (retention capacity plan), BD-4 (real eSign).
+
+### 0.11a Follow-on, same day — the Pre-DPC screen becomes master-sourced
+
+**Requested after the sweep above:** on `/pre-dpc/create`, Minimum Qualification must be a dropdown from the master, Post Name and Feeder Post must come from the Cadre master, and every feeder field must carry a label. **Built.** Detail in `docs/worklog/2026-08-18-pre-dpc-master-sourced-fields.md`.
+
+**It reverses a position taken the previous day, deliberately.** The 2026-08-17 round made the Recruitment Rule master referential and left the Pre-DPC as text, resolving it at projection — *"the Pre-DPC screens are unchanged… resolution happens at the moment of projection, which is where the integrity requirement applies."* Business has now said where it applies. **Resolving text afterwards is a guess about what somebody meant; capturing a reference is a record of what they chose.** The guess mapped 11 of 15 existing rows; the four it missed are the argument — `12rth`, `10tth`, hand-typed and unmappable. **Traceable to** explicit business instruction, corroborated by **SRS Screen 4** (*Promotion Post — Dropdown*, *Feeder Post — Dropdown*) and **permanent rule 7**.
+
+**Two of the four fields needed no migration.** `pre_dpc_posts.cadre_id` and `pre_dpc_post_feeders.feeder_cadre_id` have existed since M3, and `feeder_cadre_id` was already validated — the form never offered them. Only `qualification_id` is new: additive, nullable, backfilled by the same normalised match the recruitment-rule backfill uses, `min_qualification` kept as the legacy record.
+
+**Backward compatibility was the substantive engineering.** `post_name` / `feeder_name` stay `required` and stored; the request derives them from the chosen cadres, so the screen posts references only while a text-only caller — the demo seeder, `PreDpcWorkflowTest`, any existing API client — is untouched. `PreDpcWorkflowTest` passes **unmodified**; `demo:seed --force` rebuilds with all seven DPC IDs unchanged. `amend()` carries the references forward; without that an amendment would quietly downgrade a referenced proposal to a text one **and look correct**, because the names travel with it.
+
+**Three new set-level rules — not tidiness.** No self-feeder, no duplicate feeder per post, no duplicate post per proposal. `recruitment_rule_feeders` carries a unique index on (rule, feeder cadre), so without them a department could approve a Pre-DPC whose projection **fails on a database constraint inside the approval transaction, after the proposal was digitally signed.** Same argument as the DR + PR rule in §0.4.
+
+**⚠ The consequence, raised as BD-18.** Department registration creates no cadres, and **the Pre-DPC was itself what created them** — `projectToMasters()` upserted a cadre per post name on approval. A reference cannot be chosen from an empty list, so **a newly registered department can no longer file a Pre-DPC** until a CGPSC Admin populates its master. The screen states this and disables the form rather than appearing broken; existing departments are unaffected. **Whether first-time cadre registration is now the Commission's job is a business decision**, and it is a workflow change that follows necessarily from what was asked for — so it is implemented and flagged, not blocked.
+
+**798 tests** (2404 assertions), 16 new, none modified · Pint · PHPStan 0 · audit clean · all five freezes empty · **driven and saved in a real browser**, storing `cadre_id`, `feeder_cadre_id` and `qualification_id` with `min_qualification` null.
+
+### 0.12 What is still unresolved, stated plainly
+
+- **AD-25 is proposed, not decided.** Nothing in §0.7 has been built.
+- **BD-16, BD-17 and BD-18 are new and unanswered.** BD-17 in particular has never been put to anyone. **BD-18 has a live operational effect today** — onboarding a new department now needs a CGPSC Admin to register its cadres first, and that belongs in the onboarding runbook whichever way it is answered.
+- **BD-2, BD-3, BD-8, BD-9, BD-10, BD-11, BD-14, BD-15** remain as previously recorded. This session changed none of them.
+- **Three technical findings from these two sessions are now filed as debt**, per the Milestone Execution Rule of 2026-08-18 — they are recorded, not actioned: **TD-25** (a Pre-DPC feeder whose name matches no cadre is *silently dropped* at projection — pre-existing, found by a failing test), **TD-26** (Pre-DPC authorization is inline rather than a Policy, so views re-derive the rule the controller enforces), **TD-27** (`MILESTONE_SUMMARY.md` updates only at closure, so a milestone stalled on a business decision never gets a status — M9 read "Not started" three phases after the fact).
+- **The `Junior Assistant` DR 0 / PR 1 development row** is left as it is. It is dev data, it is now visible, and rewriting it would have destroyed the only evidence that the write-path-only decision behaves as intended.
+
+### 0.13 For the Architect — copy-paste
+
+> Rule **AD-25**: bind a DPC proposal to the **active Recruitment Rule** that sanctions its post pair (Option B, §0.7.2) — validation, filtered dropdowns, and a nullable `recruitment_rule_id` pinned at creation. It requires a **Freeze Exception under AD-22** against M4. **Recommended before M10 opens**, because M10's self-inspection screen inherits the defect.
+
+> Confirm **BD-16** with business: is *"Approved Pre-DPC should be used while creating DPC"* satisfied by binding to the Recruitment Rule the Pre-DPC produced (recommended), or does business require the DPC to name the Pre-DPC document itself?
+
+> Answer **BD-17**, which is really two questions and the first governs the second. **(a) Does AD-1 still stand?** It says the SRS *"must not be implemented from"*, yet an SRS-vs-code gap analysis was commissioned on 2026-08-18; if the SRS has been promoted to a requirements source, **AD-1 must be superseded by a new AD** and the roadmap re-scoped. **(b) If AD-1 stands, confirm that video conferencing and real-time voting are withdrawn** — the PPT specifies a document-and-signature process and the build follows it.
+
+**M9 is still not closed.** Its engineering is complete; closure remains pending BD-14. This session opened no milestone.
 
 <!-- CURRENT SESSION — END. Historical architect review follows; preserve verbatim. -->
 

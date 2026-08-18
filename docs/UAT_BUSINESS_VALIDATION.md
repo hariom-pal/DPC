@@ -1,8 +1,8 @@
 # UAT Business Validation
 
-**Four questions the Commission must answer before a promotion list can be published, and one it must answer before the Review correction policy is switched on in production.**
+**Nine questions for the Commission. One of them — Question 6 — is the only thing holding up completion of a finished milestone, and is the one to answer first.**
 
-**Created 2026-08-14 by architect directive.** Question 5 added 2026-08-14.
+**Created 2026-08-14 by architect directive.** Question 5 added 2026-08-14. **Questions 6 to 9 added 2026-08-18**, covering the Circulation facility (slides 45–48).
 
 ---
 
@@ -18,7 +18,9 @@ Each section below states one question, shows the actual case that raises it, ex
 
 **Question 5 is different, and the difference matters.** It does not block anything from being built or published. It asks what a *correction* to an already-published promotion means for an officer who was promoted under it — and the answer is needed **before the Review correction facility is switched on in live use**, not before any development finishes. Nothing is waiting on it today.
 
-**None of these five is a question about software.** We are not asking you to approve a design, a screen or a milestone. Every one is a promotion rule or a service-law consequence that only the Commission can settle.
+**Questions 6 to 9 concern the Circulation facility** — how a promotion that was reserved for a missing record is finally settled (slides 45–48). **Question 6 is the most urgent item on this page.** The facility is finished and tested; it is the only piece of work in the project that cannot be declared complete, and the reason is this single unanswered rule. Questions 7 and 8 affect officers whose promotions are reserved today; Question 9 is a policy point with nothing waiting on it.
+
+**None of these nine is a question about software.** We are not asking you to approve a design, a screen or a milestone. Every one is a promotion rule or a service-law consequence that only the Commission can settle.
 
 ---
 
@@ -223,6 +225,98 @@ When a Review DPC produces a different result from the one it corrects:
 
 ---
 
+## Question 6 — From what date does a circulated promotion take effect? *(BD-14)*
+
+**Severity: high. This is the one question holding up completion of the Circulation facility.** Everything else about it is built, tested and working. **This is the question to answer first.**
+
+### The situation
+
+A DPC concludes in, say, **2017**, and its promotion list is headed *"PROMOTION AS ON 2017"*. One officer's promotion is **held** — reserved — because two or more years of their confidential reports, or a year's immovable-property return, were not available (slide 45).
+
+Years later the missing record arrives. The Commission circulates a note, consents to that officer's promotion, and signs it. Suppose that signature happens in **2026**.
+
+**Is that officer promoted as on 2017, or as on 2026?**
+
+### Why it is not a formatting question
+
+**Retrospective seniority reaches everybody below.** If the answer is 2017, the officer re-enters the seniority list nine years back, ahead of everyone promoted to that post in between — and their pay may be recalculated from that date. If the answer is 2026, the officer joins at the bottom of those already promoted, and the years the record was missing are lost to them.
+
+Both answers are defensible. They produce different seniority lists, and the difference is not recoverable later without another correction.
+
+### What the system does today
+
+- The circulation note **states both dates** — the original DPC's *promotion as on* year, and the date the Commission released the hold.
+- It **asserts neither as governing.**
+- The note is rendered, signed, sealed and can be verified. **It is not published**, and the screen says **"Pending Business Decision (BD-14)"** in place of an effective date.
+
+Nothing is invented. But a note that cannot be published is a promotion that cannot be given effect, so the officers concerned stay in the same position they have been in since their DPC.
+
+### What we need you to decide
+
+| | Option |
+|---|---|
+| **A** | **The original DPC's year.** The promotion is treated as having been due then; the missing record only delayed the paperwork |
+| **B** | **The date of the Commission's consent.** The promotion takes effect when the Commission was able to decide it |
+| **C** | **It depends on why the record was missing** — e.g. the original year if the department was at fault, the consent date if the officer was |
+| **D** | Something else — please describe |
+
+**If the answer is A**, please also say whether pay is recalculated from that date, or only seniority.
+
+**This will be applied as a setting, not a code change.** The system already records both dates; the answer decides which one governs.
+
+---
+
+## Question 7 — May a missing-CR case be corrected by a Review instead? *(BD-15)*
+
+**Severity: high. It affects officers whose promotions are reserved right now with no route to resolution.**
+
+### The situation
+
+Slide 45 gives **two** grounds for circulating a note: a missing **immovable-property** return, or **two or more years** of missing confidential reports.
+
+A property return is a document that can simply be supplied. **A confidential report is not** — a missing CR is usually missing because it was never written, and what arrives later is a report written after the fact, or a decision that the year cannot be assessed at all. That is a different kind of thing to circulate a note about.
+
+### What the system does today
+
+A circulation raised on **CR grounds** is **refused**, with the affected officers named and the reason stated as *"Pending Business Decision (BD-15)"*. Nothing is calculated, no hold is released, and **the case is not automatically turned into a Review** — doing that would answer this question by acting.
+
+**The practical cost of leaving this open:** those officers' promotions remain reserved and there is currently **no route to resolving them at all** — neither a circulation nor a review.
+
+### What we need you to decide
+
+| | Option |
+|---|---|
+| **A** | **Circulation is correct for both grounds.** A supplied or reconstructed CR is circulated like a property return |
+| **B** | **A missing CR must go to a Review DPC**, because the promotion has to be recalculated once the grade is known |
+| **C** | **It depends on what arrives** — a graded report circulates; an "unable to assess" decision goes to Review |
+| **D** | Something else — please describe |
+
+---
+
+## Question 8 — What if the record that arrives is adverse? *(BD-12)*
+
+**Severity: medium.**
+
+Slide 45 describes the Commission taking a decision **once the missing record is received**. It does not describe the Commission **refusing** a promotion on the strength of what arrives — but a confidential report graded **घ** is a hard disqualifier, and a property return may disclose something the department cannot accept.
+
+**Today the Commission has two choices on a circulation: consent, or return it to the department for further evidence.** There is deliberately no third option, because inventing a refusal would be inventing a rule.
+
+**What we need you to decide:** is there a refusal path? And if the Commission refuses, does that disturb a promotion list **already published** — or is the reserved promotion simply cancelled, leaving everyone else's position untouched?
+
+---
+
+## Question 9 — Is there a time limit on a held promotion? *(BD-13)*
+
+**Severity: low. Nothing is waiting on it.**
+
+Slide 45 sets no limit. A promotion may therefore stay reserved **indefinitely**, and until recently nothing in the system would have drawn attention to it.
+
+The system now **shows how long each promotion has been held**. Displaying an age is not a rule; whether there is a limit, and what happens when it passes, is.
+
+**What we need you to decide:** is there a period after which a held promotion must be resolved or lapses? If so, what happens at that point — and who is told?
+
+---
+
 ## What happens once you answer
 
 | Answer | Effect |
@@ -231,8 +325,12 @@ When a Review DPC produces a different result from the one it corrects:
 | Question 3 | A change to how officers are placed on lists. It requires a code change and re-approval, because the placement rule sits in a part of the system that is deliberately frozen |
 | Question 4 | If A, a small addition — the mechanism already exists, built for held promotions. If B or C, a rule change like questions 1 and 2 |
 | Question 5 | If A, **no software change at all** — it confirms what the system already does, and the Review correction facility can be switched on in live use. If B, C or D, new work: recording a withdrawal, a revised date of promotion, and possibly a pay consequence, none of which exists today |
+| **Question 6** | Changes a **setting**, not the software — both dates are already recorded and the answer decides which governs. **It also lets the Circulation facility be declared complete**, which is what it is holding up |
+| Question 7 | If A, no change — circulation already handles both grounds and the refusal is simply lifted. If B or C, missing-CR cases are routed to a Review instead, which already exists |
+| Question 8 | If a refusal path is wanted, a third decision is added alongside consent and return — a small addition to a facility that already records per-officer decisions |
+| Question 9 | If there is a limit, the system already knows each hold's age; what is missing is what to *do* at the limit, and whom to tell |
 
-**If a question cannot be answered now,** please say so explicitly. For questions 1 to 4 the system will keep flagging those cases as provisional and refusing to publish them — safe, but the affected promotion lists cannot be issued. **For question 5, the consequence is different:** the Review correction facility stays switched off in live use. Everything else continues normally.
+**If a question cannot be answered now,** please say so explicitly. For questions 1 to 4 the system will keep flagging those cases as provisional and refusing to publish them — safe, but the affected promotion lists cannot be issued. **For question 5, the consequence is different:** the Review correction facility stays switched off in live use. **For question 6, a finished piece of work stays formally incomplete**, and the circulated promotions it covers cannot be issued. **For questions 7 and 8, specific officers stay in limbo** — their promotions reserved, with no route to resolution. Everything else continues normally.
 
 ---
 
@@ -245,6 +343,6 @@ So that UAT time is not spent on them:
 - **The digital signature uses a stand-in** — the real CSC signature is not connected. The live system will *refuse* to approve without it rather than fall back to a stand-in.
 - **Documents are HTML, not PDF** — deliberately, until the CSC signing service confirms which format it requires.
 
-**Also not being asked:** whether any part of the system is finished, correct or approved. **It is.** Every milestone through the Review DPC is complete, tested and signed off internally. These five questions are about **promotion rules and their legal effect**, and nothing on this page depends on further development.
+**Also not being asked:** whether any part of the system is finished, correct or approved. **It is.** Every milestone through the Circulation DPC is built, tested and signed off internally. These nine questions are about **promotion rules and their legal effect**, and nothing on this page depends on further development — including Question 6, where the work is complete and only the rule is missing.
 
-None of these is a defect, and all four are already recorded. See `docs/UAT_CHECKLIST.md` for the full scenario list and `docs/PENDING_BUSINESS_DECISIONS.md` for the complete register.
+None of these is a defect, and all are already recorded. See `docs/UAT_CHECKLIST.md` for the full scenario list and `docs/PENDING_BUSINESS_DECISIONS.md` for the complete register.
