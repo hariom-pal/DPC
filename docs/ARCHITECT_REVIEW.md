@@ -1,323 +1,332 @@
 # Architect Review
 
 **Date:** 2026-08-18
-**Subject:** Pre-M10 verification sweep — Recruitment Rule screen (item 1F), PPT/SRS gap analysis, Pre-DPC→DPC linkage, Excel upload, role-based UI; then the Pre-DPC screen made master-sourced (§0.11a)
-**Baseline:** `v0.8.0-m8-phase3`; M9 engineering complete, **closure pending BD-14**
+**Subject:** **M9 closure readiness confirmed (§0.13.1)** · documentation consolidation plan retained as a completed deliverable (§0.1–§0.12). No code changed
+**Baseline:** `v0.8.0-m8-phase3`; **M9 is CLOSURE-READY and not closed — held open by BD-14 alone**
 
-**No milestone was opened or closed.** §0 is this session; §1 onward is the historical record from M8 Phase 3 and earlier, preserved verbatim.
+**No milestone was opened or closed, and no file but this one was changed.** §0 is this session; **§0.13 is pinned** (M9's live closure checklist, referenced by section number from two other documents); §1 onward is the historical record from M8 Phase 3 and earlier, preserved verbatim.
+
+**Previous sessions' §0 content is not lost** — it is in `git log` for this file, and its durable outputs were written to the permanent registers at the time: AD-25 (proposed), BD-16/17/18, TD-25/26/27/28, and the worklogs under `docs/worklog/`.
 
 ---
 
-<!-- CURRENT SESSION — START. This section is REPLACED in full on every prompt. Never appended. Everything below §0 is historical architect review and must be preserved verbatim. -->
+<!-- CURRENT SESSION — START. This section is REPLACED in full on every prompt. Never appended. Everything below §0 is historical architect review and must be preserved verbatim. §0.13 is PINNED — see the note there. -->
 
 ## 0. Current Session
 
-**Updated:** 2026-08-18 · **Pre-M10 verification sweep — Recruitment Rule screen, PPT/SRS gap analysis, Pre-DPC→DPC linkage, Excel upload, role-based UI** · Section replaced in full, not appended.
+**Updated:** 2026-08-18 · **M9 closure readiness confirmed — see §0.13.1, which is the section to read first.** §0.1–§0.12 hold the completed documentation consolidation plan, retained rather than replaced because it is a deliverable, not working notes. **No code touched; nothing merged, deleted or moved.**
 
 ### 0.1 Prompt received
 
-> Six items, in the client's own numbering: **(1)** Recruitment Rule UI improvements A–F; **(2)** verify complete PPT implementation with a comparison table; **(3)** verify the Pre-DPC → DPC relationship against business's latest requirement that *"Approved Pre-DPC should be used while creating DPC"*; **(4)** verify whether the PPT requires Excel upload during DPC creation and implement it if missing; **(5)** deliverables — UI improvements, PPT vs code gap, SRS vs code gap, missing business requirements, recommendation before M10 freeze; **(6)** role-based UI cleanup so no user is offered an action that returns Unauthorized. *"Do NOT blindly implement. First verify… Then implement only the changes that are valid."*
+> The project now has many documentation files. Before M10 starts we need to consolidate. Review all project documentation and identify duplicate, outdated, overlapping and unnecessary documents, and documents that can later be merged. **Do not merge them yet. Do not delete anything. Prepare only a consolidation plan** answering: which documents are permanent, temporary, to be archived, append-only, and which should eventually become a single Implementation Guide. **Also propose the structure of one final document**, organised by PPT slide, with per-slide headings (Business Requirement, Implementation, Database, Controllers, Services, Policies, Workflow, Validation, Remarks, Implemented Status, Deviation, Business Decision, Architect Decision). **Do not generate the document now — only the structure.** Update only `architect_review.md`.
 
-### 0.2 The short answer
+### 0.2 What this session did, and did not
 
-**Four of the six items were already built.** Verification, not implementation, was the substance of this session. What was actually built is small and is listed in §0.4. What was *found* is larger and is the reason this section is long.
+**Did:** enumerated every Markdown file in the repository with its size and last-commit date, read the headers and update-cadence statements of each, and traced the specific overlaps named in §0.4. **This is a documentation inventory, not a repository or code review** — no source file was opened, no test was run, no PPT or SRS was re-read.
 
-| # | Item | Verified state | Action taken |
-|---|---|---|---|
-| **1 A–E** | Target Cadre from master; Feeder **Cadre** searchable, FK, multiple; Promotion Share (%) labelled + totals 100%; Minimum Experience + Years/Months; Qualification Master | **Already built** 2026-08-17 | None — left alone |
-| **1 F** | DR % / PR % width, labels, **DR + PR = 100** | Labels present, **validation absent**, fields too narrow | **Built** |
-| **2** | Every PPT screen and business rule | 51 of 52 slides implemented; **S49–S51 not started (M10)** | **Documented** — §0.6 |
-| **3** | DPC references Approved Pre-DPC | **It does not.** Real functional gap | **Documented + recommended; not implemented** — §0.7 |
-| **4** | Excel upload at DPC creation | **Already built** (M4 Phase 6) for all three PPT upload points | None — verified only, §0.8 |
-| **6** | Role-based UI visibility | Mostly correct; **four concrete defects** | **Fixed** — §0.9 |
+**Did not:** merge, delete, move or rename anything; create any file; change any code; open M10; or generate the Implementation Guide.
 
-**One item was deliberately not implemented.** Item 3 is a schema and workflow change to **M4, which is architecture-frozen (AD-15/AD-16)**, and the client's own permanent rule 2 forbids changing a business workflow without explicit approval. It is specified in full, costed, and put to the Architect as **AD-25 (proposed)** and to business as **BD-16**. Implementing it silently would have broken two standing rules to satisfy a third.
+**One file changed: this one.**
 
-### 0.3 Audit before code — what item 1 asked for that already existed
+### 0.3 The inventory — what actually exists
 
-The client's item 1 reads as six new requirements. Five had been delivered the previous day and are recorded in `docs/worklog/2026-08-17-recruitment-rule-master-data-integrity.md` and `…-screen-usability.md`. **They were re-verified against the running application rather than taken from the worklog**, because a worklog is a claim and the screen is the evidence:
+**19 top-level documents in `docs/`, 3,251 lines**, plus a design set, three sub-libraries and an archive.
 
-| Asked for | Verified in code | Verdict |
+| Document | Lines | Last touched | Stated update cadence |
+|---|---:|---|---|
+| `CHANGELOG.md` | 878 | 2026-08-18 | Reverse-chronological, appended |
+| `ARCHITECT_REVIEW.md` | 626 | 2026-08-18 | **§0 replaced in full every prompt**; §1+ historical |
+| `PROJECT_PROGRESS.md` | 508 | 2026-08-18 | *"Replaced in full at each phase boundary"* |
+| `ARCHITECTURE_DECISIONS.md` | 507 | 2026-08-18 | Append; supersede by adding, never editing |
+| `WORKFLOWS.md` | 418 | 2026-08-18 | On workflow change |
+| `PENDING_BUSINESS_DECISIONS.md` | 358 | 2026-08-18 | Append; items move to Closed |
+| `UAT_BUSINESS_VALIDATION.md` | 348 | 2026-08-18 | On new business question |
+| `DEMO_CHEAT_SHEET.md` | 293 | 2026-08-18 | On demo-data change |
+| `EVENT_CATALOG.md` | 288 | 2026-08-14 | On event change |
+| `PROJECT_STATUS.md` | 283 | 2026-08-18 | *"Single page to read first"* |
+| `DEMO_GUIDE.md` | 262 | 2026-08-18 | On feature change |
+| `DEMO_SCRIPT.md` | 213 | **2026-08-13** | — |
+| `MILESTONE_SUMMARY.md` | 208 | 2026-08-18 | *"Updated at each milestone closure"* |
+| `INTEGRATION_ROADMAP.md` | 184 | 2026-08-13 | On integration change |
+| `PROJECT_TIMELINE.md` | 162 | 2026-08-16 | *"Appended at each milestone closure"* |
+| `UAT_CHECKLIST.md` | 156 | **2026-08-13** | — |
+| `TECHNICAL_DEBT.md` | 116 | 2026-08-18 | Append; items move to Resolved |
+| `ARCHITECTURE_BASELINE_v0.7.md` | 108 | 2026-08-14 | — |
+| `project-documentation-audit.md` | 95 | **2026-08-13** | One-off report |
+
+Plus: `docs/design/` (11 files — `01`–`06` foundational, `07`–`10` per-milestone design for M6–M9, `README`), `docs/design/reference/` (2 extracted PPT texts), `docs/design/recruitment-rule/` and `docs/design/pre-dpc/` (screenshots + README), `docs/worklog/` (8), `docs/archive/` (SRS, an old Word module doc, `screen-specs.md`, `technical-proposal.md`, and 8 archived worklogs), `docs/deployment/` (1), `docs/integration/` (2), the two `.pptx` sources, and the root `README.md`.
+
+### 0.4 Findings — what actually duplicates, and what has gone stale
+
+**Six findings. The first is the only one that can produce a wrong answer rather than a stale one.**
+
+#### F1 — Two registers hold the same open questions under different numbers ⚠ **highest risk**
+
+`docs/design/06-ambiguities.md` maintains **Q1–Q16**. `docs/PENDING_BUSINESS_DECISIONS.md` maintains **BD-1–BD-18**. They overlap directly:
+
+| Q | BD | Subject |
 |---|---|---|
-| **A** Target Post from Cadre Master | `form.blade.php` — `<select data-searchable>` over `$cadres`; `cadre_id` → `Rule::exists('cadres','id')` | ✅ present |
-| **B** Rename to "Feeder Cadre", searchable, no free text, multiple | Column header reads *Feeder Cadre*; `feeder_cadre_id` non-nullable FK; add/remove rows; `distinct` + DB unique index; `different:cadre_id`; same-department check | ✅ present |
-| **C** "Promotion Share (%)" label on every row + total = 100% | Header label, per-column helper text, live running total, `validateShareTotal()` | ✅ present |
-| **D** "Minimum Experience" + Years/Months, default Years | `min_experience_unit` + `ExperienceUnit` enum; defaulted in `prepareForValidation()` | ✅ present |
-| **E** Qualification Master, no free text | `qualifications` table, CRUD screen, `qualification_id` FK, free-text input **absent** from the form | ✅ present |
-| **F** DR/PR width, labels, **DR + PR = 100** | Labels present; **no sum validation anywhere**; both fields `col-md-3`, too narrow for `100.00` | ❌ **gap** |
+| Q5 | BD-2 | Reserved relaxation — automatic or committee discretion |
+| Q6 | BD-3 | Relaxation to 10 — Class-I→I only, or all class pairs |
+| Q7 | BD-7 | Proceedings/order PDF layout |
+| Q11 | BD-8 | Objection handling |
+| Q12 | BD-6 | Circulation trigger wording |
+| Q16 | BD-17 | Out-of-scope confirmation (video conferencing, voting, HRMS) |
 
-**Only F was missing, and only the validation half of F was substantive.** That is the whole of what item 1 required this session.
+The ambiguities file **acknowledges the overlap in its own text** — *"That includes Q5, Q6, Q7, Q11 and Q12 from the table above"* — without resolving it. **This is the one duplication that can produce a wrong answer:** answering BD-2 does not update Q5, so a reader consulting the design set sees "open" for a question that has been ruled. It is also the register most likely to be consulted by someone new, because `docs/design/` is where the requirements live.
 
-### 0.4 What was built
+**Nothing is being changed now.** Recorded so the merge, when approved, starts from a known map.
 
-#### F.1 — DR % + PR % must total exactly 100%
+#### F2 — Four documents describe milestone state, on three different cadences
 
-Enforced server-side in **two** places, deliberately:
+`PROJECT_STATUS.md` (replaced), `PROJECT_PROGRESS.md` (*"replaced at each phase boundary"*), `MILESTONE_SUMMARY.md` (*"updated at each milestone closure"*) and `PROJECT_TIMELINE.md` (*"appended at each milestone closure"*) all carry milestone status. Three of the four update only on an **event that may never arrive**.
 
-| Where | Why there |
+**This already caused a real failure and is filed as TD-27.** M9 finished its engineering on 2026-08-16 with no closure event, and two days later `PROJECT_PROGRESS.md` still asserted *"No M9 code, migration, route, view or test exists in this working tree"* twelve lines below its own correct *"Circulation DPC 🟡 Engineering 100%"*, `MILESTONE_SUMMARY.md` had no M9 page at all, and `MILESTONE_SUMMARY.md`'s gate line reported 620 tests against an actual 798. **A milestone that stalls is exactly the one these documents are guaranteed to get wrong**, and stalling is now the project's normal state — two milestones are built and unclosed for business reasons.
+
+#### F3 — Three roadmaps
+
+`docs/design/05-milestones.md` (the original M0–M11 plan, with per-milestone blockers), `MILESTONE_SUMMARY.md` §"At a glance", and `PROJECT_PROGRESS.md` §2 "Remaining milestones" each carry a milestone table. The design one still lists blockers as `⛔ Q4, Q9, Q10` for milestones long since delivered.
+
+#### F4 — Three demonstration documents, deliberately layered but now overlapping
+
+`DEMO_GUIDE.md` (narrative + a 16-step script), `DEMO_SCRIPT.md` (a slide-by-slide script), `DEMO_CHEAT_SHEET.md` (credentials and record identifiers) total **768 lines**. The layering is intentional and the cheat sheet cross-references the other two correctly. **The overlap is between the two scripts:** `DEMO_SCRIPT.md` was last touched 2026-08-13 — before M8, M9 and the current demo dataset — while `DEMO_GUIDE.md` §13 now carries its own current 16-step script. Two scripts, one current.
+
+#### F5 — Two UAT documents, one current
+
+`UAT_BUSINESS_VALIDATION.md` (348 lines, current, nine questions for CGPSC) and `UAT_CHECKLIST.md` (156 lines, **2026-08-13**, predating M7, M8 and M9 — so its scenario list cannot cover proceedings, Review or Circulation).
+
+#### F6 — Three documents are stale by construction, not by neglect
+
+- **`project-documentation-audit.md`** — a documentation audit dated 2026-08-13. It is the direct ancestor of this plan, and **this plan supersedes it.** Its own recommendation (restore 7 deleted worklogs into `docs/archive/worklog/`) **was carried out** — they are there.
+- **`ARCHITECTURE_BASELINE_v0.7.md`** — the version is in the filename. The project is past `v0.8.0-m8-phase3` and heading for `v0.9.0`. A filename that pins a version guarantees either a stale name or a proliferation of near-identical files.
+- **`docs/design/02-traceability-matrix.md`** — feature → PPT slide → milestone, **last updated 2026-07-30**, so it stops before M6. It is nonetheless the single most valuable file in this inventory, because **it is the seed of the Implementation Guide** (§0.10).
+
+**What is NOT a problem, and should not be "consolidated":** `CHANGELOG.md` being the largest file (it is append-only history and is supposed to grow); the four `docs/design/07`–`10` per-milestone design documents (each is the approved design for one milestone and is referenced by its architect review); `docs/archive/` (already doing its job); and the three specialist registers — AD, BD, TD — which are deliberately separate by architect directive and **must stay that way.**
+
+### 0.5 Answer 1 — Documents that should remain PERMANENT
+
+**Permanent = survives every milestone, is never archived, and is the authoritative home for its content.**
+
+| Document | Why permanent |
 |---|---|
-| `RecruitmentRuleRequest::validateRecruitmentSplit()` | The screen the client named |
-| `SavePreDpcProposalRequest::withValidator()` | **Because approving a Pre-DPC projects its posts into that same master.** Validating only at the master would let a department approve a Pre-DPC that silently writes a rule the admin screen then refuses to re-save — the exact drift that `RecruitmentRuleService::normaliseShares()` had to be introduced to prevent for the feeder Promotion Share column. One rule, enforced at both ends, is the only version of this that cannot rot |
+| `docs/ODPC_NEW_FINAL.pptx`, `docs/CONVENTIONAL DPC PROCESS.pptx` | **The only source of business requirements (AD-1).** Everything else is derived |
+| `docs/design/reference/*.extracted.txt` | The evidence behind every requirement; auditable, diffable, greppable |
+| `ARCHITECTURE_DECISIONS.md` | The AD register. Constrains all future work; supersede by adding, never by editing |
+| `PENDING_BUSINESS_DECISIONS.md` | The BD register. Only CGPSC can close an item |
+| `TECHNICAL_DEBT.md` | The TD register. Exists precisely because §0 of this file is replaced |
+| `CHANGELOG.md` | The permanent record of what changed and why |
+| `PROJECT_TIMELINE.md` | The permanent record of *when and why* decisions were taken — distinct from what was delivered |
+| `WORKFLOWS.md` | State machines, transitions and the role matrix — the reference a developer needs before touching a workflow |
+| `EVENT_CATALOG.md` | Event names, payload versions and replay semantics; a published contract |
+| `ARCHITECT_REVIEW.md` | The architect's working desk **and** the historical review record |
+| **The Implementation Guide** (§0.10) | Once written, the primary permanent artefact — see §0.9 |
+| `README.md` (root) | Project entry point |
+| `docs/design/01-requirements.md`, `03-database-design.md`, `04-laravel-architecture-and-structure.md` | Foundational design reference, still load-bearing |
+| `docs/design/07`–`10-*.md` | The approved design for M6, M7, M8, M9. **One per milestone — the pattern should continue for M10 and M11** |
+| `docs/deployment/`, `docs/integration/` | Operational runbooks; needed at deployment, not before |
 
-**Traceability (permanent rule 17).** The PPT states the rule by example rather than in words: **every row of S9 and S11 reads DR 0 / PR 100**, and the seeded Schedule-IV ladder runs 100/0, 50/50, 25/75 and 0/100. **No worked example anywhere in either deck leaves a remainder.** SRS Screen 4 lists *Promotional Percentage* with no counterpart and states no total. So the rule is: **PPT by worked example + explicit business instruction of 2026-08-18.** Recorded here rather than assumed.
+**Three registers stay three registers.** AD (what constrains future work), BD (what only CGPSC can answer) and TD (what we know is imperfect) answer different questions for different audiences on different timescales. Merging them would produce one register nobody can scan.
 
-**It is a write-path rule only, and that is deliberate.** Existing rows are never rewritten. One development row (`Junior Assistant`, DR 0 / PR 1, created during last session's browser driving) does not satisfy it; it is still read, listed and editable, and is only refused **on save**. Silently rescaling a Government Order's own percentages would be inventing policy — the same reason the Promotion Share migration refused to invent a total for an all-zero set. A test pins this: `test_an_existing_unbalanced_rule_is_still_readable`.
+### 0.6 Answer 2 — Documents that are TEMPORARY
 
-**The error is reported against its own key, `recruitment_split`, not against either field.** Neither number is wrong on its own; it is the pair that does not add up, and blaming one of them tells the user to change the field they may not have meant to. The message names the actual total and the shortfall — *"They currently total 80% — 20% of the posts is unaccounted for."*
+**Temporary = tied to an event or a milestone; expected to be superseded, not maintained forever.**
 
-**Tolerance is one hundredth of a percent**, identical to the Promotion Share rule, so the two "must equal 100%" rules on the screen cannot disagree about what *exactly* means. `33.33 + 66.67` passes.
-
-#### F.2 — Width and labels
-
-- `Direct Recruitment (%)` → **`Direct Recruitment — DR (%)`**, `Promotion (%)` → **`Promotion — PR (%)`**, both with the required-marker they lacked and a `%` input-group affix.
-- Both widened from `col-md-3` to `col-md-4 col-lg-3` and moved onto **their own row** with a live **DR + PR** total beside them, shown exactly like the feeder Promotion Share total — number, then ✓ or ✗. They are the only two fields on the screen that constrain each other; showing them together is what makes the constraint legible.
-
-#### F.3 — The same fields on the Pre-DPC screen
-
-`resources/views/pre-dpc/form.blade.php` carried DR % and PR % as **`col-md-1` boxes too narrow to display `100.00`**, labelled only by abbreviation. Since the new validation fires on that screen, a user has to be able to see the numbers it is complaining about. Widened to `col-md-3`, full labels, `%` affix, per-card live total. **No field name changed**, so no API changed.
-
-#### 0.4.1 Verification of the built work
-
-- **782 tests pass** (2351 assertions) — up from 759; **23 new**, none modified.
-- **Pint pass · PHPStan (Larastan L6) 0 errors · `composer audit` no advisories.**
-- **All five freezes verified empty** — `git diff v0.6.0-m6-complete -- app/Domain/{Dpc,Eligibility,Cgpsc}`, `v0.7.0-m7-complete -- app/Domain/Proceeding`, `v0.8.0-m8-phase3 -- app/Domain/Review`. Nothing.
-- **Driven over HTTP against the running application**, not asserted only in tests: posting DR 30 / PR 50 returns 302, renders *"…currently total 80% — 20% of the posts is unaccounted for"*, and **writes no row** (`GO/SMOKE/1` count = 0).
-
-### 0.5 Documents read for this review
-
-`docs/ODPC_NEW_FINAL.pptx` (52 slides, via `docs/design/reference/odpc_new_final.extracted.txt`), `docs/CONVENTIONAL DPC PROCESS.pptx` (7 slides), and **`docs/archive/DPC- SRS.docx` extracted afresh** — the SRS had not previously been quoted field-by-field in this file, and item 5 asks for an SRS-vs-code gap specifically.
-
-### 0.6 PPT vs Code — the comparison table item 2 asked for
-
-**Format as requested: PPT Requirement → Implemented → Missing → Different Implementation.**
-
-#### 0.6.1 By screen
-
-| PPT | Requirement | Implemented | Missing | Different implementation |
-|---|---|---|---|---|
-| S5–S6 | Department registration; AO + AH credentials by SMS/email | ✅ M1 | — | Live SMS gateway not connected (**TD-6**) — mechanism works, delivery does not |
-| S7–S9 | Pre-DPC: posts sanctioned for promotion — pay scale, DR %, PR %, feeder cadres, per-cadre %, experience **in years** | ✅ M3 | — | **Experience now carries a Years/Months unit** — a superset of S9, business-requested 2026-08-18. **Minimum Qualification exists and is not on S9 at all** — see §0.6.3 |
-| S10–S11 | AH approves the Pre-DPC entry | ✅ M3 | — | — |
-| S12–S14 | DPC proposal: post to/from + class, DPC type, legal-stay declaration, proposal date | ✅ M4 | — | Post dropdowns list **all active cadres**, not the Pre-DPC's sanctioned posts — **this is item 3, §0.7** |
-| S15 | DPC committee details | ✅ M4 | — | — |
-| S16 | Officers under consideration + sanctioned count + vacancy breakdown; **"प्रविष्ट करें अथवा अपलोड करें"** | ✅ M4 | — | — |
-| S17 | Final seniority list + zone `2×V+4`; entry **or** upload | ✅ M4 / M5 | — | — |
-| S18 | Tabulation chart — loyalty, immovable property, year-wise CR, note; entry **or** upload | ✅ M4 | — | — |
-| S19–S25 | AH reviews all five sections and approves; digital signature | ✅ M4 Phase 7 | — | Aadhaar-OTP e-sign is the **mock provider**; real CSC pending **BD-4** |
-| S26–S28 | Chairman allotment + re-allotment + allotment report | ✅ M6 | — | — |
-| S29–S30 | Member acceptance, scheduling, re-scheduling | ✅ M6 | — | — |
-| S31–S33 | The sitting: editable workspace, CALCULATE, marks and remarks | ✅ M7 | — | Corrections are **append-only** rather than in-place edits — stronger than S33, and required for an auditable record |
-| S34 | Main List + Waiting List; APPROVE BY CGPSC | ✅ M7 | — | A result affected by **BD-2/BD-3/BD-10** is marked *provisional* and cannot be published — declines to guess |
-| S35–S40 | Review DPC: reasons, chart correction, AH approval | ✅ M8 | — | **Had no UI entry point until this session** — §0.9 |
-| S41–S43 | Action on Review DPC | ✅ M8 | — | — |
-| S44–S48 | Circulation DPC: note, per-officer consent, revised list, prescribed form | ✅ M9 | — | **Publication blocked on BD-14**; CR-ground holds refused pending **BD-15** |
-| **S49–S51** | **Self-inspection: officer views own data, PRINT, RAISE OBJECTION before the deadline** | ❌ | **Entire feature — M10, not started** | — |
-| S52 | Closing slide | n/a | — | — |
-
-#### 0.6.2 By business rule (Conventional DPC deck, C4–C6)
-
-| Rule | Implemented | Where |
+| Document | Temporary because | Disposal |
 |---|---|---|
-| CR grades क+/क/ख/ग/घ = 4/3/2/1/0 | ✅ | `ScoringService` |
-| Tribal-area service **+1** | ✅ | `ScoringService` |
-| No CR may be **घ (0)** in the last 5 years | ✅ | `EligibilityService` |
-| Class-I→I: last year's CR may not be **ग (1)** | ✅ | `EligibilityService`, configuration-driven per class pair |
-| Thresholds ≥15 / ≥13 / ≥11 / ≥10 by class pair | ✅ | `RuleSet` — configuration, not code |
-| Zone: 1 vacancy → 5 officers; else **2×V+4** | ✅ | `ZoneOfConsiderationService` |
-| Non-Class-I→I: all officers meeting the experience bar | ✅ | `ZoneOfConsiderationService` |
-| Super-seat at 20/20, actual seniority decides ties | ✅ | `SuperSeatService` |
-| Reserved zone ×7 expansion | ✅ | `ZoneOfConsiderationService` |
-| **Reserved relaxation to 10 marks** | ⛔ **Blocked, not missing** | **BD-2 / BD-3** — refuses to guess; result marked provisional |
-| 5 most recent available CR years | ✅ | M5 engine rule |
+| `docs/worklog/*.md` (8 files) | Each records one task on one day. Never re-read after its milestone closes | Move to `docs/archive/worklog/` at each milestone closure — the convention already exists and already holds 8 files |
+| `project-documentation-audit.md` | A one-off report, superseded by this plan | Archive on approval of this plan |
+| `DEMO_SCRIPT.md` | Superseded in practice by `DEMO_GUIDE.md` §13 (F4) | Merge the still-useful slide mapping into the Implementation Guide, then archive |
+| `UAT_CHECKLIST.md` | Predates M7–M9; a UAT artefact for a scope that has since tripled | Rewrite once against the final scope, or fold into the Implementation Guide's per-slide *Implemented Status* |
+| `ARCHITECTURE_BASELINE_v0.7.md` | Version-pinned filename (F6) | Content is permanent; **the filename is not.** Fold into `04-laravel-architecture-and-structure.md` or rename without the version |
+| `docs/design/recruitment-rule/`, `docs/design/pre-dpc/` | Before/after screenshots for two specific screens | Keep while the screens are recent; archive once the Implementation Guide carries the current UI description |
 
-**Every rule the two decks state is implemented, except the one that is deliberately blocked on a business ruling.** That is the correct state, not a gap.
+### 0.7 Answer 3 — Documents to be ARCHIVED (later, not now)
 
-#### 0.6.3 Two places where the code exceeds the PPT — declared, not hidden
+**Archive = moved to `docs/archive/`, never deleted.** The convention exists and works: `docs/archive/` already holds the SRS, the old Word module document, `screen-specs.md`, `technical-proposal.md` and 8 recovered worklogs.
 
-Permanent rule 12 requires a mismatch to be documented before it is implemented. Both of these were implemented before this session; both are recorded here because neither had been stated as a *deviation* in this file.
-
-| Item | PPT reference | SRS reference | Current code | Reason for change | Recommendation |
-|---|---|---|---|---|---|
-| **Minimum Qualification** on a feeder cadre | **Absent.** S9/S11 columns are: पद नाम, वेतनमान, DR %, PR %, संवर्ग, %, अनुभव | **Absent.** SRS Screen 4 lists Promotion Post, Feeder Post, Minimum Service, Recruitment Rule No, Promotional Percentage | `qualifications` master + `qualification_id` FK on `recruitment_rule_feeders`; free text retained as the legacy record | Explicit business instruction, 2026-08-17 ("Create a Qualification Master… Qualification must be selected from Qualification Master") | **Keep.** It is optional (`nullable`), so a Schedule-IV rule that imposes no qualification is still expressible, and it does not enter any calculation. **No eligibility path reads it** — verified by grep, not assumed |
-| **Experience unit** (Years / Months) | S9 header reads **"अनुभव वर्षों में"** — years only | *"Minimum Service Required — Numeric — Required years of service"* — years only | `min_experience_unit`, default `years`, backfilled explicitly | Explicit business instruction, 2026-08-17 | **Keep.** Additive, defaulted, and not required on the wire, so every pre-existing caller is unaffected — `RecruitmentRuleTest` passes unmodified |
-
-**Neither changes a promotion outcome.** `promotion_percentage`, `min_experience_years` and `qualification_id` are read only inside the Master module and the Pre-DPC projection; no eligibility, scoring, zone, proceeding, review or circulation path reads any of them.
-
-### 0.7 Item 3 — Pre-DPC → DPC. **The finding of this session.**
-
-#### 0.7.1 The five questions, answered
-
-**1 · What does the PPT specify?**
-
-S7 makes the Pre-DPC the register of *"विभाग में उपलब्ध पदोन्नति के पदों का विवरण… संवर्ग जिनसे पदोन्नति हो सकती है"* — the posts on which promotion is available **and the cadres from which promotion may occur**. S14 then offers the DPC's *"पद नाम जिस पर पदोन्नति होनी है"* and *"जिससे"* as **dropdowns whose options are exactly the three posts entered on S9** — DEPUTY SECRETARY, UNDER SECRETARY, SECTION OFFICER. **The PPT shows the dependency by construction: the DPC's post list is the Pre-DPC's post list.** It nowhere states the constraint in words.
-
-**2 · What does the SRS specify?**
-
-Screen 4, *Feeder Cadre Management* — Promotion Post, Feeder Post, Minimum Service Required, Recruitment Rule No, Promotional Percentage — establishes the feeder relationship as master data. §3.3 requires *"auto-validation for eligibility criteria"* on proposal submission. **The SRS neither states nor forbids the linkage.** It is silent.
-
-**3 · What does the current code implement?**
-
-Approving a Pre-DPC calls `PreDpcProposalService::projectToMasters()`, which upserts each post into `cadres` and each feeder into `recruitment_rules` / `recruitment_rule_feeders` (architect ruling Q1 — the masters are the single source of truth). **So the Pre-DPC's content does reach the DPC — but only by having been dissolved into the Cadre master.**
-
-**4 · Does DPC reference Approved Pre-DPC?**
-
-**No — and not indirectly either, in the way that matters.**
-
-- `dpc_proposals` has **no `pre_dpc_proposal_id`** column. Verified against the migration.
-- `grep -rn "pre_dpc\|PreDpc" app/Domain/Dpc/ app/Http/Controllers/Dpc/` returns **nothing**.
-- `DpcProposalController::formData()` offers **every active cadre in the department**.
-- `SaveDpcProposalRequest` validates only that both cadres exist, are `active`, and share the department — **it never checks that a Recruitment Rule links `post_from` to `post_to`.**
-
-**5 · Is it a functional gap?** **Yes, and it is a correctness gap rather than a cosmetic one.**
-
-A department can create, complete, sign and forward a DPC for a post pair **that no approved Pre-DPC ever sanctioned** — for example promoting Teacher → Principal when the approved Schedule-IV ladder says Teacher → Head Master → Lecturer → Principal. Nothing refuses it at any stage. The Commission would then allot, schedule and conduct a sitting on a promotion path with **no Government Order behind it**, and the first place the defect could surface is a court challenge to the promotion.
-
-**Two aggravating details found while verifying:**
-
-- The Cadre master is **cumulative and never pruned**. A post that appeared in Pre-DPC v1 and was dropped in v2 remains an `active` cadre, so it stays selectable indefinitely.
-- A department with **no approved Pre-DPC at all** can still create a DPC, provided cadres exist from any other source (the Admin's Cadre screen, or a seeder). The Pre-DPC stage is, today, skippable.
-
-#### 0.7.2 Recommended architecture
-
-**Three options were considered. The middle one is recommended.**
-
-| | Option A — validate only | **Option B — reference the rule (recommended)** | Option C — FK to the Pre-DPC |
-|---|---|---|---|
-| **Change** | Add a `withValidator()` check that an active Recruitment Rule links the pair; filter the dropdowns to sanctioned pairs | A, **plus** persist `recruitment_rule_id` on `dpc_proposals`, resolved at creation | Persist `pre_dpc_proposal_id` |
-| **Schema** | none | +1 nullable FK | +1 nullable FK |
-| **Answers "was this sanctioned?"** | at creation only | **at creation and forever after** | yes |
-| **Survives a later Pre-DPC amendment** | ❌ | **✅ — the rule version is pinned** | ⚠️ points at a superseded version |
-| **Fits the existing architecture** | ✅ | **✅ — consistent with the Q1 ruling that the masters are the source of truth** | ❌ **contradicts Q1** — reintroduces the Pre-DPC as a runtime dependency after it was deliberately dissolved into the masters |
-| **Backfillable** | n/a | ✅ — existing DPCs resolve by post pair, or stay null and are reported | ⚠️ ambiguous where several versions match |
-
-**Recommendation: Option B.** The business requirement is *"Approved Pre-DPC should be used while creating DPC."* An approved Pre-DPC **is** the Recruitment Rule, by the Q1 ruling — so binding a DPC to the rule binds it to the Pre-DPC, and binds it to the *version in force on the day*, which a direct FK does not. Concretely:
-
-1. `SaveDpcProposalRequest` gains a rule that an **active Recruitment Rule for `post_to_cadre_id`** must list `post_from_cadre_id` among its feeders, effective on `proposal_date`. Message names the sanctioned feeders for that post rather than saying "invalid".
-2. `formData()` offers only sanctioned pairs; picking the target filters the source list, as the Recruitment Rule screen already does.
-3. `dpc_proposals.recruitment_rule_id` — **nullable** FK, `ON DELETE RESTRICT`, set at creation. Nullable because pre-existing rows have no answer and **inventing one would be worse than recording that it is unknown**.
-4. A backfill **report**, not a backfill: `php artisan dpc:unlinked-proposals`, in the shape of the existing `qualifications:unmapped`.
-5. The empty-state says what to do — *"No promotion path is sanctioned for this post. An approved Pre-DPC must list it first."* — rather than presenting an empty dropdown.
-
-**Estimated cost: 1 migration, 2 request classes, 1 controller method, 1 command, ~10 tests.** Small. **It is the approval, not the work, that is the obstacle.**
-
-#### 0.7.3 Why it was not implemented in this session
-
-Three standing rules point the same way, and they are the client's own:
-
-- **M4 is architecture-frozen** (AD-15/AD-16) — *"no new features, workflow changes, schema changes."* This is all three.
-- **Permanent rule 2** — *"Never change business workflow unless explicitly approved."* Refusing a post pair that is accepted today changes what a department may submit.
-- **Permanent rule 12** — *"If any mismatch exists: do NOT guess. Document it first. Then recommend the correct implementation."* Item 3 asks to *verify* and *recommend*; it does not ask to build.
-
-**Raised as `AD-25` (proposed, awaiting Architect approval) and `BD-16` (awaiting business confirmation).** It needs a **Freeze Exception under AD-22** to proceed. **Recommended for M10** — see §0.11.
-
-### 0.8 Item 4 — Excel upload. Already built; nothing to implement.
-
-**Does the PPT require it?** **Yes, explicitly, at three points**, and the wording is the same each time — *"विवरण प्रविष्ट करें **अथवा** विवरण अपलोड करें"*, entry **or** upload, with an `UPLOAD` button drawn on the slide:
-
-| PPT | Section |
+| Document | Archive when |
 |---|---|
-| **S16** | Officers under consideration |
-| **S17** | Final seniority list |
-| **S18** | Tabulation / evaluation chart |
+| `project-documentation-audit.md` | On approval of this plan |
+| `DEMO_SCRIPT.md` | Once its slide mapping is absorbed by the Implementation Guide |
+| `UAT_CHECKLIST.md` | Once rewritten against final scope, or absorbed |
+| `docs/design/02-traceability-matrix.md` | **Only after** the Implementation Guide supersedes it — it is the Guide's seed and must not be archived before |
+| `docs/design/05-milestones.md` | At project completion. Until then it is the historical roadmap; its stale blocker column should be marked, not removed |
+| `docs/design/06-ambiguities.md` | **Only after** F1 is resolved — every Q mapped to its BD or marked closed. Archiving it with unmapped Qs would strand ruled decisions |
+| `docs/worklog/*` per milestone | At that milestone's closure |
+| `ARCHITECTURE_BASELINE_v0.7.md` | On absorption into the architecture document |
 
-**Does the SRS require it?** **Yes.** Screen 5, *Seniority List Management*: *"Upload Seniority List — File Upload — **Excel file format**"*. §3.7 additionally requires export to PDF/Excel.
+**Nothing is archived until the Implementation Guide exists and has been checked to carry what the archived file carried.** Archiving first is how a project loses a requirement.
 
-**Does the code support it?** **Yes — all three, and it predates this session (M4 Phase 6).**
+### 0.8 Answer 4 — Documents that should become APPEND-ONLY
 
-- `App\Domain\Import\Enums\ImportTemplate` has exactly three cases, named for the slides they serve: `CurrentlyWorkingUs` (S16), `FinalSeniorityListUs` (S17), `EvaluationChartUs` (S18).
-- Staged pipeline — **Preview → Validation → Error Report → Commit**. Nothing is written until the officer confirms.
-- Per-row rules come from `DpcRowRules`, **shared with manual entry**, so the two paths cannot drift.
-- Headers accept **both** the PPT's own Hindi-context English (`NAME OF US`, `DATE OF POSTING ON US`, `CAT`) and this system's field names, so a file exported from the system re-imports unedited.
-- `reservation_category` is matched as a **code**, not an id — a department filling in a spreadsheet has no access to primary keys.
-- Upload widget is on all three section screens; `maatwebsite/excel ^3.1` is a first-class dependency.
+**Append-only = entries are added and marked superseded; existing text is never edited.** This is the discipline that makes a document trustworthy in a contested promotion.
 
-**Nothing was implemented for item 4.** Building it again would have duplicated a working, tested pipeline.
+| Document | Current | Should be |
+|---|---|---|
+| `ARCHITECTURE_DECISIONS.md` | Already append-only *in spirit* (its own closing note says superseding means adding an entry, never editing) | **Formalise it.** Add a one-line rule at the top and an explicit `Status: ACTIVE / SUPERSEDED BY AD-nn` field on every entry |
+| `PENDING_BUSINESS_DECISIONS.md` | Items move to a **Closed items** table — already correct | Keep. Add the **date answered and by whom** to each closed row; today a closed item records the resolution but not its authority |
+| `TECHNICAL_DEBT.md` | Items move to **Resolved** — already correct | Keep as is |
+| `CHANGELOG.md` | Reverse-chronological, appended | Keep as is |
+| `PROJECT_TIMELINE.md` | *"Appended at each milestone closure"* | **Change the trigger to each phase**, not each closure — F2's failure mode applies to it too |
+| `ARCHITECT_REVIEW.md` §1+ | Historical, preserved verbatim | Keep. **This is the correct model** and the rest of §0 should learn from it |
 
-**One residual gap, for completeness:** SRS §3.7 also asks for **export** to Excel/PDF. Export exists for signed documents (PDF) but there is **no Excel export** of a promotion list or a status report. That belongs to **M11 (Reports)** and is recorded in §0.10.
+**The one that should NOT be append-only:** `PROJECT_STATUS.md`. Its whole value is being short and current. Making it append-only would make it a second changelog.
 
-### 0.9 Item 6 — Role-based UI. Four defects found, four fixed.
+**⚠ A structural flaw in this very file, found while writing this plan.** `ARCHITECT_REVIEW.md` §0 is *"REPLACED in full on every prompt"*, but it accumulates **live state** that is not the current session's — the M9 closure checklist below is referenced by `PROJECT_STATUS.md` and `PROJECT_PROGRESS.md` **by section number**, and replacing §0 would delete a live artefact and break two cross-references. It has already bitten twice: **TD-28** (the absent-allottee deadlock) was raised in the M9 Phase 3 review, lost when §0 was replaced, and had to be recovered from git; and the M9 closure checklist survives this session only because it was **manually pinned**. Recommended: split §0 into **§0-A Current Session** (genuinely replaced) and **§0-B Live State** (carried forward until its milestone closes). Recorded here for ruling; **not implemented** — it changes a documentation convention, which is the Architect's to change.
 
-**The audit first.** The complaint was that users are offered buttons that return *Unauthorized*. That is **not** true of the codebase as a whole, and saying so precisely matters more than agreeing:
+### 0.9 Answer 5 — Documents that should become the single Implementation Guide
 
-- **M9 (Circulation) is exemplary** — every action is behind `@can`, asking the same Policy the controller enforces.
-- **M6/M7 (Commission)** gate on `$isChairman`, `$isAllottee`, `$canAct`, all Policy-derived.
-- **M3/M4 detail screens** gate on `$isAO` / `$isAH` **combined with workflow state**, which already satisfies the client's rule 11.
+**These are the candidates for merge. Merging them is a later, separately approved task.**
 
-**The defects were at the entry points — the index screens and the dashboard — which nobody had gated because they are "just lists".**
+| Document | What it contributes | Fate after merge |
+|---|---|---|
+| `docs/design/02-traceability-matrix.md` | **The spine.** Already feature → PPT slide → milestone | Archived |
+| `docs/design/01-requirements.md` | Per-slide business requirement, field inventory, the 35-screen inventory | Retained as the requirements reference; the Guide quotes it |
+| `PROJECT_PROGRESS.md` (module sections) | Per-module: purpose, workflow, DB tables, backend components, frontend, APIs, business rules, dependencies, tests. **Already 80% of the requested per-slide block, organised by module instead of by slide** | Archived — this is the largest single contribution |
+| `docs/design/03-database-design.md` | The per-slide **Database** heading | Retained; the Guide references rather than copies |
+| `WORKFLOWS.md` | The per-slide **Workflow** heading | **Retained permanent** — it is the state-machine reference; the Guide links to it |
+| `MILESTONE_SUMMARY.md` | Per-milestone narrative and what each decision cost | Folded into the Guide's stage introductions; archived |
+| `DEMO_SCRIPT.md` | The slide-by-slide demonstration path | Absorbed into **Remarks** / a per-slide *"How to demonstrate"* line; archived |
+| `UAT_CHECKLIST.md` | Per-scenario expected results | Absorbed into **Implemented Status**; archived |
+| `docs/design/06-ambiguities.md` | Q-register | **Resolve F1 first**, then the Q numbers appear only as historical aliases in **Business Decision** |
+| `docs/design/07`–`10-*.md` | Per-milestone design rationale | **Retained permanent.** The Guide states *what* was built; these state *why* |
 
-| # | Defect | Consequence before | Fix |
-|---|---|---|---|
-| **1** | `dpc-proposals/index` — **+ New Proposal** shown to everyone who can see the list. `DpcProposalPolicy::create` is **AO-only** | **An AH clicking it got a 403.** This is precisely the reported bug | `@can('create', DpcProposal::class)` — the same Policy the controller calls |
-| **2** | `pre-dpc/index` — **+ New Proposal** shown to the AH, and the **backend allowed it** | Worse than a 403: the AH created a draft they could then neither edit, submit nor cancel — every one of those is `$isAO` on the show screen. **A dead-end record.** | Button gated **and** `PreDpcProposalController::authorizeAuthoring()` added. **PPT S7 is explicit** — the entry is made by the AO and approved by the AH; an AH authoring it would be approving their own work |
-| **3** | Dashboard — **Allotments** tile and **"Awaiting allotment"** counter shown to Members. Allotment is the **Chairman's alone** (PPT S28) | A Member was sent to a screen whose only action is hidden from them, and shown a number they can do nothing about | Tile and counter are now Chairman-only. A Member's own queue is *"Allotted to you, not yet accepted"*, which was always there |
-| **4** | `cgpsc/proceedings/index` — **Open Workspace** shown whenever a proceeding exists | `DpcProceedingPolicy::view` is Chairman **or** the conductor. **After a re-allotment those differ from the current allottee**, who is who the row is listed for → 403 | `@can('view', $proceeding)`; otherwise the row says *"Conducted by …"*, which is more useful than a button |
+**The Guide replaces `PROJECT_PROGRESS.md` and `02-traceability-matrix.md` outright.** It does **not** replace the three registers, `WORKFLOWS.md`, `CHANGELOG.md`, `PROJECT_TIMELINE.md`, the design set or `ARCHITECT_REVIEW.md` — it *references* them. A guide that inlines a register becomes a second copy of it, which is F1 all over again.
 
-**Also fixed, and found only because of this sweep:** `dpc-proposals.reviews.create` — **Review DPC (PPT S35–S37), delivered in M8, had no link anywhere in the UI.** `grep -rn "reviews.create" resources/views/` returned nothing. The route, controller, request, service, view and 83 tests all existed; **the feature was unreachable.** A **+ Review DPC** button now sits beside **+ New Proposal**, gated by the same Policy. This is completing delivered scope, not new scope.
+### 0.10 Proposed structure of the Implementation Guide
 
-**Tone was corrected alongside visibility.** The AO and AH now read different descriptions of the same tile — *"Prepare and submit"* vs *"Approve or return the proposal the Authorized Officer submitted"* — because the same screen is a different job to each, and a tile that promises an action the reader cannot take is the problem this work exists to remove.
+**Working title:** `docs/IMPLEMENTATION_GUIDE.md`. **Not generated. Structure only.**
 
-**Backend authorization was not weakened anywhere.** `tests/Feature/RoleBasedUiVisibilityTest.php` (14 tests) asserts **both halves of every case** — the button is absent for the role that cannot use it, **and** the route still refuses that role. Asserting only absence would let a later change quietly drop the backend check and stay green, which is what makes hiding a button security theatre rather than usability.
+#### Front matter
 
-### 0.10 Deliverable 4 — missing business requirements, consolidated
+```
+Title, purpose, and the one-line rule: the PPT governs; this document records
+      what was built against it (AD-1)
+How to read this document — and what it deliberately does NOT contain
+      (no register content; links only)
+Source decks, slide counts, and the extracted-text references
+Legend — ✅ Implemented · 🟡 Partial · ⛔ Blocked · ⚪ Not built · ➖ Not applicable
+Coverage summary — one table, 59 slides, one row per slide, status only
+Document map — which register or reference owns each kind of fact
+```
 
-**Ranked by consequence, not by document order.**
+#### Body — Part A, by stage; within each stage, by slide
 
-| # | Requirement | Source | Status | Consequence today |
-|---|---|---|---|---|
-| **1** | **DPC must be created from an Approved Pre-DPC** | Business, 2026-08-18; PPT S14 by construction | ❌ **Gap — §0.7** | A DPC can run on an unsanctioned promotion path |
-| **2** | **Self-inspection & objection** (S49–S51) — officer views own data, PRINT, RAISE OBJECTION | PPT S49–S51 | ❌ **M10, not started** | Officers cannot see or contest their own record before the DPC date |
-| **3** | Reserved relaxation to 10 marks | Conventional deck C5 | ⛔ **Blocked — BD-2/BD-3** | Affected results marked provisional, cannot be published |
-| **4** | Reports & analytics; **Excel/PDF export** of lists and status reports | SRS §3.7, Screen 13 | ❌ **M11, not started** | No management reporting |
-| **5** | Audit-trail **UI** | SRS §3.7 | 🟡 Data captured; no browser UI | Auditors cannot self-serve — **M11** |
-| **6** | Real CSC eSign (Aadhaar OTP) | PPT S8/S10/S13 etc. | 🟡 Mock provider works | **BD-4** — never mock-sign in production |
-| **7** | Live SMS gateway | PPT S5 | 🟡 Mechanism works | **TD-6** — OTP undeliverable, so no officer can verify |
-| **8** | HRMS import of service records | SRS §3.2 | 🟡 Provider + flag, mock only | **BD-5** — manual entry and Excel cover it |
-| **9** | **Video conferencing** (WebRTC / Teams / Zoom) | SRS §3.5 | ❌ **Not implemented, and not in the PPT** | See below |
-| **10** | **Real-time voting** during the meeting | SRS §3.5 | ❌ **Not implemented, and not in the PPT** | See below |
-| **11** | 2FA on login | SRS §3.1 | 🟡 OTP exists; not a second factor over a password | Hardening — **M11** |
+Grouped so the Guide reads in the order the business works. **Stages 1–6 are the PPT's own** — S2–S4 name them as *"the six stages of ODPC"*. **Stages 7–8 are not**: Review, Circulation and Self-Inspection are presented in the deck as separate processes after the six, and are grouped here for navigation only. The distinction is worth keeping, because the six stages are the customer's own vocabulary:
 
-**On the SRS column generally, and on rows 9 and 10 in particular — a standing-of-the-document question, raised by this session's own brief.**
+```
+Stage 1 — Registration of Departments            S5–S6
+Stage 2 — Pre-DPC Proposal                       S7–S11
+Stage 3 — DPC Proposal (detailed)                S12–S25
+Stage 4 — Action by CGPSC (allotment, schedule)  S26–S30
+Stage 5 — The Online DPC Proceeding              S31–S34
+Stage 6 — Review DPC                             S35–S43
+Stage 7 — Circulation DPC                        S44–S48
+Stage 8 — Self-Inspection & Objection            S49–S51
+```
 
-**AD-1 (standing) rules that the two PPT decks are the only source of business requirements, and that `docs/archive/` — including the SRS — *"is historical reference and must not be implemented from."*** This session was nevertheless asked for an **SRS vs Code gap analysis** as a named deliverable. **Those two positions cannot both be right.** The analysis above was produced **under AD-1**: an SRS-only item is reported as a *finding*, never as a defect. That reading should be confirmed, not assumed — **raised as BD-17.**
+Each stage opens with a half-page introduction — what the stage achieves in business terms, which milestone delivered it, and its freeze status — then one entry per slide:
 
-Concretely, rows 9 and 10 are where it bites. The SRS describes a **live meeting** — video conferencing, digital note-taking, real-time voting. The PPT describes a **document-and-signature process**: the Member opens a workspace, corrects, calculates, approves and signs, and **S31 states that no change made by the department on the DPC date is valid**, which is the opposite of a live deliberation. The build follows the PPT, correctly under AD-1 — **but it means two named SRS features will never be built under the current design, and nobody has said so out loud.** Rows 4, 5 and 11 are the softer case: SRS-only, but *scheduled* (M11) rather than refused, so they need no ruling.
+```
+### Slide <n> — <slide title, as printed>
 
-### 0.11 Deliverable 5 — recommendation before the M10 freeze
+  1.  Business Requirement    What the slide asks for, in business language.
+                              Hindi text quoted verbatim where it is the
+                              operative wording, with a translation.
+  2.  Implementation          What was built, in two or three sentences.
+  3.  Database                Tables and the columns that carry this slide's
+                              data. Links to 03-database-design.md; does not
+                              restate the schema.
+  4.  Controllers             Class + method, and the route name.
+  5.  Services                The domain service(s) that hold the logic.
+  6.  Policies                The Policy and the abilities that gate it.
+  7.  Workflow                States and transitions this slide participates
+                              in. Links to WORKFLOWS.md.
+  8.  Validation              The Form Request, and the rules that are
+                              business rules rather than type checks.
+  9.  Remarks                 Anything a reader would otherwise have to
+                              discover: N+1 avoidance, an immutability guard,
+                              why an obvious approach was refused. Also how
+                              to demonstrate the slide.
+  10. Implemented Status      ✅ / 🟡 / ⛔ / ⚪, the milestone, and the test
+                              file that proves it.
+  11. Deviation               Where the build differs from the slide, with
+                              PPT reference, SRS reference, current code,
+                              reason, and recommendation — the five-field
+                              form the project's own rules require.
+  12. Business Decision       BD-nn references only, with one-line summaries.
+                              Never the BD text itself.
+  13. Architect Decision      AD-nn / AQ-nn references only, likewise.
+```
 
-**Ordered. Items 1 and 2 should be settled before M10 opens, not during it.**
+#### Body — Part B, cross-cutting
 
-1. **Rule AD-25 (Pre-DPC → DPC linkage) and confirm BD-16.** M10's officer self-inspection screen shows an officer the record held *for a specific DPC*. If that DPC can exist on an unsanctioned promotion path, M10 renders an authoritative-looking screen about a proposal with no Government Order behind it. **The gap gets more expensive once M10 exists, not less.** Recommended: approve Option B, take it as a **Freeze Exception under AD-22 at the M9→M10 boundary**, batched with the debt below.
-2. **Answer BD-17 (video conferencing / real-time voting).** It is the only open question that could change the *shape* of the system rather than a value in it. Cheap to answer now; very expensive to discover during UAT.
-3. **Close BD-14** — the single thing between M9 and closure. **Do not open M10 with M9 unclosed**; that is how two milestones end up half-closed at once.
-4. **Batch the standing debt into the same freeze exception** — **TD-19, TD-20, TD-21** (all small, all blocked only by AD-15), plus **TD-2** (`composer audit` has now needed a retry at three consecutive finalisations, and a gate that answers from a stale cache is not a gate).
-5. **Then open M10 (S49–S51).** Note it inherits **BD-8 (objection handling)** — S51's *RAISE OBJECTION* is its central action and there is no ruling yet on what happens to one. **BD-8 should be answered before M10 Phase 2**, not at its end.
-6. **Not before UAT, but before production:** TD-6 (SMS gateway), TD-1 (evidence-table grants), TD-8 (retention capacity plan), BD-4 (real eSign).
+Content that belongs to no single slide and would otherwise be repeated:
 
-### 0.11a Follow-on, same day — the Pre-DPC screen becomes master-sourced
+```
+B1  Authentication and e-signing         S8, S10, S13, S20, S27, S29, S32,
+                                         S36, S39, S42, S46, S50 — twelve
+                                         login slides, one implementation.
+                                         Written ONCE here; each slide entry
+                                         is a one-line pointer.
+B2  Roles, RBAC and role-based visibility
+B3  The scoring and eligibility engine   C4–C6 — the Conventional deck's
+                                         rules, which no single ODPC slide
+                                         states in full
+B4  Master data and configuration        Config-driven rules; what changes by
+                                         setting rather than by code
+B5  Documents, signing and verification
+B6  Excel import (S16–S18)               One pipeline, three templates
+B7  Audit, timeline and evidence
+B8  Notifications and integrations
+```
 
-**Requested after the sweep above:** on `/pre-dpc/create`, Minimum Qualification must be a dropdown from the master, Post Name and Feeder Post must come from the Cadre master, and every feeder field must carry a label. **Built.** Detail in `docs/worklog/2026-08-18-pre-dpc-master-sourced-fields.md`.
+**B1 is the structural point worth making now.** Twelve of the 52 slides are the same login screen for a different actor. Giving each a full thirteen-heading entry would add roughly 150 lines of near-identical text and bury the eight slides that carry real business rules. **One implementation, twelve pointers.**
 
-**It reverses a position taken the previous day, deliberately.** The 2026-08-17 round made the Recruitment Rule master referential and left the Pre-DPC as text, resolving it at projection — *"the Pre-DPC screens are unchanged… resolution happens at the moment of projection, which is where the integrity requirement applies."* Business has now said where it applies. **Resolving text afterwards is a guess about what somebody meant; capturing a reference is a record of what they chose.** The guess mapped 11 of 15 existing rows; the four it missed are the argument — `12rth`, `10tth`, hand-typed and unmappable. **Traceable to** explicit business instruction, corroborated by **SRS Screen 4** (*Promotion Post — Dropdown*, *Feeder Post — Dropdown*) and **permanent rule 7**.
+#### Back matter
 
-**Two of the four fields needed no migration.** `pre_dpc_posts.cadre_id` and `pre_dpc_post_feeders.feeder_cadre_id` have existed since M3, and `feeder_cadre_id` was already validated — the form never offered them. Only `qualification_id` is new: additive, nullable, backfilled by the same normalised match the recruitment-rule backfill uses, `min_qualification` kept as the legacy record.
+```
+Appendix A  Conventional DPC deck (C1–C7) — the business rules, mapped to
+            the engine services that implement them
+Appendix B  Slides deliberately not implemented, with the reason and the
+            authority for it
+Appendix C  Open items — every ⛔ and 🟡 in one table, with its blocking
+            BD or TD reference
+Appendix D  Register index — which document owns which kind of fact
+```
 
-**Backward compatibility was the substantive engineering.** `post_name` / `feeder_name` stay `required` and stored; the request derives them from the chosen cadres, so the screen posts references only while a text-only caller — the demo seeder, `PreDpcWorkflowTest`, any existing API client — is untouched. `PreDpcWorkflowTest` passes **unmodified**; `demo:seed --force` rebuilds with all seven DPC IDs unchanged. `amend()` carries the references forward; without that an amendment would quietly downgrade a referenced proposal to a text one **and look correct**, because the names travel with it.
+#### Rules the Guide must follow, so it does not become the next duplication problem
 
-**Three new set-level rules — not tidiness.** No self-feeder, no duplicate feeder per post, no duplicate post per proposal. `recruitment_rule_feeders` carries a unique index on (rule, feeder cadre), so without them a department could approve a Pre-DPC whose projection **fails on a database constraint inside the approval transaction, after the proposal was digitally signed.** Same argument as the DR + PR rule in §0.4.
+1. **Never inline register content.** BD, AD and TD appear as references with a one-line summary. The register is the truth; the Guide is the map.
+2. **Every "Implemented Status" cites a test file.** A status with no test behind it is an opinion.
+3. **Updated per phase, never per closure.** F2 is the failure this rule prevents.
+4. **The slide is the unit, and slide numbers never change.** Milestones are renumbered and rescoped; the customer's deck is not. **This is why organising by slide is the right call** — it is the only index that is stable over the project's life and shared with the customer.
+5. **Deviations are written in the five-field form** the project's own rules require, or not written at all.
 
-**⚠ The consequence, raised as BD-18.** Department registration creates no cadres, and **the Pre-DPC was itself what created them** — `projectToMasters()` upserted a cadre per post name on approval. A reference cannot be chosen from an empty list, so **a newly registered department can no longer file a Pre-DPC** until a CGPSC Admin populates its master. The screen states this and disables the form rather than appearing broken; existing departments are unaffected. **Whether first-time cadre registration is now the Commission's job is a business decision**, and it is a workflow change that follows necessarily from what was asked for — so it is implemented and flagged, not blocked.
+### 0.11 Sequencing — the order this must happen in
 
-**798 tests** (2404 assertions), 16 new, none modified · Pint · PHPStan 0 · audit clean · all five freezes empty · **driven and saved in a real browser**, storing `cadre_id`, `feeder_cadre_id` and `qualification_id` with `min_qualification` null.
+**Nothing here is authorised by this session; this is the proposed order when it is.**
 
-### 0.12 What is still unresolved, stated plainly
+1. **Resolve F1 first** — map every Q to its BD, or mark it closed. **It is the only finding that can make a reader wrong rather than merely out of date**, and everything downstream inherits the confusion if it is not fixed first.
+2. **Fix the cadence rules (F2)** — change `PROJECT_PROGRESS.md`, `MILESTONE_SUMMARY.md` and `PROJECT_TIMELINE.md` to update **per phase**, not per closure. One line each. This is TD-27 and it is the cheapest fix on this list.
+3. **Rule on the §0 split (§0.8)** — it governs how this document behaves during the work that follows.
+4. **Write the Implementation Guide**, seeded from `02-traceability-matrix.md` and `PROJECT_PROGRESS.md`'s module sections. **Slides first, cross-cutting second.**
+5. **Verify before archiving** — for each candidate, confirm the Guide carries what it carried. Then archive.
+6. **Archive, never delete.**
 
-- **AD-25 is proposed, not decided.** Nothing in §0.7 has been built.
-- **BD-16, BD-17 and BD-18 are new and unanswered.** BD-17 in particular has never been put to anyone. **BD-18 has a live operational effect today** — onboarding a new department now needs a CGPSC Admin to register its cadres first, and that belongs in the onboarding runbook whichever way it is answered.
-- **BD-2, BD-3, BD-8, BD-9, BD-10, BD-11, BD-14, BD-15** remain as previously recorded. This session changed none of them.
-- **Three technical findings from these two sessions are now filed as debt**, per the Milestone Execution Rule of 2026-08-18 — they are recorded, not actioned: **TD-25** (a Pre-DPC feeder whose name matches no cadre is *silently dropped* at projection — pre-existing, found by a failing test), **TD-26** (Pre-DPC authorization is inline rather than a Policy, so views re-derive the rule the controller enforces), **TD-27** (`MILESTONE_SUMMARY.md` updates only at closure, so a milestone stalled on a business decision never gets a status — M9 read "Not started" three phases after the fact).
-- **The `Junior Assistant` DR 0 / PR 1 development row** is left as it is. It is dev data, it is now visible, and rewriting it would have destroyed the only evidence that the write-path-only decision behaves as intended.
+**Recommended timing: after M9 closes, before M10 opens.** M10 adds S49–S51, the only stage with no implementation — writing the Guide first gives M10 a specification to build against rather than a document to retrofit.
 
-### 0.13 M9 closure checklist
+### 0.12 Risks in this plan, stated rather than discovered later
+
+- **The Guide is large.** 52 + 7 slides; realistically 1,500–2,500 lines even with B1 collapsing the login slides. **It is not a document anyone reads end to end** — it is a reference, and it must be built to be *indexed*, not read. If it cannot answer "what implements slide 23?" in ten seconds, it has failed.
+- **It will go stale exactly like the four status documents**, unless rule 3 is enforced. The only structural defence is that the per-slide status is short and mechanical.
+- **Merging is where requirements get lost**, which is why §0.11 step 5 exists and why nothing is deleted.
+- **The three registers must not be absorbed.** The pressure to inline them will be constant, because a reader wants the answer in front of them. Doing it recreates F1 at a larger scale.
+
+### 0.13 M9 closure checklist — **PINNED**
+
+> **This subsection is deliberately carried across the §0 replacement.** It is not this session's work: it is **M9's live closure state**, it is referenced by section number from `PROJECT_STATUS.md` and `PROJECT_PROGRESS.md`, and replacing it would delete a live artefact and break two cross-references. It stays, unchanged, until M9 closes. That it has to be pinned by hand is the flaw described in §0.8.
+
 
 **Added 2026-08-18 under the Milestone Execution Rule.** §10 below is **M8's** checklist and is preserved as history; M9 had none, which is part of why its closure state was recorded inconsistently across four documents. This is M9's.
 
@@ -351,27 +360,68 @@ Concretely, rows 9 and 10 are where it bites. The SRS describes a **live meeting
 
 **One item from that list is still genuinely unruled and is recorded here rather than actioned:** if the origin DPC's allottee has **left the Commission**, nobody can sign the circulation note *or* produce its documents (AQ-20's deadlock, Phase 3 warning 3). It affects no seeded or current case, it is not new work introduced by closure, and under the Milestone Execution Rule it is recorded, not implemented. It wants a standing rule about absent named actors — the same gap AD-22 left open — and belongs in the same freeze-exception window as the rest of the backlog.
 
+---
+
+#### 0.13.1 Closure readiness — re-verified 2026-08-18
+
+**All five confirmations requested were checked against the running repository today, not carried forward from an earlier run.**
+
+| # | Confirmation | Result | How it was checked |
+|---|---|---|---|
+| 1 | **All engineering work complete** | ✅ **Confirmed** | Checklist items 1–2 and 19. §0.7 of the M9 Phase 3 review states it; §0.11's six warnings contain **no engineering item** |
+| 2 | **All milestone documentation complete** | ✅ **Confirmed** | Item 17. The five mandatory documents were synchronised on 2026-08-18 and now agree with each other and with the code — the defect that caused **TD-27** is closed for M9 |
+| 3 | **All mandatory quality gates complete** | ✅ **Confirmed** | Re-run today: **798 passed / 2404 assertions** · Pint **pass** · PHPStan (Larastan L6) **0 errors** · `composer audit` **no advisories** |
+| 4 | **All mandatory milestone deliverables complete** | ✅ **Confirmed** | Items 1–19 green: design approved, three phases built, AD-23/AD-24 registered, AQ-17/20/21/22 ruled, migrations additive, **all five freeze diffs empty**, AD-23 verified *behaviourally* not only by scan, PPT S45–S48 compared, registers updated, business questions put to CGPSC in plain language, demo-ready as `SE202600003/C1` |
+| 5 | **Waiting ONLY on business approval** | ✅ **Confirmed** | **BD-14 is the sole blocker.** Items 20–23 are all consequences of it |
+
+**Freeze verification, today:** `v0.6.0-m6-complete` → 0 files · `v0.7.0-m7-complete` → 0 · `v0.8.0-m8-phase3` → 0 · M8's four view paths → 0.
+
+**M9's own tests:** 98 passed / 276 assertions across seven files in `tests/Feature/Circulation/`.
+
+**Verdict: M9 is CLOSURE-READY and is not closed.** Every engineering, documentation, gate and deliverable obligation is discharged. The milestone is held open by one unanswered business question and by nothing else.
+
+**What closure will consist of, once BD-14 is answered** — recorded now so it is a checklist rather than a fresh decision later:
+
+1. Apply the answer as configuration — `dpc.circulation.effective_date_basis`. **No code change, no freeze exception, no re-test of the engine.**
+2. Lift the publication block and confirm a circulation note publishes end to end.
+3. Re-run the full gate and all five freeze diffs.
+4. Tag **`v0.9.0-m9-complete`**.
+5. Declare the **M9 freeze** as a new AD in the shape of AD-21, at that baseline. **Until this exists, M9 is the only built milestone whose "has it changed?" cannot be answered by diff.**
+6. Update items 20–23 above, `PROJECT_STATUS.md`, `PROJECT_PROGRESS.md`, `MILESTONE_SUMMARY.md` and `CHANGELOG.md`.
+
+**One housekeeping item stands between here and a clean boundary:** the working tree carries one uncommitted file — this one, holding the consolidation plan (§0.1–§0.12) and this readiness record. **Commit it before closure**, so the boundary is anchored to a commit rather than a working tree. That is the failure mode **TD-14** already cost this project once.
+
 ### 0.14 For the Architect — copy-paste
 
-**In priority order. The first item is the only one that unblocks a milestone; the rest are backlog and none of them should be picked up before M9 closes.**
+**M9 is closure-ready. The first item below is the only one that unblocks a milestone; everything after it is backlog.**
 
-> **Get BD-14 answered.** It is the sole outstanding item on M9's closure checklist (§0.13) — items 1 to 19 are green, and 20 to 23 are all consequences of this one question. It is drafted for CGPSC as **Question 6** of `docs/UAT_BUSINESS_VALIDATION.md`. **The answer costs no engineering:** it lands as `dpc.circulation.effective_date_basis`, no code change, no freeze exception, no re-test. Until it lands, signed and verifiable circulation documents cannot reach the departments they were produced for.
+> **Answer BD-14** — *from what date does a circulated promotion take effect?* It is **the sole outstanding item on M9's closure checklist**; items 1–19 are green and 20–23 are consequences of this one question. Drafted for CGPSC as **Question 6** of `docs/UAT_BUSINESS_VALIDATION.md`. The answer lands as `dpc.circulation.effective_date_basis` — **no code change, no freeze exception, no re-test.** Until it lands, signed and verifiable circulation documents cannot reach the departments they were produced for.
 
-> **Then close M9:** confirm §0.13, tag `v0.9.0-m9-complete`, and declare the M9 freeze as an AD in the shape of AD-21. **M9 is currently the only built milestone with no freeze baseline**, so "has M9 changed?" is the one such question that cannot be answered by diff.
-
-> **Then, and only then, open the freeze window** under AD-22 for the accumulated backlog — TD-19, TD-20, TD-21, plus **TD-28** (the absent-allottee deadlock, which needs a standing rule across M7/M8/M9 rather than a fix inside any one of them) and **AD-25** if BD-16 has been confirmed.
+> **Then execute the six closure steps in §0.13.1** — apply the configuration, confirm publication, re-run the gate, tag `v0.9.0-m9-complete`, declare the M9 freeze, synchronise the documents.
 
 ---
 
-*Backlog, recorded and not to be actioned before the above:*
+*The documentation consolidation plan below is a completed deliverable, retained deliberately — it is not this session's working notes. Three decisions are needed before any of it starts, and the first two are one line each.*
 
-> Rule **AD-25**: bind a DPC proposal to the **active Recruitment Rule** that sanctions its post pair (Option B, §0.7.2) — validation, filtered dropdowns, and a nullable `recruitment_rule_id` pinned at creation. It requires a **Freeze Exception under AD-22** against M4. **Recommended before M10 opens**, because M10's self-inspection screen inherits the defect.
+> **Approve or amend the consolidation plan** in §0.5–§0.11. Nothing has been merged, moved, archived or deleted. **Approving it authorises no work by itself** — each step in §0.11 is separately actionable.
 
-> Confirm **BD-16** with business: is *"Approved Pre-DPC should be used while creating DPC"* satisfied by binding to the Recruitment Rule the Pre-DPC produced (recommended), or does business require the DPC to name the Pre-DPC document itself?
+> **Rule on F1 (§0.4), the only finding that can make a reader wrong.** `docs/design/06-ambiguities.md` holds **Q1–Q16** and `PENDING_BUSINESS_DECISIONS.md` holds **BD-1–BD-18**, and six pairs are the same question under two numbers — Q5/BD-2, Q6/BD-3, Q7/BD-7, Q11/BD-8, Q12/BD-6, Q16/BD-17. **Answering a BD does not update its Q**, so the design set can show "open" for a decision already ruled. **Recommended: the BD register is authoritative; every Q becomes a historical alias.**
 
-> Answer **BD-17**, which is really two questions and the first governs the second. **(a) Does AD-1 still stand?** It says the SRS *"must not be implemented from"*, yet an SRS-vs-code gap analysis was commissioned on 2026-08-18; if the SRS has been promoted to a requirements source, **AD-1 must be superseded by a new AD** and the roadmap re-scoped. **(b) If AD-1 stands, confirm that video conferencing and real-time voting are withdrawn** — the PPT specifies a document-and-signature process and the build follows it.
+> **Rule on the cadence fix (F2 / TD-27).** `PROJECT_PROGRESS.md`, `MILESTONE_SUMMARY.md` and `PROJECT_TIMELINE.md` update *"at each phase boundary"* or *"at each milestone closure"* — events that may never arrive, and did not for M9. **Recommended: change all three to update per phase.** One line each, and it is the cheapest fix on the list.
 
-**M9 is still not closed, and no engineering work remains in it.** Its closure documentation was completed on 2026-08-18 — the five mandatory documents now agree with each other and with the code, and §0.13 records the checklist M9 never had. **Closure itself remains pending BD-14.** No milestone was opened.
+> **Rule on splitting §0 of this file** into **§0-A Current Session** (replaced every prompt) and **§0-B Live State** (carried forward until its milestone closes). §0's replace-in-full rule has already destroyed one open item — **TD-28**, recovered from git — and §0.13 below survives this session only because it was pinned by hand.
+
+---
+
+*Backlog, unchanged, and not to be actioned before M9 closes:*
+
+> **Get BD-14 answered** — the sole outstanding item on M9's closure checklist (§0.13). Drafted as **Question 6** of `docs/UAT_BUSINESS_VALIDATION.md`. The answer lands as `dpc.circulation.effective_date_basis` — no code change, no freeze exception, no re-test.
+
+> **Then close M9:** confirm §0.13, tag `v0.9.0-m9-complete`, declare the M9 freeze as an AD in the shape of AD-21. **M9 is the only built milestone with no freeze baseline**, so "has M9 changed?" cannot be answered by diff.
+
+> **Then open the freeze window** under AD-22 for TD-19, TD-20, TD-21, **TD-28** (absent-allottee deadlock — needs a standing rule across M7/M8/M9) and **AD-25** if **BD-16** is confirmed. **BD-17** (what standing the SRS has) should be answered in the same pass, since it decides whether two named SRS features are withdrawn.
+
+**M9 is not closed, no engineering work remains in it, and this session opened no milestone and wrote no code.**
 
 <!-- CURRENT SESSION — END. Historical architect review follows; preserve verbatim. -->
 
