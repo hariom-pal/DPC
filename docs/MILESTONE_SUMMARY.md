@@ -167,6 +167,33 @@ git diff --name-only v0.8.0-m8-phase3   -- app/Domain/Review                    
 
 ---
 
+## M9 — Circulation DPC 🟡 *(engineering complete; not closed, not tagged, not frozen)*
+
+**All three phases built and gate-green, 2026-08-16. Design at `docs/design/10-m9-circulation-dpc.md` (approved).** **Closure is pending BD-14 and nothing else.**
+
+| | |
+|---|---|
+| **Status** | 🟡 Engineering complete · **NOT closed** |
+| **Freeze** | **None.** A freeze needs a baseline tag, and there is no M9 tag because there is no closure. M9 is the only built milestone whose "has it changed?" question cannot be answered by diff |
+| **Governed by** | **AD-23** — Circulation is Decision Resolution, not DPC Execution. **AD-24** — Circulation is its own aggregate; it never reuses `dpc_proposals` |
+| **Rulings** | **AQ-17** the signature is the operative act · **AQ-20** only the Member who conducted the original DPC may act, and the Chairman is not exempt · **AQ-21** M9 may write `dpc_proceeding_holds.released_at` and no other column of M7's table · **AQ-22** M9 owns its own document layer |
+| **BD-14** | **From what date does a circulated promotion take effect?** The one thing between M9 and closure. Put to CGPSC as Question 6 of `docs/UAT_BUSINESS_VALIDATION.md` |
+| **Tests** | **98 passed / 276 assertions** across seven files in `tests/Feature/Circulation`, within a suite of **798 / 2404** |
+
+**What it does.** An officer whose promotion was **held** at a DPC — missing 2+ years of CR, or a year's immovable-property return — has that promotion reserved rather than refused. M7 produces the hold; **M9 resolves it.** The department raises a note against the concluded DPC with the missing evidence, the AO submits and the AH signs; the Commission then decides per officer, approves, and signs. **Holds are released inside the signature transaction and only for officers consented to** — a note that is never signed leaves every promotion reserved.
+
+**The architectural decision that shaped it, and what it cost.** A Circulation looked like a `dpc_proposals` row: `dpc_types` already seeded `circulation`, S47 collects the same post-from/post-to/class/date, and M8 had just set the precedent that a Review **is** a proposal. **AD-24 refused it**, and the deciding argument was M4's submission gate: a proposal cannot be submitted without committee, working officers, seniority list and evaluation chart, and **a Circulation has none of those and never will**, because everything they would contain was decided at the original sitting. The two escapes were both worse — copy the origin's chart (making it a Review in all but name) or bypass the gate (which is TD-23, a defect already on the register). **The precedent did not transfer: a Review genuinely runs the whole DPC pipeline; a Circulation runs none of it.**
+
+**The price is stated rather than hidden.** M9 does not inherit M4's proposal scaffolding — department scoping, draft/submit/return/cancel, the AH signature step and section immutability are re-expressed for the circulation aggregate rather than reused as code. Any later "all DPC artefacts" view must **union** across `dpc_proposals` and `dpc_circulations`, not query one table.
+
+**S48's before-and-after is one stored result rendered twice**, with the `CIR` annotation derived from hold state — a test asserts the run, results, rows and proceeding are **byte-identical** after signature. That is AD-23 proved behaviourally rather than by inspection: generating documents creates no calculation run and leaves the pinned run untouched. A scan shows nothing is *named*; only that test shows nothing was *done*.
+
+**It refuses in two places rather than guessing, and both refusals cost real officers something.** Publication is blocked while **BD-14** is unresolved — the note renders, signs, hashes and verifies, and displays *"Pending Business Decision (BD-14)"* instead of inventing an effective date. A **CR-ground** hold is refused outright pending **BD-15**, named officers and all, and is deliberately **not** auto-escalated to a Review, because escalating would answer the question by acting. Both are correct. Neither is free: **the officers concerned have signed, verifiable documents that cannot reach them, or no route to resolution at all.**
+
+**M9 is the second consecutive milestone to finish its engineering ahead of the ruling it needs** — M8 pending BD-11, M9 pending BD-14. That is the pattern to watch, and it is why this page exists before closure rather than after.
+
+---
+
 ## What every milestone since M4 has had in common
 
 Worth stating once, because it is the strongest pattern in the project's history.

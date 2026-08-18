@@ -317,7 +317,53 @@ Concretely, rows 9 and 10 are where it bites. The SRS describes a **live meeting
 - **Three technical findings from these two sessions are now filed as debt**, per the Milestone Execution Rule of 2026-08-18 — they are recorded, not actioned: **TD-25** (a Pre-DPC feeder whose name matches no cadre is *silently dropped* at projection — pre-existing, found by a failing test), **TD-26** (Pre-DPC authorization is inline rather than a Policy, so views re-derive the rule the controller enforces), **TD-27** (`MILESTONE_SUMMARY.md` updates only at closure, so a milestone stalled on a business decision never gets a status — M9 read "Not started" three phases after the fact).
 - **The `Junior Assistant` DR 0 / PR 1 development row** is left as it is. It is dev data, it is now visible, and rewriting it would have destroyed the only evidence that the write-path-only decision behaves as intended.
 
-### 0.13 For the Architect — copy-paste
+### 0.13 M9 closure checklist
+
+**Added 2026-08-18 under the Milestone Execution Rule.** §10 below is **M8's** checklist and is preserved as history; M9 had none, which is part of why its closure state was recorded inconsistently across four documents. This is M9's.
+
+| # | Item | Evidence | Status |
+|---|---|---|---|
+| 1 | Design approved before implementation | `docs/design/10-m9-circulation-dpc.md`, approved 2026-08-16 | ✅ |
+| 2 | All three phases implemented | Aggregate + department side · Commission consent + hold release · prescribed form and documents | ✅ |
+| 3 | Architect decisions in the permanent register | **AD-23**, **AD-24** in `docs/ARCHITECTURE_DECISIONS.md` | ✅ |
+| 4 | Architect questions ruled | AQ-17, AQ-20, AQ-21, AQ-22 | ✅ |
+| 5 | Laravel Pint | Re-run 2026-08-18 | ✅ Pass |
+| 6 | PHPStan / Larastan level 6 | Re-run 2026-08-18 | ✅ 0 errors |
+| 7 | PHPUnit | Re-run 2026-08-18 | ✅ **798 / 2404**; **98 / 276** are M9's |
+| 8 | `composer audit` | Re-run 2026-08-18 | ✅ No advisories |
+| 9 | Migrations additive only (AD-16) | Two migrations, three new tables; nothing altered or dropped. The single write into a frozen table is `dpc_proceeding_holds.released_at`, the seam M7 declared (AQ-21) | ✅ |
+| 10 | Freeze verification — M4/M5/M6/M7/M8 untouched | Five diffs against `v0.6.0-m6-complete`, `v0.7.0-m7-complete`, `v0.8.0-m8-phase3`, **including M8's four view paths** | ✅ Empty |
+| 11 | AD-23 verified behaviourally, not only by scan | Generating documents creates **no** calculation run and leaves the pinned run byte-identical | ✅ |
+| 12 | Full PPT comparison (S45–S48) | Performed at Phase 3 finalisation — no divergence | ✅ |
+| 13 | Business questions in their own register | BD-14, BD-15, BD-12, BD-13 in `docs/PENDING_BUSINESS_DECISIONS.md` | ✅ |
+| 14 | Business questions put to business in plain language | **Questions 6–9** of `docs/UAT_BUSINESS_VALIDATION.md`, added 2026-08-18 | ✅ |
+| 15 | Technical debt recorded, not silently carried | TD-2, TD-24 re-stated at Phase 3; TD-25/26/27 added 2026-08-18 | ✅ |
+| 16 | Demo readiness — independently demoable | Raise a circulation against a concluded DPC with a held officer → AH approve → Commission consent → sign → hold released → before/after list. Seeded as `SE202600003/C1` | ✅ |
+| 17 | Five mandatory documents synchronized | `PROJECT_STATUS.md`, `PROJECT_PROGRESS.md`, `CHANGELOG.md`, `MILESTONE_SUMMARY.md`, this file | ✅ **2026-08-18** |
+| 18 | Milestone boundary committed | Phases 1–3 committed 2026-08-16 (`a716dcf`, `f23c118`, `1852fa1`); closure documentation 2026-08-18 | ✅ |
+| 19 | **M9 engineering complete** | **Yes.** Nothing in M9's scope is unbuilt or untested | ✅ |
+| 20 | **BD-14 answered** | **No.** The only outstanding item. It decides what a published note *says*; the answer lands as configuration (`dpc.circulation.effective_date_basis`), not code | ⛔ **Blocked** |
+| 21 | **M9 tagged** | **No** — a tag marks a closed milestone, and closure waits on item 20 | ⛔ Blocked by 20 |
+| 22 | **M9 freeze declared** | **No** — a freeze needs a baseline tag. **M9 is the only built milestone whose "has it changed?" cannot be answered by diff** | ⛔ Blocked by 21 |
+| 23 | **M9 closed** | **No** | ⛔ **Blocked by BD-14 alone** |
+
+**Items 1–19 are green. Items 20–23 are one business decision in a trench coat.** There is no engineering task, no test, no migration and no document left in M9's scope — verified against §0.7 and §0.11 of the Phase 3 review, which listed six warnings of which **none was engineering work**: two business decisions (BD-14, BD-9), two recorded debts (TD-2, TD-24), one unruled architecture question (the absent-allottee deadlock), and one request to confirm a design choice in review.
+
+**One item from that list is still genuinely unruled and is recorded here rather than actioned:** if the origin DPC's allottee has **left the Commission**, nobody can sign the circulation note *or* produce its documents (AQ-20's deadlock, Phase 3 warning 3). It affects no seeded or current case, it is not new work introduced by closure, and under the Milestone Execution Rule it is recorded, not implemented. It wants a standing rule about absent named actors — the same gap AD-22 left open — and belongs in the same freeze-exception window as the rest of the backlog.
+
+### 0.14 For the Architect — copy-paste
+
+**In priority order. The first item is the only one that unblocks a milestone; the rest are backlog and none of them should be picked up before M9 closes.**
+
+> **Get BD-14 answered.** It is the sole outstanding item on M9's closure checklist (§0.13) — items 1 to 19 are green, and 20 to 23 are all consequences of this one question. It is drafted for CGPSC as **Question 6** of `docs/UAT_BUSINESS_VALIDATION.md`. **The answer costs no engineering:** it lands as `dpc.circulation.effective_date_basis`, no code change, no freeze exception, no re-test. Until it lands, signed and verifiable circulation documents cannot reach the departments they were produced for.
+
+> **Then close M9:** confirm §0.13, tag `v0.9.0-m9-complete`, and declare the M9 freeze as an AD in the shape of AD-21. **M9 is currently the only built milestone with no freeze baseline**, so "has M9 changed?" is the one such question that cannot be answered by diff.
+
+> **Then, and only then, open the freeze window** under AD-22 for the accumulated backlog — TD-19, TD-20, TD-21, plus **TD-28** (the absent-allottee deadlock, which needs a standing rule across M7/M8/M9 rather than a fix inside any one of them) and **AD-25** if BD-16 has been confirmed.
+
+---
+
+*Backlog, recorded and not to be actioned before the above:*
 
 > Rule **AD-25**: bind a DPC proposal to the **active Recruitment Rule** that sanctions its post pair (Option B, §0.7.2) — validation, filtered dropdowns, and a nullable `recruitment_rule_id` pinned at creation. It requires a **Freeze Exception under AD-22** against M4. **Recommended before M10 opens**, because M10's self-inspection screen inherits the defect.
 
@@ -325,7 +371,7 @@ Concretely, rows 9 and 10 are where it bites. The SRS describes a **live meeting
 
 > Answer **BD-17**, which is really two questions and the first governs the second. **(a) Does AD-1 still stand?** It says the SRS *"must not be implemented from"*, yet an SRS-vs-code gap analysis was commissioned on 2026-08-18; if the SRS has been promoted to a requirements source, **AD-1 must be superseded by a new AD** and the roadmap re-scoped. **(b) If AD-1 stands, confirm that video conferencing and real-time voting are withdrawn** — the PPT specifies a document-and-signature process and the build follows it.
 
-**M9 is still not closed.** Its engineering is complete; closure remains pending BD-14. This session opened no milestone.
+**M9 is still not closed, and no engineering work remains in it.** Its closure documentation was completed on 2026-08-18 — the five mandatory documents now agree with each other and with the code, and §0.13 records the checklist M9 never had. **Closure itself remains pending BD-14.** No milestone was opened.
 
 <!-- CURRENT SESSION — END. Historical architect review follows; preserve verbatim. -->
 

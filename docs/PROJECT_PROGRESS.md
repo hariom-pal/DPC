@@ -279,19 +279,19 @@ Every module below corresponds to a stage of the 6-stage ODPC process (or a cros
 
 ## Module 13 — Circulation DPC
 
-**PPT Reference:** C3, C7, S45–S48 · **Milestone:** M9 · **Status:** ⚪ Not Started
+**PPT Reference:** C3, C7, S45–S48 · **Milestone:** M9 · **Status:** 🟡 **Engineering complete (3 phases, 2026-08-16) — closure pending BD-14**
 
 1. **Purpose:** Handle officers whose promotion must be held during a DPC because their CR or immovable-property records are incomplete, until the gap is resolved.
 2. **Business Workflow (S45–S48, C7):** During a DPC, an officer missing 2+ years of CR or 1+ years of immovable-property declaration is still included in the proceeding but their promotion decision is held (`CIR`); once the missing record is resolved, CGPSC signs a circulation note to finalize that officer's promotion.
-3. **Current Implementation Status:** Not started.
-4. **Database Tables:** None yet. Planned: `circulation_holds` (`03-database-design.md` §E).
-5. **Backend Components:** None yet. Planned: `CirculationDpcService`.
-6. **Frontend Components:** None yet.
-7. **APIs:** None yet.
-8. **Business Rules Implemented:** None yet.
-9. **Remaining Work:** Entire milestone.
-10. **Dependencies:** M7 (proceeding that identifies held officers), M5 (the `CIR` remark is produced by the eligibility engine).
-11. **Next Milestone:** **Blocked by Q12** — same circulation-trigger wording ambiguity as Module 9 ("2+ years CR missing" vs. "CR ≤ 4").
+3. **Current Implementation Status:** **Done — all three phases.** *(Phase 1)* the circulation aggregate and the department's side: a note raised against a concluded DPC with promotions still held, the officers and their resolution evidence, AO submit → AH approve with signature, its own workflow, policy and identifier. *(Phase 2)* the Commission's side: a decision per held officer, `APPROVE BY CGPSC`, return-for-evidence, and the signature — **which is the operative act (AQ-17)**. *(Phase 3)* the prescribed form S45 calls *निर्धारित प्रारुप*: the circulation note and revised promotion list, rendered → stored → SHA-256 → signed → verifiable.
+4. **Database Tables:** `dpc_circulations`, `dpc_circulation_items` (`2026_08_16_300001`), `dpc_circulation_documents` (`2026_08_16_300002`) — **its own tables, never `dpc_proposals` (AD-24)**. `origin_dpc_proposal_id` is a foreign key to the DPC being resolved: referenced, never written. The one write into a frozen milestone's table is `dpc_proceeding_holds.released_at`, the seam M7's own migration declared for M9 (AQ-21).
+5. **Backend Components:** `app/Domain/Circulation/` — models `DpcCirculation`, `DpcCirculationItem`, `DpcCirculationDocument`; services `CirculationService`, `CirculationWorkflowService`, `CirculationCommissionService`, `CirculationResultService`, `CirculationDocumentService`, `CirculationCodeService`; enums `CirculationStatus`, `CirculationDecision`, `CirculationDocumentType`, `CirculationDocumentStatus`; `DpcCirculationPolicy`; `RaiseCirculationRequest`; `CirculationDocumentRenderer` + `HtmlCirculationDocumentRenderer`; `PendingBusinessDecisionException` + `PendingBusinessDecision`.
+6. **Frontend Components:** `resources/views/dpc/circulations/` (index, create, show, `_pending-business-decision`) and `resources/views/cgpsc/circulations/` (index, show, documents). Every action is `@can`-gated against the policy.
+7. **APIs:** `Dpc/CirculationController` (department: index, create, store, show, submit, approve, return, cancel); `Cgpsc/CirculationConsentController` (per-officer decision, consent, sign, return); `Cgpsc/CirculationDocumentController` (generate, publish, download, verify, history).
+8. **Business Rules Implemented:** A circulation may only be raised against a **concluded** DPC that still has held promotions. **Holds are released inside the signature transaction and only for officers consented to** — a note that is never signed leaves every promotion reserved (AQ-17). **Only the Member who conducted the original DPC may act, and the Chairman is not exempt (AQ-20).** S48's before-and-after is **one stored result rendered twice**, with the `CIR` annotation derived from hold state — a test asserts the run, results, rows and proceeding are byte-identical after signature. **A Circulation performs no DPC execution (AD-23)** — no calculation, no scoring, no re-ranking — enforced by an architecture test over 22 source files with comments stripped. **CR-ground holds are refused** with a structured *Pending Business Decision (BD-15)* response naming the officers: detected, recorded, neither calculated nor escalated. `HoldService::release()` is deliberately **not** reused — it asserts an open proceeding, which is right for a sitting in progress and wrong for a concluded DPC.
+9. **Remaining Work:** **None in engineering.** Publication is refused while **BD-14** is unresolved, displaying *"Pending Business Decision (BD-14)"*, inventing no effective date, and leaving rendering, signing, storage and verification fully working. The answer will be applied as **configuration** (`dpc.circulation.effective_date_basis`), with no code change.
+10. **Dependencies:** M7 (proceeding that identifies held officers), M5 (the `CIR` remark is produced by the eligibility engine). Neither was modified — all five freeze diffs empty at every phase boundary.
+11. **Tests:** **98 passed / 276 assertions** across `tests/Feature/Circulation/` — workflow, raise, consent, signature, documents, architecture and pending-business-decision suites.
 
 ---
 
@@ -373,7 +373,7 @@ Every module below corresponds to a stage of the 6-stage ODPC process (or a cros
 
 ### 1. Current project completion status
 
-**M8 (Review DPC) is COMPLETE — all three phases, committed and tagged `v0.8.0-m8-phase3`. BD-11 is deferred by architect ruling and does not block completion. M9 has NOT started.**
+**M9 (Circulation DPC) ENGINEERING IS COMPLETE — all three phases, 2026-08-16. Closure is pending BD-14 and nothing else.** M8 (Review DPC) is complete, committed and tagged `v0.8.0-m8-phase3`; BD-11 is deferred by architect ruling and does not block its completion.
 
 ```
 Foundation                          ✅ 100%
@@ -396,7 +396,7 @@ Notifications                       🟡 Partial (mechanism + OTP done; live SMS
 Audit Trail & Security Hardening    🟡 Partial (foundation done; UI + hardening pass = M11)
 ```
 
-**Milestone completion: 9 of 11 complete (M0–M8) — ~82% of the planned milestone roadmap by count.** M8 is complete, tagged `v0.8.0-m8-phase3`, and **frozen as of 2026-08-14 (AD-21)**. Not effort-weighted: M4 and M5 were the two largest and are both frozen.
+**Milestone completion: 9 of 11 closed (M0–M8) — ~82% by count; M9 is built but not closed, which would make it 10 of 11 (~91%).** The distinction is deliberate and is the honest number: M9's engineering is finished and gate-green, but a milestone is closed when it is reviewed, tagged and frozen, and M9 is none of those because BD-14 is unanswered. M8 is complete, tagged `v0.8.0-m8-phase3`, and **frozen as of 2026-08-14 (AD-21)**. Not effort-weighted: M4 and M5 were the two largest and are both frozen.
 
 **Five freezes are in force** — M4 architecture-frozen, M5 engine-frozen, M6 frozen, M7 frozen from M8 onward, and **M8 frozen from 2026-08-14 (AD-21)**, the strictest of the five. M8 was built entirely on that stable core **without modifying a single file in any of them**, verified by full-repository diff at every phase boundary. That is the freeze doing its job, and it is the strongest evidence the boundaries are in the right places.
 
@@ -404,12 +404,14 @@ Audit Trail & Security Hardening    🟡 Partial (foundation done; UI + hardenin
 
 | # | Milestone | Scope | Status | Gated on |
 |---|---|---|---|---|
-| **M9** | Circulation DPC | S45–S48, C3, C7 — resolve a held promotion (`CIR`) from an earlier DPC; CGPSC signs a circulation note once the missing CR or immovable-property record is supplied | ⚪ **NOT STARTED** | Architect approval to begin. **Q12** (circulation-trigger wording: "2+ years CR missing" vs. "CR ≤ 4") should be settled first; **BD-11** informs the design |
+| **M9** | Circulation DPC | S45–S48, C3, C7 — resolve a held promotion (`CIR`) from an earlier DPC; CGPSC signs a circulation note once the missing CR or immovable-property record is supplied | 🟡 **ENGINEERING COMPLETE** — 3 phases, 98 tests, gate-green. **Not closed, not tagged, not frozen** | **BD-14** only. It blocks publication of the note and nothing else; the answer is applied as configuration, not code |
 | **M10** | Self-Inspection & Objection | S49–S52 — an officer inspects their own record and raises an objection | ⚪ Not started | M9; the objection outcome may require a Review DPC, which M8 now provides |
 | **M11** | Reports, Audit-trail UI, Security & Performance Hardening | Reporting/dashboards, a standalone audit browser, rate-limiting review, header hardening, Redis cache tuning | ⚪ Not started | **Q16** — reporting is absent from both PPTs and is out-of-scope-by-default until confirmed |
 | — | **UAT & Security Hardening sprint** | Full business UAT, VAPT, capacity planning | Not started | M11; and the government SMS gateway (TD-6) before any officer can complete verification |
 
-**M9 has not started.** No M9 code, migration, route, view or test exists in this working tree.
+**M9's engineering is complete and its closure is not.** Three phases, two migrations, three tables, 19 domain classes, three controllers, seven views and **98 tests** exist in this working tree and are gate-green. **No M9 tag exists and no M9 freeze is declared**, because closure is pending BD-14 — the same shape as M8's closure pending BD-11, except that BD-11 was ruled not to gate M8 while BD-14 does gate M9: it decides what a published circulation note *says*.
+
+> **This line read "No M9 code, migration, route, view or test exists in this working tree" until 2026-08-18**, two days after Phase 3 finished, while a paragraph twelve lines above correctly reported *"Circulation DPC 🟡 Engineering 100%"*. The document contradicted itself because this summary is replaced at each **phase boundary** and M9's phases closed without one. Recorded as **TD-27**.
 
 ### 3. Pending business decisions
 
@@ -444,21 +446,20 @@ Register: `docs/TECHNICAL_DEBT.md` — permanent, not reset at a phase boundary.
 1. **Batch TD-19, TD-20 and TD-21 into one authorised freeze opening at M8's closure boundary.** Each is small and well understood; each is waiting for its own reason to arrive. Opening the freeze once, with the gate and the freeze-verification diff run around it, is cheaper and safer than three separate openings — and TD-20 is now at three copies, which is where duplicated logic starts to drift.
 2. **Stop at four decorators.** `docs/ARCHITECTURE_BASELINE_v0.7.md` is now the document to read before extending a frozen or completed milestone. It records what the pattern costs — indirection; the class that runs is not the class the caller names — and that a **fifth** decorator is the signal to ask whether the M7/M8 boundary is in the right place, rather than adding it and deciding later.
 3. **Chase BD-9 ahead of the others.** BD-2, BD-3 and BD-10 fail loudly — they block publication — and BD-11 is now explicitly deferred with its constraint named. BD-9 fails **silently** — it produces a plausible published promotion list that may name the wrong officer on the wrong waiting list. Of the open business questions it is the only one that can do real harm without anyone noticing.
-4. **Settle Q12 before M9 opens.** The circulation trigger is the same wording ambiguity that already affects the eligibility engine. Designing M9 around an unresolved trigger would mean building a workflow whose entry condition is a guess.
+4. ~~**Settle Q12 before M9 opens.**~~ — **superseded.** M9 was built without waiting for it, and the design answered the ambiguity by **refusing** rather than guessing: a CR-ground circulation returns a structured *Pending Business Decision (BD-15)* naming the affected officers, and is neither calculated nor escalated. That is the right shape, but it is not free — **those officers currently have no route to resolution at all**, which is why BD-15 now ranks immediately behind BD-14.
 5. **Rename the branch, or decide not to.** `feature/m0-setup` is eight milestones stale and describes none of what it contains. It rewrites the remote ref, so it needs a decision rather than a silent fix — but leaving it is a real handover hazard for anyone new to the repository.
 6. **Keep the Demo Readiness Rule ahead of the gate.** Six consecutive green gates once missed three P1 defects that an afternoon of demoing caught. The gate is necessary, not sufficient (AD-17), and every milestone since has been checked against the PPT slide by slide as well as gated.
 
 ### 6. Recommended next steps
 
-**In order. Nothing here starts M9.**
+**In order. Nothing here starts M10, and nothing here is an enhancement.**
 
-1. **Put BD-11 to CGPSC** with the three candidate answers and their consequences, via `docs/UAT_BUSINESS_VALIDATION.md`. It no longer blocks M8, but it **is required before the Review supersession policy is activated in production**, so it needs an answer on a procurement-style lead time rather than an engineering one.
-2. **Obtain architect approval of M8 Phase 3** against the checklist in `docs/ARCHITECT_REVIEW.md` §10.
-3. ~~**Declare the M8 freeze**~~ — **done 2026-08-14 (AD-21), ACTIVE.** Next: **define the Freeze Exception mechanism** that rule 5 names. Nothing in the project says who grants one, what record it leaves, or whether it reopens the freeze for one change or for a window — better settled now than under the pressure of the first request.
-4. **At that boundary, open the freeze once** for TD-19 + TD-20 + TD-21 (suggestion 1), with the gate and freeze verification run around it.
-5. **Chase BD-9, BD-2, BD-3 and BD-10** in parallel with the above — they gate *publication* of any result, Fresh or Review, and therefore gate the end of UAT rather than the start of M9.
-6. **Settle Q12**, then design M9 (Circulation DPC) and obtain approval of the design **before** any M9 code is written — the established pattern for every milestone since M4.
-7. **Before production, not before UAT:** connect the government SMS gateway (TD-6), grant the evidence-table permissions (TD-1), and produce the retention/capacity plan (TD-8).
+1. **Answer BD-14.** It is **the only thing between M9 and closure**, and it is holding signed, verifiable documents out of departments' hands today. Drafted for CGPSC in plain language as **Question 6** of `docs/UAT_BUSINESS_VALIDATION.md`, with the worked example and the seniority consequence spelled out. **The answer is applied as configuration** (`dpc.circulation.effective_date_basis`) — no code change, no freeze exception, no re-test of the engine.
+2. **Then close M9:** confirm the checklist in `docs/ARCHITECT_REVIEW.md` §0.13, tag the boundary (`v0.9.0-m9-complete`), and declare the M9 freeze as an AD in the shape of AD-21. Until that tag exists, **M9 has no freeze baseline**, so "has M9 changed?" cannot be answered by diff the way it can for the other five.
+3. **Answer BD-15 next.** It is live and costly: a CR-ground hold is refused today, so those officers' promotions stay reserved with **no route to resolution at all** — neither a circulation nor a review. **BD-12** (is there a refusal path when the supplied record is adverse?) and **BD-13** (time limit on a held promotion) are drafted alongside it as Questions 7–9.
+4. **Chase BD-9, BD-2, BD-3 and BD-10** in parallel — they gate *publication* of any result, Fresh, Review or Circulation, and therefore gate the end of UAT. **BD-9 is the one to chase hardest**: it fails silently, producing a plausible published list that may name the wrong officer.
+5. **At the M9 closure boundary, open the freezes once** for TD-19 + TD-20 + TD-21 (suggestion 1) under AD-22, with the full gate and all freeze-verification diffs run around it. **AD-25** (bind a DPC to the Recruitment Rule that sanctions its post pair) is a candidate for the same window and needs BD-16 confirmed first.
+6. **Before production, not before UAT:** connect the government SMS gateway (TD-6), grant the evidence-table permissions (TD-1), and produce the retention/capacity plan (TD-8).
 
 ### 7. Implementation notes from this session
 

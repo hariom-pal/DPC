@@ -17,7 +17,7 @@
 | ✅ | **M7 Complete** — DPC Proceedings & Result Generation |
 | ✅ | **M8 Phase 3 Complete** — supersession, Review documents, `SUPERSEDED` watermark, publication |
 | ✅ | **M8 Complete (Frozen)** — Review DPC, all 3 phases. **M8 FREEZE ACTIVE from 2026-08-14** (AD-21). BD-11 deferred — it does not block M8 completion |
-| 🟡 | **M9 Engineering Complete (all 3 phases)** — Circulation DPC: the aggregate, the department's side, the Commission's consent with hold release at signature, and the prescribed form. **AD-23**, **AD-24** and the **AQ-22** ruling govern it. **Publication blocked on BD-14** (§23.1) |
+| 🟡 | **M9 Engineering Complete (all 3 phases) — CLOSURE DOCUMENTATION COMPLETE 2026-08-18.** Circulation DPC: the aggregate, the department's side, the Commission's consent with hold release at signature, and the prescribed form. **AD-23**, **AD-24** and the **AQ-22** ruling govern it. **Closure checklist at `docs/ARCHITECT_REVIEW.md` §0.13: items 1–19 green; items 20–23 blocked on BD-14 alone.** No engineering work remains in M9 |
 
 (M0 Foundation is complete and predates M1.)
 
@@ -112,7 +112,9 @@ A Review DPC has an origin, a chain (`chain_uuid`, `review_number`, `chain_depth
 
 **Publication is refused while BD-14 is unresolved (§23.1)**, displaying **"Pending Business Decision (BD-14)"**, inventing no effective date, and leaving rendering, signing, storage and verification fully working. The note states the origin's promotion-as-on year *and* the release date, and **asserts neither as governing** — that is BD-14. The answer will be applied as **configuration** (`dpc.circulation.effective_date_basis`), with no code change.
 
-**M9 engineering is complete. Closure is pending BD-14** — the same shape as M8's closure pending BD-11.
+**M9 engineering is complete, and so is its closure documentation (2026-08-18).** The five mandatory documents now agree with each other and with the code, and `ARCHITECT_REVIEW.md` §0.13 records the closure checklist M9 never had: **items 1–19 green, items 20–23 blocked on BD-14 alone.**
+
+**Closure is pending BD-14** — the same shape as M8's closure pending BD-11, with one difference worth stating: BD-11 was ruled not to gate M8, whereas **BD-14 does gate M9**, because it decides what a published circulation note says. **No engineering task, test, migration or document remains in M9's scope.** The next three steps are: answer BD-14 → tag `v0.9.0-m9-complete` → declare the M9 freeze. **M9 is currently the only built milestone with no freeze baseline.**
 
 **All freezes hold, and there are now five.** M4 architecture-frozen, M5 engine-frozen, M6 frozen, M7 frozen from M8 onward, and **M8 frozen from 2026-08-14 (AD-21)** — the strictest of the five. Freeze verification runs at every phase boundary and has never been non-empty.
 

@@ -2,6 +2,28 @@
 
 All notable work on the ODPC Portal, in reverse chronological order. Business-rule changes are traceable to `docs/ODPC_NEW_FINAL.pptx` / `docs/CONVENTIONAL DPC PROCESS.pptx` slide numbers where applicable. This file, `docs/PROJECT_STATUS.md`, `docs/PROJECT_PROGRESS.md`, and `docs/ARCHITECT_REVIEW.md` are the only documents updated on an ongoing basis (see `docs/ARCHITECT_REVIEW.md` for the full documentation policy).
 
+## 2026-08-18 — M9 closure documentation
+
+**Documentation only. No code, migration, route, view or test changed.** Suite unchanged at **798 / 2404**. Pint clean · PHPStan 0 errors · `composer audit` clean · all five freezes verified empty.
+
+**M9's engineering finished on 2026-08-16 and its closure documentation did not.** The Phase 3 review declared engineering complete, but four of the five mandatory documents were never brought into line, and they disagreed with each other:
+
+- `PROJECT_PROGRESS.md` asserted **"M9 has not started. No M9 code, migration, route, view or test exists in this working tree"** — twelve lines below a paragraph correctly reporting *"Circulation DPC 🟡 Engineering 100%"*. Module 13 read *"Backend Components: None yet. Planned: `CirculationDpcService`"* against 19 shipped domain classes; the roadmap table read **⚪ NOT STARTED**; and the recommendations still said *"design M9 … before any M9 code is written"*.
+- `MILESTONE_SUMMARY.md` had **no M9 page at all** — it holds one page per milestone, M0 through M8.
+- `ARCHITECT_REVIEW.md` had **no M9 closure checklist**. §10 is M8's, and its last row reads *"M9 started — No"*.
+
+**The cause is structural, not clerical, and is now recorded as TD-27.** Both summaries are replaced *"at each phase boundary"* or *"at each milestone closure"* — and **M9's phases closed without a boundary event, because closure is blocked on a business decision.** A milestone that stalls is exactly the one whose status matters most and exactly the one these documents are guaranteed to get wrong.
+
+What was written:
+- **Module 13 rewritten as M9's completion record** — the three phases, three tables, 19 domain classes, three controllers, seven views, 98 tests, the business rules actually implemented, and the rulings that govern them (AD-23, AD-24, AQ-17, AQ-20, AQ-21, AQ-22).
+- **An M9 page in `MILESTONE_SUMMARY.md`**, including why AD-24 refused to model a Circulation as a `dpc_proposals` row (M4's submission gate: a Circulation has no committee, no working officers, no seniority list and no chart, and never will) **and what that decision costs** — no inherited proposal scaffolding, and any later "all DPC artefacts" view must union two tables.
+- **An M9 closure checklist** at `ARCHITECT_REVIEW.md` §0.13: **items 1–19 green; items 20–23 — BD-14 answered, tagged, frozen, closed — blocked on BD-14 alone.** Verified against the Phase 3 review's own six warnings, **none of which was engineering work**: two business decisions, two recorded debts, one unruled architecture question, one design confirmation.
+- **The honest completion figure**: 9 of 11 milestones *closed*, not 10. M9 is built and gate-green but is not reviewed, tagged or frozen, and a milestone is closed when it is all three.
+
+**TD-28 recorded, not actioned** — the one genuinely unruled item from the Phase 3 warnings: **if the origin DPC's allottee has left the Commission, nobody can sign a circulation note or produce its documents** (AQ-20's deadlock). It affects no current case, it needs a standing rule about absent named actors across M7/M8/M9 rather than a fix inside M9, and it belongs in the freeze-exception window at closure. Recorded on the permanent register because §0 of the architect review is replaced at every phase, and a question left only there does not survive.
+
+**M9 is not closed and was not tagged.** No engineering work remains in it.
+
 ## 2026-08-18 — Pre-DPC screen: post, feeder cadre and qualification from the masters
 
 **No workflow, eligibility rule or calculation changed. All five freezes verified empty.** Suite **782 → 798** (2404 assertions); **16 new tests, none modified.** Pint pass · PHPStan 0 errors · `composer audit` clean.
