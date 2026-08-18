@@ -6,7 +6,9 @@ namespace App\Domain\PreDpc\Services;
 
 use App\Domain\Authentication\Models\User;
 use App\Domain\Department\Models\Department;
+use App\Domain\Master\Data\QualificationCatalogue;
 use App\Domain\Master\Models\Cadre;
+use App\Domain\Master\Models\Qualification;
 use App\Domain\Master\Services\RecruitmentRuleService;
 use App\Domain\PreDpc\Enums\PreDpcStatus;
 use App\Domain\PreDpc\Models\PreDpcProposal;
@@ -26,6 +28,14 @@ use Illuminate\Support\Facades\DB;
  */
 class PreDpcProposalService
 {
+    /**
+     * Normalised qualification name/code → id, built once per projection so a
+     * nine-post ladder does not re-read the master nine times.
+     *
+     * @var array<string, int>|null
+     */
+    private ?array $qualificationIndex = null;
+
     public function __construct(
         private readonly WorkflowEngine $engine,
         private readonly SignatureService $signatures,
@@ -153,12 +163,18 @@ class PreDpcProposalService
             $draft->save();
 
             foreach ($proposal->posts as $post) {
+                // `cadre_id` and `qualification_id` are carried across with
+                // everything else. An amendment starts from what was approved,
+                // and dropping the master references would quietly downgrade a
+                // referenced proposal into a text one — the new draft would
+                // still *look* right, because the names come with it, and would
+                // re-resolve by name at the next projection.
                 $newPost = $draft->posts()->create($post->only([
-                    'post_name', 'class_level', 'pay_scale_id', 'direct_recruitment_pct', 'promotion_recruitment_pct', 'sort_order',
+                    'post_name', 'cadre_id', 'class_level', 'pay_scale_id', 'direct_recruitment_pct', 'promotion_recruitment_pct', 'sort_order',
                 ]));
                 foreach ($post->feeders as $feeder) {
                     $newPost->feeders()->create($feeder->only([
-                        'feeder_name', 'feeder_cadre_id', 'promotion_percentage', 'min_experience_years', 'min_qualification', 'sort_order',
+                        'feeder_name', 'feeder_cadre_id', 'promotion_percentage', 'min_experience_years', 'qualification_id', 'min_qualification', 'sort_order',
                     ]));
                 }
             }
@@ -181,6 +197,10 @@ class PreDpcProposalService
         foreach (array_values($posts) as $postData) {
             $post = $proposal->posts()->create([
                 'post_name' => $postData['post_name'],
+                // The Cadre master reference the screen now chooses. Nullable,
+                // because a caller that posts only `post_name` is still valid
+                // and its cadre is resolved at projection, as it always was.
+                'cadre_id' => $postData['cadre_id'] ?? null,
                 'class_level' => $postData['class_level'],
                 'pay_scale_id' => $postData['pay_scale_id'] ?? null,
                 'direct_recruitment_pct' => $postData['direct_recruitment_pct'] ?? 0,
@@ -195,6 +215,11 @@ class PreDpcProposalService
                     'feeder_cadre_id' => $feederData['feeder_cadre_id'] ?? null,
                     'promotion_percentage' => $feederData['promotion_percentage'] ?? 0,
                     'min_experience_years' => $feederData['min_experience_years'] ?? 0,
+                    // Chosen from the Qualification master by the screen. When
+                    // only text arrives it stays null here and is resolved at
+                    // projection, which is where it used to be resolved for
+                    // every caller.
+                    'qualification_id' => $feederData['qualification_id'] ?? null,
                     'min_qualification' => $feederData['min_qualification'] ?? null,
                     'sort_order' => $feederOrder++,
                 ]);
@@ -250,6 +275,14 @@ class PreDpcProposalService
         $proposal->load('posts.feeders');
 
         foreach ($proposal->posts as $post) {
+            // A post chosen from the Cadre master is already the master row —
+            // the screen picked it. Creating one from its name would, at best,
+            // find the same row again and, at worst, mint a duplicate whenever
+            // the department later renamed the cadre.
+            if ($post->cadre_id !== null) {
+                continue;
+            }
+
             $cadre = Cadre::query()->updateOrCreate(
                 ['department_id' => $proposal->department_id, 'name' => $post->post_name],
                 ['class_level' => $post->class_level->value, 'pay_scale_id' => $post->pay_scale_id, 'status' => MasterStatus::Active->value],
@@ -271,6 +304,17 @@ class PreDpcProposalService
                         'feeder_cadre_id' => $feederCadre->id,
                         'promotion_percentage' => $feeder->promotion_percentage,
                         'min_experience_years' => $feeder->min_experience_years,
+                        // The screen now chooses the qualification from the
+                        // master, so the common case is a straight copy.
+                        //
+                        // Falling back to matching the text keeps two older
+                        // paths working: a proposal drafted before 2026-08-18,
+                        // and any caller that posts only `min_qualification`.
+                        // Text that matches nothing is carried through
+                        // unresolved rather than dropped, so it stays visible
+                        // and is reported by `php artisan qualifications:unmapped`.
+                        'qualification_id' => $feeder->qualification_id
+                            ?? $this->resolveQualificationId($feeder->min_qualification),
                         'min_qualification' => $feeder->min_qualification,
                     ];
                 }
@@ -285,5 +329,41 @@ class PreDpcProposalService
                 'status' => MasterStatus::Active->value,
             ], $feeders, null);
         }
+    }
+
+    /**
+     * Match a hand-entered qualification against the Qualification master.
+     *
+     * Compares a normalised form (case-folded, punctuation and whitespace
+     * stripped) against both the code and the English name, so "Post-Graduate",
+     * "post graduate" and "PG" all resolve to the same row. Returns null when
+     * nothing matches — an unresolved qualification is a data-quality finding to
+     * be reported, never a reason to reject an approved Pre-DPC.
+     *
+     * Soft-deleted and withdrawn rows are excluded from matching but an already
+     * stored reference is untouched; see Qualification::scopeSelectable().
+     */
+    private function resolveQualificationId(?string $text): ?int
+    {
+        if ($text === null || trim($text) === '') {
+            return null;
+        }
+
+        $this->qualificationIndex ??= Qualification::query()
+            ->selectable()
+            ->get(['id', 'code', 'name_en'])
+            ->reduce(static function (array $index, Qualification $qualification): array {
+                foreach ([$qualification->code, $qualification->name_en] as $candidate) {
+                    $key = QualificationCatalogue::matchKey((string) $candidate);
+
+                    if ($key !== '' && ! isset($index[$key])) {
+                        $index[$key] = $qualification->id;
+                    }
+                }
+
+                return $index;
+            }, []);
+
+        return $this->qualificationIndex[QualificationCatalogue::matchKey($text)] ?? null;
     }
 }

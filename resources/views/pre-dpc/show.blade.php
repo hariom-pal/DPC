@@ -47,9 +47,21 @@
                                         <td>{{ $post->direct_recruitment_pct }}</td>
                                         <td>{{ $post->promotion_recruitment_pct }}</td>
                                         <td>
-                                            @foreach ($post->feeders as $feeder)
-                                                <div class="small">{{ $feeder->feeder_name }} — {{ $feeder->promotion_percentage }}%, {{ $feeder->min_experience_years }} yr</div>
-                                            @endforeach
+                                            {{-- Read through the label methods, never the raw text: they
+                                                 prefer the master row and fall back to what was typed, so a
+                                                 proposal written before the screen used the masters still
+                                                 shows what it named. --}}
+                                            @forelse ($post->feeders as $feeder)
+                                                <div class="small">
+                                                    {{ $feeder->feederLabel() }} — {{ $feeder->promotion_percentage }}%,
+                                                    {{ $feeder->min_experience_years }} yr
+                                                    @if ($feeder->qualificationLabel())
+                                                        , {{ $feeder->qualificationLabel() }}
+                                                    @endif
+                                                </div>
+                                            @empty
+                                                <span class="text-body-secondary small">Direct recruitment only</span>
+                                            @endforelse
                                         </td>
                                     </tr>
                                 @empty

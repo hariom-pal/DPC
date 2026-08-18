@@ -83,6 +83,12 @@
 
 <script src="{{ asset('vendor/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
 <script src="{{ asset('js/portal.js') }}" defer></script>
+{{-- Searchable dropdowns. Loaded on the department shell as well as the admin
+     one from 2026-08-18, when the Pre-DPC screen started selecting posts,
+     feeder cadres and qualifications from the masters. It is a progressive
+     enhancement over a native <select>, so a screen that does not use one is
+     unaffected by its presence. --}}
+<script src="{{ asset('js/searchable-select.js') }}" defer></script>
 @stack('scripts')
 </body>
 </html>

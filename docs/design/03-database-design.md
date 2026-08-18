@@ -17,8 +17,40 @@ Conventions: snake_case tables (plural); `id` BIGINT unsigned PK; `created_at`/`
 
 ## B. Pre-DPC (posts sanctioned for promotion)
 
+> **As-designed, not as-built.** This section records the 2026-07-30 design. M3
+> shipped the same shape under different names — `pre_dpc_proposals`,
+> `pre_dpc_posts`, `pre_dpc_post_feeders`, with the proposal (not the post)
+> carrying the version and approval — because the Pre-DPC became a versioned
+> department singleton. The as-built columns are below; the original wording is
+> kept because the rest of this document is written against it.
+
 **promotion_posts** — `department_id` FK, `post_name`, `pay_scale`, `direct_recruitment_pct`, `promotion_recruitment_pct`, `class_level` (I/II/III), `status` (draft/approved), `approved_by`, `approved_at`, timestamps, soft deletes, audit.
 **promotion_post_feeders** — `promotion_post_id` FK, `feeder_post_name`, `percentage`, `experience_years`, `sort_order`.
+
+### As built
+
+**pre_dpc_posts** — `pre_dpc_proposal_id` FK, `post_name`, **`cadre_id`** (nullable FK→`cadres`), `class_level`, `pay_scale_id` (nullable FK), `direct_recruitment_pct`, `promotion_recruitment_pct`, `sort_order`.
+**pre_dpc_post_feeders** — `pre_dpc_post_id` FK, `feeder_name`, **`feeder_cadre_id`** (nullable FK→`cadres`), `promotion_percentage`, `min_experience_years`, **`qualification_id`** (nullable FK→`qualifications`, ON DELETE SET NULL — added 2026-08-18), `min_qualification` (legacy text), `sort_order`.
+
+**Both name/reference pairs are deliberate, and neither text column is dead.**
+From 2026-08-18 the screen writes the references and the text is the legacy
+record: what the department originally wrote, kept because unmatched text must
+stay readable and because dropping it would drop the data-quality finding with
+it. Read them through `PreDpcPostFeeder::feederLabel()` and
+`qualificationLabel()`, which prefer the master and fall back to the text — never
+the raw column.
+
+`cadre_id` and `feeder_cadre_id` predate that change: they existed from M3 but
+were written by the projection *after* approval rather than by the screen at
+entry. They are still nullable, because a caller that posts only names remains
+valid and its cadres are resolved at projection, exactly as before.
+
+**DR % + PR % must total exactly 100** per post, and the feeder set carries no
+self-reference, no duplicate feeder and no duplicate post — all enforced in
+`SavePreDpcProposalRequest`, because these rows are projected into
+`recruitment_rules` / `recruitment_rule_feeders`, whose own screen and whose
+unique index on (rule, feeder cadre) would otherwise reject or fail on what an
+approved Pre-DPC produced.
 
 ## C. DPC Proposal (core aggregate)
 

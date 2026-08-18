@@ -140,6 +140,48 @@ class PreDpcWorkflowTest extends TestCase
         $this->assertSame(1, $v2->posts()->count());
     }
 
+    /**
+     * DR % + PR % must total 100% here, not only in the Recruitment Rule master.
+     *
+     * Approving a Pre-DPC projects its posts into that master. Enforcing the
+     * rule only at the master would let a department approve a Pre-DPC that
+     * writes a rule the admin screen then refuses to re-save.
+     */
+    public function test_a_post_whose_dr_and_pr_do_not_total_100_is_refused(): void
+    {
+        $this->actingAs($this->ao)->post(route('pre-dpc.store'), [
+            'government_order_number' => 'GO/2024/HE/1',
+            'effective_from' => '2024-01-01',
+            'posts' => [[
+                'post_name' => 'Deputy Secretary',
+                'class_level' => 'I',
+                'direct_recruitment_pct' => 30,
+                'promotion_recruitment_pct' => 50,
+            ]],
+        ])->assertSessionHasErrors([
+            'posts.0.direct_recruitment_pct' => 'Deputy Secretary: Direct Recruitment % and Promotion % must total exactly 100%. They currently total 80%.',
+        ]);
+
+        $this->assertSame(0, PreDpcProposal::query()->count());
+    }
+
+    /** A post filled entirely by direct recruitment is 100 / 0, and is valid. */
+    public function test_a_direct_recruitment_only_post_is_accepted(): void
+    {
+        $this->actingAs($this->ao)->post(route('pre-dpc.store'), [
+            'government_order_number' => 'GO/2024/HE/1',
+            'effective_from' => '2024-01-01',
+            'posts' => [[
+                'post_name' => 'Assistant Grade-1',
+                'class_level' => 'III',
+                'direct_recruitment_pct' => 100,
+                'promotion_recruitment_pct' => 0,
+            ]],
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame(1, PreDpcProposal::query()->count());
+    }
+
     public function test_submit_requires_go_number(): void
     {
         $this->actingAs($this->ao)->post(route('pre-dpc.store'), [
