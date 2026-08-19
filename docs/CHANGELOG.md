@@ -4,7 +4,7 @@ All notable work on the ODPC Portal, in reverse chronological order. Business-ru
 
 ## 2026-08-19 — DEMO COMPLETION MODE: M10 built, and four M11 features
 
-**Architect directive, 2026-08-19: maximise implementation before the business review; never stop for a pending Business Decision — record the assumption, make it configurable, keep building.** Five features shipped under it. Suite **809 → 899** (2832 assertions). Pint clean · PHPStan L6 0 errors · `composer audit` clean · MySQL **51 migrations, 68 tables** · **all five freezes empty** · `demo:seed` rebuilds with all seven DPC IDs and the circulation unchanged.
+**Architect directive, 2026-08-19: maximise implementation before the business review; never stop for a pending Business Decision — record the assumption, make it configurable, keep building.** Eight features shipped under it. Suite **809 → 924** (2973 assertions). Pint clean · PHPStan L6 0 errors · `composer audit` clean · MySQL **51 migrations, 68 tables** · **all five freezes empty** · `demo:seed` rebuilds with all seven DPC IDs and the circulation unchanged, and now prints where to find every screen added today.
 
 **This reverses the recommendation made earlier the same day.** M10 was assessed as blocked on BD-19. Under the new directive it was built instead, with the authentication mechanism expressed as configuration so the ruling — when it comes — is a config value rather than a code change.
 
@@ -50,6 +50,24 @@ Titles are sentences a person would use, with a general fallback so a future mil
 **TD-20's `NotificationRecipientResolver` now exists.** TD-20 says the two frozen copies of that query cannot be merged until a freeze window opens; adding a third would have made it worse. The new channel uses the resolver, the frozen copies are untouched, and TD-20's remaining work is now *"repoint two callers"*.
 
 **⚠ One thing the gate caught, worth recording.** Caching the unread count for 30s made a page issue a different number of queries on its second render, which the N+1 detector on the DPC proposal detail screen correctly flagged. That detector is the only test that can catch a real N+1 regression on the heaviest screen in the system, so **the cache is off by default rather than blunting it** to save one indexed `count()`.
+
+### M11 — hardening: TD-5, and response security headers
+
+**TD-5, closed.** Every Pre-DPC transition read `status` from the instance the controller had already loaded, then wrote based on it. Two simultaneous submits could both pass `assertAllowed()` against the same `draft` and both write — two transitions out of one state, two ledger rows, and on `approve` **two signatures on one proposal**. M4 onward have taken a `lockForUpdate()` since Phase 1; this backports it, which is what the register said to do during hardening. A concurrent race cannot be reproduced on a single in-memory SQLite connection, so the tests assert the property that closes the hole — a caller holding a stale instance is refused rather than obeyed.
+
+**Response security headers.** CSP, `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, and HSTS **over TLS only**. A response filter, so every screen gets them — including the frozen milestones' — without any of them being edited.
+
+The strict CSP is affordable here rather than aspirational: the application vendors Bootstrap and its own scripts and loads nothing from a CDN. **Inline styles are permitted and inline scripts are not**, and a test pins that asymmetry, because a future *"the CSP is breaking my widget"* fix would remove it. Every header is configuration and the whole set can be switched off — one that breaks a page in production and cannot be disabled without a deploy is worse than an absent one.
+
+### M11 — blank upload templates for S16–S18
+
+Recorded in the M11 Enhancement Backlog as **the most likely cause of a rejected import today**: the three upload screens document their columns in prose, so a department builds the file from a written list and gets a header wrong.
+
+CSV with a UTF-8 BOM (without it Excel on Windows reads a Hindi post name as mojibake). **Headers only, no specimen row** — a sample officer is a row a department forgets to delete, and the importer would take it as real.
+
+**Correct by construction:** the headers are emitted from the same `columnMap()` the importer reads and the same year patterns it matches, and the test checks them against *those* rather than against a second list written in the test — which is the exact mistake the feature exists to stop a human making. A template the parser rejects is worse than no template.
+
+**⚠ Its own screen rather than a button beside each upload control**, because those screens are M4's and M4 is architecture-frozen: putting it there needs a **Freeze Exception under AD-22**. The capability ships now, reached from the department dashboard; moving the button is two lines once the exception is granted. Same shape as M8 reaching M4's frozen screens from the layout — work around the freeze, never through it.
 
 ### M11 — reports over the whole pipeline
 

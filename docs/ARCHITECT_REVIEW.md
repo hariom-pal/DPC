@@ -552,7 +552,20 @@ Three candidate answers, all decisions rather than engineering, and the middle o
 
 **One deliberate duplication, recorded rather than left to be discovered.** `App\Domain\SelfInspection\ValueObjects\PendingBusinessDecision` is a copy of M9's, not a reuse of it: moving M9's into `Shared` is a refactor of a built milestone awaiting closure, which needs approval and would have been the wrong thing to do quietly mid-build. **The right home is `app/Domain/Shared/`, and it should be extracted in the next freeze window** — the same shape as TD-20.
 
-**What remains in M11:** the hardening pass — Redis cache tuning, the security and performance review, final QA — plus **TD-1**, **TD-6** and **TD-8**, none of which is code in this repository.
+**Two more features and two debt items, later the same day:**
+
+| Delivered | Notes |
+|---|---|
+| **M11 — response security headers** | CSP, frame, sniff, referrer, permissions, HSTS-over-TLS. A response filter, so the frozen screens get them without being edited. **Inline styles permitted, inline scripts not** — a test pins the asymmetry |
+| **M11 — blank upload templates (S16–S18)** | Headers emitted from the importer's own `columnMap()` and year patterns, so a template cannot drift from the parser. **On its own screen** — see below |
+| **TD-5 — closed** | Every Pre-DPC transition now takes `lockForUpdate()` before reading state. Two simultaneous approvals used to mean **two signatures on one proposal** |
+| **TD-7 — closed** | The audit trail has a UI |
+
+**⚠ The upload templates are the one place a Freeze Exception would still change the outcome.** The natural home for *"Download blank template"* is beside each upload control on S16–S18 — **M4's screens, architecture-frozen, no new features**. Rather than not deliver the capability, it ships on its own screen reached from the department dashboard, and the route and builder are in place so moving the button is a two-line change once the exception is granted. **This is the same manoeuvre M8 used** to reach M4's frozen screens from the layout, and M9 used to own its own document type: around the freeze, never through it. Recorded so the compromise is visible rather than mistaken for a design preference.
+
+**Two debt items are closed and `docs/TECHNICAL_DEBT.md` has deliberately not been updated** — the directive limits documentation to this file, `PROJECT_STATUS.md` and `CHANGELOG.md`. **TD-5** (Pre-DPC lock ordering) and **TD-7** (audit trail has no UI) are both done; the register still shows them open and should be reconciled when documentation resumes. Recording it here is what stops that reconciliation being forgotten.
+
+**What remains in M11:** the performance pass and final QA, plus **TD-1**, **TD-6** and **TD-8**, none of which is code in this repository. **Redis cache tuning was in scope and was deliberately not done**: the notification badge demonstrated the hazard — caching a single value the layout renders made the N+1 detector on the heaviest screen in the system fire, because a cached page issues a different number of queries on its second render. No cache was added speculatively.
 
 ### 0.14 For the Architect — copy-paste
 

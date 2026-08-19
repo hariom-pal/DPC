@@ -19,7 +19,7 @@
 | ✅ | **M8 Complete (Frozen)** — Review DPC, all 3 phases. **M8 FREEZE ACTIVE from 2026-08-14** (AD-21). BD-11 deferred — it does not block M8 completion |
 | 🟢 | **M9 CLOSURE-READY — awaiting business approval only (confirmed 2026-08-18).** Circulation DPC, all three phases. Engineering, documentation, quality gates and milestone deliverables are **all complete and re-verified today**; **BD-14 is the sole blocker.** Governed by **AD-23**, **AD-24** and the **AQ-22** ruling. Readiness record and the six closure steps: `docs/ARCHITECT_REVIEW.md` **§0.13.1**; checklist §0.13 — items 1–19 green, 20–23 consequences of BD-14. **Not closed, not tagged, not frozen** |
 | 🟢 | **M10 Self-Inspection BUILT (2026-08-19)** — S49–S51, the deck's three screens and two buttons. BD-19 and the deadline basis are configuration; the online objection is not in the deck (**BD-20**) and was not built |
-| 🟢 | **M11 IN PROGRESS (2026-08-19)** — audit-trail screen, in-app notification centre, reports. Hardening and the performance pass remain |
+| 🟢 | **M11 IN PROGRESS (2026-08-19)** — audit-trail screen, in-app notification centre, reports, upload templates, security headers. The performance pass and final QA remain |
 
 (M0 Foundation is complete and predates M1.)
 
@@ -83,7 +83,7 @@ This is a milestone-count estimate, not effort-weighted. M4 and M5 were the two 
 
 ## Current Work
 
-**2026-08-19 — DEMO COMPLETION MODE. M10 built; four M11 features built. Suite 809 → 899 (2832 assertions). All five freezes empty.**
+**2026-08-19 — DEMO COMPLETION MODE. M10 built; six M11 features built; TD-5 and TD-7 closed. Suite 809 → 924 (2973 assertions). All five freezes empty.**
 
 **Architect directive received 2026-08-19:** maximise implementation before the business review; never stop for a pending Business Decision — record the assumption, make it configurable, keep building. Where a requirement admits several readings, take the safest and most configurable one. **Documentation is limited to this file, `CHANGELOG.md` and `ARCHITECT_REVIEW.md` until every milestone is complete.**
 
@@ -96,6 +96,10 @@ This is a milestone-count estimate, not effort-weighted. M4 and M5 were the two 
 | **M11 — in-app notification centre** | The third channel, and today the only one that works: SMS and e-mail are both off pending the gateway (**TD-6**), so **nobody was being notified of anything**. Added by decoration; M6's, M7's and M8's listeners are byte-identical |
 | **M11 — reports** | Pipeline, by year, outcomes, variants, per-department. One screen scoped by role. **Counted from stored results, never recalculated** |
 | **M11 — publication & supersession notifications** | The two events that are deliberately not workflow transitions. The supersession wording is constrained by **BD-11** and a test pins the silence |
+| **M11 — upload templates (S16–S18)** | The backlog's *"most likely cause of a rejected import today"*. Correct by construction — headers emitted from the importer's own column map. **On its own screen, because the upload screens are M4's and frozen** |
+| **M11 — response security headers** | CSP, frame, sniff, referrer, permissions, HSTS-over-TLS. A response filter, so the frozen screens get them without being edited |
+| **TD-5 closed** | Every Pre-DPC transition now takes the write lock before deciding. Two simultaneous approvals used to mean **two signatures on one proposal** |
+| **TD-7 closed** | The audit trail has a UI |
 
 **Three findings worth the Architect's attention, all in `docs/ARCHITECT_REVIEW.md` §0.13.7:**
 
@@ -162,9 +166,11 @@ A Review DPC has an origin, a chain (`chain_uuid`, `review_number`, `chain_depth
 
 ## Next Milestone
 
-**M11 — Reports, Audit UI, Notifications, Hardening. IN PROGRESS.** Three of its features are built (audit-trail screen, in-app notification centre, reports). What remains is the **hardening pass**: Redis cache tuning, the security and performance review, and final QA — plus the deployment-side items that are not code in this repository (**TD-1**, **TD-6**, **TD-8**).
+**M11 — Reports, Audit UI, Notifications, Hardening. IN PROGRESS.** Built: the audit-trail screen, the in-app notification centre, reports, blank upload templates, and response security headers. What remains is the **performance pass and final QA**, plus the deployment-side items that are not code in this repository (**TD-1**, **TD-6**, **TD-8**).
 
-**One M11 item is blocked by a freeze, not by a decision:** the *"Download blank template"* button for the three Excel uploads (S16–S18) — the most likely cause of a rejected import today. It is a **new feature on M4's frozen screens**, so it needs a Freeze Exception under AD-22 and was deliberately not built.
+**One thing a Freeze Exception would still improve.** The blank upload templates ship on **their own screen**, reached from the department dashboard, because a *"Download blank template"* button beside each upload control would be a new feature on **M4's frozen screens** and needs a Freeze Exception under AD-22. The capability is available now; moving the button is two lines once the exception is granted.
+
+**Deliberately not added: further caching.** Redis tuning was in M11's original scope, and the notification badge showed why to be careful — caching one value the layout renders made the N+1 detector on the DPC proposal detail screen fire, because a cached page issues a different number of queries on its second render. No cache was added speculatively.
 
 ### M10 — BUILT 2026-08-19, with both open questions expressed as configuration
 
@@ -318,7 +324,7 @@ Permanent four-part gate (ruled 2026-08-13) — every phase must pass all four b
 | PHPStan / Larastan level 6 | **0 errors** |
 | `composer audit` | **No advisories** — second attempt; the first timed out to local cache (**TD-2**) |
 | **`schema:verify-mysql`** | **51 migrations, 68 tables on MySQL 8.0.46** — added 2026-08-19, closing TD-24 |
-| PHPUnit | **899 passed / 2832 assertions, 0 failing** (2026-08-19) |
+| PHPUnit | **924 passed / 2973 assertions, 0 failing** (2026-08-19) |
 
 **The gate is five steps from 2026-08-19, not four.** The added step builds every migration against **MySQL** in a throwaway database, because the suite runs on in-memory SQLite and the application does not — the difference that let an M8 migration pass 84 green tests while being impossible to create at all. It is TD-24's own recommendation, and it does not touch `dpc_dev`.
 
@@ -330,7 +336,7 @@ Plus `php artisan migrate:fresh --seed`: **OK** — **45 migrations, 65 tables**
 
 ## Test Status
 
-**899 passed / 2832 assertions, 0 failing**, verified 2026-08-19. Earlier detail below is retained because it explains why these figures are re-derived rather than copied.
+**924 passed / 2973 assertions, 0 failing**, verified 2026-08-19. Earlier detail below is retained because it explains why these figures are re-derived rather than copied.
 
 **718 passed / 2178 assertions, 0 failing**, verified at M9 Phase 3 finalisation (2026-08-16). M8 contributed 83; **M9 contributed 98 — 46 in Phase 1, 26 in Phase 2, 26 in Phase 3**.
 

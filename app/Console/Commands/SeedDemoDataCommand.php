@@ -82,6 +82,28 @@ class SeedDemoDataCommand extends Command
         $this->table(['Record', 'Identifier'], $this->identifiers());
 
         $this->selfInspectionCheatSheet();
+        $this->newScreens();
+    }
+
+    /**
+     * The screens a presenter would otherwise have to be told about.
+     *
+     * Every one of these is reachable from the UI — that is deliberate, and it is
+     * why they are listed here as URLs rather than as instructions: if a screen
+     * needed explaining to be found, it would not be finished.
+     */
+    private function newScreens(): void
+    {
+        $this->newLine();
+        $this->line('  <options=bold>Also worth showing</>');
+
+        $this->table(['Screen', 'Who reaches it', 'Where'], [
+            ['Reports', 'every role — it scopes itself', route('reports.index')],
+            ['Notifications', 'every role, from the bell in the header', route('notifications.index')],
+            ['Audit trail', 'CGPSC Admin', route('admin.audit-trail.index')],
+            ['Upload templates', 'AO / AH, from the dashboard', route('dpc-import-templates.index')],
+            ['Self-Inspection', 'the officer — no account', route('self-inspection.landing')],
+        ]);
     }
 
     /**
