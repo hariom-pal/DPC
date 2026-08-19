@@ -1,6 +1,6 @@
 # DPC Project — Status
 
-**Last updated:** 2026-08-18. This is the single page to read first when returning to the project. Full detail: `docs/PROJECT_PROGRESS.md`. Pending decisions/findings: `docs/ARCHITECT_REVIEW.md`. Business questions: `docs/PENDING_BUSINESS_DECISIONS.md`, put to business users in `docs/UAT_BUSINESS_VALIDATION.md`. Known limitations & deferred items: `docs/TECHNICAL_DEBT.md`. Architecture rulings: `docs/ARCHITECTURE_DECISIONS.md`. Per-milestone summary: `docs/MILESTONE_SUMMARY.md`. History: `docs/PROJECT_TIMELINE.md`. Workflows: `docs/WORKFLOWS.md`. Business decisions: `docs/PENDING_BUSINESS_DECISIONS.md`. Integrations: `docs/INTEGRATION_ROADMAP.md`. UAT: `docs/UAT_CHECKLIST.md`, `docs/DEMO_SCRIPT.md`. History: `docs/CHANGELOG.md`. Source of truth for business rules: `docs/ODPC_NEW_FINAL.pptx` + `docs/CONVENTIONAL DPC PROCESS.pptx`.
+**Last updated:** 2026-08-19. This is the single page to read first when returning to the project. Full detail: `docs/PROJECT_PROGRESS.md`. Pending decisions/findings: `docs/ARCHITECT_REVIEW.md`. Business questions: `docs/PENDING_BUSINESS_DECISIONS.md`, put to business users in `docs/UAT_BUSINESS_VALIDATION.md`. Known limitations & deferred items: `docs/TECHNICAL_DEBT.md`. Architecture rulings: `docs/ARCHITECTURE_DECISIONS.md`. Per-milestone summary: `docs/MILESTONE_SUMMARY.md`. History: `docs/PROJECT_TIMELINE.md`. Workflows: `docs/WORKFLOWS.md`. Business decisions: `docs/PENDING_BUSINESS_DECISIONS.md`. Integrations: `docs/INTEGRATION_ROADMAP.md`. UAT: `docs/UAT_CHECKLIST.md`, `docs/DEMO_SCRIPT.md`. History: `docs/CHANGELOG.md`. Source of truth for business rules: `docs/ODPC_NEW_FINAL.pptx` + `docs/CONVENTIONAL DPC PROCESS.pptx`.
 
 ## Current Status
 
@@ -18,6 +18,8 @@
 | ✅ | **M8 Phase 3 Complete** — supersession, Review documents, `SUPERSEDED` watermark, publication |
 | ✅ | **M8 Complete (Frozen)** — Review DPC, all 3 phases. **M8 FREEZE ACTIVE from 2026-08-14** (AD-21). BD-11 deferred — it does not block M8 completion |
 | 🟢 | **M9 CLOSURE-READY — awaiting business approval only (confirmed 2026-08-18).** Circulation DPC, all three phases. Engineering, documentation, quality gates and milestone deliverables are **all complete and re-verified today**; **BD-14 is the sole blocker.** Governed by **AD-23**, **AD-24** and the **AQ-22** ruling. Readiness record and the six closure steps: `docs/ARCHITECT_REVIEW.md` **§0.13.1**; checklist §0.13 — items 1–19 green, 20–23 consequences of BD-14. **Not closed, not tagged, not frozen** |
+| 🟢 | **M10 Self-Inspection BUILT (2026-08-19)** — S49–S51, the deck's three screens and two buttons. BD-19 and the deadline basis are configuration; the online objection is not in the deck (**BD-20**) and was not built |
+| 🟢 | **M11 IN PROGRESS (2026-08-19)** — audit-trail screen, in-app notification centre, reports. Hardening and the performance pass remain |
 
 (M0 Foundation is complete and predates M1.)
 
@@ -61,7 +63,7 @@ Until the first of these tags existed there was no commit at any milestone bound
 
 ## Overall Progress
 
-**~91% by milestone count** — M0 through **M9 Circulation DPC** are built. Ten of eleven milestone slots; **M10 (Self-Inspection & Objection)** and **M11 (Reports, Audit UI, Hardening)** remain. Two milestones are built but not closed for business reasons only: **M8 pending BD-11** (deferred) and **M9 pending BD-14**, which blocks publication of a circulation note and nothing else.
+**~97% by milestone count** — M0 through **M10** are built, and three of M11's four feature areas are too. What remains of M11 is the **hardening pass** (Redis tuning, the security and performance review, final QA) and the deployment-side items that are not code in this repository. Two milestones are built but not closed for business reasons only: **M8 pending BD-11** (deferred) and **M9 pending BD-14**, which blocks publication of a circulation note and nothing else.
 
 This is a milestone-count estimate, not effort-weighted. M4 and M5 were the two largest and are both frozen. M8 was the smallest of the workflow milestones by new code and the largest by leverage — it added **no** new workflow, engine, renderer or proceeding.
 
@@ -81,7 +83,27 @@ This is a milestone-count estimate, not effort-weighted. M4 and M5 were the two 
 
 ## Current Work
 
-**2026-08-19 — Unblocked backlog cleared to exhaustion. TD-24 closed, TD-25 half-closed, M10 assessed and blocked. No milestone opened or closed; all five freezes empty. Suite 801 → 809 (2482 assertions).**
+**2026-08-19 — DEMO COMPLETION MODE. M10 built; four M11 features built. Suite 809 → 899 (2832 assertions). All five freezes empty.**
+
+**Architect directive received 2026-08-19:** maximise implementation before the business review; never stop for a pending Business Decision — record the assumption, make it configurable, keep building. Where a requirement admits several readings, take the safest and most configurable one. **Documentation is limited to this file, `CHANGELOG.md` and `ARCHITECT_REVIEW.md` until every milestone is complete.**
+
+**This reversed the recommendation made earlier the same day.** M10 had been assessed as blocked on BD-19. Under the directive it was built, with the authentication mechanism expressed as configuration so the ruling is a config value rather than a code change.
+
+| Delivered | What it is |
+|---|---|
+| **M10 — Self-Inspection & Assessment (S49–S51)** | The officer views the data their department recorded, before the Committee sits. The deck's three screens and its two buttons, `CLOSE` and `PRINT`. **BD-19 (authentication) and the notice's deadline are both configuration**; the two drivers the data cannot support return a structured *Pending Business Decision* rather than pretending |
+| **M11 — audit-trail screen** | All three records — workflow ledger, activity timeline, model changes — read side by side and labelled as the different things they are. Read-only, enforced by test. Streamed CSV export |
+| **M11 — in-app notification centre** | The third channel, and today the only one that works: SMS and e-mail are both off pending the gateway (**TD-6**), so **nobody was being notified of anything**. Added by decoration; M6's, M7's and M8's listeners are byte-identical |
+| **M11 — reports** | Pipeline, by year, outcomes, variants, per-department. One screen scoped by role. **Counted from stored results, never recalculated** |
+| **M11 — publication & supersession notifications** | The two events that are deliberately not workflow transitions. The supersession wording is constrained by **BD-11** and a test pins the silence |
+
+**Three findings worth the Architect's attention, all in `docs/ARCHITECT_REVIEW.md` §0.13.7:**
+
+1. **S51 has no *RAISE OBJECTION*** — the deck sends objections to the department **in person**. The online objection in the roadmap is not in the requirement (**BD-20**), so it was not built.
+2. **The unread-count cache had to be removed**, because caching it made a page issue a different number of queries on its second render and the N+1 detector on the DPC proposal detail screen correctly flagged it. That detector is the only test that can catch a real N+1 on the heaviest screen in the system.
+3. **TD-20's resolver now exists**, used by the new channel only. The two frozen copies are untouched, so TD-20's remaining work is *"repoint two callers"* rather than *"write a resolver and repoint two callers"*.
+
+**Earlier the same day — unblocked backlog cleared to exhaustion. TD-24 closed, TD-25 half-closed. Suite 801 → 809 (2482 assertions).**
 
 The previous session's four closures — TD-23, TD-24 step 1, TD-26, TD-27 — existed only as an uncommitted working tree and are now **committed**, one commit each. Full findings in `docs/ARCHITECT_REVIEW.md` §0.13.5–§0.13.6.
 
@@ -140,14 +162,22 @@ A Review DPC has an origin, a chain (`chain_uuid`, `review_number`, `chain_depth
 
 ## Next Milestone
 
-**M10 — Self-Inspection (S49–S51). NOT OPENED. Blocked on BD-19, and that is not the blocker the roadmap names.**
+**M11 — Reports, Audit UI, Notifications, Hardening. IN PROGRESS.** Three of its features are built (audit-trail screen, in-app notification centre, reports). What remains is the **hardening pass**: Redis cache tuning, the security and performance review, and final QA — plus the deployment-side items that are not code in this repository (**TD-1**, **TD-6**, **TD-8**).
+
+**One M11 item is blocked by a freeze, not by a decision:** the *"Download blank template"* button for the three Excel uploads (S16–S18) — the most likely cause of a rejected import today. It is a **new feature on M4's frozen screens**, so it needs a Freeze Exception under AD-22 and was deliberately not built.
+
+### M10 — BUILT 2026-08-19, with both open questions expressed as configuration
+
+**Previously assessed as blocked on BD-19; built under the demo-completion directive instead.**
 
 Two answers are needed before any of M10 can be built, and neither is an engineering question (`docs/ARCHITECT_REVIEW.md` §0.13.6):
 
 1. **BD-19, P1 — how does an individual officer log in?** S50 uses Aadhaar + Aadhaar OTP, replaced project-wide by Q1 with identifier + password + OTP. But that deviation assumed a **registered user**, and an individual is only a row in an officer snapshot: **none of the three ten-field snapshot tables carries a mobile or an email**, deliberately, so there is **no channel for an OTP**. Adding one is a schema change to frozen M4 and needs a Freeze Exception under AD-22. Authenticating on knowledge factors alone is **not recommended** — S51 shows year-wise CR grades, category and property compliance, and anyone holding a seniority list holds name, date of joining and DOB for every officer on it.
 2. **BD-20 — is the online objection in scope at all?** **S51 has two buttons: `CLOSE` and `PRINT`.** The notice sends the officer to the department **in person** and says CGPSC will consider no representation. The roadmap's *"time-boxed objection (late auto-filed)"* is not in the deck, and **BD-8/Q11 asks three questions about it regardless**.
 
-**No self-inspection code was written.** The view itself is straightforward — S51's data is exactly one `dpc_evaluation_rows` row with its three per-year children — but a screen with no reachable entry point is the defect the 2026-08-18 sweep spent its afternoon fixing.
+**Both questions are now configuration rather than blockers.** BD-19's three answers are the three drivers of `dpc.self_inspection.authentication.driver`; `identity_factors` is the default and the only one the existing data supports, and the other two return a structured *Pending Business Decision (BD-19)* rather than pretending a channel or a workflow exists. BD-20 was resolved by **following the deck**: S51 has two buttons, so the screen has two buttons, and no online objection was invented.
+
+**The screen is reachable** — linked from the public landing page and the login screen, since an officer with no account has no other way in. `demo:seed` prints the three facts that open it.
 
 **Previously: M9 — Circulation DPC (S45–S48, C3, C7). Design approved 2026-08-16; ALL THREE PHASES COMPLETE. Closure pending BD-14.**
 
@@ -287,8 +317,8 @@ Permanent four-part gate (ruled 2026-08-13) — every phase must pass all four b
 | Laravel Pint (PSR-12 + strict types) | **Passed** |
 | PHPStan / Larastan level 6 | **0 errors** |
 | `composer audit` | **No advisories** — second attempt; the first timed out to local cache (**TD-2**) |
-| **`schema:verify-mysql`** | **49 migrations, 66 tables on MySQL 8.0.46** — added 2026-08-19, closing TD-24 |
-| PHPUnit | **809 passed / 2482 assertions, 0 failing** (2026-08-19) |
+| **`schema:verify-mysql`** | **51 migrations, 68 tables on MySQL 8.0.46** — added 2026-08-19, closing TD-24 |
+| PHPUnit | **899 passed / 2832 assertions, 0 failing** (2026-08-19) |
 
 **The gate is five steps from 2026-08-19, not four.** The added step builds every migration against **MySQL** in a throwaway database, because the suite runs on in-memory SQLite and the application does not — the difference that let an M8 migration pass 84 green tests while being impossible to create at all. It is TD-24's own recommendation, and it does not touch `dpc_dev`.
 
@@ -300,7 +330,7 @@ Plus `php artisan migrate:fresh --seed`: **OK** — **45 migrations, 65 tables**
 
 ## Test Status
 
-**809 passed / 2482 assertions, 0 failing**, verified 2026-08-19. Earlier detail below is retained because it explains why these figures are re-derived rather than copied.
+**899 passed / 2832 assertions, 0 failing**, verified 2026-08-19. Earlier detail below is retained because it explains why these figures are re-derived rather than copied.
 
 **718 passed / 2178 assertions, 0 failing**, verified at M9 Phase 3 finalisation (2026-08-16). M8 contributed 83; **M9 contributed 98 — 46 in Phase 1, 26 in Phase 2, 26 in Phase 3**.
 

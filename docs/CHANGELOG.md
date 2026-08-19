@@ -2,6 +2,65 @@
 
 All notable work on the ODPC Portal, in reverse chronological order. Business-rule changes are traceable to `docs/ODPC_NEW_FINAL.pptx` / `docs/CONVENTIONAL DPC PROCESS.pptx` slide numbers where applicable. This file, `docs/PROJECT_STATUS.md`, `docs/PROJECT_PROGRESS.md`, and `docs/ARCHITECT_REVIEW.md` are the only documents updated on an ongoing basis (see `docs/ARCHITECT_REVIEW.md` for the full documentation policy).
 
+## 2026-08-19 — DEMO COMPLETION MODE: M10 built, and four M11 features
+
+**Architect directive, 2026-08-19: maximise implementation before the business review; never stop for a pending Business Decision — record the assumption, make it configurable, keep building.** Five features shipped under it. Suite **809 → 899** (2832 assertions). Pint clean · PHPStan L6 0 errors · `composer audit` clean · MySQL **51 migrations, 68 tables** · **all five freezes empty** · `demo:seed` rebuilds with all seven DPC IDs and the circulation unchanged.
+
+**This reverses the recommendation made earlier the same day.** M10 was assessed as blocked on BD-19. Under the new directive it was built instead, with the authentication mechanism expressed as configuration so the ruling — when it comes — is a config value rather than a code change.
+
+### M10 — Self-Inspection & Assessment (S49–S51)
+
+The officer under consideration views the data their department recorded, before the Committee sits. S49 introduces the facility, S50 identifies the officer, S51 shows their row with the deadline notice, `CLOSE` and `PRINT`.
+
+**Exactly the deck's three screens and two buttons.** There is no *RAISE OBJECTION*, because S51 has none: its notice sends the officer to the department **in person** and states that the Commission will consider no representation, such representations being consigned to file (*नस्तीबद्ध*). That is **BD-20**, and building an online objection would add a feature the requirement does not contain.
+
+**Every judgement is configuration:**
+
+| Decision | How it is expressed | Default |
+|---|---|---|
+| **BD-19** — how an individual authenticates | `self_inspection.authentication.driver`; the three answers BD-19 chooses between are the three drivers | `identity_factors` — the only one the data supports. `otp` and `account` are recognised and return a structured **Pending Business Decision (BD-19)** rather than pretending a channel or a workflow exists |
+| Which facts prove identity | `authentication.factors` | **Three**, not S50's two: the screen shows CR grades, category and property compliance, and two facts from a circulating seniority list is thinner than any other actor's login. Reducing it to the deck's two is a config change |
+| The notice's deadline | `objection_deadline.basis` | Derived from the scheduled sitting, 15 days before. **When no sitting is scheduled the notice renders with no date rather than inventing one** |
+| Which statuses are inspectable, closing after a result, throttle, session lifetime | `self_inspection.*` | `submitted,approved`; close after result; 5 attempts / 300s; 20 minutes |
+
+**Safety, because this is the only endpoint an unauthenticated caller reaches with officer data behind it:** all factors must match, nothing is matched partially, one generic refusal that never names the field that failed, the strictest rate limiter in the application, and every attempt recorded to `self_inspection_accesses` — the failed ones especially. **A failed attempt stores the claimed name only, never the guessed answers**, so the table cannot become a way to look somebody up. A match returns only that officer's own rows, and inspectability is re-checked every request so a session cannot outlive the sitting. **No mark, remark or promotion decision is shown** — those are M5 outputs from a Committee that has not met.
+
+**M4 is not touched:** the result check is a subquery rather than a new `proceedings` relation on the frozen `DpcProposal`. One additive migration. `demo:seed` prints the three facts that open the screen, read from the seeded chart so the cheat sheet cannot drift from the data.
+
+### M11 — audit-trail screen
+
+The audits and the Activity Timeline have been written since M1 and were readable only from the database. Three records, read side by side and **labelled as the different things they are** rather than flattened into one "log": the workflow ledger (state change, actor, remarks, signature, IP), the activity timeline (domain events with an actor *snapshot*), and model-level old-beside-new changes.
+
+Unified by a **UNION** projected onto nine shared columns, not by three queries merged in PHP — page 2 of three separately-limited lists is not the second page of anything. Filters name their own column per source, because the three tables disagree about what the actor column is called. `concat()` vs `||` is resolved per driver.
+
+CSV export **streams in chunks**: the point of an audit table is that it grows without bound, so an export that reads it into memory stops working exactly when the record becomes valuable. Formula injection is neutralised.
+
+**Read-only, and a test enforces it** — no create, update, delete or purge route exists and every audit-trail route accepts `GET` only. An audit record editable from the application that writes it is not an audit record.
+
+### M11 — in-app notification centre
+
+**Why it was needed:** every workflow notification went out by SMS and e-mail only. The gateway is not procured (**TD-6**) and `FEATURE_NOTIFICATIONS` defaults to off, so **nobody was actually being notified of anything** — in a demo, or on the day the system goes live before its gateway does.
+
+Added as a **second listener** on `WorkflowTransitioned`, plus one each for publication and supersession — AD-20's pattern applied to event subscribers. **M6's, M7's and M8's listeners are byte-identical.** Registered *outside* `FEATURE_NOTIFICATIONS` deliberately: that flag gates external delivery, and gating an in-app record behind it would switch off the only channel that always works.
+
+Titles are sentences a person would use, with a general fallback so a future milestone's transition is notifiable without editing the factory first. **The fallback earned its place immediately** — the demo seed exercised two circulation transitions nobody had phrased, which is how the gaps were found. `demo:seed` now produces **93 notifications, every one with real phrasing**.
+
+**The supersession wording is constrained by BD-11**, and a test pins the silence: while that decision is open the notification names both DPC codes and asserts nothing about the promotion, so the test asserts the *absence* of "withdrawn", "reverted", "arrears" and six other words a later helpful edit would reach for.
+
+**TD-20's `NotificationRecipientResolver` now exists.** TD-20 says the two frozen copies of that query cannot be merged until a freeze window opens; adding a third would have made it worse. The new channel uses the resolver, the frozen copies are untouched, and TD-20's remaining work is now *"repoint two callers"*.
+
+**⚠ One thing the gate caught, worth recording.** Caching the unread count for 30s made a page issue a different number of queries on its second render, which the N+1 detector on the DPC proposal detail screen correctly flagged. That detector is the only test that can catch a real N+1 regression on the heaviest screen in the system, so **the cache is off by default rather than blunting it** to save one indexed `count()`.
+
+### M11 — reports over the whole pipeline
+
+One screen for every role, **scoped by the service rather than split into two copies** — two copies is two places for the scope to be got wrong, and the wrong answer shows a department another department's promotion figures.
+
+Five reports: where the DPCs are (the PPT's stages, in process order), DPCs by year, what the approved results produced, Reviews and circulations, and a per-department table (withheld from a department). Plus a CSV export.
+
+**Nothing is recalculated.** Promotion figures come from the calculation run each proceeding **pinned at approval** — not the latest run, which may be a working draft superseded before approval. A report that recalculated would be a second implementation of the frozen M5 engine (AD-19) and would eventually disagree with the signed document it summarises. A test sets up a 5+5 draft run and a 2+1 approved run and asserts the report says 2 and 1.
+
+Bars are Bootstrap progress elements sized by percentage — **no charting library, no CDN, no build step**, which is the constraint Bootstrap itself is vendored under.
+
 ## 2026-08-19 — TD-24 closed, TD-25 half-closed, M10 assessed and blocked
 
 Suite **801 → 809** (2482 assertions). Pint clean · PHPStan L6 0 errors · all five freeze diffs empty · **`demo:seed` verified on MySQL** with all seven DPC IDs and the circulation unchanged. Nothing in M4–M9 touched. **The previous session's four closures — TD-23, TD-24 step 1, TD-26, TD-27 — existed only as an uncommitted working tree and are now committed**, one per item.

@@ -14,7 +14,7 @@
 
 ## 0. Current Session
 
-**Updated:** 2026-08-18 · **M9 closure readiness confirmed (§0.13.1), repository clean (§0.13.2), Implementation Guide blueprint complete (§0.13.3). Read those three first.** §0.1–§0.12 hold the completed documentation consolidation plan, retained rather than replaced because it is a deliverable, not working notes. **No code touched; nothing merged, deleted or moved.**
+**Updated:** 2026-08-19 · **DEMO COMPLETION MODE (§0.13.7) — M10 built and four M11 features built; read that first.** M9 closure readiness (§0.13.1) and the cleared backlog (§0.13.4–§0.13.5) still stand. §0.1–§0.12 hold the completed documentation consolidation plan, retained rather than replaced because it is a deliverable, not working notes.
 
 ### 0.1 Prompt received
 
@@ -521,6 +521,39 @@ Three candidate answers, all decisions rather than engineering, and the middle o
 
 **`docs/IMPLEMENTATION_GUIDE_BLUEPRINT.md` was left uncommitted.** It was produced on 2026-08-18 and the standing rule since forbids documentation blueprints and the Implementation Guide. It is neither committed nor deleted, pending a ruling on whether it is kept as a completed deliverable or discarded.
 
+#### 0.13.7 DEMO COMPLETION MODE — M10 built, four M11 features built
+
+**Directive received 2026-08-19:** maximise implementation before the business review; never stop for a pending Business Decision — record the assumption, make it configurable, keep building; where a requirement admits several readings, take the safest and most configurable one; documentation limited to three files.
+
+**Suite 809 → 899 (2832 assertions). Pint clean · PHPStan L6 0 errors · `composer audit` clean · MySQL 51 migrations / 68 tables · all five freezes empty · `demo:seed` unchanged (seven DPC IDs + the circulation).**
+
+**§0.13.6 recommended *not* opening M10. That recommendation is superseded by this directive**, and M10 was built — with both open questions expressed as configuration rather than guessed.
+
+| Delivered | Notes |
+|---|---|
+| **M10 — Self-Inspection (S49–S51)** | Three screens, two buttons. **BD-19's three answers are the three drivers** of `dpc.self_inspection.authentication.driver`; the two the data cannot support return a structured *Pending Business Decision*. **BD-20 resolved by following the deck**: no online objection was invented |
+| **M11 — audit-trail screen** | All three records, labelled as distinct. UNION-paginated. Read-only, enforced by test. Streamed CSV |
+| **M11 — in-app notification centre** | Second listener on `WorkflowTransitioned` (AD-20's pattern). Outside `FEATURE_NOTIFICATIONS` on purpose |
+| **M11 — reports** | One screen, scoped by role. Counted from the run each proceeding pinned at approval — never recalculated (AD-19) |
+| **M11 — publication & supersession notifications** | The two events that are deliberately not transitions. Supersession wording constrained by **BD-11**, pinned by test |
+
+**Four decisions taken under the directive's "safest, configurable" rule, each recorded because each could reasonably have gone the other way:**
+
+1. **Three identity factors, not S50's two.** The deck asks for name and date of joining the current cadre. The screen those two open shows year-wise CR grades, reservation category and immovable-property compliance — and all three of those facts appear on a departmental seniority list, which circulates. Date of birth is added by default; `dpc.self_inspection.authentication.factors` reduces it to the deck's two without a code change. **The safest reading was taken and the deck's reading is one config line away.**
+2. **No deadline is invented.** S51 shows *"दिनांक 25 जून 2026"* and says nothing about where the date comes from. It is derived as N days before the scheduled sitting; **when no sitting is scheduled the notice renders with no date**, while still telling the officer to raise a correction with the department in person. The alternative — "30 days from today" — would tell an officer a date nobody had decided, on the one screen whose purpose is to show them what the record says.
+3. **The in-app channel is not behind `FEATURE_NOTIFICATIONS`.** That flag gates *external* delivery, which needs a procured gateway (TD-6) and a phased rollout. An in-app record calls nothing outside the application. Gating it behind the integration flag would have switched off the only channel that works today, which is the entire reason the channel was built.
+4. **The supersession notification says nothing about consequence.** BD-11 is open, and its three plausible answers differ in what they do to a serving officer's substantive rank and pay. The notification names both DPC codes and says which promotion list is no longer current. A test asserts the *absence* of "withdrawn", "reverted", "arrears" and six similar words, because that is the sort of thing a later well-meaning edit adds.
+
+**Three findings worth the Architect's attention:**
+
+1. **⚠ The unread-count cache had to be removed, and the reason generalises.** Caching the notification badge for 30 seconds made a page issue a different number of queries on its *second* render than on its first, and the N+1 detector on the DPC proposal detail screen correctly flagged it as "a section is not eager loaded". It was a false positive that time — and would have been a **permanent** source of them, on the one test in the suite that can catch a real N+1 regression on the heaviest screen in the system. The cache is off by default. **The general point: a cache on anything the layout renders blunts every query-count assertion in the suite.**
+2. **TD-20's resolver now exists, and TD-20 got cheaper.** The register says the two frozen copies of the notification-recipient query cannot be merged until a freeze window opens. A third copy for the new channel would have made that worse, so `NotificationRecipientResolver` was written and only the new channel uses it. The frozen copies are untouched. **TD-20's remaining work is now "repoint two callers" rather than "write a resolver and repoint two callers."**
+3. **One M11 item is blocked by a freeze rather than by a decision.** The *"Download blank template"* button on the three Excel upload screens (S16–S18) — recorded in the M11 Enhancement Backlog as the most likely cause of a rejected import today — is a **new feature on M4's frozen screens** and needs a **Freeze Exception under AD-22**. It was deliberately not built. It is small, self-contained and high-value for a demo.
+
+**One deliberate duplication, recorded rather than left to be discovered.** `App\Domain\SelfInspection\ValueObjects\PendingBusinessDecision` is a copy of M9's, not a reuse of it: moving M9's into `Shared` is a refactor of a built milestone awaiting closure, which needs approval and would have been the wrong thing to do quietly mid-build. **The right home is `app/Domain/Shared/`, and it should be extracted in the next freeze window** — the same shape as TD-20.
+
+**What remains in M11:** the hardening pass — Redis cache tuning, the security and performance review, final QA — plus **TD-1**, **TD-6** and **TD-8**, none of which is code in this repository.
+
 ### 0.14 For the Architect — copy-paste
 
 **M9 is closure-ready. The first item below is the only one that unblocks a milestone; everything after it is backlog.**
@@ -538,6 +571,14 @@ Three candidate answers, all decisions rather than engineering, and the middle o
 > **Rule on TD-25's second half.** The silence is fixed; the behaviour is not. Should an unmatched feeder **refuse** the Pre-DPC approval? That is a workflow change, so it was not taken. A test pins the current omission either way.
 
 > **Rule on `docs/IMPLEMENTATION_GUIDE_BLUEPRINT.md`** — produced 2026-08-18, left **uncommitted** because the standing rule since forbids blueprints and the Guide. Kept as a completed deliverable, or discarded?
+
+**Under DEMO COMPLETION MODE the two M10 questions are no longer blocking — both are configuration (§0.13.7). What is now worth ruling:**
+
+> **Grant a Freeze Exception for the Excel "Download blank template" button** (S16–S18). Recorded in the M11 Enhancement Backlog as the most likely cause of a rejected import today; small, self-contained, and the only remaining M11 feature blocked by a freeze rather than by a decision.
+
+> **Confirm the M10 defaults, or override them by configuration.** Three identity factors rather than S50's two, and no invented objection deadline. Both are one config line from the deck's literal reading; the safest reading was taken deliberately (§0.13.7).
+
+> **Extract `PendingBusinessDecision` to `app/Domain/Shared/` in the next freeze window** — M10 holds a deliberate copy of M9's, recorded rather than left to be found. Same shape as TD-20, which is now one step from done.
 
 ---
 
