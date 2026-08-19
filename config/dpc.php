@@ -421,6 +421,51 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Response Security Headers (M11 hardening)
+    |--------------------------------------------------------------------------
+    |
+    | Applied by `App\Http\Middleware\SecurityHeaders` to every web response.
+    |
+    | **Every value can be overridden or emptied, and the whole set switched off.**
+    | A header that breaks a page in production and cannot be disabled without a
+    | deploy is worse than an absent one — so each is configuration, and an empty
+    | string omits that header entirely.
+    |
+    | The default Content-Security-Policy is strict because this application can
+    | afford to be: it vendors Bootstrap and its own scripts and loads nothing from
+    | a CDN (an M0 decision). `script-src 'self'` therefore costs nothing today,
+    | and the reason to set it now is that it stops costing nothing the moment
+    | somebody pastes in a third-party widget.
+    |
+    | Inline **styles** are allowed and inline **scripts** are not: several views
+    | set element widths inline, while an inline-script allowance is what turns a
+    | reflected string into executable code.
+    |
+    */
+
+    'security' => [
+        'headers' => [
+            'enabled' => (bool) env('DPC_SECURITY_HEADERS', true),
+
+            // Set to a string to replace the built-in policy outright, or to an
+            // empty string to send no CSP at all.
+            'content_security_policy' => env('DPC_CSP'),
+
+            'frame_options' => env('DPC_FRAME_OPTIONS', 'SAMEORIGIN'),
+            'referrer_policy' => env('DPC_REFERRER_POLICY', 'same-origin'),
+            'permissions_policy' => env(
+                'DPC_PERMISSIONS_POLICY',
+                'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
+            ),
+
+            // Sent only over TLS — pinning `localhost` to HTTPS in a developer's
+            // browser is a genuinely annoying thing to do to somebody.
+            'hsts' => env('DPC_HSTS', 'max-age=31536000; includeSubDomains'),
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Notifications — in-app channel (M11)
     |--------------------------------------------------------------------------
     |
