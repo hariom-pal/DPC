@@ -86,31 +86,40 @@ class PreDpcProposalService
 
     public function submit(PreDpcProposal $proposal, User $actor, Request $request): void
     {
-        $from = $proposal->status->value;
-        $def = $this->engine->assertAllowed('pre_dpc', 'submit', $from, $actor);
+        // Completeness is checked before the transaction because it reads several
+        // relations and refuses with a message about the *form*, not about a race.
         $this->guardComplete($proposal);
 
-        DB::transaction(function () use ($proposal, $actor, $request, $from, $def): void {
-            $proposal->forceFill(['status' => PreDpcStatus::Submitted->value, 'submitted_at' => now(), 'prepared_by' => $actor->id])->save();
-            $this->engine->record($proposal, 'pre_dpc', 'submit', $from, $def, $actor, $request, null, null, $proposal->department_id);
+        DB::transaction(function () use ($proposal, $actor, $request): void {
+            $locked = $this->lock($proposal);
+            $from = $locked->status->value;
+            $def = $this->engine->assertAllowed('pre_dpc', 'submit', $from, $actor);
+
+            $locked->forceFill(['status' => PreDpcStatus::Submitted->value, 'submitted_at' => now(), 'prepared_by' => $actor->id])->save();
+            $this->engine->record($locked, 'pre_dpc', 'submit', $from, $def, $actor, $request, null, null, $locked->department_id);
         });
     }
 
     public function approve(PreDpcProposal $proposal, User $actor, Request $request): void
     {
-        $from = $proposal->status->value;
-        $def = $this->engine->assertAllowed('pre_dpc', 'approve', $from, $actor);
+        // Checked before the transaction: refusing because no signature provider
+        // is configured is a deployment fault, not a workflow one, and it should
+        // not hold a row lock while it says so.
         $this->assertSignatureAvailable();
 
-        DB::transaction(function () use ($proposal, $actor, $request, $from, $def): void {
-            $signature = $this->signatures->sign($actor, $proposal, $this->renderDocument($proposal), "pre-dpc-v{$proposal->version}.txt");
+        DB::transaction(function () use ($proposal, $actor, $request): void {
+            $locked = $this->lock($proposal);
+            $from = $locked->status->value;
+            $def = $this->engine->assertAllowed('pre_dpc', 'approve', $from, $actor);
+
+            $signature = $this->signatures->sign($actor, $locked, $this->renderDocument($locked), "pre-dpc-v{$locked->version}.txt");
 
             PreDpcProposal::query()
-                ->where('department_id', $proposal->department_id)
+                ->where('department_id', $locked->department_id)
                 ->where('is_current', true)
                 ->update(['is_current' => false]);
 
-            $proposal->forceFill([
+            $locked->forceFill([
                 'status' => PreDpcStatus::Approved->value,
                 'approved_by' => $actor->id,
                 'approved_at' => now(),
@@ -118,30 +127,32 @@ class PreDpcProposalService
                 'is_current' => true,
             ])->save();
 
-            $this->projectToMasters($proposal);
-            $this->engine->record($proposal, 'pre_dpc', 'approve', $from, $def, $actor, $request, null, $signature->id, $proposal->department_id);
+            $this->projectToMasters($locked);
+            $this->engine->record($locked, 'pre_dpc', 'approve', $from, $def, $actor, $request, null, $signature->id, $locked->department_id);
         });
     }
 
     public function return(PreDpcProposal $proposal, User $actor, string $remarks, Request $request): void
     {
-        $from = $proposal->status->value;
-        $def = $this->engine->assertAllowed('pre_dpc', 'return', $from, $actor);
+        DB::transaction(function () use ($proposal, $actor, $remarks, $request): void {
+            $locked = $this->lock($proposal);
+            $from = $locked->status->value;
+            $def = $this->engine->assertAllowed('pre_dpc', 'return', $from, $actor);
 
-        DB::transaction(function () use ($proposal, $actor, $remarks, $request, $from, $def): void {
-            $proposal->forceFill(['status' => PreDpcStatus::Returned->value, 'returned_at' => now(), 'return_remarks' => $remarks])->save();
-            $this->engine->record($proposal, 'pre_dpc', 'return', $from, $def, $actor, $request, $remarks, null, $proposal->department_id);
+            $locked->forceFill(['status' => PreDpcStatus::Returned->value, 'returned_at' => now(), 'return_remarks' => $remarks])->save();
+            $this->engine->record($locked, 'pre_dpc', 'return', $from, $def, $actor, $request, $remarks, null, $locked->department_id);
         });
     }
 
     public function cancel(PreDpcProposal $proposal, User $actor, Request $request): void
     {
-        $from = $proposal->status->value;
-        $def = $this->engine->assertAllowed('pre_dpc', 'cancel', $from, $actor);
+        DB::transaction(function () use ($proposal, $actor, $request): void {
+            $locked = $this->lock($proposal);
+            $from = $locked->status->value;
+            $def = $this->engine->assertAllowed('pre_dpc', 'cancel', $from, $actor);
 
-        DB::transaction(function () use ($proposal, $actor, $request, $from, $def): void {
-            $proposal->forceFill(['status' => PreDpcStatus::Cancelled->value, 'cancelled_at' => now()])->save();
-            $this->engine->record($proposal, 'pre_dpc', 'cancel', $from, $def, $actor, $request, null, null, $proposal->department_id);
+            $locked->forceFill(['status' => PreDpcStatus::Cancelled->value, 'cancelled_at' => now()])->save();
+            $this->engine->record($locked, 'pre_dpc', 'cancel', $from, $def, $actor, $request, null, null, $locked->department_id);
         });
     }
 
@@ -348,6 +359,28 @@ class PreDpcProposalService
                 'status' => MasterStatus::Active->value,
             ], $feeders, null);
         }
+    }
+
+    /**
+     * Re-fetch the row under a write lock, inside the caller's transaction.
+     *
+     * **TD-5, closed.** Every transition above used to read `status` from the
+     * instance the controller had already loaded, then write based on it. Two
+     * simultaneous submits of the same proposal could therefore both pass
+     * `assertAllowed()` against the same `draft`, and both write — producing two
+     * transitions out of one state, two ledger rows, and on `approve` **two
+     * signatures on one proposal**. Narrow, because it needs two requests inside
+     * the same few milliseconds, and never observed. M4 onward have taken the lock
+     * since Phase 1; this backports the same pattern, which is what the register
+     * said to do during hardening.
+     *
+     * The lock is taken *first* inside the transaction and the state is read from
+     * the locked row — taking it after reading the status would leave the race
+     * exactly where it was.
+     */
+    private function lock(PreDpcProposal $proposal): PreDpcProposal
+    {
+        return PreDpcProposal::query()->whereKey($proposal->id)->lockForUpdate()->firstOrFail();
     }
 
     /**
