@@ -17,6 +17,8 @@ use App\Domain\Circulation\Models\DpcCirculation;
 use App\Domain\Circulation\Policies\DpcCirculationPolicy;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Policies\DpcProposalPolicy;
+use App\Domain\PreDpc\Models\PreDpcProposal;
+use App\Domain\PreDpc\Policies\PreDpcProposalPolicy;
 use App\Domain\Proceeding\Documents\DocumentRenderer;
 use App\Domain\Proceeding\Events\ProceedingDocumentsPublished;
 use App\Domain\Proceeding\Listeners\SendDocumentPublicationNotification;
@@ -154,6 +156,9 @@ class AppServiceProvider extends ServiceProvider
         // M9 Phase 1. A Circulation is its own aggregate (AD-24), so it has
         // its own policy rather than borrowing the proposal's.
         Gate::policy(DpcCirculation::class, DpcCirculationPolicy::class);
+        // M3 predates the Policy convention; registered 2026-08-18 closing TD-26,
+        // so the Pre-DPC views can ask the same question the controller asks.
+        Gate::policy(PreDpcProposal::class, PreDpcProposalPolicy::class);
 
         // Architect Directive 3 (M8): the Review banner reaches M4's frozen
         // proposal screens from the layout rather than by editing each one.

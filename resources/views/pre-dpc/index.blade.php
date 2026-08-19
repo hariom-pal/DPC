@@ -13,9 +13,9 @@
                      Administrative Head approves what the AO prepared. The
                      controller refuses the same thing, so the button and the
                      403 cannot disagree. --}}
-                @if (auth()->user()->hasRole(\App\Enums\Role::AuthorizedOfficer->value))
+                @can('create', App\Domain\PreDpc\Models\PreDpcProposal::class)
                     <a href="{{ route('pre-dpc.create') }}" class="btn btn-success btn-sm">+ New Proposal</a>
-                @endif
+                @endcan
             </div>
 
             <div class="card border-0 shadow-sm">

@@ -14,7 +14,6 @@ use App\Domain\PreDpc\Services\PreDpcProposalService;
 use App\Domain\Shared\Workflow\WorkflowException;
 use App\Domain\Shared\Workflow\WorkflowTransition;
 use App\Enums\MasterStatus;
-use App\Enums\Role;
 use App\Enums\ServiceClass;
 use App\Http\Controllers\Controller;
 use Illuminate\Contracts\View\View;
@@ -27,6 +26,8 @@ class PreDpcProposalController extends Controller
 
     public function index(Request $request): View
     {
+        $this->authorize('viewAny', PreDpcProposal::class);
+
         return view('pre-dpc.index', [
             'proposals' => PreDpcProposal::query()
                 ->where('department_id', $this->departmentId($request))
@@ -37,14 +38,14 @@ class PreDpcProposalController extends Controller
 
     public function create(Request $request): View
     {
-        $this->authorizeAuthoring($request);
+        $this->authorize('create', PreDpcProposal::class);
 
         return view('pre-dpc.form', $this->formData($request, new PreDpcProposal));
     }
 
     public function store(SavePreDpcProposalRequest $request): RedirectResponse
     {
-        $this->authorizeAuthoring($request);
+        $this->authorize('create', PreDpcProposal::class);
 
         $department = $request->user()->department;
         abort_if($department === null, 403);
@@ -56,11 +57,17 @@ class PreDpcProposalController extends Controller
 
     public function edit(Request $request, PreDpcProposal $preDpc): View|RedirectResponse
     {
-        $this->authorizeDepartment($request, $preDpc);
+        $this->authorize('view', $preDpc);
 
+        // Order matters, and it is not arbitrary. A proposal that is merely past
+        // editing gets a redirect and an explanation; only an actor who may not
+        // author at all gets a 403. Authorising `update` first would turn the
+        // first case into the second and lose the message.
         if (! $preDpc->status->isEditable()) {
             return redirect()->route('pre-dpc.show', $preDpc)->with('status', 'Only draft/returned proposals can be edited.');
         }
+
+        $this->authorize('update', $preDpc);
 
         $preDpc->load('posts.feeders');
 
@@ -69,8 +76,7 @@ class PreDpcProposalController extends Controller
 
     public function update(SavePreDpcProposalRequest $request, PreDpcProposal $preDpc): RedirectResponse
     {
-        $this->authorizeDepartment($request, $preDpc);
-        abort_unless($preDpc->status->isEditable(), 403);
+        $this->authorize('update', $preDpc);
 
         $this->service->updateDraft($preDpc, $request->validated());
 
@@ -79,7 +85,7 @@ class PreDpcProposalController extends Controller
 
     public function show(Request $request, PreDpcProposal $preDpc): View
     {
-        $this->authorizeDepartment($request, $preDpc);
+        $this->authorize('view', $preDpc);
         $preDpc->load('posts.feeders.feederCadre', 'posts.feeders.qualification', 'posts.payScale', 'approver', 'signature');
 
         return view('pre-dpc.show', [
@@ -117,17 +123,25 @@ class PreDpcProposalController extends Controller
 
     public function amend(Request $request, PreDpcProposal $preDpc): RedirectResponse
     {
-        $this->authorizeDepartment($request, $preDpc);
-        abort_unless($preDpc->status->value === 'approved', 403);
+        $this->authorize('amend', $preDpc);
 
         $draft = $this->service->amend($preDpc, $request->user());
 
         return redirect()->route('pre-dpc.edit', $draft)->with('status', "New draft version v{$draft->version} created.");
     }
 
+    /**
+     * Submit, approve, return and cancel.
+     *
+     * Authorised here only to the **department boundary**. The role and the
+     * legal state of each transition are enforced by `WorkflowEngine::assertAllowed()`,
+     * which refuses with a message naming the transition and the state it was
+     * attempted from — more use to a user than a bare 403, and the reason this
+     * is deliberately not `authorize('submit', ...)`.
+     */
     private function runTransition(Request $request, PreDpcProposal $preDpc, callable $action, string $success): RedirectResponse
     {
-        $this->authorizeDepartment($request, $preDpc);
+        $this->authorize('view', $preDpc);
 
         try {
             $action();
@@ -136,31 +150,6 @@ class PreDpcProposalController extends Controller
         }
 
         return redirect()->route('pre-dpc.show', $preDpc)->with('status', $success);
-    }
-
-    private function authorizeDepartment(Request $request, PreDpcProposal $preDpc): void
-    {
-        abort_unless($preDpc->department_id === $this->departmentId($request), 403);
-    }
-
-    /**
-     * Authoring a Pre-DPC is the Authorized Officer's alone.
-     *
-     * PPT S7: *"यह प्रविष्ठी डी.पी.सी. हेतु अधिकृत अधिकारी द्वारा की जाएगी एवं
-     * प्रशासकीय प्रमुख द्वारा प्रविष्ठी का अनुमोदन किया जाएगा"* — the entry is
-     * made by the Authorized Officer and approved by the Administrative Head.
-     * Two levels, and the second reviews the first; an AH who authored the
-     * proposal would be approving their own work.
-     *
-     * Until now the route's `role:` middleware admitted both, so an AH could
-     * create a draft — and then get stuck, because `edit`, `submit` and
-     * `cancel` are all `$isAO` on the show screen. The draft could be neither
-     * progressed nor removed. This closes that at the entry point, which is
-     * where the PPT puts the boundary.
-     */
-    private function authorizeAuthoring(Request $request): void
-    {
-        abort_unless($request->user()?->hasRole(Role::AuthorizedOfficer->value) === true, 403);
     }
 
     private function departmentId(Request $request): ?int

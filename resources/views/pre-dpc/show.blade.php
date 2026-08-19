@@ -2,8 +2,11 @@
 
 @section('title', 'Pre-DPC Proposal v' . $proposal->version)
 
-@php($isAO = auth()->user()->hasRole(\App\Enums\Role::AuthorizedOfficer->value))
-@php($isAH = auth()->user()->hasRole(\App\Enums\Role::AdministrativeHead->value))
+{{-- Actions are gated by `@can`, which asks PreDpcProposalPolicy — the same
+     class the controller authorises against (TD-26, closed 2026-08-18). This
+     screen used to re-derive the rules from the actor's role and the proposal's
+     status, which meant every rule was stated twice, in two idioms, and could
+     drift apart one edit at a time. --}}
 
 @section('content')
     <div class="row justify-content-center">
@@ -76,26 +79,26 @@
             {{-- Workflow actions --}}
             <div class="card border-0 shadow-sm mb-3">
                 <div class="card-body d-flex flex-wrap gap-2">
-                    @if ($proposal->status->isEditable() && $isAO)
+                    @can('update', $proposal)
                         <a href="{{ route('pre-dpc.edit', $proposal) }}" class="btn btn-outline-primary btn-sm">Edit</a>
                         <form method="POST" action="{{ route('pre-dpc.submit', $proposal) }}">@csrf<button class="btn btn-success btn-sm">Submit for Approval</button></form>
                         <form method="POST" action="{{ route('pre-dpc.cancel', $proposal) }}" onsubmit="return confirm('Cancel this proposal?');">@csrf<button class="btn btn-outline-danger btn-sm">Cancel</button></form>
-                    @endif
+                    @endcan
 
-                    @if ($proposal->status->value === 'submitted' && $isAH)
+                    @can('approve', $proposal)
                         <form method="POST" action="{{ route('pre-dpc.approve', $proposal) }}" onsubmit="return confirm('Approve and digitally sign this proposal?');">@csrf<button class="btn btn-success btn-sm">Approve &amp; Sign</button></form>
-                    @endif
+                    @endcan
 
-                    @if ($proposal->status->value === 'approved' && $isAO)
+                    @can('amend', $proposal)
                         <form method="POST" action="{{ route('pre-dpc.amend', $proposal) }}">@csrf<button class="btn btn-outline-secondary btn-sm">Amend (new version)</button></form>
-                    @endif
+                    @endcan
 
                     @if (! $proposal->status->isEditable() && $proposal->status->value !== 'submitted' && $proposal->status->value !== 'approved')
                         <span class="text-muted small align-self-center">No actions available in this state.</span>
                     @endif
                 </div>
 
-                @if ($proposal->status->value === 'submitted' && $isAH)
+                @can('return', $proposal)
                     <div class="card-body border-top">
                         <form method="POST" action="{{ route('pre-dpc.return', $proposal) }}" class="row g-2">
                             @csrf
@@ -106,7 +109,7 @@
                             <div class="col-md-3"><button class="btn btn-warning btn-sm w-100">Return for Correction</button></div>
                         </form>
                     </div>
-                @endif
+                @endcan
             </div>
 
             {{-- Transition history --}}

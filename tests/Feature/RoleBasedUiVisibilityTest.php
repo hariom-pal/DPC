@@ -8,6 +8,7 @@ use App\Domain\Authentication\Models\User;
 use App\Domain\Cgpsc\Models\DpcAllotment;
 use App\Domain\Department\Models\Department;
 use App\Domain\Master\Models\Cadre;
+use App\Domain\PreDpc\Models\PreDpcProposal;
 use App\Enums\Role;
 use Database\Seeders\LookupMasterSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
@@ -99,6 +100,84 @@ class RoleBasedUiVisibilityTest extends TestCase
                 'direct_recruitment_pct' => 0, 'promotion_recruitment_pct' => 100,
             ]],
         ])->assertForbidden();
+    }
+
+    /**
+     * Authoring is the AO's at **every** entry point, not just at creation.
+     *
+     * TD-26 closed 2026-08-18. `create` and `store` were gated on 2026-08-18;
+     * `edit`, `update` and `amend` were not, and checked only the department —
+     * so an Administrative Head could open the edit form and save over a draft,
+     * even though the show screen has never offered them the button. The UI was
+     * right and the backend was wider than it, which is the drift a Policy
+     * exists to prevent: one rule, asked by both.
+     */
+    public function test_the_ah_cannot_author_a_pre_dpc_through_any_entry_point(): void
+    {
+        $this->actingAs($this->ao)->post(route('pre-dpc.store'), [
+            'government_order_number' => 'GO/1',
+            'effective_from' => '2026-01-01',
+            'posts' => [[
+                'post_name' => 'Deputy Secretary', 'class_level' => 'I',
+                'direct_recruitment_pct' => 0, 'promotion_recruitment_pct' => 100,
+            ]],
+        ]);
+
+        $draft = PreDpcProposal::query()->latest('id')->firstOrFail();
+
+        $this->actingAs($this->ah)->get(route('pre-dpc.edit', $draft))->assertForbidden();
+        $this->actingAs($this->ah)->put(route('pre-dpc.update', $draft), [
+            'posts' => [[
+                'post_name' => 'Rewritten By The AH', 'class_level' => 'I',
+                'direct_recruitment_pct' => 0, 'promotion_recruitment_pct' => 100,
+            ]],
+        ])->assertForbidden();
+
+        // The draft is untouched — the refusal is not merely cosmetic.
+        $this->assertSame('Deputy Secretary', $draft->fresh()->posts()->firstOrFail()->post_name);
+
+        // The AO, whose draft it is, still can.
+        $this->actingAs($this->ao)->get(route('pre-dpc.edit', $draft))->assertOk();
+    }
+
+    /** The Pre-DPC show screen offers each role only what the Policy allows it. */
+    public function test_the_pre_dpc_screen_offers_each_role_only_its_own_actions(): void
+    {
+        $this->actingAs($this->ao)->post(route('pre-dpc.store'), [
+            'government_order_number' => 'GO/1',
+            'effective_from' => '2026-01-01',
+            'posts' => [[
+                'post_name' => 'Deputy Secretary', 'class_level' => 'I',
+                'direct_recruitment_pct' => 0, 'promotion_recruitment_pct' => 100,
+            ]],
+        ]);
+
+        $draft = PreDpcProposal::query()->latest('id')->firstOrFail();
+
+        // DRAFT: the AO may edit, submit and cancel; the AH may do nothing yet.
+        $this->actingAs($this->ao)->get(route('pre-dpc.show', $draft))
+            ->assertOk()
+            ->assertSee(route('pre-dpc.edit', $draft), escape: false)
+            ->assertSee(route('pre-dpc.submit', $draft), escape: false);
+
+        $this->actingAs($this->ah)->get(route('pre-dpc.show', $draft))
+            ->assertOk()
+            ->assertDontSee(route('pre-dpc.edit', $draft), escape: false)
+            ->assertDontSee(route('pre-dpc.approve', $draft), escape: false);
+
+        // SUBMITTED: it flips — approval and return appear for the AH, and the
+        // AO's authoring actions go away.
+        $this->actingAs($this->ao)->post(route('pre-dpc.submit', $draft));
+
+        $this->actingAs($this->ah)->get(route('pre-dpc.show', $draft->fresh()))
+            ->assertOk()
+            ->assertSee(route('pre-dpc.approve', $draft), escape: false)
+            ->assertSee(route('pre-dpc.return', $draft), escape: false);
+
+        $this->actingAs($this->ao)->get(route('pre-dpc.show', $draft->fresh()))
+            ->assertOk()
+            ->assertDontSee(route('pre-dpc.edit', $draft), escape: false)
+            ->assertDontSee(route('pre-dpc.approve', $draft), escape: false);
     }
 
     // ------------------------------------------------------------------
