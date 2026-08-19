@@ -12,6 +12,7 @@ use App\Domain\Master\Models\Qualification;
 use App\Domain\Master\Services\RecruitmentRuleService;
 use App\Domain\PreDpc\Enums\PreDpcStatus;
 use App\Domain\PreDpc\Models\PreDpcProposal;
+use App\Domain\PreDpc\Support\FeederCadreResolver;
 use App\Domain\Shared\Workflow\WorkflowEngine;
 use App\Domain\Shared\Workflow\WorkflowException;
 use App\Domain\Signature\Services\SignatureService;
@@ -19,6 +20,7 @@ use App\Enums\Feature;
 use App\Enums\MasterStatus;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Pre-DPC Proposal workflow (PPT S7–S11). Draft authoring by the AO, approval
@@ -40,6 +42,7 @@ class PreDpcProposalService
         private readonly WorkflowEngine $engine,
         private readonly SignatureService $signatures,
         private readonly RecruitmentRuleService $rules,
+        private readonly FeederCadreResolver $feederCadres,
     ) {}
 
     /**
@@ -295,29 +298,45 @@ class PreDpcProposalService
         foreach ($proposal->posts as $post) {
             $feeders = [];
             foreach ($post->feeders as $feeder) {
-                $feederCadre = $feeder->feeder_cadre_id !== null
-                    ? Cadre::query()->find($feeder->feeder_cadre_id)
-                    : Cadre::query()->where('department_id', $proposal->department_id)->where('name', $feeder->feeder_name)->first();
+                $feederCadre = $this->feederCadres->resolve($feeder, $proposal->department_id);
 
-                if ($feederCadre !== null) {
-                    $feeders[] = [
-                        'feeder_cadre_id' => $feederCadre->id,
-                        'promotion_percentage' => $feeder->promotion_percentage,
-                        'min_experience_years' => $feeder->min_experience_years,
-                        // The screen now chooses the qualification from the
-                        // master, so the common case is a straight copy.
-                        //
-                        // Falling back to matching the text keeps two older
-                        // paths working: a proposal drafted before 2026-08-18,
-                        // and any caller that posts only `min_qualification`.
-                        // Text that matches nothing is carried through
-                        // unresolved rather than dropped, so it stays visible
-                        // and is reported by `php artisan qualifications:unmapped`.
-                        'qualification_id' => $feeder->qualification_id
-                            ?? $this->resolveQualificationId($feeder->min_qualification),
-                        'min_qualification' => $feeder->min_qualification,
-                    ];
+                if ($feederCadre === null) {
+                    // TD-25, made visible. The feeder is still dropped — whether
+                    // an unmatched feeder should instead *refuse* the approval is
+                    // a workflow change and the Architect's call — but it is no
+                    // longer dropped in silence. Warning, not info: a recruitment
+                    // rule created without one of its feeder cadres looks complete
+                    // and sanctions nothing, which is the worst of the outcomes
+                    // available here.
+                    Log::warning('Pre-DPC feeder matched no cadre and was omitted from the recruitment rule', [
+                        'department_id' => $proposal->department_id,
+                        'pre_dpc_proposal_id' => $proposal->id,
+                        'pre_dpc_version' => $proposal->version,
+                        'post_name' => $post->post_name,
+                        'feeder_name' => $feeder->feeder_name,
+                        'technical_debt' => 'TD-25',
+                    ]);
+
+                    continue;
                 }
+
+                $feeders[] = [
+                    'feeder_cadre_id' => $feederCadre->id,
+                    'promotion_percentage' => $feeder->promotion_percentage,
+                    'min_experience_years' => $feeder->min_experience_years,
+                    // The screen now chooses the qualification from the master,
+                    // so the common case is a straight copy.
+                    //
+                    // Falling back to matching the text keeps two older paths
+                    // working: a proposal drafted before 2026-08-18, and any
+                    // caller that posts only `min_qualification`. Text that
+                    // matches nothing is carried through unresolved rather than
+                    // dropped, so it stays visible and is reported by
+                    // `php artisan qualifications:unmapped`.
+                    'qualification_id' => $feeder->qualification_id
+                        ?? $this->resolveQualificationId($feeder->min_qualification),
+                    'min_qualification' => $feeder->min_qualification,
+                ];
             }
 
             $this->rules->create([
