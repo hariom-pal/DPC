@@ -38,7 +38,7 @@ Every item below is **blocked on a business answer**, not on engineering. None c
 | BD-5 | HRMS API contract | HRMS integration (unscheduled) | P3 | 2026-08-13 |
 | BD-6 | Circulation trigger — which rule governs? (Q12) | M9 | P2 | 2026-07-30 |
 | BD-7 | Proceedings/order PDF layout (Q7) | M7 | P2 | 2026-07-30 |
-| BD-8 | Objection handling (Q11) | M10 | P3 | 2026-07-30 |
+| BD-8 | Objection handling (Q11) — **⚠ asks about a screen the PPT does not have; see BD-20** | M10 | P3 | 2026-07-30 |
 | BD-9 | Waiting-list placement when a category has no vacancy | **M7 closure** | **P1** | 2026-08-14 |
 | BD-10 | Does a court case annotate the remark? | **M7 closure** | P2 | 2026-08-14 |
 | BD-11 | What happens to an officer already promoted under a reviewed DPC? | **Production activation of the Review supersession policy** — no milestone | **P1** | 2026-08-14 |
@@ -48,6 +48,8 @@ Every item below is **blocked on a business answer**, not on engineering. None c
 | BD-15 | May a **CR-ground** hold be routed to a Review instead of a Circulation? | **M9 — CR-ground circulations are refused today** | **P1** | 2026-08-16 |
 | BD-16 | Does "Approved Pre-DPC used while creating DPC" mean the **Recruitment Rule** it produced, or the Pre-DPC **document**? | **AD-25 / the M4 freeze exception** | **P1** | 2026-08-18 |
 | BD-17 | **What is the SRS's standing?** AD-1 says it must not be implemented from, yet an SRS-vs-code gap analysis was requested. Are video conferencing and real-time voting withdrawn? | **M10/M11 scope** | **P1** | 2026-08-18 |
+| BD-19 | **How does an individual officer log in?** No snapshot table carries a mobile or an email, so there is nothing to send an OTP to | **M10 entirely — this is the real M10 blocker, not BD-8** | **P1** | 2026-08-19 |
+| BD-20 | **Is the online objection in scope at all?** S51 has two buttons, `CLOSE` and `PRINT`; the deck sends objections to the department in person | **M10 scope; decides whether BD-8 applies** | P2 | 2026-08-19 |
 | BD-18 | **Who registers a department's cadres first?** The Pre-DPC now selects posts from the Cadre master, so a newly registered department can no longer create them by typing | **Onboarding a new department** | **P1** | 2026-08-18 |
 
 ---
@@ -346,6 +348,43 @@ On 2026-08-18 the client asked for an **SRS vs Code gap analysis** as a named de
 2. **No — departments must stay self-sufficient.** Then the master needs a way to be filled without an Admin: seed the cadres at registration from the department's Schedule-IV, or let the AO add a cadre inline from the Pre-DPC screen. **Cost:** the department can still invent posts, which is what selecting from a master was meant to stop — so this answer partly undoes the request.
 
 **Both are small to implement.** The decision is about who owns a department's post list, which is not an engineering question. Until it is answered, onboarding a *new* department requires a CGPSC Admin to add its cadres first, and that should be written into the onboarding runbook whichever way this goes.
+
+---
+
+## BD-19 — How does an individual officer log in?
+
+**Raised:** 2026-08-19, M10 readiness assessment. **Severity: P1 — it blocks the whole of M10.**
+
+**What the PPT shows.** S50 authenticates the individual under consideration with **Aadhaar No. + Aadhaar OTP**. `docs/design/01-requirements.md` proposes **Name + Date of Joining Current Cadre (+ OTP)**.
+
+**Why it cannot be built as written.** Aadhaar was replaced project-wide by **Q1** with identifier + password and OTP step-up — but that deviation assumed a *registered user*, and an individual officer is not one. They exist only as a row in `dpc_evaluation_rows`, `dpc_seniority_entries` or `dpc_working_officers`, and **none of the three ten-field employee snapshots carries a mobile number or an email address.** That is deliberate: the snapshots hold no live FK to any employee record, which is what stops a historical proposal changing when upstream data does. Name and date of joining are both present. **The OTP has no channel.**
+
+**What CGPSC must decide:**
+
+1. **Add a contact field to the officer chart.** A schema change to **frozen M4** — needs a **Freeze Exception under AD-22** — plus a rule on who supplies the number and whether it is verified before it is trusted for authentication.
+2. **Knowledge factors only** — name + date of joining + DOB, no OTP. **Not recommended.** It is weaker than every other actor's login, and S51 displays year-wise CR grades, reservation category and immovable-property compliance. Anyone holding a departmental seniority list holds all three factors for **every officer on it**.
+3. **The department provisions individual accounts.** A new workflow, in neither deck.
+
+**Current behaviour:** none. **M10 was not opened and no self-inspection code was written** — the view itself is straightforward, but a screen with no reachable entry point is the exact defect the 2026-08-18 sweep was fixing.
+
+---
+
+## BD-20 — Is the online objection in scope at all?
+
+**Raised:** 2026-08-19, M10 readiness assessment, reading S49–S51 directly. **Severity: P2 — it decides M10's scope and whether BD-8 applies.**
+
+**What the PPT shows.** S51 has exactly **two** buttons: `CLOSE` and `PRINT`. Its notice reads: *"...दिनांक 25 जून 2026 या उसके पूर्व **विभाग में स्वयं उपस्थित होकर** समाधान करवा लेवें. छत्तीसगढ़ लोक सेवा आयोग द्वारा उक्त सम्बन्ध में **किसी भी प्रकार के अभ्यावेदन पर विचार नहीं किया जाएगा** और ऐसे अभ्यावेदन सीधे **नस्तीबद्ध** कर दिए जाएँगे."* — appear **in person at the department**; CGPSC will consider **no** representation, and such representations are consigned to file. S49 describes the facility as *अवलोकन* — viewing. **There is no online objection anywhere in the deck.**
+
+**What the roadmap says.** `docs/design/05-milestones.md` scopes M10 as *"Individual login, own-data view, PRINT, time-boxed objection (late auto-filed)"*. **"Late auto-filed" appears to read *नस्तीबद्ध* as applying to late objections**; in the sentence it applies to **every** representation to CGPSC, early or late. **BD-8/Q11 therefore asks three questions — configurable deadline, notify, block or log — about a feature the requirement does not contain.**
+
+**What CGPSC must decide:**
+
+1. **Narrow M10 to the deck** — individual login, own-data view, the deadline notice, `CLOSE`, `PRINT`. **BD-8 closes as not-applicable.**
+2. **Approve the online objection as a scope addition** — defensible, and arguably an improvement on requiring an officer to travel to the department — in which case it is approved the way **Q1** and **Q2** were, and BD-8 becomes the right question about it.
+
+**Current behaviour:** nothing built either way. **Not implemented on an assumption**, in either direction.
+
+---
 
 ## Closed items
 

@@ -22,10 +22,10 @@ One page per milestone: what it delivered, what governs it now, and what it left
 | **M7** | DPC Proceedings & Result Generation — 4 phases | S31–S34, S45 | ✅ **Complete** | **Frozen** (from M8) | 169 |
 | **M8** | Review DPC — 3 phases | S35–S44 | ✅ **Complete & released** | **Frozen — AD-21** | 83 |
 | **M9** | Circulation DPC — 3 phases | S45–S48 | 🟡 **Engineering complete — NOT closed** | — (no freeze until closure) | 98 |
-| **M10** | Self-Inspection & Objection | S49–S51 | ⚪ Not started | — | — |
+| **M10** | Self-Inspection (S49–S51). **The "& Objection" half is not in the deck** — S51 has two buttons, `CLOSE` and `PRINT` (**BD-20**) | S49–S51 | ⚪ Not started — **blocked on BD-19**: an individual officer has no way to log in, since no employee-snapshot table carries a mobile or an email | — | — |
 | **M11** | Notifications · Reports · Dashboards · Audit UI · Hardening | — | ⚪ Not started | — | — |
 
-**801 PHPUnit tests / 2455 assertions.** Pint clean · PHPStan (Larastan level 6) 0 errors · `composer audit` clean · migrations run clean, **66 tables**. Verified by the full gate run of 2026-08-18.
+**809 PHPUnit tests / 2482 assertions.** Pint clean · PHPStan (Larastan level 6) 0 errors · `composer audit` clean · **`schema:verify-mysql`: 49 migrations, 66 tables on MySQL 8.0.46**. Verified by the full gate run of 2026-08-19 — **five steps from that date**, the fifth being the MySQL schema build that closed TD-24.
 
 **M9 is the active milestone.** All three phases are built and gate-verified; **closure is blocked on BD-14** — from what date a circulated promotion takes effect. That is a CGPSC decision, not engineering work: the note renders, signs, stores and verifies, and refuses only to *publish*, displaying "Pending Business Decision (BD-14)" rather than inventing an effective date. **No freeze is applied to M9 until it is closed**, so the five freezes below remain the complete set.
 

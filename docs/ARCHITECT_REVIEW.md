@@ -467,6 +467,60 @@ Appendix D  Register index — which document owns which kind of fact
 
 **The Guide itself was not started, and M9 is unaffected** — this changed no milestone, no gate and no code.
 
+#### 0.13.5 Unblocked backlog cleared to exhaustion — TD-24 closed, TD-25 half-closed
+
+**2026-08-19, on the directive to complete every approved and available task not blocked by BD-14 or any other Business Decision.** Suite **801 → 809** (2482 assertions). Pint clean · PHPStan L6 0 errors · **all five freeze diffs empty** · `demo:seed` rebuilds on MySQL with all seven DPC IDs and the circulation unchanged. No M4/M5/M6/M7/M8/M9 code touched.
+
+**First, the previous session's four closures were committed.** They existed only as an uncommitted working tree — TD-23, TD-24 step 1, TD-26 and TD-27, verified green at 801 tests, and one machine failure away from being lost. Four commits, one per item, plus the documentation.
+
+| Item | Result |
+|---|---|
+| **TD-24 step 2** | ✅ **Closed. TD-24 is now closed entirely.** `schema:verify-mysql` builds all 49 migrations on MySQL in a throwaway database, reports what MySQL built, and drops it. **Added to `composer gate`** |
+| **TD-25** | 🟡 **Half-closed.** The silence is gone: the projection logs the feeder it dropped, and `pre-dpc:unmatched-feeders` finds the cases already stored. **The behavioural half — refuse the approval — is untouched and remains the Architect's** |
+
+**TD-24 step 2, and why it is in the gate rather than in the suite.** The suite runs on in-memory SQLite; the application runs on MySQL. Step 1 catches the one difference that had already cost a P0 — identifier length — on any engine. Step 2 catches **the differences nobody has thought of yet**, by letting MySQL do the enumerating rather than enumerating them itself.
+
+It never touches `dpc_dev`: a scratch database is created, migrated, counted and dropped, which is what makes it safe in `composer gate` where `migrate:fresh` never could be. Verified — `dpc_dev` still held its 66 tables and 9 demo proposals after a run. **It fails rather than skipping** when MySQL is unreachable or the connection is not MySQL; a schema check that passes without running is the false green TD-24 is about, and three tests pin both refusals. **Verified to bite:** removing the explicit foreign-key name from `2026_08_14_290004` reproduces error 1059 verbatim and exits 1. Current MySQL baseline — **49 migrations, 66 tables** on MySQL 8.0.46.
+
+**The gate is now five steps, not four.** That is the register's own prescription for TD-24 (*"run the suite — or at minimum a schema build — against MySQL in `composer gate` and in CI"*), not a redefinition of AD-17's gate.
+
+**TD-25, and the line drawn through it.** The register offers two fixes — report the unmatched feeder, or refuse the approval — and says the current silent behaviour is the worst of the options. Reporting changes no behaviour and no stored data; refusing is a workflow change. **The reporting half is done and the behavioural half is recorded as still open**, with a test that pins the omission, so if refusal is ever ruled it is that test which has to be revisited rather than a behaviour changing unnoticed. Both the projection and the report ask one shared `FeederCadreResolver`, so the report cannot drift from the thing it reports on — the TD-20 argument.
+
+#### 0.13.6 M10 readiness — it cannot be opened, and **not** for the reason the roadmap says
+
+**M10 (Self-Inspection & Objection, S49–S51) was assessed against the deck itself, slide text in hand.** No code was written. Two findings, and the second is the blocker.
+
+**⚠ F3 — S51 has no *RAISE OBJECTION*. The PPT's self-inspection screen has exactly two buttons: `CLOSE` and `PRINT`.**
+
+S51's notice reads: *"यदि उक्त डाटा के सम्बन्ध में आपको किसी प्रकार की आपत्ति हो तो दिनांक 25 जून 2026 या उसके पूर्व **विभाग में स्वयं उपस्थित होकर** समाधान करवा लेवें. छत्तीसगढ़ लोक सेवा आयोग द्वारा उक्त सम्बन्ध में **किसी भी प्रकार के अभ्यावेदन पर विचार नहीं किया जाएगा** और ऐसे अभ्यावेदन सीधे **नस्तीबद्ध** कर दिए जाएँगे."*
+
+That is: appear **in person at the department** on or before the stated date; **CGPSC will not consider any representation** in this matter, and such representations are **consigned to file**. S49 describes the facility as *स्वयं के डाटा अवलोकन* — viewing one's own data. The deck contains **no online objection at all**.
+
+**So `05-milestones.md`'s M10 scope — *"time-boxed objection (late auto-filed)"* — describes a screen the deck does not have.** "Late auto-filed" appears to be a reading of *नस्तीबद्ध* as applying to late objections; in the sentence it applies to **every** representation made to CGPSC, early or late. **`BD-8`/`Q11` therefore asks three questions about a feature that does not exist in the requirement** — is the deadline configurable, does raising an objection notify the department, block the DPC, or only log.
+
+Two ways to resolve it, and both are the Architect's:
+
+1. **M10's scope narrows to the deck**: individual login, own-data view, the deadline notice, `CLOSE`, `PRINT`. **BD-8 closes as not-applicable** and the objection line is struck from the roadmap.
+2. **The online objection is a scope addition** — a genuine improvement on an in-person process, and defensible — in which case it needs approving as a deviation the way **Q1** (Aadhaar → password + OTP) and **Q2** (the Admin role) were, and BD-8 is then the right question about it.
+
+**⚠ F4 — the blocker: an individual has no way to log in, and no field exists to give them one.**
+
+S50 authenticates the individual with **Aadhaar No. + Aadhaar OTP**, replaced project-wide by **Q1** with identifier + password and OTP step-up. `01-requirements.md` proposes **Name + Date of Joining Current Cadre (+ OTP)** for this screen. The first two are in the snapshot. **The third has nowhere to go:** an individual is not a registered user — they exist only as a row in `dpc_evaluation_rows` / `dpc_seniority_entries` / `dpc_working_officers`, and **none of the three ten-field employee snapshots carries a mobile number or an email**. That is deliberate: they are proposal-time snapshots with no live FK to any employee record, which is what stops a historical proposal changing when upstream data does. **There is no channel to send an OTP to.**
+
+Three candidate answers, all decisions rather than engineering, and the middle one is the tempting one:
+
+| Option | What it costs |
+|---|---|
+| **(a) Add a contact field to the chart** | A schema change to **frozen M4** — needs a **Freeze Exception under AD-22** — plus a business rule on who supplies it and whether it is verified |
+| **(b) Knowledge factors only** — name + date of joining + DOB | **Not recommended.** Weaker than every other actor's login, and S51 displays year-wise CR grades, reservation category and immovable-property compliance. Anyone holding a seniority list holds all three factors for **every** officer on it |
+| **(c) The department provisions individual accounts** | A new workflow, in neither deck |
+
+**Recorded as `BD-19`, and it is the real M10 blocker — not BD-8.** M10 was **not** opened and no self-inspection code was written: the view is straightforward, but a screen with no reachable entry point is precisely the defect the 2026-08-18 sweep spent its afternoon fixing (Review DPC, delivered with 83 tests and unreachable). **Nothing in M10 can be delivered demoable until F4 is ruled.**
+
+**With M10 blocked, the backlog is exhausted.** Every remaining item needs a named decision, and each is recorded with which one: TD-19/20/21/16 need a Freeze Exception (AD-15); TD-28 needs the standing rule on absent named actors; **TD-25's second half** and TD-22 are Architect calls; AD-25 needs BD-16 plus a Freeze Exception; TD-18 needs BD-4; TD-1/2/6/8 are deployment, gateway, CI and capacity rather than code; TD-5 is scheduled for the hardening pass; **M11 is a later milestone and its order is not this session's to change.**
+
+**`docs/IMPLEMENTATION_GUIDE_BLUEPRINT.md` was left uncommitted.** It was produced on 2026-08-18 and the standing rule since forbids documentation blueprints and the Implementation Guide. It is neither committed nor deleted, pending a ruling on whether it is kept as a completed deliverable or discarded.
+
 ### 0.14 For the Architect — copy-paste
 
 **M9 is closure-ready. The first item below is the only one that unblocks a milestone; everything after it is backlog.**
@@ -474,6 +528,16 @@ Appendix D  Register index — which document owns which kind of fact
 > **Answer BD-14** — *from what date does a circulated promotion take effect?* It is **the sole outstanding item on M9's closure checklist**; items 1–19 are green and 20–23 are consequences of this one question. Drafted for CGPSC as **Question 6** of `docs/UAT_BUSINESS_VALIDATION.md`. The answer lands as `dpc.circulation.effective_date_basis` — **no code change, no freeze exception, no re-test.** Until it lands, signed and verifiable circulation documents cannot reach the departments they were produced for.
 
 > **Then execute the six closure steps in §0.13.1** — apply the configuration, confirm publication, re-run the gate, tag `v0.9.0-m9-complete`, declare the M9 freeze, synchronise the documents.
+
+**Two rulings are now needed for the *next* milestone rather than this one (§0.13.6). The backlog is otherwise exhausted — every remaining item names the decision it waits on.**
+
+> **Rule on F4 / BD-19 — how does an individual officer log in?** **This is what blocks M10, not BD-8.** S50 uses Aadhaar + Aadhaar OTP, replaced by Q1; the individual is not a registered user, and **none of the three employee-snapshot tables carries a mobile or an email**, so there is nothing to send an OTP to. Options: (a) add a contact field to M4's chart — **Freeze Exception under AD-22** plus a rule on who supplies and verifies it; (b) knowledge factors only — **not recommended**, since S51 shows CR grades, category and property compliance to anyone holding a seniority list; (c) the department provisions individual accounts — a new workflow in neither deck.
+
+> **Rule on F3 — is the online objection in scope at all?** **S51 has two buttons, `CLOSE` and `PRINT`.** The deck sends objections to the department **in person** and says CGPSC will consider no representation. Either M10 narrows to the deck and **BD-8 closes as not-applicable**, or the objection is approved as a scope addition the way Q1 and Q2 were — and only then is BD-8 the right question.
+
+> **Rule on TD-25's second half.** The silence is fixed; the behaviour is not. Should an unmatched feeder **refuse** the Pre-DPC approval? That is a workflow change, so it was not taken. A test pins the current omission either way.
+
+> **Rule on `docs/IMPLEMENTATION_GUIDE_BLUEPRINT.md`** — produced 2026-08-18, left **uncommitted** because the standing rule since forbids blueprints and the Guide. Kept as a completed deliverable, or discarded?
 
 ---
 

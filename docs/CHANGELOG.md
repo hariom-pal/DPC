@@ -2,6 +2,36 @@
 
 All notable work on the ODPC Portal, in reverse chronological order. Business-rule changes are traceable to `docs/ODPC_NEW_FINAL.pptx` / `docs/CONVENTIONAL DPC PROCESS.pptx` slide numbers where applicable. This file, `docs/PROJECT_STATUS.md`, `docs/PROJECT_PROGRESS.md`, and `docs/ARCHITECT_REVIEW.md` are the only documents updated on an ongoing basis (see `docs/ARCHITECT_REVIEW.md` for the full documentation policy).
 
+## 2026-08-19 — TD-24 closed, TD-25 half-closed, M10 assessed and blocked
+
+Suite **801 → 809** (2482 assertions). Pint clean · PHPStan L6 0 errors · all five freeze diffs empty · **`demo:seed` verified on MySQL** with all seven DPC IDs and the circulation unchanged. Nothing in M4–M9 touched. **The previous session's four closures — TD-23, TD-24 step 1, TD-26, TD-27 — existed only as an uncommitted working tree and are now committed**, one per item.
+
+### TD-24 — the gate builds the schema on MySQL every phase *(closed entirely)*
+
+`php artisan schema:verify-mysql` runs all 49 migrations against MySQL in a **throwaway database**, reports what MySQL actually built, and drops it. Step 1 (2026-08-18) catches identifier length — the one engine difference already known to have cost a P0 — on any engine. **Step 2 catches the ones nobody has thought of yet, by letting MySQL do the enumerating** rather than enumerating them itself.
+
+**It never touches the development database**, which is what makes it safe in `composer gate` where `migrate:fresh` never could be: `dpc_dev` still held its 66 tables and 9 demo proposals after a run. **It fails rather than skipping** when MySQL is unreachable or the connection is not MySQL — a schema check that passes without running is the false green TD-24 is about — and three tests pin both refusals without needing MySQL themselves.
+
+**Verified to bite:** removing the explicit foreign-key name from `2026_08_14_290004` reproduces error 1059 verbatim and exits 1. **The gate is five steps now**, which is TD-24's own prescription, not a redefinition of AD-17. Baseline: **49 migrations, 66 tables** on MySQL 8.0.46.
+
+### TD-25 — an unmatched Pre-DPC feeder is no longer dropped in silence *(half closed)*
+
+`projectToMasters()` skipped a feeder whose name matched no cadre and created the recruitment rule without it — so **the rule looked complete and sanctioned nobody from that cadre**, with nothing anywhere saying why. The projection now logs a warning naming the department, proposal version, post and feeder; `php artisan pre-dpc:unmatched-feeders` finds the cases **already stored**, which no log will ever mention. Approved proposals only by default: a draft has not projected, so nothing is lost yet.
+
+Both callers ask one shared `FeederCadreResolver`, so the report cannot drift from the projection it reports on — the TD-20 argument.
+
+**The behavioural half is untouched and stays open.** Whether an unmatched feeder should **refuse** the approval is a workflow change and the Architect's call. A test pins the current omission, so if refusal is ruled it is that test which has to be revisited rather than a behaviour changing unnoticed.
+
+### M10 assessed against the deck — blocked, and not for the reason the roadmap gives *(no code written)*
+
+Two findings from reading S49–S51 directly. Full detail in `docs/ARCHITECT_REVIEW.md` §0.13.6.
+
+**S51 has no *RAISE OBJECTION* — two buttons, `CLOSE` and `PRINT`.** Its notice sends the officer to the department **in person** and states CGPSC will consider no representation. The roadmap's *"time-boxed objection (late auto-filed)"* describes a screen the deck does not contain; **"late auto-filed" reads *नस्तीबद्ध* as applying to late objections when it applies to every representation to CGPSC.** So **BD-8/Q11 asks three questions about a feature the requirement does not have.** Raised as **BD-20**: narrow M10 to the deck and close BD-8 as not-applicable, or approve the objection as a scope addition the way Q1 and Q2 were.
+
+**The actual blocker: an individual has no way to log in.** S50 uses Aadhaar + Aadhaar OTP, replaced by Q1 — but that deviation assumed a registered user, and an individual is only a row in an officer snapshot. **None of the three ten-field snapshots carries a mobile or an email**, deliberately, so **there is no channel for an OTP.** Raised as **BD-19**, P1. Of the three answers, knowledge-factors-only is explicitly *not* recommended: S51 shows CR grades, category and property compliance, and anyone holding a seniority list holds all three factors for every officer on it. **M10 was not opened** — the view is easy, but a screen with no reachable entry point is the defect the 2026-08-18 sweep spent its afternoon fixing.
+
+**With M10 blocked the backlog is exhausted**, and every remaining item is recorded against the named decision it waits on.
+
 ## 2026-08-18 — Unblocked backlog cleared: TD-23, TD-24 step 1, TD-26, TD-27
 
 **Everything here was already specified and unblocked — nothing waited on BD-14 or any new business clarification.** Suite **798 → 801** (2455 assertions, +51). Pint clean · PHPStan 0 errors · `composer audit` clean · **all five freeze diffs empty** · `demo:seed` rebuilds with all seven DPC IDs unchanged. No M9 code was touched.

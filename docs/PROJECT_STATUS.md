@@ -81,6 +81,16 @@ This is a milestone-count estimate, not effort-weighted. M4 and M5 were the two 
 
 ## Current Work
 
+**2026-08-19 — Unblocked backlog cleared to exhaustion. TD-24 closed, TD-25 half-closed, M10 assessed and blocked. No milestone opened or closed; all five freezes empty. Suite 801 → 809 (2482 assertions).**
+
+The previous session's four closures — TD-23, TD-24 step 1, TD-26, TD-27 — existed only as an uncommitted working tree and are now **committed**, one commit each. Full findings in `docs/ARCHITECT_REVIEW.md` §0.13.5–§0.13.6.
+
+- **TD-24 is closed entirely.** `php artisan schema:verify-mysql` builds all 49 migrations on **MySQL** in a throwaway database, reports what MySQL built, and drops it — now a step in `composer gate`, so **the gate is five steps, not four** (TD-24's own prescription). It never touches `dpc_dev`, which is what makes it safe where `migrate:fresh` never was, and it **fails rather than skipping** when MySQL is unavailable. Verified to bite: reproducing M8's 65-character foreign key returns error 1059 verbatim.
+- **TD-25 no longer fails silently.** A Pre-DPC feeder matching no cadre was dropped and the recruitment rule created without it — the rule looked complete and sanctioned nobody. The projection now logs it, and `pre-dpc:unmatched-feeders` finds the cases already stored. **The behavioural half — refuse the approval — is a workflow change and stays the Architect's.**
+- **⚠ M10 cannot be opened, and the roadmap names the wrong blocker.** Two findings, from reading S49–S51 rather than the design set. **S51 has two buttons, `CLOSE` and `PRINT`** — the deck has no online objection at all and sends objections to the department **in person**, so **BD-8 asks three questions about a screen that does not exist** (raised as **BD-20**). And **an individual officer has no way to log in**: none of the three ten-field employee snapshots carries a mobile or an email, so there is nothing to send an OTP to (**BD-19, P1** — the real M10 blocker). No self-inspection code was written; a screen with no reachable entry point is the defect the 2026-08-18 sweep was fixing.
+
+**With M10 blocked, the unblocked backlog is exhausted.** Every remaining item is recorded against the decision it waits on — a Freeze Exception (TD-19/20/21/16, AD-25), a standing rule (TD-28), an Architect call (TD-25's second half, TD-22), or a Business Decision (BD-4, BD-14, BD-16, BD-19, BD-20).
+
 **2026-08-18 — Pre-M10 verification sweep. No milestone opened or closed; all five freezes verified empty. Suite 759 → 782.**
 
 A six-item client brief was answered by **verification, not implementation**: four of the six were already built. Full findings in `docs/ARCHITECT_REVIEW.md` §0. What matters at this level:
@@ -130,7 +140,16 @@ A Review DPC has an origin, a chain (`chain_uuid`, `review_number`, `chain_depth
 
 ## Next Milestone
 
-**M9 — Circulation DPC (S45–S48, C3, C7). Design approved 2026-08-16; ALL THREE PHASES COMPLETE. Closure pending BD-14.**
+**M10 — Self-Inspection (S49–S51). NOT OPENED. Blocked on BD-19, and that is not the blocker the roadmap names.**
+
+Two answers are needed before any of M10 can be built, and neither is an engineering question (`docs/ARCHITECT_REVIEW.md` §0.13.6):
+
+1. **BD-19, P1 — how does an individual officer log in?** S50 uses Aadhaar + Aadhaar OTP, replaced project-wide by Q1 with identifier + password + OTP. But that deviation assumed a **registered user**, and an individual is only a row in an officer snapshot: **none of the three ten-field snapshot tables carries a mobile or an email**, deliberately, so there is **no channel for an OTP**. Adding one is a schema change to frozen M4 and needs a Freeze Exception under AD-22. Authenticating on knowledge factors alone is **not recommended** — S51 shows year-wise CR grades, category and property compliance, and anyone holding a seniority list holds name, date of joining and DOB for every officer on it.
+2. **BD-20 — is the online objection in scope at all?** **S51 has two buttons: `CLOSE` and `PRINT`.** The notice sends the officer to the department **in person** and says CGPSC will consider no representation. The roadmap's *"time-boxed objection (late auto-filed)"* is not in the deck, and **BD-8/Q11 asks three questions about it regardless**.
+
+**No self-inspection code was written.** The view itself is straightforward — S51's data is exactly one `dpc_evaluation_rows` row with its three per-year children — but a screen with no reachable entry point is the defect the 2026-08-18 sweep spent its afternoon fixing.
+
+**Previously: M9 — Circulation DPC (S45–S48, C3, C7). Design approved 2026-08-16; ALL THREE PHASES COMPLETE. Closure pending BD-14.**
 
 M9 resolves a held promotion (`CIR`) from an earlier DPC — an officer missing 2+ years of CR or 1+ years of immovable-property declaration is included in the proceeding but their promotion decision is held, and CGPSC later signs a circulation note to finalise it. M7 already produces the held rows; M9 acts on them.
 
@@ -268,7 +287,10 @@ Permanent four-part gate (ruled 2026-08-13) — every phase must pass all four b
 | Laravel Pint (PSR-12 + strict types) | **Passed** |
 | PHPStan / Larastan level 6 | **0 errors** |
 | `composer audit` | **No advisories** — second attempt; the first timed out to local cache (**TD-2**) |
-| PHPUnit | **718 passed / 2178 assertions, 0 failing** |
+| **`schema:verify-mysql`** | **49 migrations, 66 tables on MySQL 8.0.46** — added 2026-08-19, closing TD-24 |
+| PHPUnit | **809 passed / 2482 assertions, 0 failing** (2026-08-19) |
+
+**The gate is five steps from 2026-08-19, not four.** The added step builds every migration against **MySQL** in a throwaway database, because the suite runs on in-memory SQLite and the application does not — the difference that let an M8 migration pass 84 green tests while being impossible to create at all. It is TD-24's own recommendation, and it does not touch `dpc_dev`.
 
 Plus `php artisan migrate:fresh --seed`: **OK** — **45 migrations, 65 tables**, 10 seeders.
 
@@ -277,6 +299,8 @@ Plus `php artisan migrate:fresh --seed`: **OK** — **45 migrations, 65 tables**
 **The gate is necessary, not sufficient (AD-17).** Six consecutive green gates once missed three P1 defects that the Demo Readiness Rule caught in an afternoon. Every phase since is checked against the PPT and demoed, not just gated.
 
 ## Test Status
+
+**809 passed / 2482 assertions, 0 failing**, verified 2026-08-19. Earlier detail below is retained because it explains why these figures are re-derived rather than copied.
 
 **718 passed / 2178 assertions, 0 failing**, verified at M9 Phase 3 finalisation (2026-08-16). M8 contributed 83; **M9 contributed 98 — 46 in Phase 1, 26 in Phase 2, 26 in Phase 3**.
 

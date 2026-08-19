@@ -144,11 +144,23 @@ Four rulings worth recording, each of which had an easier alternative:
 
 ---
 
+## 2026-08-19 — The backlog is exhausted, and M10 is blocked by the wrong thing
+
+**TD-24 closed** — `composer gate` now builds every migration against **MySQL** in a throwaway database, so the engine gap that let an M8 migration pass 84 green tests while being impossible to create is closed on the engine that enforces it. **The gate is five steps from today.**
+
+**TD-25 half-closed** — a Pre-DPC feeder matching no cadre is still dropped, but no longer in silence. Whether it should instead *refuse* the approval is a workflow change and was left alone.
+
+**M10 assessed against the deck, and not opened.** Two findings, both from reading S49–S51 rather than the design set: **S51 has two buttons, `CLOSE` and `PRINT`** — the deck has no online objection at all, so the roadmap's *"time-boxed objection (late auto-filed)"* and BD-8 both describe a screen that does not exist (**BD-20**); and **an individual officer has no way to log in**, because none of the three ten-field employee snapshots carries a mobile or an email and so there is no channel for an OTP (**BD-19, P1**).
+
+**That second finding is the one worth keeping.** The roadmap has listed M10 as blocked by the objection question since 2026-07-30. The objection question is the *smaller* of the two, and the larger one had never been written down.
+
+---
+
 ## Where the project stands
 
-**Nine milestones complete** (M0–M8), the last of them released and tagged. **Five frozen — M4, M5, M6, M7 and M8 — every one verified frozen by diff**, and all five now openable only through **AD-22**, whose register is empty. The full pipeline — registration → Pre-DPC → DPC proposal → Excel import → approval → CALCULATE → allotment → scheduling → proceeding → result → signed documents → **Review DPC and supersession** — runs end to end **with every external integration switched off**, which is the configuration UAT will use.
+**Ten milestones built** (M0–M9); M9's engineering completed 2026-08-16 and its closure waits on BD-14 alone, so it is the one built milestone with no freeze baseline. **Nine milestones complete** (M0–M8), the last of them released and tagged. **Five frozen — M4, M5, M6, M7 and M8 — every one verified frozen by diff**, and all five now openable only through **AD-22**, whose register is empty. The full pipeline — registration → Pre-DPC → DPC proposal → Excel import → approval → CALCULATE → allotment → scheduling → proceeding → result → signed documents → **Review DPC and supersession** — runs end to end **with every external integration switched off**, which is the configuration UAT will use.
 
-**M9 (Circulation DPC) has not started.** Its baseline for freeze verification exists — `v0.8.0-m8-phase3` — which is what M8's tag was for.
+**M9 (Circulation DPC) is built, not closed** — all three phases completed 2026-08-16, closure pending **BD-14**, so it carries no freeze baseline of its own yet. **M10 has not started and is blocked on BD-19** (see the entry above).
 
 **What actually gates production**, in order of how long each takes to fix:
 
