@@ -18,6 +18,8 @@ use App\Domain\Circulation\Policies\DpcCirculationPolicy;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Policies\DpcProposalPolicy;
 use App\Domain\Notification\Listeners\RecordInAppNotification;
+use App\Domain\Notification\Listeners\RecordPublicationNotification;
+use App\Domain\Notification\Listeners\RecordSupersessionNotification;
 use App\Domain\PreDpc\Models\PreDpcProposal;
 use App\Domain\PreDpc\Policies\PreDpcProposalPolicy;
 use App\Domain\Proceeding\Documents\DocumentRenderer;
@@ -155,6 +157,12 @@ class AppServiceProvider extends ServiceProvider
         // application, so gating it behind the integration flag would switch off
         // the only channel that always works.
         Event::listen(WorkflowTransitioned::class, RecordInAppNotification::class);
+        // Publication and supersession are deliberately NOT workflow transitions
+        // (M7 Phase 4 and M8 Phase 3 both reasoned that a fake transition would
+        // have the ledger claim a state change that never happened), so each needs
+        // its own in-app listener beside its own SMS one.
+        Event::listen(ProceedingDocumentsPublished::class, RecordPublicationNotification::class);
+        Event::listen(DpcSupersededByReview::class, RecordSupersessionNotification::class);
 
         if (Feature::Notifications->enabled()) {
             Event::listen(WorkflowTransitioned::class, SendWorkflowNotification::class);
