@@ -224,5 +224,24 @@ class AppServiceProvider extends ServiceProvider
                 ->withErrors(['calculate' => __('Too many calculations in a short time. Please wait a minute before recalculating.')])
                 ->withHeaders($headers));
         });
+
+        // Self-Inspection (M10, S50). The strictest limiter in the application,
+        // and the one that most needs to be: it is the only endpoint an
+        // unauthenticated caller can reach with officer data behind it, and the
+        // factors that open it — a name and two dates — all appear on a
+        // departmental seniority list. Keyed on the claimed name and the IP, so
+        // guessing dates against one officer does not lock out another.
+        RateLimiter::for('self-inspection', function (Request $request): Limit {
+            $key = 'self-inspection|'
+                .Str::lower(Str::squish((string) $request->input('name')))
+                .'|'.$request->ip();
+
+            return Limit::perMinutes(
+                max(1, (int) round(((int) config('dpc.self_inspection.rate_limit.decay_seconds')) / 60)),
+                (int) config('dpc.self_inspection.rate_limit.max_attempts'),
+            )->by($key)->response(fn (Request $request, array $headers) => back()
+                ->withErrors(['self_inspection' => __('Too many attempts. Please try again later, or contact your department.')])
+                ->withHeaders($headers));
+        });
     }
 }

@@ -72,9 +72,16 @@
 
                         <hr class="my-4">
 
-                        <p class="text-center text-body-secondary small mb-0">
+                        <p class="text-center text-body-secondary small mb-2">
                             New department?
                             <a href="{{ route('register') }}" class="fw-semibold">Register here</a>
+                        </p>
+
+                        {{-- S49/S50. An officer under consideration has no account
+                             here and will otherwise try to log in with one. --}}
+                        <p class="text-center text-body-secondary small mb-0">
+                            An officer under consideration for promotion?
+                            <a href="{{ route('self-inspection.landing') }}" class="fw-semibold">View your own data</a>
                         </p>
                     </div>
 

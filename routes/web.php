@@ -43,6 +43,7 @@ use App\Http\Controllers\Dpc\DpcProposalController;
 use App\Http\Controllers\Dpc\ReviewProposalController;
 use App\Http\Controllers\HealthController;
 use App\Http\Controllers\PreDpc\PreDpcProposalController;
+use App\Http\Controllers\SelfInspection\SelfInspectionController;
 use App\Http\Middleware\EnsurePasswordChanged;
 use Illuminate\Support\Facades\Route;
 
@@ -69,6 +70,28 @@ Route::post('/register', [RegistrationController::class, 'store'])->name('regist
 
 Route::get('/verify', [VerificationController::class, 'show'])->name('verify.show');
 Route::post('/verify', [VerificationController::class, 'store'])->middleware('throttle:otp-verify')->name('verify.store');
+
+/*
+ | Self-Inspection & Assessment (PPT S49–S51) — M10.
+ |
+ | Deliberately outside `auth`. An individual under consideration has no account
+ | in this system: they exist as a row in the officer chart their department
+ | filed, which is why S50 identifies them by facts rather than by credentials
+ | (BD-19, expressed as `dpc.self_inspection.authentication.driver`).
+ |
+ | S51 has two buttons — CLOSE and PRINT — and no objection route, because the
+ | deck has none: it sends the officer to the department in person and states the
+ | Commission will consider no representation (BD-20).
+ */
+Route::prefix('self-inspection')->name('self-inspection.')->group(function (): void {
+    Route::get('/', [SelfInspectionController::class, 'landing'])->name('landing');
+    Route::get('/identify', [SelfInspectionController::class, 'create'])->name('identify');
+    Route::post('/identify', [SelfInspectionController::class, 'store'])
+        ->middleware('throttle:self-inspection')->name('identify.store');
+    Route::get('/record', [SelfInspectionController::class, 'show'])->name('show');
+    Route::get('/record/print', [SelfInspectionController::class, 'print'])->name('print');
+    Route::post('/close', [SelfInspectionController::class, 'close'])->name('close');
+});
 
 /*
  | Authenticated area

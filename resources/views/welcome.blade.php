@@ -76,6 +76,10 @@
                     ['user-plus', 'New Registration', 'Register your department and request portal access.', route('register')],
                     ['login', 'Department Login', 'Authorized Officers and Administrative Heads sign in here.', route('login')],
                     ['admin', 'Super Admin Login', 'Commission administrators — master data and approvals.', route('login')],
+                    // S49. The officer under consideration has no account, so this
+                    // is their only way in — and a screen nobody can reach is a
+                    // screen that was not delivered.
+                    ['eye', 'Self-Inspection', 'Officers under consideration — view the data your department recorded.', route('self-inspection.landing')],
                     ['book', 'User Manual', 'Step-by-step guidance for every role in the process.', '#manual'],
                     ['chart', 'Reports', 'Proceedings, promotion lists and signed documents.', route('login')],
                     ['help', 'Help Desk', 'Contact your nodal officer or the Commission.', '#help-desk'],
