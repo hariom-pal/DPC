@@ -27,10 +27,30 @@ use Symfony\Component\HttpFoundation\Response;
  * **`'unsafe-inline'` is permitted for styles and not for scripts, and that
  * asymmetry is the point.** Several Blade views set element widths inline — the
  * report bars, for one — so `style-src` must admit inline styles or the pages
- * render wrong. Scripts have no such need: there is one inline `<script>` in the
- * whole application (the print view's auto-print), and it is served outside this
- * middleware's own layouts. An inline-script allowance is what turns a reflected
- * string into executable code, so it is not granted.
+ * render wrong. An inline-*script* allowance is what turns a reflected string into
+ * executable code, so it is not granted.
+ *
+ * **The policy ships in report-only mode, and that is a finding rather than a
+ * preference.** The application has **7 views with inline `<script>` blocks and
+ * ~22 inline event handlers** (`onsubmit="return confirm(...)"`,
+ * `onchange="this.form.submit()"`), several on M4's frozen screens. Under an
+ * *enforced* `script-src 'self'` a browser would silently refuse all of them: the
+ * add-a-row buttons on the committee, seniority, working-officers,
+ * evaluation-chart and Pre-DPC forms would stop working, and every confirmation
+ * dialogue before a destructive action would stop appearing — the form would just
+ * submit.
+ *
+ * **None of that is visible to the test suite, because CSP is enforced by the
+ * browser and not by the server.** A screen returns 200 either way. Shipping the
+ * policy enforced would therefore have broken core data entry in a way every green
+ * test agreed was fine, which is the worst shape a change can have.
+ *
+ * So `Content-Security-Policy-Report-Only` is the default: violations are reported
+ * and nothing is blocked. Enforcement is one configuration flag away and should be
+ * turned on once the inline handlers are gone — recorded as **TD-29**, with the
+ * exact inventory. This is the standard migration path for adding CSP to an
+ * existing application, and the alternative — `'unsafe-inline'` — would have made
+ * the header decorative while looking strict.
  *
  * **Every header is configurable and can be switched off**, because a header that
  * breaks a page in production and cannot be disabled without a deploy is worse
@@ -69,7 +89,9 @@ class SecurityHeaders
     private function headers(Request $request): array
     {
         return [
-            'Content-Security-Policy' => $this->contentSecurityPolicy(),
+            // Report-only unless enforcement is switched on — see the class
+            // docblock and TD-29 for the inventory that has to be cleared first.
+            $this->policyHeaderName() => $this->contentSecurityPolicy(),
 
             // Clickjacking. `SAMEORIGIN` rather than `DENY`: the print view and the
             // stored documents are legitimately opened in a frame by some PDF
@@ -101,6 +123,16 @@ class SecurityHeaders
         ];
     }
 
+    /**
+     * `Content-Security-Policy` when enforcing, `-Report-Only` otherwise.
+     */
+    private function policyHeaderName(): string
+    {
+        return (bool) config('dpc.security.headers.enforce_csp', false)
+            ? 'Content-Security-Policy'
+            : 'Content-Security-Policy-Report-Only';
+    }
+
     private function contentSecurityPolicy(): ?string
     {
         $configured = config('dpc.security.headers.content_security_policy');
@@ -128,6 +160,21 @@ class SecurityHeaders
             "frame-ancestors 'self'",
             "base-uri 'self'",
             "object-src 'none'",
+            ...($this->reportUri() === null ? [] : ['report-uri '.$this->reportUri()]),
         ]);
+    }
+
+    /**
+     * Where a browser should post violations, if anywhere.
+     *
+     * Unset by default: a report-only policy with nowhere to report to still
+     * protects nothing, but it also breaks nothing, and inventing an endpoint that
+     * silently discards reports would be worse than having none.
+     */
+    private function reportUri(): ?string
+    {
+        $uri = config('dpc.security.headers.csp_report_uri');
+
+        return is_string($uri) && $uri !== '' ? $uri : null;
     }
 }

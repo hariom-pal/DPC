@@ -481,6 +481,31 @@ return [
             // empty string to send no CSP at all.
             'content_security_policy' => env('DPC_CSP'),
 
+            /*
+            | Enforce the policy, or only report violations. **Report-only is the
+            | default, and that is a finding rather than a preference.**
+            |
+            | The application has 7 views with inline `<script>` blocks and ~22
+            | inline event handlers, several on M4's frozen screens. Under an
+            | enforced `script-src 'self'` a browser silently refuses all of them:
+            | the add-a-row buttons on five forms stop working and every
+            | confirmation dialogue before a destructive action stops appearing.
+            |
+            | **The test suite cannot see any of that**, because CSP is enforced by
+            | the browser and not the server — a screen returns 200 either way. So
+            | enforcing it by default would have broken core data entry while every
+            | test agreed it was fine.
+            |
+            | Turn this on once the inline handlers are gone (**TD-29**). Adding
+            | `'unsafe-inline'` instead would make the header decorative while
+            | looking strict.
+            */
+            'enforce_csp' => (bool) env('DPC_CSP_ENFORCE', false),
+
+            // Where the browser posts violations. Unset by default: inventing an
+            // endpoint that silently discards reports is worse than having none.
+            'csp_report_uri' => env('DPC_CSP_REPORT_URI'),
+
             'frame_options' => env('DPC_FRAME_OPTIONS', 'SAMEORIGIN'),
             'referrer_policy' => env('DPC_REFERRER_POLICY', 'same-origin'),
             'permissions_policy' => env(

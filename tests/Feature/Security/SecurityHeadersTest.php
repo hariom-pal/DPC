@@ -35,7 +35,62 @@ class SecurityHeadersTest extends TestCase
         $response->assertHeader('Referrer-Policy', 'same-origin');
 
         $this->assertStringContainsString('camera=()', (string) $response->headers->get('Permissions-Policy'));
+        // Report-only by default: see the class docblock and TD-29. Enforcing the
+        // policy today would silently break the inline handlers this application
+        // still has, in a way no server-side test can see.
+        $this->assertNull($response->headers->get('Content-Security-Policy'));
+        $this->assertNotNull($response->headers->get('Content-Security-Policy-Report-Only'));
+    }
+
+    /**
+     * The policy is enforced by configuration, not by default.
+     *
+     * This is the flag to turn on once TD-29's inline handlers are gone. Pinned so
+     * that the switch is known to work before anybody relies on it in production.
+     */
+    public function test_the_policy_can_be_enforced_by_configuration(): void
+    {
+        Config::set('dpc.security.headers.enforce_csp', true);
+
+        $response = $this->get(route('login'))->assertOk();
+
         $this->assertNotNull($response->headers->get('Content-Security-Policy'));
+        $this->assertNull($response->headers->get('Content-Security-Policy-Report-Only'));
+    }
+
+    /**
+     * A report-only policy with nowhere to report to protects nothing, so the
+     * endpoint is configurable — and absent by default rather than invented.
+     */
+    public function test_a_report_endpoint_is_added_only_when_configured(): void
+    {
+        $this->assertStringNotContainsString(
+            'report-uri',
+            (string) $this->get(route('login'))->headers->get('Content-Security-Policy-Report-Only'),
+        );
+
+        Config::set('dpc.security.headers.csp_report_uri', 'https://csp.example.gov.in/report');
+
+        $this->assertStringContainsString(
+            'report-uri https://csp.example.gov.in/report',
+            (string) $this->get(route('login'))->headers->get('Content-Security-Policy-Report-Only'),
+        );
+    }
+
+    /**
+     * The one screen written after the policy existed is CSP-clean, and stays so.
+     *
+     * The rest of the application is not (TD-29). New code is not going to add to
+     * that, and this is what says so.
+     */
+    public function test_the_self_inspection_print_view_uses_no_inline_script(): void
+    {
+        $view = (string) file_get_contents(resource_path('views/self-inspection/print.blade.php'));
+
+        $this->assertStringNotContainsString('onclick=', $view);
+        $this->assertStringNotContainsString('<script>', $view);
+        $this->assertStringContainsString('self-inspection-print.js', $view);
+        $this->assertFileExists(public_path('js/self-inspection-print.js'));
     }
 
     /**
@@ -45,7 +100,7 @@ class SecurityHeadersTest extends TestCase
      */
     public function test_inline_scripts_are_not_permitted_but_inline_styles_are(): void
     {
-        $csp = (string) $this->get(route('login'))->headers->get('Content-Security-Policy');
+        $csp = (string) $this->get(route('login'))->headers->get('Content-Security-Policy-Report-Only');
 
         $this->assertStringContainsString("script-src 'self'", $csp);
         $this->assertStringNotContainsString("script-src 'self' 'unsafe-inline'", $csp);
@@ -80,7 +135,7 @@ class SecurityHeadersTest extends TestCase
 
         $this->get(route('login'))
             ->assertOk()
-            ->assertHeaderMissing('Content-Security-Policy')
+            ->assertHeaderMissing('Content-Security-Policy-Report-Only')
             ->assertHeaderMissing('X-Content-Type-Options');
     }
 
@@ -88,11 +143,12 @@ class SecurityHeadersTest extends TestCase
     {
         Config::set('dpc.security.headers.content_security_policy', "default-src 'none'");
 
-        $this->get(route('login'))->assertHeader('Content-Security-Policy', "default-src 'none'");
+        $this->get(route('login'))
+            ->assertHeader('Content-Security-Policy-Report-Only', "default-src 'none'");
 
         Config::set('dpc.security.headers.content_security_policy', '');
 
-        $this->get(route('login'))->assertHeaderMissing('Content-Security-Policy');
+        $this->get(route('login'))->assertHeaderMissing('Content-Security-Policy-Report-Only');
     }
 
     /**

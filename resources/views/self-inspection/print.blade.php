@@ -81,16 +81,14 @@
     </p>
 
     <p class="d-print-none mt-4 mb-0">
-        <button type="button" class="btn btn-primary btn-sm" onclick="window.print()">Print this page</button>
+        {{-- `data-print` and a delegated listener, not `onclick` — an enforced
+             Content-Security-Policy refuses inline handlers. --}}
+        <button type="button" class="btn btn-primary btn-sm" data-print>Print this page</button>
     </p>
 </div>
 
-<script>
-    // Opened in a new tab from the Print button, so it offers the print dialog
-    // straight away. Guarded because this view is also directly addressable.
-    if (window.location.search.indexOf('noprint') === -1) {
-        window.addEventListener('load', function () { window.print(); });
-    }
-</script>
+{{-- External, so this screen satisfies `script-src 'self'` even when the policy is
+     enforced. See TD-29 for the screens that do not yet. --}}
+<script src="{{ asset('js/self-inspection-print.js') }}"></script>
 </body>
 </html>
