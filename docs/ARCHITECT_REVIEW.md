@@ -14,7 +14,7 @@
 
 ## 0. Current Session
 
-**Updated:** 2026-08-18 · **M9 closure readiness confirmed (§0.13.1) and the repository is clean (§0.13.2). Read those two first.** §0.1–§0.12 hold the completed documentation consolidation plan, retained rather than replaced because it is a deliverable, not working notes. **No code touched; nothing merged, deleted or moved.**
+**Updated:** 2026-08-18 · **M9 closure readiness confirmed (§0.13.1), repository clean (§0.13.2), Implementation Guide blueprint complete (§0.13.3). Read those three first.** §0.1–§0.12 hold the completed documentation consolidation plan, retained rather than replaced because it is a deliverable, not working notes. **No code touched; nothing merged, deleted or moved.**
 
 ### 0.1 Prompt received
 
@@ -409,6 +409,63 @@ Appendix D  Register index — which document owns which kind of fact
 **One item is deliberately left undone: the branch is 5 commits ahead of `origin` and has not been pushed.** Pushing was not requested and is not required for closure readiness — every verification above is local and reproducible. It is recorded because an unpushed boundary is a single-machine boundary, and M8's own checklist treated "committed" and "pushed" as two separate rows for exactly that reason.
 
 **Nothing else remains. M9 is not tagged, not frozen and not closed** — all three are blocked on **BD-14**, and each is blocked by the one before it. **No engineering, documentation, gate or repository-hygiene task is outstanding.**
+
+#### 0.13.4 Unblocked backlog cleared — TD-23, TD-24 step 1, TD-26, TD-27
+
+**2026-08-18, on the directive to maximise completed work without waiting on BD-14.** Every item below was already specified and already unblocked. **Suite 798 → 801 (2455 assertions). All five freezes empty. No M9 code touched. `demo:seed` unchanged.**
+
+| Item | Result |
+|---|---|
+| **TD-24 step 1** | ✅ **Closed.** `SchemaIdentifierLengthTest` — every identifier against MySQL's 64 characters, on any engine. **Step 2 (run the suite on MySQL) remains open** |
+| **TD-23** | ✅ **Closed.** The Review now runs the real submit → AH-approve path |
+| **TD-26** | ✅ **Closed.** `PreDpcProposalPolicy` extracted; controller and views ask it |
+| **TD-27** | ✅ **Closed.** Three cadence statements changed to per phase |
+
+**Two findings, both from doing the work rather than from reviewing it:**
+
+1. **An authorization gap in Pre-DPC, found by TD-26 and fixed.** `create`/`store` were gated to the AO earlier the same day; **`edit`, `update` and `amend` checked only the department**, so an **Administrative Head could open the edit form and save over a draft** the show screen had never offered them. The UI was right, the backend was wider. This is the concrete form of the drift TD-26 described in the abstract, and it was invisible for as long as the rule was stated twice.
+2. **A fixture defect, found by TD-23.** `BuildsProceedings` hardcoded the original's `dpc_code`, leaving the per-department sequence at zero — so the first proposal approved *for real* collided on `HE202600001`. Unreachable in production; invisible until a test approved a second proposal, which none ever had.
+
+**Both were found because a bypass was removed, not because anything was re-reviewed.** That is the argument for closing TD-24 step 2 as well: the remaining engine gap is the same shape.
+
+**Deliberately not done, and why** — each recorded rather than attempted:
+
+| Item | Why not |
+|---|---|
+| **AD-25** | Needs **BD-16** confirmed *and* a Freeze Exception against M4 |
+| **TD-19 / TD-20 / TD-21 / TD-16** | Blocked by AD-15; need a Freeze Exception, which is the Architect's to grant. **None requested** |
+| **TD-22** | Open **by directive** — do not solve a concurrency residual before concurrent workers exist |
+| **TD-25** | The register offers **two** fixes (report, or refuse the approval). Choosing between them is an Architect decision, and refusing changes workflow |
+| **TD-28** | Needs a standing rule about absent named actors across M7/M8/M9 |
+| **TD-5** | Explicitly scheduled for the hardening pass |
+| **TD-1 / TD-6 / TD-8 / TD-2** | Deployment, external gateway, capacity and CI — none is a code change in this repository |
+| **S49–S51** | M10. Not opened |
+
+#### 0.13.3 Implementation Guide blueprint — complete
+
+**Created 2026-08-18: `docs/IMPLEMENTATION_GUIDE_BLUEPRINT.md`. One file. No code, no repository change, no milestone change, nothing merged or deleted.**
+
+**This is the blueprint, not the Guide.** Its governing discipline: **every Part specifies what the corresponding chapter must contain and where its source material lives — it contains none of that content.** Part 3 is titled *System Architecture* and contains no architecture; Part 7 lists all 59 slides and explains none of them. Writing content there would have produced a second Implementation Guide and re-created the duplication the consolidation plan exists to prevent.
+
+| Part | Delivered |
+|---|---|
+| 1–5 | Chapter specifications for Project Overview, Business Overview, System Architecture, User Roles and High-Level Workflow — each a section table naming required content and its existing source |
+| 6 | **Stage mapping, 9 stages.** Stages 1–6 are the PPT's own six; **7–9 (Review, Circulation, Self-Inspection) are explicitly flagged as not the PPT's**, grouped for navigation only, because the six stages are the customer's vocabulary |
+| 7 | **Slide inventory — 59 rows, all 12 requested columns.** `S1`–`S52` and `C1`–`C7`, every slide accounted for including covers and agenda slides |
+| 8 | **17 cross-cutting chapters**, each naming the slides it serves so the pointer relationship is verifiable in both directions |
+| 9 | **11 appendices**, of which E/F/G are explicitly indexes and never copies of the three registers |
+
+**Three findings from building it, worth the Architect's attention:**
+
+1. **Twelve of the 59 slides are the same login screen for a different actor** — `S8, S10, S13, S20, S27, S29, S32, S36, S39, S42, S46, S50`. Written once as chapter **X1** with twelve pointers, this is the single largest structural saving in the plan; written out individually it would add ~150 lines of near-identical text and bury the slides carrying real business rules.
+2. **`S21`–`S25` are `S14`–`S18` again in read-only review.** Same saving, smaller scale.
+3. **Scale is now known before starting rather than discovered halfway: ≈158 pages.** The heaviest entries are `S33`, `S34`, `S44`, `S48`, `S9` and `C5` — the ones carrying worked examples, open business decisions or declared deviations.
+
+**A writing order is recorded** so the work is systematic rather than sequential-by-slide-number: cross-cutting chapters first (every slide points at them), then the engine, then stages 1–6, then stage 7 marking BD-14 rather than waiting for it, then **stage 8 as specification before M10 begins**, then the overview parts, then appendices generated from the finished body.
+
+**One prerequisite is flagged: F1 must be resolved before the Guide is written.** The Q-register and the BD-register hold the same questions under two numbers, and every slide entry's *Business Decision* heading would inherit that ambiguity.
+
+**The Guide itself was not started, and M9 is unaffected** — this changed no milestone, no gate and no code.
 
 ### 0.14 For the Architect — copy-paste
 

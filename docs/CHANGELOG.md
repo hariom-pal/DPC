@@ -2,6 +2,38 @@
 
 All notable work on the ODPC Portal, in reverse chronological order. Business-rule changes are traceable to `docs/ODPC_NEW_FINAL.pptx` / `docs/CONVENTIONAL DPC PROCESS.pptx` slide numbers where applicable. This file, `docs/PROJECT_STATUS.md`, `docs/PROJECT_PROGRESS.md`, and `docs/ARCHITECT_REVIEW.md` are the only documents updated on an ongoing basis (see `docs/ARCHITECT_REVIEW.md` for the full documentation policy).
 
+## 2026-08-18 — Unblocked backlog cleared: TD-23, TD-24 step 1, TD-26, TD-27
+
+**Everything here was already specified and unblocked — nothing waited on BD-14 or any new business clarification.** Suite **798 → 801** (2455 assertions, +51). Pint clean · PHPStan 0 errors · `composer audit` clean · **all five freeze diffs empty** · `demo:seed` rebuilds with all seven DPC IDs unchanged. No M9 code was touched.
+
+### TD-24 step 1 — the check that would have caught the P0 *(closed)*
+
+`tests/Feature/SchemaIdentifierLengthTest.php` asserts every table, column, index and foreign-key identifier fits **MySQL's 64 characters, on whatever engine the suite runs**. The suite runs on SQLite, which has no such limit; M8's derived foreign-key name came out at 65 characters, passed 84 green tests, and **could not be created by `migrate:fresh` at all**.
+
+**The split of sources is the substance of it.** Tables, columns and indexes are read from the live schema. **Foreign keys are read from the migration source**, because SQLite reports `name => null` for inline foreign keys and so cannot distinguish an explicitly-named constraint from Laravel's derived one — deriving unconditionally produced a false positive on the very constraint that caused the P0, which now *is* named explicitly. The scan accumulates whole statements to their terminating `;`, because a foreign key is routinely declared across three lines and a line-by-line scan sees `foreignId(` and misses the explicit name two lines later.
+
+**Verified to bite:** temporarily removing the explicit name from `2026_08_14_290004` reproduces the 65-character failure; restoring it passes. A green schema check that cannot fail is worse than none, so the test also refuses to pass if it inspected implausibly few identifiers.
+
+**Step 2 remains open** — the suite still runs on SQLite while the application runs on MySQL, and identifier length was only one way those differ.
+
+### TD-23 — M8's end-to-end test no longer bypasses M4's submission gate *(closed)*
+
+`ReviewCalculationTest::conductReview()` force-filled a Review straight to `Approved`, skipping the submission gate and the AH's signature — the one row of design §13's pipeline never actually driven, and the bypass that hid a P1 (`sanctioned_post_count` was not copied onto a Review, so M4's completeness gate refused every Review DPC in the real application). It now fills whatever the copy legitimately leaves empty, calls `submit()` as the AO and `approve()` as the AH, and asserts the DPC code and signature the approval mints.
+
+**It immediately found a second defect, in the fixture.** `BuildsProceedings` hardcoded the original's `dpc_code`, leaving the per-department sequence at zero — so the first proposal ever approved *for real* was handed `HE202600001` again and collided. Nothing in production can reach that state, because there the original consumes the sequence too, and no test had ever approved a second proposal to notice. The fixture now mints through `DpcIdGeneratorService`; still the first call, so the value is unchanged.
+
+### TD-26 — Pre-DPC authorization extracted to a Policy *(closed)*
+
+`PreDpcProposalPolicy` now holds the rules; the controller authorises against it and the views ask it through `@can`. M3 predates the Policy convention, so its rules were stated twice — `abort_unless(...)` in the controller, `$isAO`/`$isAH` in Blade.
+
+**⚠ Closing it exposed a real authorization gap the duplication had hidden.** `create` and `store` were gated to the Authorized Officer earlier the same day, but **`edit`, `update` and `amend` still checked only the department** — so an **Administrative Head could open the edit form and save over a draft**, even though the show screen has never offered them the button. The UI was correct and the backend was wider than it, which is exactly the drift a Policy prevents. Two tests pin it, including one asserting the draft is *unchanged* after a refused write, so the refusal is not merely cosmetic.
+
+Transitions deliberately still authorise only the department boundary: `WorkflowEngine::assertAllowed()` enforces role and state and refuses with a message naming the transition and the state it was attempted from, which is more use to a user than a bare 403.
+
+### TD-27 — status documents update per phase, not per closure *(closed)*
+
+`MILESTONE_SUMMARY.md`, `PROJECT_TIMELINE.md` and `PROJECT_PROGRESS.md` said *"at each milestone closure"* or *"at each phase boundary"*; closure is an event that may never arrive, and M9 proved it — this file's own sibling said **"M9 ⚪ Not started"** two days after all three phases finished. All three now read **per phase boundary**, each recording why so the next reader does not restore the closure trigger. **The deeper recommendation is not done and stays open:** the status column is still maintained in two documents.
+
 ## 2026-08-18 — M9 closure documentation
 
 **Documentation only. No code, migration, route, view or test changed.** Suite unchanged at **798 / 2404**. Pint clean · PHPStan 0 errors · `composer audit` clean · all five freezes verified empty.

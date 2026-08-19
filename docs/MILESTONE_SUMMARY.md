@@ -2,7 +2,9 @@
 
 One page per milestone: what it delivered, what governs it now, and what it left behind.
 
-**Created 2026-08-14.** Updated at each milestone closure.
+**Created 2026-08-14.** **Updated at each PHASE boundary** — not at each milestone closure.
+
+> **The cadence changed on 2026-08-18, closing TD-27.** It read *"updated at each milestone closure"*, and closure is an event that may never arrive: M9 finished all three engineering phases on 2026-08-16 and stalled on a business decision, so this file still said **"M9 ⚪ Not started"** two days later and reported 620 tests against an actual 798. **A milestone that stalls is exactly the one whose status matters most, and exactly the one a closure-triggered document is guaranteed to get wrong.** The status column now tracks engineering state at each phase; the freeze column tracks closure.
 
 ---
 
@@ -23,7 +25,7 @@ One page per milestone: what it delivered, what governs it now, and what it left
 | **M10** | Self-Inspection & Objection | S49–S51 | ⚪ Not started | — | — |
 | **M11** | Notifications · Reports · Dashboards · Audit UI · Hardening | — | ⚪ Not started | — | — |
 
-**798 PHPUnit tests / 2404 assertions.** Pint clean · PHPStan (Larastan level 6) 0 errors · `composer audit` clean · migrations run clean, **66 tables**. Verified by the full gate run of 2026-08-18.
+**801 PHPUnit tests / 2455 assertions.** Pint clean · PHPStan (Larastan level 6) 0 errors · `composer audit` clean · migrations run clean, **66 tables**. Verified by the full gate run of 2026-08-18.
 
 **M9 is the active milestone.** All three phases are built and gate-verified; **closure is blocked on BD-14** — from what date a circulated promotion takes effect. That is a CGPSC decision, not engineering work: the note renders, signs, stores and verifies, and refuses only to *publish*, displaying "Pending Business Decision (BD-14)" rather than inventing an effective date. **No freeze is applied to M9 until it is closed**, so the five freezes below remain the complete set.
 
@@ -178,7 +180,7 @@ git diff --name-only v0.8.0-m8-phase3   -- app/Domain/Review                    
 | **Governed by** | **AD-23** — Circulation is Decision Resolution, not DPC Execution. **AD-24** — Circulation is its own aggregate; it never reuses `dpc_proposals` |
 | **Rulings** | **AQ-17** the signature is the operative act · **AQ-20** only the Member who conducted the original DPC may act, and the Chairman is not exempt · **AQ-21** M9 may write `dpc_proceeding_holds.released_at` and no other column of M7's table · **AQ-22** M9 owns its own document layer |
 | **BD-14** | **From what date does a circulated promotion take effect?** The one thing between M9 and closure. Put to CGPSC as Question 6 of `docs/UAT_BUSINESS_VALIDATION.md` |
-| **Tests** | **98 passed / 276 assertions** across seven files in `tests/Feature/Circulation`, within a suite of **798 / 2404** |
+| **Tests** | **98 passed / 276 assertions** across seven files in `tests/Feature/Circulation`, within a suite of **801 / 2455** |
 
 **What it does.** An officer whose promotion was **held** at a DPC — missing 2+ years of CR, or a year's immovable-property return — has that promotion reserved rather than refused. M7 produces the hold; **M9 resolves it.** The department raises a note against the concluded DPC with the missing evidence, the AO submits and the AH signs; the Commission then decides per officer, approves, and signs. **Holds are released inside the signature transaction and only for officers consented to** — a note that is never signed leaves every promotion reserved.
 

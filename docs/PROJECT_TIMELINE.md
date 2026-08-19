@@ -2,7 +2,7 @@
 
 What happened, when, and why — the decisions that shaped the system, in the order they were taken.
 
-**Created 2026-08-14.** Appended at each milestone closure. For *what* each milestone delivered, see `docs/MILESTONE_SUMMARY.md`; this records *when and why*.
+**Created 2026-08-14.** **Appended at each PHASE boundary** — not at each milestone closure (changed 2026-08-18, TD-27: closure is an event that may never arrive, and M9 proved it). For *what* each milestone delivered, see `docs/MILESTONE_SUMMARY.md`; this records *when and why*.
 
 ---
 

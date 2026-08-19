@@ -369,7 +369,7 @@ Every module below corresponds to a stage of the 6-stage ODPC process (or a cros
 
 ## Implementation Summary
 
-**This is the project's single progress-and-suggestions document.** It is replaced in full at each phase boundary rather than appended to, and no additional progress markdown file is created. The module-by-module report above is the detailed record; this section is the current state, what remains, what is blocked, and what I recommend next.
+**This is the project's single progress-and-suggestions document.** It is replaced in full **at each phase boundary — including a phase that ends without its milestone closing**, which is the clarification TD-27 required: M9's three phases all ended without a closure event, and this section went two days asserting M9 had not started. The module-by-module report above is the detailed record; this section is the current state, what remains, what is blocked, and what I recommend next.
 
 ### 1. Current project completion status
 

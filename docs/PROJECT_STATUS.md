@@ -118,7 +118,7 @@ A Review DPC has an origin, a chain (`chain_uuid`, `review_number`, `chain_depth
 |---|---|
 | Engineering complete | ✅ Nothing in M9's scope is unbuilt or untested |
 | Milestone documentation complete | ✅ Five mandatory documents synchronised; they agree with each other and with the code |
-| Quality gates complete | ✅ **798 / 2404** · Pint pass · PHPStan L6 **0 errors** · `composer audit` clean |
+| Quality gates complete | ✅ **801 / 2455** · Pint pass · PHPStan L6 **0 errors** · `composer audit` clean |
 | Milestone deliverables complete | ✅ Checklist items 1–19; **all five freeze diffs empty** |
 | Waiting only on business approval | ✅ **BD-14 alone** |
 
