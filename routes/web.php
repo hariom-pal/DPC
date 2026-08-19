@@ -43,6 +43,7 @@ use App\Http\Controllers\Dpc\DpcImportController;
 use App\Http\Controllers\Dpc\DpcProposalController;
 use App\Http\Controllers\Dpc\ReviewProposalController;
 use App\Http\Controllers\HealthController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PreDpc\PreDpcProposalController;
 use App\Http\Controllers\SelfInspection\SelfInspectionController;
 use App\Http\Middleware\EnsurePasswordChanged;
@@ -106,6 +107,15 @@ Route::middleware('auth')->group(function (): void {
     // Application screens require the system-issued password to be changed.
     Route::middleware(EnsurePasswordChanged::class)->group(function (): void {
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
+        /*
+         | In-app notifications (M11). Every role, no role middleware: the feed
+         | contains only what was addressed to the signed-in user, and ownership
+         | is enforced in the service rather than by route scoping.
+         */
+        Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+        Route::post('/notifications/read-all', [NotificationController::class, 'readAll'])->name('notifications.read-all');
+        Route::post('/notifications/{notification}/read', [NotificationController::class, 'read'])->name('notifications.read');
 
         // Pre-DPC Proposal workflow (department Authorized Officer / Administrative Head).
         Route::middleware('role:'.Role::AuthorizedOfficer->value.'|'.Role::AdministrativeHead->value)

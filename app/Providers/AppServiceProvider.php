@@ -17,6 +17,7 @@ use App\Domain\Circulation\Models\DpcCirculation;
 use App\Domain\Circulation\Policies\DpcCirculationPolicy;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Policies\DpcProposalPolicy;
+use App\Domain\Notification\Listeners\RecordInAppNotification;
 use App\Domain\PreDpc\Models\PreDpcProposal;
 use App\Domain\PreDpc\Policies\PreDpcProposalPolicy;
 use App\Domain\Proceeding\Documents\DocumentRenderer;
@@ -36,6 +37,7 @@ use App\Domain\Review\Services\ReviewAwareDocumentService;
 use App\Domain\Shared\Events\WorkflowTransitioned;
 use App\Domain\Shared\Listeners\SendWorkflowNotification;
 use App\Enums\Feature;
+use App\Http\View\Composers\NotificationBellComposer;
 use App\Http\View\Composers\PortalStatisticsComposer;
 use App\Http\View\Composers\ReviewDpcComposer;
 use App\Integrations\Contracts\DirectoryProvider;
@@ -144,6 +146,16 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(OtpRequested::class, SendOtpNotification::class);
         Event::listen(CredentialsIssued::class, SendCredentialNotification::class);
 
+        // M11's in-app channel. A **second** listener on the same event rather
+        // than a change to M6's — AD-20's pattern, applied to a subscriber.
+        //
+        // Registered outside `Feature::Notifications`, and that is the point:
+        // the flag gates *external* delivery, which needs a procured gateway
+        // (TD-6) and a phased rollout. An in-app record calls nothing outside the
+        // application, so gating it behind the integration flag would switch off
+        // the only channel that always works.
+        Event::listen(WorkflowTransitioned::class, RecordInAppNotification::class);
+
         if (Feature::Notifications->enabled()) {
             Event::listen(WorkflowTransitioned::class, SendWorkflowNotification::class);
             Event::listen(ProceedingDocumentsPublished::class, SendDocumentPublicationNotification::class);
@@ -163,6 +175,11 @@ class AppServiceProvider extends ServiceProvider
         // Architect Directive 3 (M8): the Review banner reaches M4's frozen
         // proposal screens from the layout rather than by editing each one.
         View::composer('layouts.app', ReviewDpcComposer::class);
+
+        // The notification bell renders on every authenticated screen, several of
+        // which belong to frozen milestones — so it reaches them from the layout
+        // rather than through thirty controllers (M11).
+        View::composer('layouts.app', NotificationBellComposer::class);
 
         // Live counts for the public landing page. Presentation wiring only —
         // no business logic, no policy, and guarded so a database or cache

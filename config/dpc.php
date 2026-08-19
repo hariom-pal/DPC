@@ -421,6 +421,53 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Notifications — in-app channel (M11)
+    |--------------------------------------------------------------------------
+    |
+    | The third channel, beside SMS and e-mail. It exists because the other two
+    | cannot be relied on yet: the government SMS gateway is not procured
+    | (**TD-6**) and `FEATURE_NOTIFICATIONS` defaults to off, so without this
+    | nobody is actually told anything — in a demo, or on the day the system goes
+    | live before its gateway does.
+    |
+    | **Deliberately NOT behind `FEATURE_NOTIFICATIONS`.** That flag gates external
+    | delivery, which is what needs a procured gateway and a phased rollout. An
+    | in-app record leaves the application, calls nothing and cannot fail
+    | half-way, so gating it behind the flag that guards outbound integrations
+    | would switch off the only channel that always works.
+    |
+    */
+
+    'notifications' => [
+        'in_app' => [
+            'enabled' => (bool) env('DPC_NOTIFICATIONS_IN_APP', true),
+
+            /*
+            | Seconds to cache the unread badge count. **0 — off — is the
+            | default, deliberately.**
+            |
+            | It was 30, and the N+1 detector on the DPC proposal detail screen
+            | caught why that is wrong: a cached count makes a page issue a
+            | different number of queries on its second render than on its first.
+            | The detector compares two requests and concludes a section stopped
+            | being eager-loaded. It was a false positive that time — and a
+            | *permanent* source of them, on the one test in the suite that can
+            | catch a real N+1 regression on the heaviest screen in the system.
+            | Blunting that detector to cache one indexed `count()` is a bad
+            | trade.
+            |
+            | The query is a `count()` over the `(user_id, read_at)` index. Set a
+            | value here if profiling ever shows it matters.
+            */
+            'unread_count_cache_seconds' => (int) env('DPC_NOTIFICATIONS_UNREAD_CACHE', 0),
+
+            // How many appear in the header dropdown before "see all".
+            'dropdown_limit' => (int) env('DPC_NOTIFICATIONS_DROPDOWN', 5),
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Self-Inspection & Assessment (M10 — PPT S49–S51)
     |--------------------------------------------------------------------------
     |

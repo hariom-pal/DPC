@@ -42,6 +42,9 @@
                         <span class="nav-user d-none d-md-inline me-1">
                             {{ auth()->user()->name }}
                         </span>
+                        {{-- M11. Reaches every authenticated screen from here,
+                             including the frozen ones. --}}
+                        @include('partials.notification-bell')
                         <a class="btn btn-sm btn-outline-light" href="{{ route('dashboard') }}">Dashboard</a>
                         <form method="POST" action="{{ route('logout') }}" class="m-0" data-no-busy>
                             @csrf
