@@ -81,6 +81,10 @@
                                 : 'Review and approve the proposal, then forward it to CGPSC.',
                             route('dpc-proposals.index')];
                         $tiles[] = ['circulate', 'Circulation DPC', 'Resolve a promotion the Commission reserved.', route('dpc-circulations.index')];
+                        // M11. The three upload templates. Reached from here
+                        // rather than from the upload screens themselves, which
+                        // are M4's and frozen — see ImportTemplateController.
+                        $tiles[] = ['folder', 'Upload Templates', 'Blank spreadsheets for the three officer uploads.', route('dpc-import-templates.index')];
                     }
 
                     /*

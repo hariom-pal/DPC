@@ -41,6 +41,7 @@ use App\Http\Controllers\Dpc\CirculationController;
 use App\Http\Controllers\Dpc\DpcCalculationController;
 use App\Http\Controllers\Dpc\DpcImportController;
 use App\Http\Controllers\Dpc\DpcProposalController;
+use App\Http\Controllers\Dpc\ImportTemplateController;
 use App\Http\Controllers\Dpc\ReviewProposalController;
 use App\Http\Controllers\HealthController;
 use App\Http\Controllers\NotificationController;
@@ -126,6 +127,22 @@ Route::middleware('auth')->group(function (): void {
          */
         Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
         Route::get('/reports/export', [ReportController::class, 'export'])->name('reports.export');
+
+        /*
+         | Blank upload templates for S16–S18 (M11).
+         |
+         | Its own screen rather than a button beside each upload control, because
+         | those screens are M4's and M4 is architecture-frozen — putting it there
+         | needs a Freeze Exception under AD-22. The capability ships now; moving
+         | the button is two lines once the exception is granted.
+         */
+        Route::middleware('role:'.Role::AuthorizedOfficer->value.'|'.Role::AdministrativeHead->value)
+            ->group(function (): void {
+                Route::get('/dpc-templates', [ImportTemplateController::class, 'index'])
+                    ->name('dpc-import-templates.index');
+                Route::get('/dpc-templates/{template}', [ImportTemplateController::class, 'download'])
+                    ->name('dpc-import-templates.download');
+            });
 
         // Pre-DPC Proposal workflow (department Authorized Officer / Administrative Head).
         Route::middleware('role:'.Role::AuthorizedOfficer->value.'|'.Role::AdministrativeHead->value)
