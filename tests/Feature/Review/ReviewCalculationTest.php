@@ -8,6 +8,7 @@ use App\Domain\Cgpsc\Services\AllotmentService;
 use App\Domain\Cgpsc\Services\SchedulingService;
 use App\Domain\Dpc\Enums\DpcProposalStatus;
 use App\Domain\Dpc\Models\DpcProposal;
+use App\Domain\Dpc\Services\DpcProposalService;
 use App\Domain\Eligibility\Models\DpcCalculationRun;
 use App\Domain\Master\Models\ReviewReason;
 use App\Domain\Proceeding\Enums\DpcProceedingStatus;
@@ -21,6 +22,8 @@ use App\Domain\Review\Services\ReviewAwareCalculationService;
 use App\Domain\Review\Services\ReviewDpcService;
 use App\Domain\Shared\Models\ActivityTimeline;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Storage;
+use Tests\Concerns\CompletesDpcProposals;
 use Tests\Feature\Proceeding\Concerns\BuildsProceedings;
 use Tests\TestCase;
 
@@ -36,6 +39,7 @@ use Tests\TestCase;
 class ReviewCalculationTest extends TestCase
 {
     use BuildsProceedings;
+    use CompletesDpcProposals;
 
     protected function setUp(): void
     {
@@ -81,12 +85,31 @@ class ReviewCalculationTest extends TestCase
      */
     private function conductReview(DpcProposal $review): DpcProceeding
     {
-        $review->forceFill([
-            'status' => DpcProposalStatus::Approved->value,
-            'dpc_code' => 'HE202600002',
-            'forwarded_at' => now(),
-            'approved_at' => now(),
-        ])->saveQuietly();
+        // TD-23, closed: this used to `forceFill` the Review straight to
+        // Approved, skipping M4's submission gate and the AH's signature — the
+        // one row of design §13's pipeline that was never actually driven.
+        //
+        // **That bypass hid a P1.** `sanctioned_post_count` was not copied onto
+        // a Review, so M4's completeness gate refused every Review DPC in the
+        // real application, and no test noticed because no test submitted one.
+        // Driving the real path is the only thing that would have caught it,
+        // and is the only thing that keeps it caught.
+        Storage::fake('local');
+
+        $service = app(DpcProposalService::class);
+
+        // A Review arrives with its chart copied from the original, so this
+        // fills only what the copy legitimately leaves empty.
+        $this->makeProposalSubmittable($review->fresh(), $this->authorizedOfficer);
+
+        $service->submit($review->fresh(), $this->authorizedOfficer, request());
+        $service->approve($review->fresh(), $this->administrativeHead, request());
+
+        // The DPC code is minted by `approve()`, not asserted into place here.
+        $review = $review->fresh();
+        $this->assertSame(DpcProposalStatus::Approved, $review->status);
+        $this->assertNotNull($review->dpc_code, 'approve() must mint the Review its own DPC code');
+        $this->assertNotNull($review->signature_id, 'the AH approval must carry a signature');
 
         app(AllotmentService::class)->allot(
             $review->fresh(), $this->memberOne, $this->chairman, request(), Carbon::parse('2026-09-10'),

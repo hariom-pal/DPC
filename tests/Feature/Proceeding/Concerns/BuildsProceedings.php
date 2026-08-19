@@ -10,6 +10,7 @@ use App\Domain\Cgpsc\Services\SchedulingService;
 use App\Domain\Department\Models\Department;
 use App\Domain\Dpc\Enums\DpcProposalStatus;
 use App\Domain\Dpc\Models\DpcProposal;
+use App\Domain\Dpc\Services\DpcIdGeneratorService;
 use App\Domain\Eligibility\Models\DpcCalculationRun;
 use App\Domain\Master\Models\Cadre;
 use App\Domain\Master\Models\DpcType;
@@ -47,6 +48,8 @@ trait BuildsProceedings
 
     protected User $authorizedOfficer;
 
+    protected User $administrativeHead;
+
     protected DpcProposal $proposal;
 
     protected DpcProceeding $proceeding;
@@ -74,6 +77,14 @@ trait BuildsProceedings
         ]);
         $this->authorizedOfficer->assignRole(Role::AuthorizedOfficer->value);
 
+        // Added for TD-23: driving a proposal through the real submit gate
+        // needs the Administrative Head who approves it. Creating the user is
+        // additive — no existing test observes the user count.
+        $this->administrativeHead = User::factory()->create([
+            'department_id' => $this->department->id, 'name' => 'Administrative Head',
+        ]);
+        $this->administrativeHead->assignRole(Role::AdministrativeHead->value);
+
         // Class-I -> Class-I, the PPT's own worked case.
         $postFrom = Cadre::query()->create([
             'department_id' => $this->department->id, 'name' => 'Under Secretary',
@@ -91,7 +102,19 @@ trait BuildsProceedings
             'post_from_cadre_id' => $postFrom->id,
             'proposal_date' => '2026-06-25',
             'status' => DpcProposalStatus::Approved->value,
-            'dpc_code' => 'HE202600001',
+            // Minted through the real generator, not hardcoded.
+            //
+            // This fixture starts the original at Approved rather than driving
+            // it through submit/approve — it is the setup, not the thing under
+            // test. But hardcoding the code left the per-department sequence at
+            // zero, so the *next* proposal to be approved for real was handed
+            // `HE202600001` again and collided. Nothing in production can reach
+            // that state, because in production the original consumed the
+            // sequence too. Found by TD-23's fix, which was the first test to
+            // approve a second proposal for real.
+            //
+            // Still the first call, so the value is unchanged: HE202600001.
+            'dpc_code' => app(DpcIdGeneratorService::class)->next($this->department, Carbon::parse('2026-06-25')),
             'forwarded_at' => now(),
         ]);
 
