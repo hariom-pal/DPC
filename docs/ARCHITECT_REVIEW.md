@@ -519,7 +519,7 @@ Three candidate answers, all decisions rather than engineering, and the middle o
 
 **With M10 blocked, the backlog is exhausted.** Every remaining item needs a named decision, and each is recorded with which one: TD-19/20/21/16 need a Freeze Exception (AD-15); TD-28 needs the standing rule on absent named actors; **TD-25's second half** and TD-22 are Architect calls; AD-25 needs BD-16 plus a Freeze Exception; TD-18 needs BD-4; TD-1/2/6/8 are deployment, gateway, CI and capacity rather than code; TD-5 is scheduled for the hardening pass; **M11 is a later milestone and its order is not this session's to change.**
 
-**`docs/IMPLEMENTATION_GUIDE_BLUEPRINT.md` was left uncommitted.** It was produced on 2026-08-18 and the standing rule since forbids documentation blueprints and the Implementation Guide. It is neither committed nor deleted, pending a ruling on whether it is kept as a completed deliverable or discarded.
+**`docs/IMPLEMENTATION_GUIDE_BLUEPRINT.md` — correction, 2026-08-19.** It was deliberately left untracked earlier that day, pending a ruling, because the standing rule forbids documentation blueprints and the Implementation Guide. It was then **swept into commit `bafb1c4` by a `git add -A`** and is now tracked. Recorded rather than quietly reverted: the ruling on whether it is kept as a completed deliverable or discarded is still outstanding, and it is now a `git rm` rather than a decision about an untracked file.
 
 #### 0.13.7 DEMO COMPLETION MODE — M10 built, four M11 features built
 
@@ -570,7 +570,7 @@ Three candidate answers, all decisions rather than engineering, and the middle o
 
 > **Rule on TD-25's second half.** The silence is fixed; the behaviour is not. Should an unmatched feeder **refuse** the Pre-DPC approval? That is a workflow change, so it was not taken. A test pins the current omission either way.
 
-> **Rule on `docs/IMPLEMENTATION_GUIDE_BLUEPRINT.md`** — produced 2026-08-18, left **uncommitted** because the standing rule since forbids blueprints and the Guide. Kept as a completed deliverable, or discarded?
+> **Rule on `docs/IMPLEMENTATION_GUIDE_BLUEPRINT.md`** — produced 2026-08-18 and meant to stay untracked, since the standing rule forbids blueprints and the Guide. **It was swept into a commit by a `git add -A` on 2026-08-19** and is now tracked. Kept as a completed deliverable, or removed?
 
 **Under DEMO COMPLETION MODE the two M10 questions are no longer blocking — both are configuration (§0.13.7). What is now worth ruling:**
 
