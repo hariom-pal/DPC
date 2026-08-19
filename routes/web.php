@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Enums\Role;
 use App\Http\Controllers\Admin\AdminDashboardController;
+use App\Http\Controllers\Admin\AuditTrailController;
 use App\Http\Controllers\Admin\CadreController;
 use App\Http\Controllers\Admin\CommitteeConfigurationController;
 use App\Http\Controllers\Admin\CommitteeTypeController;
@@ -282,6 +283,15 @@ Route::middleware('auth')->group(function (): void {
             ->group(function (): void {
                 Route::get('/', [AdminDashboardController::class, 'index'])->name('dashboard');
                 Route::get('/integrations', IntegrationStatusController::class)->name('integrations');
+
+                // Audit trail (M11). Read-only by design: no create, update,
+                // delete or purge route exists here, and none should be added —
+                // an audit record editable from the application that writes it
+                // is not an audit record. Retention is permanent by ruling.
+                Route::get('/audit-trail', [AuditTrailController::class, 'index'])->name('audit-trail.index');
+                Route::get('/audit-trail/export', [AuditTrailController::class, 'export'])->name('audit-trail.export');
+                Route::get('/audit-trail/{source}/{id}', [AuditTrailController::class, 'show'])
+                    ->whereNumber('id')->name('audit-trail.show');
                 // Department Master — the catalogue registration (S6) draws
                 // from. Registration still owns the registration transition.
                 Route::resource('departments', DepartmentController::class)->except(['show']);

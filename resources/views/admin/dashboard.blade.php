@@ -82,6 +82,12 @@
                     <a href="{{ route('admin.integrations') }}" class="btn btn-outline-secondary btn-sm mt-3">
                         Integration status
                     </a>
+                    {{-- M11. The trail has been written since M1 and had no
+                         screen; the first person to want it is answering a
+                         contested promotion. --}}
+                    <a href="{{ route('admin.audit-trail.index') }}" class="btn btn-outline-secondary btn-sm mt-3">
+                        Audit trail
+                    </a>
                 </div>
             </div>
         </div>
