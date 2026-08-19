@@ -8,7 +8,7 @@ use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\SelfInspection\Enums\SelfInspectionAuthDriver;
 use App\Domain\SelfInspection\Enums\SelfInspectionFactor;
 use App\Domain\SelfInspection\Models\SelfInspectionAccess;
-use App\Domain\SelfInspection\ValueObjects\PendingBusinessDecision;
+use App\Domain\Shared\ValueObjects\PendingBusinessDecision;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\Request;
 

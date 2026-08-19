@@ -108,6 +108,13 @@ class DpcCalculationService
                 'dpc_proposal_id' => $proposal->id,
                 'status' => CalculationStatus::Draft->value,
                 'rule_version' => $rules->version,
+                // TD-21, closed 2026-08-19. Directive 1 asked for the engine
+                // version "for every calculation run"; it reached the timeline, the
+                // proceeding and every document, but not the run row it describes.
+                // A run is the permanent evidence of a promotion decision — every
+                // other place the version was recorded is a consumer of the run and
+                // can be absent while the run survives.
+                'calculation_engine_version' => (string) config('dpc.scoring.engine_version'),
                 'configuration_snapshot' => $rules->toArray(),
                 'proposal_version' => $this->proposalFingerprint($proposal),
                 'application_version' => (string) config('dpc.application.version'),
@@ -155,6 +162,13 @@ class DpcCalculationService
                 [
                     'calculation_uuid' => $run->uuid,
                     'rule_version' => $rules->version,
+                    // TD-21, closed 2026-08-19. Directive 1 asked for the engine
+                    // version "for every calculation run"; it reached the timeline, the
+                    // proceeding and every document, but not the run row it describes.
+                    // A run is the permanent evidence of a promotion decision — every
+                    // other place the version was recorded is a consumer of the run and
+                    // can be absent while the run survives.
+                    'calculation_engine_version' => (string) config('dpc.scoring.engine_version'),
                     'has_pending_decisions' => $run->has_pending_decisions,
                 ],
                 $actor,

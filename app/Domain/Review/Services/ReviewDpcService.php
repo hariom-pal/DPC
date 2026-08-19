@@ -444,12 +444,16 @@ class ReviewDpcService
             'prepared_by' => $actor->id,
         ]);
 
-        // `created_by` is not fillable on the frozen M4 model, so it is set
-        // alongside the UUID rather than through mass assignment. Strict
-        // attribute mode (AD-18) turned what would have been a silently
-        // discarded value into an exception here — which is the point of it.
+        // `created_by` is not fillable on the M4 model, so it is set by direct
+        // update rather than through mass assignment. Strict attribute mode (AD-18)
+        // turned what would have been a silently discarded value into an exception
+        // here — which is the point of it.
+        //
+        // The UUID is no longer set here: `DpcProposal` mints its own since TD-19
+        // was closed (2026-08-19). Overwriting it would replace a UUID the model had
+        // already issued, and anything that read the identifier between the two
+        // writes would have read one that no longer exists.
         DB::table('dpc_proposals')->where('id', $review->id)->update([
-            'uuid' => (string) Str::uuid(),
             'created_by' => $actor->id,
         ]);
 

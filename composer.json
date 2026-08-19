@@ -53,12 +53,12 @@
         "pint": "@php vendor/bin/pint",
         "pint:test": "@php vendor/bin/pint --test",
         "stan": "@php vendor/bin/phpstan analyse --memory-limit=512M",
-        "audit:security": "@composer audit --no-interaction",
+        "audit:security": "@php artisan security:audit",
         "schema:mysql": "@php artisan schema:verify-mysql",
         "gate": [
             "@php vendor/bin/pint --test",
             "@php vendor/bin/phpstan analyse --memory-limit=512M",
-            "@composer audit --no-interaction",
+            "@php artisan security:audit",
             "@php artisan config:clear --ansi",
             "@php artisan schema:verify-mysql",
             "@php artisan test"

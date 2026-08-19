@@ -11,6 +11,7 @@ use App\Domain\Master\Models\RecruitmentRule;
 use App\Domain\PreDpc\Enums\PreDpcStatus;
 use App\Domain\PreDpc\Models\PreDpcProposal;
 use App\Domain\Shared\Workflow\WorkflowTransition;
+use App\Enums\MasterStatus;
 use App\Enums\Role;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -36,6 +37,24 @@ class PreDpcWorkflowTest extends TestCase
         $this->ao->assignRole(Role::AuthorizedOfficer->value);
         $this->ah = User::factory()->create(['department_id' => $this->department->id]);
         $this->ah->assignRole(Role::AdministrativeHead->value);
+
+        // The feeder cadre this fixture names, registered in the department's Cadre
+        // master — which is where a real department's feeder posts live.
+        //
+        // It was absent until 2026-08-19, and that is why this fixture was the case
+        // TD-25 described: "Under Secretary" is a feeder that is not itself a post on
+        // the same proposal, so the projection matched nothing, **silently dropped
+        // it, and created a recruitment rule with no feeder cadre at all** — a rule
+        // that looks complete and sanctions nobody. The approval now refuses rather
+        // than producing that, so the fixture registers the cadre and the approval
+        // test asserts the rule actually carries its feeder. Strengthened, not
+        // relaxed: the previously-silent defect is now impossible to reintroduce.
+        Cadre::query()->create([
+            'department_id' => $this->department->id,
+            'name' => 'Under Secretary',
+            'class_level' => 'I',
+            'status' => MasterStatus::Active->value,
+        ]);
     }
 
     private function draft(): PreDpcProposal
@@ -88,7 +107,16 @@ class PreDpcWorkflowTest extends TestCase
         $this->assertNotNull($proposal->signature_id);
 
         $cadre = Cadre::query()->where('department_id', $this->department->id)->where('name', 'Deputy Secretary')->firstOrFail();
-        $this->assertSame(1, RecruitmentRule::query()->where('cadre_id', $cadre->id)->count());
+        $rule = RecruitmentRule::query()->where('cadre_id', $cadre->id)->sole();
+
+        // The rule carries its feeder. Asserting only that a rule *exists* is what
+        // let TD-25 hide: a rule with no feeder cadre sanctions nobody, and it looks
+        // exactly like a correct one from the row count alone.
+        $feeder = $rule->feeders()->sole();
+        $this->assertSame(
+            'Under Secretary',
+            Cadre::query()->findOrFail($feeder->feeder_cadre_id)->name,
+        );
     }
 
     public function test_ao_cannot_approve(): void

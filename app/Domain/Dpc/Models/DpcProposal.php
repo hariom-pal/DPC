@@ -12,6 +12,7 @@ use App\Domain\Master\Models\DpcType;
 use App\Domain\Master\Models\ReviewReason;
 use App\Domain\Signature\Models\Signature;
 use App\Support\Concerns\Blameable;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -53,7 +54,41 @@ class DpcProposal extends Model implements Auditable
 {
     use AuditableTrait;
     use Blameable;
+
+    /**
+     * **TD-19, closed 2026-08-19 under the final-phase Freeze Exception.**
+     *
+     * Directive 2 (M7) requires an approved result to reference its proposal
+     * permanently by UUID, and the standing rule is that the UUID is the only
+     * public identifier. The column was added and backfilled by migration, but a
+     * newly created proposal had its UUID minted by **direct table update** in two
+     * separate services — `ProceedingService::ensureProposalUuid()` and
+     * `ReviewDpcService::create()` — because adding this trait would have modified
+     * frozen M4. Each new caller was another place the workaround had to be
+     * remembered.
+     *
+     * `HasUuids` overrides `newUniqueId()` and `uniqueIds()` only, so the id column
+     * and every existing behaviour are untouched: `id` remains the primary key and
+     * the route key is unchanged. Rows created before this line keep the UUIDs the
+     * migration gave them.
+     */
+    use HasUuids;
+
     use SoftDeletes;
+
+    /**
+     * The columns `HasUuids` fills on create.
+     *
+     * Declared explicitly: the trait's default is the model's *key* name, which
+     * here is the auto-incrementing `id`. Without this it would try to write a
+     * UUID into the primary key.
+     *
+     * @return list<string>
+     */
+    public function uniqueIds(): array
+    {
+        return ['uuid'];
+    }
 
     /**
      * @var list<string>

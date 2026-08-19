@@ -312,21 +312,38 @@ class PreDpcProposalService
                 $feederCadre = $this->feederCadres->resolve($feeder, $proposal->department_id);
 
                 if ($feederCadre === null) {
-                    // TD-25, made visible. The feeder is still dropped — whether
-                    // an unmatched feeder should instead *refuse* the approval is
-                    // a workflow change and the Architect's call — but it is no
-                    // longer dropped in silence. Warning, not info: a recruitment
-                    // rule created without one of its feeder cadres looks complete
-                    // and sanctions nothing, which is the worst of the outcomes
-                    // available here.
-                    Log::warning('Pre-DPC feeder matched no cadre and was omitted from the recruitment rule', [
+                    // TD-25, closed 2026-08-19. Reported since earlier that day;
+                    // now refused as well, because a recruitment rule created
+                    // without one of its feeder cadres looks complete and sanctions
+                    // nobody — the worst of the three outcomes available.
+                    //
+                    // Logged before the refusal, not instead of it: the refusal
+                    // tells the Administrative Head, and the log tells whoever has
+                    // to fix the master data.
+                    Log::warning('Pre-DPC feeder matched no cadre', [
                         'department_id' => $proposal->department_id,
                         'pre_dpc_proposal_id' => $proposal->id,
                         'pre_dpc_version' => $proposal->version,
                         'post_name' => $post->post_name,
                         'feeder_name' => $feeder->feeder_name,
+                        'refused' => (bool) config('dpc.pre_dpc.refuse_unmatched_feeder', true),
                         'technical_debt' => 'TD-25',
                     ]);
+
+                    if ((bool) config('dpc.pre_dpc.refuse_unmatched_feeder', true)) {
+                        // Inside the approval transaction, so the signature, the
+                        // `is_current` flip and the status change all roll back
+                        // with it. An approval that half-happened would be worse
+                        // than either outcome the register described.
+                        throw new WorkflowException(sprintf(
+                            'This proposal cannot be approved: the feeder "%s" listed under "%s" matches no '
+                            .'cadre in your department\'s Cadre master, so the recruitment rule would be '
+                            .'created without it and would sanction nobody from that cadre. Ask the '
+                            .'Commission to register that cadre, then approve again.',
+                            $feeder->feeder_name,
+                            $post->post_name,
+                        ));
+                    }
 
                     continue;
                 }

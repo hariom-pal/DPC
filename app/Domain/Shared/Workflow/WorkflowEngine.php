@@ -19,6 +19,29 @@ use Throwable;
  */
 class WorkflowEngine
 {
+    /**
+     * The shape of the state machines themselves — which transitions exist and what
+     * each means.
+     *
+     * **TD-13, closed 2026-08-19.** `docs/EVENT_CATALOG.md` declares three
+     * independent versions: Schema Version and Payload Version each had a constant
+     * in the code they describe, while Workflow Version existed **only in prose**.
+     * A version that lives only in documentation can drift from the thing it
+     * versions, and the drift is undetectable — which is the whole failure mode
+     * versioning exists to prevent.
+     *
+     * It is recorded on every ledger row, so a stored transition says which
+     * definition of the state machine produced it. That matters when a transition's
+     * *meaning* changes rather than its name: two rows reading `approve` are not
+     * necessarily the same act, and without this there is nothing to tell them
+     * apart.
+     *
+     * **Bump when a transition is added, removed, or its meaning changes** — the
+     * rule the catalogue already states. Currently 2: M7 added the
+     * `dpc_proceeding` workflow.
+     */
+    public const WORKFLOW_VERSION = 2;
+
     public function __construct(private readonly ActivityTimelineService $timeline) {}
 
     /**
@@ -82,6 +105,10 @@ class WorkflowEngine
             'signature_id' => $signatureId,
             'ip_address' => $request->ip(),
             'user_agent' => (string) $request->userAgent(),
+            // Additive: `meta` is a JSON column and nothing reads a fixed shape from
+            // it, so recording the workflow version here cannot change how an
+            // existing row is interpreted.
+            'meta' => ['workflow_version' => self::WORKFLOW_VERSION],
             'occurred_at' => now(),
         ]);
 

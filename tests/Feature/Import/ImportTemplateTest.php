@@ -221,6 +221,21 @@ class ImportTemplateTest extends TestCase
             ->assertNotFound();
     }
 
+    /**
+     * TD-9's own words: the button belongs where somebody is standing when they
+     * need it. One shared partial serves all three upload screens.
+     */
+    public function test_the_upload_screens_offer_the_matching_template(): void
+    {
+        $partial = file_get_contents(resource_path('views/dpc-proposals/imports/_upload.blade.php'));
+
+        $this->assertStringContainsString('dpc-import-templates.download', (string) $partial);
+        // The template is the one that screen uploads, not a fixed one.
+        $this->assertStringContainsString("'template' => \$template->value", (string) $partial);
+        // And the per-year columns follow the proposal's own year.
+        $this->assertStringContainsString("'as_on' => optional(\$proposal->proposal_date)->year", (string) $partial);
+    }
+
     public function test_the_templates_are_for_departmental_users(): void
     {
         $this->get(route('dpc-import-templates.index'))->assertRedirect(route('login'));

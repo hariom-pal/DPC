@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Domain\Circulation\ValueObjects;
+namespace App\Domain\Shared\ValueObjects;
 
 use App\Domain\Circulation\Exceptions\PendingBusinessDecisionException;
 
@@ -17,11 +17,21 @@ use App\Domain\Circulation\Exceptions\PendingBusinessDecisionException;
  * structured so a caller — a screen, an API client, a report of everything
  * blocked on CGPSC — can act on it without parsing prose.
  *
- * The first and only instance today is **BD-15**: S45 names CR-unreported as a
- * circulation ground, but resolving it always re-decides the officer's mark
- * and can reorder the promotion list for officers who were never notified.
- * Whether that ground may be routed to a Review instead is a question for
- * CGPSC, not an engineering choice.
+ * **Moved to `Shared` on 2026-08-19** under the final-phase Freeze Exception. It
+ * was M9's, and M10 held a deliberate copy of it because relocating a class out of
+ * a built milestone was a refactor awaiting approval — recorded at the time rather
+ * than left to be discovered. There is now one of it.
+ *
+ * Two instances today, and their shapes are why this belongs in `Shared` rather
+ * than in either milestone:
+ *
+ * - **BD-15** — S45 names CR-unreported as a circulation ground, but resolving it
+ *   always re-decides the officer's mark and can reorder the promotion list for
+ *   officers who were never notified.
+ * - **BD-19** — an individual officer has no way to receive an OTP, because no
+ *   officer-snapshot table carries a contact channel.
+ *
+ * Neither is an engineering choice, and both had to be *said* rather than guessed.
  *
  * @see PendingBusinessDecisionException
  */

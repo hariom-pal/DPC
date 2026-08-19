@@ -187,11 +187,17 @@ class ProceedingService
      * Directive 2, Phase 4), and the standing rule is that the UUID is the only
      * public identifier.
      *
-     * The column is added and backfilled by migration. It is minted here for
-     * any proposal created afterwards, **by direct update rather than through
-     * the model**, because adding `HasUuids` to `DpcProposal` would modify a
-     * frozen milestone. Flagged for a ruling: one line in M4 would make this
-     * unnecessary.
+     * The column is added and backfilled by migration, and `DpcProposal` mints one
+     * on create since **TD-19 was closed** (2026-08-19) — so in practice every
+     * proposal reaching a proceeding already has one.
+     *
+     * This is kept as a **safety net, not a workaround**. Two paths can still
+     * present a proposal without a UUID: a row inserted by a raw fixture or a data
+     * migration that bypasses the model, and any row that predates the backfill in
+     * an environment migrated out of order. A proceeding may not open against a
+     * proposal it cannot reference permanently, so the guarantee is asserted here
+     * rather than assumed. When it does fire it now mints through the model, so
+     * there is one UUID mechanism rather than two.
      */
     private function ensureProposalUuid(DpcProposal $proposal): void
     {

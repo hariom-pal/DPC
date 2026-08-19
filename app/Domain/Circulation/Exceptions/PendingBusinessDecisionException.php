@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Circulation\Exceptions;
 
-use App\Domain\Circulation\ValueObjects\PendingBusinessDecision;
+use App\Domain\Shared\ValueObjects\PendingBusinessDecision;
 use RuntimeException;
 
 /**

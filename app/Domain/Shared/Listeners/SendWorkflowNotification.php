@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Shared\Listeners;
 
-use App\Domain\Authentication\Models\User;
+use App\Domain\Notification\Services\NotificationRecipientResolver;
 use App\Domain\Shared\Events\WorkflowTransitioned;
 use App\Integrations\Contracts\SmsSender;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -31,7 +31,10 @@ class SendWorkflowNotification implements ShouldQueue
      */
     public bool $afterCommit = true;
 
-    public function __construct(private readonly SmsSender $sms) {}
+    public function __construct(
+        private readonly SmsSender $sms,
+        private readonly NotificationRecipientResolver $recipients,
+    ) {}
 
     public function handle(WorkflowTransitioned $event): void
     {
@@ -48,20 +51,17 @@ class SendWorkflowNotification implements ShouldQueue
         // department, and specific users named outright. The second exists
         // because CGPSC Chairmen and Members hold no department, so no
         // role-plus-department query can ever reach them.
-        $recipients = User::query()
-            ->where('is_active', true)
-            ->where(function ($query) use ($event): void {
-                if ($event->departmentId !== null && $event->notifyRoles !== []) {
-                    $query->orWhere(fn ($scoped) => $scoped
-                        ->where('department_id', $event->departmentId)
-                        ->role($event->notifyRoles));
-                }
-
-                if ($event->notifyUserIds !== []) {
-                    $query->orWhereIn('id', $event->notifyUserIds);
-                }
-            })
-            ->get();
+        // **TD-20, closed 2026-08-19 under the final-phase Freeze Exception.**
+        // The original of the three copies of "who should be told", now resolved in
+        // one place. Behaviour is identical, including the two-independent-sets rule
+        // that this listener established: role-within-department cannot reach a
+        // CGPSC Chairman or Member, who hold no department, so specific user ids are
+        // named outright.
+        $recipients = $this->recipients->resolve(
+            $event->departmentId,
+            $event->notifyRoles,
+            $event->notifyUserIds,
+        );
 
         foreach ($recipients as $recipient) {
             // A workflow transition must never fail because a notification

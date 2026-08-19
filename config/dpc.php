@@ -421,6 +421,36 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Pre-DPC projection (M3 — PPT S7–S11)
+    |--------------------------------------------------------------------------
+    |
+    | **TD-25.** On approval a Pre-DPC projects into the Cadre and Recruitment Rule
+    | masters. A feeder named only as text is resolved by name within the
+    | department; when nothing matches, the feeder used to be **skipped in
+    | silence** and the rule created without it — so the rule looked complete and
+    | sanctioned nobody from that cadre.
+    |
+    | The reporting half was fixed on 2026-08-19 (a warning at projection plus
+    | `php artisan pre-dpc:unmatched-feeders`). This is the behavioural half, and
+    | it is configuration because the register offered two answers and each is right
+    | in a different situation:
+    |
+    |   true  — **refuse the approval.** The default. The screen has posted
+    |           `feeder_cadre_id` since 2026-08-18, so a text feeder that matches
+    |           nothing now means a data problem, and a Government Order that
+    |           sanctions nobody is worse than an approval that stops to say so.
+    |   false — project anyway and report. The pre-2026-08-18 behaviour, for a
+    |           department mid-migration whose historical feeders have not yet been
+    |           registered as cadres.
+    |
+    */
+
+    'pre_dpc' => [
+        'refuse_unmatched_feeder' => (bool) env('DPC_PRE_DPC_REFUSE_UNMATCHED_FEEDER', true),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Response Security Headers (M11 hardening)
     |--------------------------------------------------------------------------
     |

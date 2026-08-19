@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Review\Listeners;
 
-use App\Domain\Authentication\Models\User;
+use App\Domain\Notification\Services\NotificationRecipientResolver;
 use App\Domain\Review\Events\DpcSupersededByReview;
 use App\Enums\Role;
 use App\Integrations\Contracts\SmsSender;
@@ -34,7 +34,10 @@ class SendSupersessionNotification implements ShouldQueue
 {
     public bool $afterCommit = true;
 
-    public function __construct(private readonly SmsSender $sms) {}
+    public function __construct(
+        private readonly SmsSender $sms,
+        private readonly NotificationRecipientResolver $recipients,
+    ) {}
 
     public function handle(DpcSupersededByReview $event): void
     {
@@ -46,11 +49,17 @@ class SendSupersessionNotification implements ShouldQueue
             .' has been superseded by Review DPC '.($event->reviewDpcCode ?? $event->reviewProposalUuid)
             .' (review '.$event->reviewNumber.'). The earlier promotion list is no longer the operative one.';
 
-        $recipients = User::query()
-            ->where('is_active', true)
-            ->where('department_id', $event->departmentId)
-            ->role([Role::AuthorizedOfficer->value, Role::AdministrativeHead->value])
-            ->get();
+        // **TD-20, closed 2026-08-19 under the final-phase Freeze Exception.**
+        // This query was one of three copies of "who should be told". Two of them
+        // lived in frozen milestones, so the shared resolver was written for the
+        // in-app channel first and the copies were left in place; now they are
+        // repointed at it. Behaviour is identical — same roles, same department
+        // scope, same exclusion of deactivated accounts — which is why this could be
+        // done inside a freeze at all.
+        $recipients = $this->recipients->resolve(
+            $event->departmentId,
+            [Role::AuthorizedOfficer->value, Role::AdministrativeHead->value],
+        );
 
         foreach ($recipients as $recipient) {
             try {

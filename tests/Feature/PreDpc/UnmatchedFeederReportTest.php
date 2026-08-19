@@ -14,6 +14,7 @@ use App\Enums\Role;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
@@ -28,12 +29,12 @@ use Tests\TestCase;
  * cadre**, with nothing on any screen saying why. That combination, not the
  * omission alone, is what makes it worth reporting.
  *
- * **The behaviour is unchanged, deliberately.** Whether an unmatched feeder should
- * instead *refuse* the approval is a workflow change and the Architect's decision;
- * the remaining half of TD-25 stays open. So the first test below asserts the
- * omission still happens — pinning it, so that if the refusal is ever ruled, this
- * is the test that has to be revisited rather than a behaviour that changes
- * unnoticed.
+ * **Both halves are now closed.** The refusal (2026-08-19) is the default and is
+ * asserted in `test_an_unmatched_feeder_refuses_the_approval_by_default`. The
+ * reporting tests here run with `dpc.pre_dpc.refuse_unmatched_feeder` turned off,
+ * which is the supported configuration for a department mid-migration whose
+ * historical feeders are not yet registered as cadres — and is the only state in
+ * which there is anything to report.
  */
 class UnmatchedFeederReportTest extends TestCase
 {
@@ -75,6 +76,11 @@ class UnmatchedFeederReportTest extends TestCase
      */
     private function approveWithTextFeeder(string $feederName): PreDpcProposal
     {
+        // These tests are about the *reporting* half of TD-25, which only has
+        // anything to report when the projection lets an unmatched feeder through.
+        // The behavioural half is asserted in its own test below.
+        Config::set('dpc.pre_dpc.refuse_unmatched_feeder', false);
+
         Storage::fake('local');
 
         $this->actingAs($this->ao)->post(route('pre-dpc.store'), [
@@ -119,18 +125,54 @@ class UnmatchedFeederReportTest extends TestCase
     }
 
     /**
-     * The omission itself, pinned rather than accepted.
-     *
-     * A rule with no feeder is exactly what makes TD-25 worth reporting: it
-     * promotes nobody, and it does not look broken.
+     * With the refusal turned off, the old behaviour is exactly as it was — and it
+     * is still what makes TD-25 worth reporting: the rule promotes nobody, and it
+     * does not look broken.
      */
-    public function test_the_rule_is_still_created_without_the_unmatched_feeder(): void
+    public function test_with_the_refusal_disabled_the_rule_is_created_without_the_feeder(): void
     {
         $this->approveWithTextFeeder('Section Officer');
 
         $rule = RecruitmentRule::query()->where('cadre_id', $this->target->id)->firstOrFail();
 
-        $this->assertSame(0, $rule->feeders()->count(), 'behaviour is unchanged: the feeder is omitted, not repaired');
+        $this->assertSame(0, $rule->feeders()->count(), 'the opt-out preserves the pre-2026-08-19 behaviour');
+    }
+
+    /**
+     * The behavioural half, closed 2026-08-19: the approval is refused rather than
+     * producing a Government Order that sanctions nobody.
+     */
+    public function test_an_unmatched_feeder_refuses_the_approval_by_default(): void
+    {
+        Storage::fake('local');
+
+        $this->actingAs($this->ao)->post(route('pre-dpc.store'), [
+            'government_order_number' => 'GO/2026/HE/9',
+            'effective_from' => '2026-01-01',
+            'posts' => [[
+                'cadre_id' => $this->target->id,
+                'class_level' => 'I',
+                'direct_recruitment_pct' => 0,
+                'promotion_recruitment_pct' => 100,
+                'feeders' => [[
+                    'feeder_name' => 'Section Officer',
+                    'promotion_percentage' => 100,
+                    'min_experience_years' => 5,
+                ]],
+            ]],
+        ])->assertSessionHasNoErrors();
+
+        $proposal = PreDpcProposal::query()->latest('id')->firstOrFail();
+        $this->actingAs($this->ao)->post(route('pre-dpc.submit', $proposal));
+
+        $this->actingAs($this->ah)->post(route('pre-dpc.approve', $proposal))
+            ->assertSessionHasErrors();
+
+        // The whole approval rolled back: no rule, and the proposal is still with
+        // the Administrative Head rather than half-approved.
+        $this->assertSame(0, RecruitmentRule::query()->where('cadre_id', $this->target->id)->count());
+        $this->assertSame('submitted', $proposal->fresh()->status->value);
+        $this->assertNull($proposal->fresh()->signature_id);
     }
 
     public function test_the_report_names_the_department_version_post_and_feeder(): void

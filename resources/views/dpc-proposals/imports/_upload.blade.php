@@ -29,6 +29,26 @@
             </div>
         </form>
 
+        {{-- TD-9, closed 2026-08-19 under the final-phase Freeze Exception.
+
+             Recorded in the M11 Enhancement Backlog as the commonest cause of a
+             rejected import: the columns were documented in prose below, so a
+             department built the file from a written list and got a header wrong.
+
+             The link is here rather than only on the Templates screen because this
+             is where somebody is standing when they need it. `as_on` follows the
+             proposal's own year, so the S18 per-year columns come out right without
+             the officer having to think about it. One shared partial serves all
+             three upload screens, so this is a single insertion rather than three. --}}
+        <p class="small mt-2 mb-0">
+            Not sure of the columns?
+            <a href="{{ route('dpc-import-templates.download', [
+                'template' => $template->value,
+                'as_on' => optional($proposal->proposal_date)->year ?? now()->year,
+            ]) }}">Download a blank {{ $template->label() }} template</a>
+            — it has the exact column names, in order, and nothing else.
+        </p>
+
         <details class="mt-2">
             <summary class="small text-muted">Expected columns</summary>
             <p class="small text-muted mt-1 mb-0">

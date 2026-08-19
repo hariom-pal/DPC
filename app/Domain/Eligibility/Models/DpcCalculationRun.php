@@ -36,6 +36,7 @@ use RuntimeException;
  * @property int $dpc_proposal_id
  * @property CalculationStatus $status
  * @property string $rule_version
+ * @property string|null $calculation_engine_version
  * @property array<string, mixed> $configuration_snapshot
  * @property string $proposal_version
  * @property string $application_version
@@ -63,6 +64,8 @@ class DpcCalculationRun extends Model implements Auditable
         'dpc_proposal_id',
         'status',
         'rule_version',
+        // TD-21, closed 2026-08-19 under the final-phase Freeze Exception.
+        'calculation_engine_version',
         'configuration_snapshot',
         'proposal_version',
         'application_version',
