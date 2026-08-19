@@ -45,6 +45,7 @@ use App\Http\Controllers\Dpc\ReviewProposalController;
 use App\Http\Controllers\HealthController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PreDpc\PreDpcProposalController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SelfInspection\SelfInspectionController;
 use App\Http\Middleware\EnsurePasswordChanged;
 use Illuminate\Support\Facades\Route;
@@ -116,6 +117,15 @@ Route::middleware('auth')->group(function (): void {
         Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
         Route::post('/notifications/read-all', [NotificationController::class, 'readAll'])->name('notifications.read-all');
         Route::post('/notifications/{notification}/read', [NotificationController::class, 'read'])->name('notifications.read');
+
+        /*
+         | Reports (M11). One screen for every role, scoped by the service rather
+         | than split into a departmental and a Commission copy — two copies is
+         | two places for the scope to be got wrong, and the wrong answer here
+         | discloses another department's promotion figures.
+         */
+        Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
+        Route::get('/reports/export', [ReportController::class, 'export'])->name('reports.export');
 
         // Pre-DPC Proposal workflow (department Authorized Officer / Administrative Head).
         Route::middleware('role:'.Role::AuthorizedOfficer->value.'|'.Role::AdministrativeHead->value)

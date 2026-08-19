@@ -23,6 +23,11 @@
             </a>
             <div class="d-flex align-items-center gap-2">
                 <span class="text-white small d-none d-md-inline">{{ auth()->user()->name }}</span>
+                {{-- M11. The administration shell is a separate layout, so the
+                     bell is included here too and the composer is registered for
+                     both — a notification an Admin never sees is one that was not
+                     delivered. --}}
+                @include('partials.notification-bell')
                 <form method="POST" action="{{ route('logout') }}" class="m-0">
                     @csrf
                     <button type="submit" class="btn btn-sm btn-outline-light">Logout</button>

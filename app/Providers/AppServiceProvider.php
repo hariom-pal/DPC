@@ -179,7 +179,7 @@ class AppServiceProvider extends ServiceProvider
         // The notification bell renders on every authenticated screen, several of
         // which belong to frozen milestones — so it reaches them from the layout
         // rather than through thirty controllers (M11).
-        View::composer('layouts.app', NotificationBellComposer::class);
+        View::composer(['layouts.app', 'layouts.admin'], NotificationBellComposer::class);
 
         // Live counts for the public landing page. Presentation wiring only —
         // no business logic, no policy, and guarded so a database or cache

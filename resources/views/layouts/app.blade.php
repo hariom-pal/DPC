@@ -46,6 +46,8 @@
                              including the frozen ones. --}}
                         @include('partials.notification-bell')
                         <a class="btn btn-sm btn-outline-light" href="{{ route('dashboard') }}">Dashboard</a>
+                        {{-- M11. Every role has a reports screen; it scopes itself. --}}
+                        <a class="btn btn-sm btn-outline-light d-none d-lg-inline" href="{{ route('reports.index') }}">Reports</a>
                         <form method="POST" action="{{ route('logout') }}" class="m-0" data-no-busy>
                             @csrf
                             <button type="submit" class="btn btn-sm btn-outline-light">Logout</button>

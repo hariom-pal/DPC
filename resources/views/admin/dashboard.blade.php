@@ -88,6 +88,9 @@
                     <a href="{{ route('admin.audit-trail.index') }}" class="btn btn-outline-secondary btn-sm mt-3">
                         Audit trail
                     </a>
+                    <a href="{{ route('reports.index') }}" class="btn btn-outline-secondary btn-sm mt-3">
+                        Reports
+                    </a>
                 </div>
             </div>
         </div>
