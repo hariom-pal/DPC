@@ -22,7 +22,7 @@ use Illuminate\Support\Str;
  * export must be able to read a record written years earlier. Without a
  * version stamp, an exporter would have to guess which shape a row's
  * `properties` are in; with one, it can branch explicitly. Version 1 is the
- * shape documented in `docs/WORKFLOWS.md`.
+ * shape documented in `docs/archive/2026-08-19-pre-final/WORKFLOWS.md`.
  *
  * Timeline rows also gain a UUID: an export that can be regenerated must
  * identify its rows stably and without leaking sequential ids.

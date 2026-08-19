@@ -18,7 +18,7 @@ use RuntimeException;
  * officer is not in HRMS".
  *
  * When the API arrives, only this class, `config/features.php`, and the
- * credentials change. See docs/integration/HRMS.md.
+ * credentials change. See docs/archive/2026-08-19-pre-final/integration/HRMS.md.
  */
 class RealHrmsProvider implements HrmsProvider
 {

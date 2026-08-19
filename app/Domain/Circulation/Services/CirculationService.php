@@ -153,7 +153,7 @@ class CirculationService
                 'No hold was released and no promotion was decided.',
                 'The origin DPC and its approved result are unchanged.',
             ],
-            route: 'docs/PENDING_BUSINESS_DECISIONS.md',
+            route: 'docs/BUSINESS_DECISION_REGISTER.md',
         );
     }
 

@@ -159,7 +159,7 @@ class CirculationDocumentService
                 'The documents are generated, stored, hashed, signed and verifiable — publication alone is refused.',
                 'No hold was re-opened and no promotion was withdrawn.',
             ],
-            route: 'docs/PENDING_BUSINESS_DECISIONS.md',
+            route: 'docs/BUSINESS_DECISION_REGISTER.md',
         );
     }
 

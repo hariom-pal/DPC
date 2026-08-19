@@ -28,7 +28,7 @@ use Tests\TestCase;
  * Result: **nine of the ten marks match exactly**, including three rows that
  * independently confirm decisions taken earlier on other grounds. Two
  * eligibility verdicts diverge, both for the same documented reason — see
- * `punishmentRows()` below and `docs/ARCHITECT_REVIEW.md`.
+ * `punishmentRows()` below and `docs/ARCHITECT_HANDBOOK.md`.
  *
  * CR columns on the slide run 2012, 2013, 2014, 2015, "1016" (a typo for
  * 2016), 2017. A blank cell is a genuinely missing CR, not a zero.
@@ -200,7 +200,7 @@ class S33AnswerKeyGoldenTest extends TestCase
      * approved and about to be frozen, and adding a disqualification that
      * refuses officers is precisely the kind of change that must not be made
      * on an engineer's reading of a slide. Raised in
-     * `docs/ARCHITECT_REVIEW.md`; these assertions pin *current* behaviour so
+     * `docs/ARCHITECT_HANDBOOK.md`; these assertions pin *current* behaviour so
      * a ruling has one obvious place to land.
      *
      * @return array<string, array{0: array<int, string>}>
@@ -226,7 +226,7 @@ class S33AnswerKeyGoldenTest extends TestCase
 
         // The REMARK does not: the slide says NE, the engine says eligible,
         // because no PUNISHMENT gate has been ruled. Awaiting architect
-        // decision — see docs/ARCHITECT_REVIEW.md.
+        // decision — see docs/ARCHITECT_HANDBOOK.md.
         $this->assertTrue(
             $verdict->eligible,
             'Current behaviour: no PUNISHMENT gate exists. Slide 33 says NE — awaiting an architect ruling.',

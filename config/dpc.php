@@ -67,7 +67,7 @@ return [
     | Named limiters registered in AppServiceProvider and applied via the
     | `throttle:<name>` middleware. Config-driven so limits can be tuned per
     | environment without code changes. P0 security requirement — see
-    | docs/ARCHITECT_REVIEW.md (2026-08-13 review).
+    | docs/ARCHITECT_HANDBOOK.md (2026-08-13 review).
     |
     */
 

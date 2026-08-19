@@ -23,7 +23,7 @@ use Illuminate\Support\Facades\Schema;
  * and renaming an approved column would be a breaking change. The seniority
  * table therefore gets `date_of_posting_on_current_post` while working
  * officers keeps `date_of_posting_on_post` for the same concept. Flagged in
- * docs/ARCHITECT_REVIEW.md for a ruling — a rename needs explicit approval.
+ * docs/ARCHITECT_HANDBOOK.md for a ruling — a rename needs explicit approval.
  */
 return new class extends Migration
 {

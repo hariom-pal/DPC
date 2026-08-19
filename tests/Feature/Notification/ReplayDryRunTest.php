@@ -23,7 +23,7 @@ use Tests\TestCase;
 /**
  * Replay Dry Run — **TD-10, closed**.
  *
- * Designed in `docs/EVENT_CATALOG.md` and deliberately not built at the time. Two
+ * Designed in `docs/archive/2026-08-19-pre-final/EVENT_CATALOG.md` and deliberately not built at the time. Two
  * properties give it its value, and both are asserted here:
  *
  * 1. **No side effects.** Nothing is dispatched, nothing is written. A dry run that

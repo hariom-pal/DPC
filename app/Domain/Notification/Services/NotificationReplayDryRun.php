@@ -11,7 +11,7 @@ use Illuminate\Support\Carbon;
 /**
  * What *would* be sent if a range of history were replayed — **TD-10, closed**.
  *
- * Designed in `docs/EVENT_CATALOG.md` and deliberately not built at the time. The
+ * Designed in `docs/archive/2026-08-19-pre-final/EVENT_CATALOG.md` and deliberately not built at the time. The
  * three cases it exists for, in the catalogue's own words:
  *
  * - **Before enabling a new subscriber.** Turning on a calendar integration against

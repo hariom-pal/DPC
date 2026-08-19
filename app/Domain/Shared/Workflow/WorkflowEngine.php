@@ -23,7 +23,7 @@ class WorkflowEngine
      * The shape of the state machines themselves — which transitions exist and what
      * each means.
      *
-     * **TD-13, closed 2026-08-19.** `docs/EVENT_CATALOG.md` declares three
+     * **TD-13, closed 2026-08-19.** `docs/archive/2026-08-19-pre-final/EVENT_CATALOG.md` declares three
      * independent versions: Schema Version and Payload Version each had a constant
      * in the code they describe, while Workflow Version existed **only in prose**.
      * A version that lives only in documentation can drift from the thing it

@@ -16,7 +16,7 @@ use Illuminate\Support\Carbon;
  * Every row carries a `schema_version` — starting at 1 — because a future PDF,
  * CSV or audit export must be able to read a record written years earlier
  * without guessing which shape its `properties` are in. The version-1 shape is
- * documented in `docs/WORKFLOWS.md`.
+ * documented in `docs/archive/2026-08-19-pre-final/WORKFLOWS.md`.
  *
  * @property int $id
  * @property string $uuid
