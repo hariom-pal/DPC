@@ -590,4 +590,74 @@ class ReviewDpcTest extends TestCase
             ->assertSee('Review Chain')
             ->assertSee('HE202600001');
     }
+
+    /**
+     * The banner offers the chain to the officer who can open it.
+     *
+     * Half of a pair — see the Commission case below.
+     */
+    public function test_the_banner_offers_the_chain_to_a_departmental_officer(): void
+    {
+        $this->concludeOriginal();
+        $review = $this->raise();
+
+        $this->actingAs($this->authorizedOfficer)
+            ->get(route('dpc-proposals.show', $review))
+            ->assertOk()
+            ->assertSee('This is a Review DPC')
+            ->assertSee(route('dpc-proposals.reviews.chain', $review), escape: false);
+    }
+
+    /**
+     * **The banner reaches the Commission's screens too, and must not offer them
+     * a link they cannot follow.**
+     *
+     * The composer fires on any route that binds a proposal, and the Commission
+     * side has four — `/cgpsc/allotments/{dpcProposal}/history` and the schedule
+     * equivalents. A Chairman or Member conducting a Review therefore saw the
+     * banner, pressed **Review Chain**, and got an access-denied page: the chain
+     * lives under `dpc-proposals/*`, which middleware gates to the two
+     * departmental roles.
+     *
+     * Found on 2026-08-22 by crawling the application as each role in a browser.
+     * Nothing in the suite saw it, because every test that rendered the banner
+     * rendered it as a departmental user — and because a link that is never
+     * followed cannot fail.
+     *
+     * Asserted as a pair, in the house style: **the link is absent for the role
+     * that cannot use it, and the route still refuses that role.** Asserting only
+     * the absence would let a later change drop the backend check and stay green,
+     * which is what makes hiding a button theatre rather than usability.
+     */
+    public function test_the_commission_is_not_offered_a_chain_it_cannot_open(): void
+    {
+        $this->concludeOriginal();
+        $review = $this->raise();
+
+        $chainUrl = route('dpc-proposals.reviews.chain', $review);
+
+        // A Commission screen that binds the proposal, so the banner renders.
+        $this->actingAs($this->memberOne)
+            ->get(route('cgpsc.allotments.history', $review))
+            ->assertOk()
+            ->assertSee('This is a Review DPC')
+            ->assertDontSee($chainUrl, escape: false);
+
+        // And the route itself still refuses them.
+        $this->actingAs($this->memberOne)->get($chainUrl)->assertForbidden();
+    }
+
+    /**
+     * An officer of another department is offered nothing either — the role gate
+     * would let them through, and the policy is what stops them.
+     */
+    public function test_an_officer_of_another_department_is_refused_the_chain(): void
+    {
+        $this->concludeOriginal();
+        $review = $this->raise();
+
+        $this->actingAs($this->authorizedOfficerTwo)
+            ->get(route('dpc-proposals.reviews.chain', $review))
+            ->assertForbidden();
+    }
 }

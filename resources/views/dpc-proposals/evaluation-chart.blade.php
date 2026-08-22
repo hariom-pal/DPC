@@ -82,7 +82,9 @@
                 @method('PUT')
 
                 @error('rows')<div class="alert alert-danger py-2">{{ $message }}</div>@enderror
-                <div id="rows"></div>
+                {{-- Pre-normalised seed rows travel as data — see
+                     public/js/forms/dpc-evaluation-chart.js. --}}
+                <div id="rows" data-seed="{{ json_encode($rowsData) }}"></div>
 
                 <button type="button" class="btn btn-outline-primary btn-sm mt-2" id="add-row">+ Add Officer</button>
 
@@ -182,87 +184,5 @@
 @endsection
 
 @push('scripts')
-<script>
-    (function () {
-        const container = document.getElementById('rows');
-        const rowTpl = document.getElementById('row-template').innerHTML;
-        const yearTpl = document.getElementById('year-template').innerHTML;
-        let rowIndex = 0;
-
-        // The three per-year tables share one visible Year input; the two
-        // hidden mirrors keep loyalty/property aligned to the same year.
-        function syncYear(yearRow) {
-            const value = yearRow.querySelector('.year-input').value;
-            yearRow.querySelectorAll('.year-mirror').forEach(function (mirror) {
-                mirror.value = value;
-            });
-        }
-
-        function addYear(card, seed) {
-            const body = card.querySelector('.year-rows');
-            const idx = Number(card.dataset.yearCount || 0);
-            card.dataset.yearCount = idx + 1;
-
-            const html = yearTpl
-                .replaceAll('__R__', card.dataset.rowIndex)
-                .replaceAll('__Y__', idx);
-            const tbody = document.createElement('tbody');
-            tbody.innerHTML = html;
-            const yearRow = tbody.firstElementChild;
-            body.appendChild(yearRow);
-
-            if (seed) {
-                // Values arrive pre-normalised from the Blade block above.
-                yearRow.querySelector('.year-input').value = seed.year ?? '';
-                yearRow.querySelector('[name$="[grade]"]').value = seed.grade ?? '';
-                yearRow.querySelector('[name$="[loyalty_flags][' + idx + '][flag]"]').value = seed.loyalty ?? '';
-                yearRow.querySelector('[name$="[property_flags][' + idx + '][flag]"]').value = seed.property ?? '';
-            }
-            syncYear(yearRow);
-
-            return yearRow;
-        }
-
-        function addRow(seed) {
-            const idx = rowIndex++;
-            const wrap = document.createElement('div');
-            wrap.innerHTML = rowTpl.replaceAll('__R__', idx);
-            const card = wrap.firstElementChild;
-            card.dataset.rowIndex = idx;
-            card.dataset.yearCount = 0;
-            container.appendChild(card);
-
-            if (seed) {
-                ['sn', 'employee_number', 'name', 'dob', 'qualification', 'current_post', 'feeder_post',
-                 'reservation_category_id', 'date_of_joining_service', 'date_of_posting_on_current_post',
-                 'date_of_posting_on_feeder_post', 'tribal_area_service_years', 'note'].forEach(function (field) {
-                    const input = card.querySelector('[name$="[' + field + ']"]');
-                    if (input) input.value = seed[field] ?? '';
-                });
-                (seed.years || []).forEach(year => addYear(card, year));
-            }
-
-            if (Number(card.dataset.yearCount) === 0) addYear(card, null);
-
-            return card;
-        }
-
-        container.addEventListener('click', function (e) {
-            if (e.target.classList.contains('remove-eval-row')) e.target.closest('.eval-row-card').remove();
-            if (e.target.classList.contains('remove-year')) e.target.closest('.year-row').remove();
-            if (e.target.classList.contains('add-year')) addYear(e.target.closest('.eval-row-card'), null);
-        });
-        container.addEventListener('input', function (e) {
-            if (e.target.classList.contains('year-input')) syncYear(e.target.closest('.year-row'));
-        });
-        document.getElementById('add-row').addEventListener('click', () => addRow(null));
-
-        const seed = @json($rowsData);
-        if (seed.length === 0) {
-            addRow(null);
-        } else {
-            seed.forEach(row => addRow(row));
-        }
-    })();
-</script>
+    <script src="{{ asset('js/forms/dpc-evaluation-chart.js') }}" defer></script>
 @endpush

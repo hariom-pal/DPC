@@ -39,7 +39,7 @@
                                     <button class="btn btn-outline-secondary btn-sm">{{ $user->is_active ? 'Deactivate' : 'Activate' }}</button>
                                 </form>
                                 <form method="POST" action="{{ route('admin.users.reset-password', $user) }}" class="d-inline"
-                                      onsubmit="return confirm('Issue a new temporary password?');">
+                                      data-confirm="Issue a new temporary password?">
                                     @csrf
                                     <button class="btn btn-outline-warning btn-sm">Reset Password</button>
                                 </form>

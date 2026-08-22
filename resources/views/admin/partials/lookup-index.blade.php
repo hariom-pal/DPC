@@ -19,7 +19,7 @@
                         <td class="text-end">
                             <a href="{{ route($routeBase.'.edit', $item) }}" class="btn btn-outline-primary btn-sm">Edit</a>
                             <form method="POST" action="{{ route($routeBase.'.destroy', $item) }}" class="d-inline"
-                                  onsubmit="return confirm('Delete this record?');">
+                                  data-confirm="Delete this record?">
                                 @csrf @method('DELETE')
                                 <button class="btn btn-outline-danger btn-sm">Delete</button>
                             </form>

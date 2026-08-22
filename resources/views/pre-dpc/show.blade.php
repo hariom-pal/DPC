@@ -82,11 +82,11 @@
                     @can('update', $proposal)
                         <a href="{{ route('pre-dpc.edit', $proposal) }}" class="btn btn-outline-primary btn-sm">Edit</a>
                         <form method="POST" action="{{ route('pre-dpc.submit', $proposal) }}">@csrf<button class="btn btn-success btn-sm">Submit for Approval</button></form>
-                        <form method="POST" action="{{ route('pre-dpc.cancel', $proposal) }}" onsubmit="return confirm('Cancel this proposal?');">@csrf<button class="btn btn-outline-danger btn-sm">Cancel</button></form>
+                        <form method="POST" action="{{ route('pre-dpc.cancel', $proposal) }}" data-confirm="Cancel this proposal?">@csrf<button class="btn btn-outline-danger btn-sm">Cancel</button></form>
                     @endcan
 
                     @can('approve', $proposal)
-                        <form method="POST" action="{{ route('pre-dpc.approve', $proposal) }}" onsubmit="return confirm('Approve and digitally sign this proposal?');">@csrf<button class="btn btn-success btn-sm">Approve &amp; Sign</button></form>
+                        <form method="POST" action="{{ route('pre-dpc.approve', $proposal) }}" data-confirm="Approve and digitally sign this proposal?">@csrf<button class="btn btn-success btn-sm">Approve &amp; Sign</button></form>
                     @endcan
 
                     @can('amend', $proposal)

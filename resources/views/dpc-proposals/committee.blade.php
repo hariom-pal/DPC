@@ -24,7 +24,9 @@
                 @csrf
                 @method('PUT')
 
-                <div id="members"></div>
+                {{-- The saved members travel as data, not as interpolated
+                     script — see public/js/forms/dpc-committee.js and TD-29. --}}
+                <div id="members" data-seed="{{ json_encode($membersData) }}"></div>
 
                 <button type="button" class="btn btn-outline-primary btn-sm mt-2" id="add-member">+ Add Member</button>
 
@@ -76,51 +78,5 @@
 @endsection
 
 @push('scripts')
-<script>
-    (function () {
-        const membersEl = document.getElementById('members');
-        const tpl = document.getElementById('member-template').innerHTML;
-        let m = 0;
-
-        function toggleExternal(card) {
-            const select = card.querySelector('.user-select');
-            card.querySelector('.external-fields').style.display = select.value ? 'none' : 'flex';
-        }
-
-        function addMember() {
-            const idx = m++;
-            const wrap = document.createElement('div');
-            wrap.innerHTML = tpl.replaceAll('__M__', idx);
-            const card = wrap.firstElementChild;
-            membersEl.appendChild(card);
-            toggleExternal(card);
-            return card;
-        }
-
-        membersEl.addEventListener('click', function (e) {
-            if (e.target.classList.contains('remove-member')) e.target.closest('.member-card').remove();
-        });
-        membersEl.addEventListener('change', function (e) {
-            if (e.target.classList.contains('user-select')) toggleExternal(e.target.closest('.member-card'));
-        });
-        document.getElementById('add-member').addEventListener('click', () => addMember());
-
-        const seed = @json($membersData);
-        if (seed.length === 0) {
-            const card = addMember();
-            card.querySelector('[name$="[capacity]"]').value = 'chairman';
-        } else {
-            seed.forEach(function (member) {
-                const card = addMember();
-                if (member.user_id) card.querySelector('.user-select').value = member.user_id;
-                card.querySelector('[name$="[capacity]"]').value = member.capacity || 'member';
-                card.querySelector('[name$="[name]"]').value = member.name || '';
-                card.querySelector('[name$="[designation]"]').value = member.designation || '';
-                card.querySelector('[name$="[mobile]"]').value = member.mobile || '';
-                card.querySelector('[name$="[email]"]').value = member.email || '';
-                toggleExternal(card);
-            });
-        }
-    })();
-</script>
+    <script src="{{ asset('js/forms/dpc-committee.js') }}" defer></script>
 @endpush

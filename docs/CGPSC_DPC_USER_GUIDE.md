@@ -1,10 +1,12 @@
-# e-DPC Portal — System User Manual
+# CGPSC DPC User Guide
 
-**Online Departmental Promotion Committee · Chhattisgarh Public Service Commission**
+**Online Departmental Promotion Committee (e-DPC) Portal · Chhattisgarh Public Service Commission**
 
 **For:** every person who uses the portal — departmental officers, Commission members, administrators, and officers being considered for promotion.
 
-No technical knowledge is needed. Read §1 to §3, then the section for your own role.
+**Version 1.0 · 2026-08-22.** This is the operating manual for the portal as built. It is one of five documents; the other four are technical or for the Commission, and are listed in the repository's `README.md`.
+
+No technical knowledge is needed. Read §1 to §3, then the section for your own role. A completely new officer should be able to work the portal from this document alone.
 
 ---
 
@@ -224,6 +226,8 @@ A Review then runs the *same* full process — allotment, acceptance, scheduling
 
 On approval it **supersedes** the DPC it corrects. Both timelines record it, the department is notified with both identifiers, and the earlier documents are stamped **SUPERSEDED** when downloaded — while the stored document and its hash stay exactly as issued.
 
+**Every screen of a Review DPC carries a warning band** saying so, naming which DPC is being corrected, its date, which review in the chain this is, and the reasons. A Review looks exactly like a fresh DPC, which is precisely why it is announced. Departmental users also get a **Review Chain** button there, which shows the whole correction history end to end. Commission users see the band but not that button: the chain is a departmental screen.
+
 > **What supersession means for an officer already promoted is not yet settled by the Commission.** The portal records the supersession and tells the department which list is no longer current. It says nothing about the promotion itself, and it will not until CGPSC rules.
 
 ### 8.2 Circulation — when a held promotion can now be resolved
@@ -254,11 +258,11 @@ Before the committee sits, you may **check the data your department recorded abo
 
 ### How to open it
 
-**View my data**, then confirm three facts your department recorded:
+**View my data**, then confirm three facts your department recorded. The screen labels them:
 
-- **Your name**, as your department recorded it
-- **Your date of joining the current cadre**
-- **Your date of birth**
+- **Name (as recorded by your department)**
+- **Date of Joining Current Cadre**
+- **Date of Birth**
 
 All three must match exactly. If they do not, the portal will not tell you which one was wrong — that is deliberate, so nobody can look an officer up by guessing one field at a time.
 
@@ -368,6 +372,9 @@ You see only your own row, and only while a proposal including you is under cons
 
 **Why did I not get an SMS?**
 The Government SMS gateway is not yet connected. **Use the bell in the portal** — the in-app list is complete and does not depend on it.
+
+**Why are the web addresses so long?**
+Every proposal, sitting, document and note is addressed by a long random identifier rather than by a number like `4`. This is deliberate: a numbered address tells anyone who sees it how many DPCs exist, and invites trying the neighbouring numbers. Bookmarks and links still work normally — the address for a given DPC never changes.
 
 ---
 

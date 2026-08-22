@@ -47,6 +47,7 @@
             "@php artisan serve"
         ],
         "test": [
+            "Composer\\Config::disableProcessTimeout",
             "@php artisan config:clear --ansi",
             "@php artisan test"
         ],
@@ -56,6 +57,7 @@
         "audit:security": "@php artisan security:audit",
         "schema:mysql": "@php artisan schema:verify-mysql",
         "gate": [
+            "Composer\\Config::disableProcessTimeout",
             "@php vendor/bin/pint --test",
             "@php vendor/bin/phpstan analyse --memory-limit=512M",
             "@php artisan security:audit",

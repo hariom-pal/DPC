@@ -1,8 +1,10 @@
-# e-DPC Portal — Architect Handbook
+# CGPSC DPC Architecture Handbook
 
-**For:** Software Architect / Technical Lead
-**Date:** 2026-08-19
+**For:** Architects and Technical Leads
+**Version 1.0 · 2026-08-22**
 **Status:** Engineering complete; development frozen pending business review.
+
+This document explains **why** the system is built the way it is. For how to work on it, see the **CGPSC DPC Developer Handbook**; for what the Commission still has to decide, the **Pending Business Decisions** register; for what stands between here and production, **Blockers**.
 
 ---
 
@@ -20,13 +22,15 @@ The **e-DPC Portal** conducts the Chhattisgarh Public Service Commission's Depar
 | | |
 |---|---|
 | Milestones | **M0–M11**, all implemented |
-| PHP files under `app/` | 288 |
-| Blade views | 125 |
-| Database tables | **68** across **53** migrations |
+| PHP files under `app/` | 289 |
+| Blade views | 125, **none carrying inline script** |
+| JavaScript files | 9, all under `public/js/`, no build step |
+| Database tables | **68** across **54** migrations |
 | Domains | 18 |
-| Routes | 223 |
-| Tests | **939 passing / 3018 assertions**, 78 test classes |
-| Static analysis | PHPStan (Larastan) **level 6**, zero errors |
+| Routes | 223, all named, all role-gated or on a reasoned allowlist |
+| Tests | **960 passing / 3135 assertions**, 81 test classes |
+| Static analysis | PHPStan (Larastan) **level 6**, zero errors, no baseline |
+| Content-Security-Policy | **enforced** (`script-src 'self'`), browser-verified |
 
 ---
 
@@ -68,7 +72,7 @@ These are the load-bearing ones. Each was recorded when taken; the full register
 | **AD-5** | Actors are **snapshotted**, not referenced | The timeline records who somebody *was* at the time. A renamed or removed user does not rewrite history |
 | **AD-6** | The **timeline is the legal workflow history**; business tables hold current state | "What happened" and "where is it now" are different questions with different sources |
 | **AD-7** | Timeline ordering is `(occurred_at, uuid)`, never the sequential id | `occurred_at` has second granularity and one transaction writes two rows. Ordering on time alone was non-deterministic — a real defect, found in M6 |
-| **AD-8** | **UUID is the only public identifier** | Sequential ids never appear in a URL or a document |
+| **AD-8** | **UUID is the only public identifier** | Sequential ids never appear in a URL or a document. **This was recorded from M6 onward and was not actually true until 2026-08-22 — see §4.2** |
 
 ### Structure
 
@@ -86,7 +90,7 @@ These are the load-bearing ones. Each was recorded when taken; the full register
 | # | Decision | Consequence |
 |---|---|---|
 | **AD-15** | Freezes, and **freeze verification by diff** at every phase boundary | See §4 |
-| **AD-16** | Migrations are **additive**; approved phases are not refactored without approval | 53 migrations, none destructive |
+| **AD-16** | Migrations are **additive**; approved phases are not refactored without approval | 54 migrations, none destructive, every one with a working `down()` |
 | **AD-17** | **The gate is necessary, not sufficient** | Six consecutive green gates once missed three P1 defects. Every phase is also demoed and checked against the deck |
 | **AD-18** | **Silent failures are converted into loud ones** | Strict attribute mode outside production: a write to a non-fillable column throws instead of being discarded. This caught two real data-loss bugs |
 | **AD-20** | Behaviour is added to a completed milestone **by decoration, never by edit** | M8 extends M7 through four container-bound decorators, each invisible to a non-Review DPC. M11's notification channel is a second listener on the same event |
@@ -97,7 +101,7 @@ These are the load-bearing ones. Each was recorded when taken; the full register
 
 ---
 
-## 4. Freezes, and the exception taken on 2026-08-19
+## 4. Freezes, and the two exceptions taken to close the project
 
 **Five milestones were frozen as they closed**, and freeze verification ran by `git diff` at every subsequent phase boundary. It was never non-empty until the final phase.
 
@@ -111,7 +115,7 @@ The M8 check must also cover its **views** (`resources/views/dpc/reviews/`, `doc
 
 **Freeze levels differed.** M4 (architecture-frozen), M5 (engine-frozen), M6, M7 accepted bug fixes, security fixes, performance work and hardening without per-change approval. **M8 was the strictest** — bug fixes only, each individually approved.
 
-### The Freeze Exception of 2026-08-19
+### 4.1 The Freeze Exception of 2026-08-19
 
 The final-phase directive required completing all technical debt not requiring a Business decision. Four debt items were blocked **only** by a freeze — an Architect decision, not a business one — so the directive was taken as granting the exception. **Every change was additive or behaviour-preserving, and the footprint is exactly seven files:**
 
@@ -128,6 +132,54 @@ The final-phase directive required completing all technical debt not requiring a
 **Nothing in the scoring or eligibility engines was touched.** The M5 engine freeze holds in substance: the only M5-area change is one additional column recorded on a run.
 
 **One behavioural change was made deliberately** and is not covered by the above: an unmatched Pre-DPC feeder now **refuses the approval** rather than silently producing a recruitment rule with no feeder cadre. It is configurable (`dpc.pre_dpc.refuse_unmatched_feeder`, default on) and it is in unfrozen M3.
+
+### 4.2 The Freeze Exception of 2026-08-22 — and the finding that forced it
+
+The final phase asked for every remaining implementation not needing a business ruling. Two items qualified, and pursuing the first turned up something worse than either.
+
+#### AD-8 was recorded, documented as delivered, and false
+
+**`AD-8` says the UUID is the only public identifier and a sequential id never appears in a URL.** Thirteen models implemented it. **Four did not**, and they were the four that matter:
+
+| Model | Was addressed by | Routes affected |
+|---|---|---|
+| `DpcProposal` | `id` | 26 — every DPC screen: `/dpc-proposals/4` |
+| `PreDpcProposal` | `id` (**no `uuid` column at all**) | 6 — `/pre-dpc/1` |
+| `User` | `id` | 4 — `/admin/users/7` |
+| `UserNotification` | `id` | 1 |
+
+The history is legible and each step was defensible on its own. `dpc_proposals.uuid` arrived in M7 to keep sequential ids out of *signed documents*, and its migration says in terms that the route key was left alone "so no relation and no URL changes" — because changing it would have touched frozen M4. `users.uuid` arrived in M6 for timeline actor snapshots with the same note. **TD-19 then recorded "proposal UUIDs" as closed** when the `HasUuids` trait was added, which minted the value but changed no URL. At no point did anyone write down that half of AD-8 was outstanding, and two of the four final documents asserted it as done.
+
+**It was not only a disclosure problem.** With `id` as the route key, MySQL resolves the binding by coercing the URL segment to an integer. A request for `/dpc-proposals/01a0282e-b21f-…/committee` therefore returned **proposal 1** — a different record — with a 200 rather than a 404. A mistyped or guessed identifier silently produced somebody else's DPC. The department policy still applied, so this was not privilege escalation; it was a request for one record being answered with another.
+
+**Why the whole suite was green either way.** Every test builds its URLs with `route()`, and `route()` emits whichever key the model names. 939 tests passed before the change and 939 after it. **No amount of that suite could have found this**, which is why the fix ships with a *structural* test — `PublicIdentifierTest` reads the router's own binding reflection and fails if any route-bound model with a `uuid` column does not bind on it. A future aggregate that forgets fails on the commit that adds it.
+
+**Footprint** — four route-key overrides, one additive migration, and the AD-8 test:
+
+| File | Change |
+|---|---|
+| `Dpc/Models/DpcProposal.php` | `+ getRouteKeyName(): 'uuid'` |
+| `PreDpc/Models/PreDpcProposal.php` | `+ HasUuids`, `uniqueIds()`, `getRouteKeyName()` |
+| `Authentication/Models/User.php` | `+ getRouteKeyName(): 'uuid'` |
+| `Notification/Models/UserNotification.php` | `+ getRouteKeyName(): 'uuid'` |
+| `…350001_add_uuid_to_pre_dpc_proposals.php` | Additive column, backfilled, then made unique |
+| `tests/Feature/Security/PublicIdentifierTest.php` | The structural check, 5 cases |
+
+`id` remains the primary key throughout, so every foreign key, the Pre-DPC version lineage and every actor reference are untouched. **Only the public URL changed.** Nothing else in the codebase needed editing, because nowhere builds a URL by hand.
+
+#### TD-29 — the CSP is now enforced
+
+The second item. Detail in §9; the freeze relevance is that six of the inline scripts were on frozen M4 and M3 screens, and the conversion is behaviour-preserving view-layer work.
+
+#### Why these were taken as within the directive
+
+Both were blocked by a freeze, which is an **Architect** decision, not a business one — so the directive that asked for all remaining non-business implementation was read as granting the exception, on the same reasoning as 2026-08-19. AD-8 additionally had a defect behind it, and AD-15 admits security fixes to a frozen milestone without per-change approval in any case.
+
+### 4.3 One more defect, found by neither the gate nor the freeze diff
+
+The **Review DPC banner offered a "Review Chain" button that 403'd for Commission users.** The banner is rendered by a view composer on any route that binds a proposal, and the Commission side has four such routes (`/cgpsc/allotments/{dpcProposal}/history` and the schedule equivalents). The chain screen lives under `dpc-proposals/*`, gated by middleware to the two departmental roles. So a Chairman or Member conducting a Review saw the button, pressed it, and got an access-denied page.
+
+**It was found by driving the application in a browser as each of the five roles and reading the console** — 89 screens as the Authorized Officer, 50 as the Chairman, and so on. Nothing in the suite saw it: every test that renders the banner renders it as a departmental user, and **a link that is never followed cannot fail.** The fix is a `can_view_chain` check in the composer, and `ReviewDpcTest` now asserts the pair the house style requires — the link is absent for the role that cannot use it, *and* the route still refuses that role.
 
 ---
 
@@ -228,18 +280,31 @@ Every transition re-fetches its row with `lockForUpdate()` **inside** the transa
 | Step-up | OTP at each legally significant signing action, logged as record of intent |
 | Authorization | Policies per aggregate, plus `role:` middleware. **A test enumerates every authenticated route and fails if one is neither role-gated nor on a reasoned allowlist** |
 | Rate limiting | Config-driven limiters on login, OTP verification, CALCULATE and self-inspection. The self-inspection limiter is the strictest in the application |
-| Response headers | CSP, `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, HSTS over TLS only |
+| Response headers | CSP **enforced**, `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, HSTS over TLS only |
+| Public identifiers | Every route-bound aggregate is addressed by UUID; a structural test enforces it (§4.2) |
+| Evidence at rest | Twelve append-only tables, with the database grants that back the application guards emitted by `security:evidence-grants` (§13) |
 | CSV injection | Neutralised in the import error report and both CSV exports |
 | Open redirect | A stored notification URL is followed only if it is a path within the application |
 | Audit | Three independent records — workflow ledger, activity timeline, model changes — with a read-only UI |
 
-### The CSP is report-only, and that is a finding
+### 9.1 The CSP is enforced, and how the switch was thrown matters more than the switch
 
-The policy is correct and strict (`script-src 'self'`, no inline scripts). It ships as **`Content-Security-Policy-Report-Only`** because the application has **7 views with inline `<script>` blocks and ~22 inline event handlers** (`onsubmit="return confirm(...)"`, `onchange="this.form.submit()"`), several on M4's frozen screens.
+The policy is strict and now **enforced**: `default-src 'self'`, `script-src 'self'`, `object-src 'none'`, no CDN, no inline script. Inline *styles* are permitted and inline *scripts* are not — several views set element widths inline, the report bars among them, while an inline-script allowance is precisely what turns a reflected string into executable code.
 
-**No test can see this**, because CSP is enforced by the browser: a screen returns 200 either way. Enforcing it would have silently broken the add-a-row buttons on five forms and every confirmation before a destructive action. Adding `'unsafe-inline'` instead would have made the header decorative while looking strict.
+For most of the project it shipped `Content-Security-Policy-Report-Only`, and that was recorded as a finding rather than a preference. The application had **6 views with inline `<script>` blocks and 21 inline event handlers** across 20 views (`onsubmit="return confirm(…)"`, `onchange="this.form.submit()"`), several on M4's frozen screens. Under an enforced `script-src 'self'` a browser silently refuses all of them: the add-a-row buttons on six repeating forms stop working, and every confirmation before a destructive action stops appearing — the form just submits.
 
-**Enforcement is one flag** (`dpc.security.headers.enforce_csp`) once the inline handlers are converted to delegated listeners — recorded as **TD-29**, the largest single remaining engineering item. The one screen written after the policy existed is already compliant, with a test keeping it that way.
+**The test suite cannot see any of that.** CSP is enforced by the browser, not the server; a screen returns 200 either way. **So the switch was not thrown on a green suite** — that is the whole point of this section:
+
+1. **The six inline blocks became six files** under `public/js/forms/`, one per screen, logic unchanged. Their seed rows now arrive on a `data-seed` attribute, which a browser reads as data and never as code, so there is nothing for `script-src` to refuse. (A `<script type="application/json">` block would very probably also have worked; a `data-` attribute is exempt *by construction* and needs no argument about browser behaviour, which is worth more here than elegance.)
+2. **The 21 handlers became two delegated listeners** in `portal.js`, declared in markup as `data-confirm` and `data-submit-on-change`. The confirm listener is registered *before* the busy-state listener and the latter now checks `event.defaultPrevented`, so a cancelled submission does not leave a spinner on a button going nowhere.
+3. **The result was then driven in headless Chromium with the policy enforced** — 12 targeted checks across the committee, seniority, working-officers, evaluation-chart, Pre-DPC and recruitment-rule forms, the confirmation dialogues, the Pre-DPC rehydration path, the submit guard and the accessibility control; then a **full crawl of 89 screens as the Authorized Officer, 89 as the Administrative Head, 89 as the Admin, 50 as the Chairman, 27 as a Member**, plus the anonymous portal and the whole Self-Inspection journey including the print view. **Zero violations, zero console errors, zero 5xx.** That crawl is also what found the Review-banner defect in §4.3.
+4. **Only then** did `enforce_csp` default to `true`.
+
+`ViewsAreCspCleanTest` now fails the build if an inline handler, an inline `<script>`, or a `javascript:` URL reappears anywhere under `resources/views` — and, in both directions, if a view loads a script that is not on disk or a script exists that no view loads. That second pair matters: mistyping an extracted script's path leaves a screen that renders perfectly, returns 200, and has no working buttons.
+
+**Retreat is one environment variable.** `DPC_CSP_ENFORCE=false` returns to report-only without a deploy, because a header that breaks a page in production and cannot be turned off is worse than an absent one. `'unsafe-inline'` is still not offered.
+
+**One improvement came out of the extraction rather than being aimed at.** The Pre-DPC script built an option element by interpolating a cadre name into an HTML string; rewritten, it sets `textContent`. That was the one place on the screen where a database value would have been parsed as markup.
 
 ---
 
@@ -268,7 +333,7 @@ Five parts, all mandatory, run with `composer gate`:
 2. **PHPStan / Larastan level 6** — zero errors, no baseline, no ignores
 3. **`security:audit`** — `composer audit` with retry
 4. **`schema:verify-mysql`** — builds every migration on MySQL in a throwaway database
-5. **PHPUnit** — 939 tests / 3018 assertions
+5. **PHPUnit** — **960 tests / 3135 assertions**
 
 ### Why steps 3 and 4 exist, and what they cost to learn
 
@@ -278,24 +343,34 @@ Two checks now close it: `SchemaIdentifierLengthTest` catches identifier length 
 
 **Step 3** exists because three consecutive milestone finalisations needed a manual retry on `composer audit`. It retries a transport failure, **never** retries a finding, and **refuses a pass composer served from its local cache** — a green security gate that checked nothing current is worse than a failing one.
 
-### Two tests worth knowing about
+**A footnote on the gate itself, found on 2026-08-22.** `composer gate` had begun **timing out rather than failing**: the suite now takes about three minutes and Composer's default process timeout is 300 seconds for the whole script, so step 5 was killed mid-run with a Composer stack trace. A developer seeing that would reasonably read it as a broken test rather than a broken harness. `Composer\Config::disableProcessTimeout` is now the first line of both `gate` and `test`, as it already was of `dev`. Worth knowing because it is the failure mode a gate should never have: **not red, and not green.**
 
-- **`ScreenSmokeTest`** renders all 61 parameterless screens as all 7 identities and asserts **no 500**. It catches what per-screen tests cannot: a renamed variable, a moved partial, a composer that throws. Verified to bite.
+### Five tests worth knowing about
+
+- **`ScreenSmokeTest`** renders every parameterless screen as all 7 identities and asserts **no 500**. It catches what per-screen tests cannot: a renamed variable, a moved partial, a composer that throws. Verified to bite.
 - **`DpcProposalDetailPerformanceTest`** is an N+1 detector on the heaviest screen. **It is why the notification badge is not cached** — a cached value the layout renders makes a page issue a different query count on its second render, which the detector correctly flags. Blunting it to save one indexed `count()` was the wrong trade.
+- **`AuthorizationCoverageTest`** enumerates every authenticated route and fails if one is neither role-gated nor on a reasoned allowlist. A new route is gated or the build is red.
+- **`PublicIdentifierTest`** (new, §4.2) reads the router's own binding reflection and fails if a route-bound model with a `uuid` column does not bind on it. It exists because AD-8 was asserted in two documents while being false in four models, and nothing in a 939-test suite could see it.
+- **`ViewsAreCspCleanTest`** (new, §9.1) reads Blade source, because the thing it guards is invisible to a request: a screen with an inline handler returns 200 and the button just does not work.
+
+**The shape those last three share is worth naming.** Each asserts a property *across* the codebase rather than a behaviour *within* it, and each was written because a per-behaviour test could not have caught the defect that prompted it. When a decision applies everywhere, test it everywhere — enumerate from the router or the filesystem, never from a list somebody has to remember to add to.
 
 ---
 
 ## 12. Technical debt
 
-**Closed in the final phase:** TD-2 (audit retry), TD-4 (timeline index), TD-5 (Pre-DPC lock ordering), TD-7 (audit UI), TD-9 (Excel templates), TD-10 (replay dry run), TD-13 (workflow version constant), TD-19 (proposal UUIDs), TD-20 (recipient resolver), TD-21 (engine version on the run), TD-23, TD-24, TD-25, TD-26, TD-27.
+**Closed 2026-08-19:** TD-2 (audit retry), TD-4 (timeline index), TD-5 (Pre-DPC lock ordering), TD-7 (audit UI), TD-9 (Excel templates), TD-10 (replay dry run), TD-13 (workflow version constant), TD-20 (recipient resolver), TD-21 (engine version on the run), TD-23, TD-24, TD-25, TD-26, TD-27.
+
+**Closed 2026-08-22:** **TD-29** (CSP enforced — §9.1) and **TD-19** *properly* (AD-8 delivered in URLs — §4.2; it had been recorded as closed when only the column was filled).
+
+**TD-1 is as closed as code can make it** — see below.
 
 ### Open, with the reason each is open
 
 | # | Item | Why it is still open |
 |---|---|---|
-| **TD-29** | **~22 inline event handlers and 7 inline `<script>` blocks block CSP enforcement** | The largest remaining engineering item. Converting them to delegated listeners is mechanical but touches frozen M4 screens and needs browser verification |
-| **TD-6** | **No SMS or e-mail gateway** | Procurement, not engineering. **Without it no officer can complete OTP verification in production** — the highest-value outstanding item of any kind |
-| **TD-1** | Evidence-table database grants not applied | A deployment control (§13), not code |
+| **TD-6** | **No SMS or e-mail gateway** | Procurement, not engineering. **Without it no officer can complete OTP verification in production** — the highest-value outstanding item of any kind, and the one true blocker |
+| **TD-1** | Evidence-table grants not yet *applied* | The control is a `GRANT` on a production database and cannot be applied from inside the application. **What was engineerable is now done**: the table list lives in `dpc.security.evidence_tables`, `php artisan security:evidence-grants` emits the SQL and `--verify` reports whether the running database actually refuses the writes. What remains is a DBA running it. See §13 |
 | **TD-8** | Unbounded evidence storage | Needs a capacity plan and backup scope; retention is permanent by ruling |
 | **TD-18** | Real CSC signing provider unimplemented | Needs BD-4 |
 | **TD-15** | The archived SRS describes a different proceeding | Needs BD-17 |
@@ -310,12 +385,24 @@ Two checks now close it: `SchemaIdentifierLengthTest` catches identifier length 
 
 **Before production, in order of lead time:**
 
-1. **Procure a government SMS gateway** (TD-6). Longest lead time and hardest blocker: OTP delivery fails without it.
+1. **Procure a government SMS gateway** (TD-6). Longest lead time and the hardest blocker: OTP delivery fails without it, and OTP is how a signature is taken.
 2. **Obtain the CSC eSign contract** (BD-4). Decides whether a PDF renderer is needed.
-3. **Apply the evidence-table grants** (TD-1). The application user must not hold blanket `UPDATE` on the evidence tables — **including the column-level `UPDATE` grant on `dpc_calculation_runs.status`**; revoking `UPDATE` outright breaks every calculation. The runbook is in the archived `docs/deployment/`.
+3. **Apply the evidence-table grants** (TD-1) — now a command, not a runbook:
+
+   ```bash
+   php artisan security:evidence-grants --user=odpc_app --host='10.%' --database=odpc
+   #   … a DBA runs the emitted SQL, then:
+   php artisan security:evidence-grants --verify
+   ```
+
+   **The one mistake to avoid is tightening it too far.** Revoking `UPDATE` outright on `dpc_calculation_runs` breaks every calculation, because completing a run is a single `UPDATE` of `status`; the same applies to a document, which legitimately gets published after it is generated. So `update` in the config is a **list of columns**, not a flag, and each list mirrors that table's own model guard.
+
+   **The command exists because the runbook had already gone stale and nothing said so.** It was written in M5 and named two tables. M6 added allotments and schedules, M7 the proceeding with its corrections, holds and documents, M8 the review chain, M9 the circulation note: **twelve evidence tables, of which the runbook covered two.** Ten would have gone to production unprotected with the deployment checklist ticked, because a document cannot notice a migration. `EvidenceGrantsTest` now compares the list against every model that guards itself against `update`, so the next one cannot be forgotten.
+
+   `--verify` is the half to run repeatedly rather than once. It attempts each write the grants should refuse, as whichever account the application actually connects as, and reports what the database did. Every probe carries `WHERE id = -1`, so no row can match — MySQL checks privileges before matching rows, which makes a refusal proof and a success harmless. Run it at every release, not only at first deployment: a grant can be widened later by an unrelated change.
 4. **Capacity plan** (TD-8) for permanently retained import files and signed documents.
 5. **Turn on the integrations** one flag at a time, confirming each at `/admin/integrations`.
-6. **Consider enforcing the CSP** (TD-29) once the inline handlers are gone.
+6. **Point `DPC_CSP_REPORT_URI` at a collector.** The policy is enforced, so a violation now means a control has stopped working for a real user — the case you most want to hear about. Unset, violations go nowhere.
 
 **Environment.** MySQL 8, Redis, PHP 8.4, no Node. `php artisan optimize` caches config, events, routes and views; `optimize:clear` reverses it. `migrate --force` is additive throughout, and every migration has a working `down()`.
 
@@ -338,5 +425,13 @@ Recorded as directions, not commitments.
 ## 15. If you read one thing
 
 **Every significant defect in this project was found by applying a discipline, not by running the gate.** The Demo Readiness Rule caught three P1 defects that six consecutive green gates had missed. A full comparison against the deck's own worked answer found two business rules nobody had noticed were unruled. Removing a test's shortcut found a P1 that had refused every Review DPC in the real application. Running the gate on the right database engine found a table that had never existed.
+
+**The final phase added three more, and they rhyme.**
+
+- **Driving the application in a real browser** found the Review-chain button that 403'd for the Commission (§4.3) — invisible to the suite, because a link that is never followed cannot fail.
+- **Trying to reach a screen by its documented identifier** found that AD-8 was false in the four models that matter, and that a wrong identifier was silently answered with a different DPC (§4.2) — invisible to the suite, because every test builds its URLs with `route()`.
+- **Writing a structural test for a deployment control** found that the control's own runbook had gone stale by ten tables (§13) — invisible to everything, because a document cannot notice a migration.
+
+**The pattern in all three: the thing that was wrong was the thing everybody had already written down as right.** A recorded decision is a claim, and a claim nobody checks decays quietly. So when a decision applies across the codebase, spend the extra hour making a test enumerate it from the router, the filesystem or the schema — not from a list. And at least once before you ship, use the system the way a person will, in the thing a person will use.
 
 The gate has never once proved the system was *right*. Keep both.

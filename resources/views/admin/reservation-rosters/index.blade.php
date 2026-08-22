@@ -26,7 +26,7 @@
                             <td class="text-end">
                                 <a href="{{ route('admin.reservation-rosters.edit', $roster) }}" class="btn btn-outline-primary btn-sm">Edit</a>
                                 <form method="POST" action="{{ route('admin.reservation-rosters.destroy', $roster) }}" class="d-inline"
-                                      onsubmit="return confirm('Delete this roster?');">
+                                      data-confirm="Delete this roster?">
                                     @csrf @method('DELETE')
                                     <button class="btn btn-outline-danger btn-sm">Delete</button>
                                 </form>

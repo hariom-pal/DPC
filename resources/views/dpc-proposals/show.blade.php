@@ -100,11 +100,11 @@
                     @if ($proposal->status->isEditable() && $isAO)
                         <a href="{{ route('dpc-proposals.edit', $proposal) }}" class="btn btn-outline-primary btn-sm">Edit</a>
                         <form method="POST" action="{{ route('dpc-proposals.submit', $proposal) }}">@csrf<button class="btn btn-success btn-sm">Submit for Approval</button></form>
-                        <form method="POST" action="{{ route('dpc-proposals.cancel', $proposal) }}" onsubmit="return confirm('Cancel this proposal?');">@csrf<button class="btn btn-outline-danger btn-sm">Cancel</button></form>
+                        <form method="POST" action="{{ route('dpc-proposals.cancel', $proposal) }}" data-confirm="Cancel this proposal?">@csrf<button class="btn btn-outline-danger btn-sm">Cancel</button></form>
                     @endif
 
                     @if ($proposal->status->value === 'submitted' && $isAH)
-                        <form method="POST" action="{{ route('dpc-proposals.approve', $proposal) }}" onsubmit="return confirm('Approve, digitally sign, and forward this proposal to CGPSC?');">@csrf<button class="btn btn-success btn-sm">Approve, Sign &amp; Forward to CGPSC</button></form>
+                        <form method="POST" action="{{ route('dpc-proposals.approve', $proposal) }}" data-confirm="Approve, digitally sign, and forward this proposal to CGPSC?">@csrf<button class="btn btn-success btn-sm">Approve, Sign &amp; Forward to CGPSC</button></form>
                     @endif
 
                     @if ($proposal->status->isTerminal())

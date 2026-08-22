@@ -69,7 +69,7 @@
 
                             <div class="d-flex flex-wrap gap-2">
                                 <form method="POST" action="{{ route('dpc-proposals.approve', $proposal) }}"
-                                      onsubmit="return confirm('Approve, digitally sign, and forward this proposal to CGPSC?');">
+                                      data-confirm="Approve, digitally sign, and forward this proposal to CGPSC?">
                                     @csrf<button class="btn btn-success">Approve, Sign &amp; Forward to CGPSC</button>
                                 </form>
                             </div>

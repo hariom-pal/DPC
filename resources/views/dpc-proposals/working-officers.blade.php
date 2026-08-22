@@ -54,7 +54,8 @@
                             <button type="button" class="btn btn-outline-primary btn-sm" id="add-vacancy">+ Add Vacancy Row</button>
                         </div>
                         @error('vacancies')<div class="alert alert-danger py-2">{{ $message }}</div>@enderror
-                        <div id="vacancies"></div>
+                        {{-- Seed rows travel as data — see public/js/forms/dpc-working-officers.js. --}}
+                        <div id="vacancies" data-seed="{{ json_encode($vacanciesData) }}"></div>
                     </div>
                 </div>
 
@@ -62,7 +63,7 @@
                     <h2 class="h6 mb-0">Officers Currently Working on {{ $proposal->postToCadre->name }}</h2>
                     <button type="button" class="btn btn-outline-primary btn-sm" id="add-officer">+ Add Officer</button>
                 </div>
-                <div id="officers"></div>
+                <div id="officers" data-seed="{{ json_encode($officersData) }}"></div>
 
                 <button type="submit" class="btn btn-success mt-3">Save</button>
                 <a href="{{ route('dpc-proposals.show', $proposal) }}" class="btn btn-outline-secondary mt-3">Cancel</a>
@@ -126,58 +127,5 @@
 @endsection
 
 @push('scripts')
-<script>
-    (function () {
-        function repeater(containerId, addBtnId, tplId, prefix, seed, fillRow) {
-            const container = document.getElementById(containerId);
-            const tpl = document.getElementById(tplId).innerHTML;
-            let i = 0;
-
-            function addRow() {
-                const idx = i++;
-                const wrap = document.createElement('div');
-                wrap.innerHTML = tpl.replaceAll('__' + prefix + '__', idx);
-                const el = wrap.firstElementChild;
-                container.appendChild(el);
-                return el;
-            }
-
-            container.addEventListener('click', function (e) {
-                if (e.target.classList.contains('remove-row')) e.target.closest('.row, .officer-card').remove();
-            });
-            document.getElementById(addBtnId).addEventListener('click', () => addRow());
-
-            if (seed.length === 0) {
-                addRow();
-            } else {
-                seed.forEach(function (item) {
-                    const el = addRow();
-                    fillRow(el, item);
-                });
-            }
-        }
-
-        repeater('vacancies', 'add-vacancy', 'vacancy-template', 'V', @json($vacanciesData), function (el, v) {
-            el.querySelector('[name$="[vacancy_type_id]"]').value = v.vacancy_type_id || '';
-            el.querySelector('[name$="[reservation_category_id]"]').value = v.reservation_category_id || '';
-            el.querySelector('[name$="[count]"]').value = v.count ?? 0;
-        });
-
-        repeater('officers', 'add-officer', 'officer-template', 'O', @json($officersData), function (el, o) {
-            el.querySelector('[name$="[sn]"]').value = o.sn || '';
-            el.querySelector('[name$="[employee_number]"]').value = o.employee_number || '';
-            el.querySelector('[name$="[name]"]').value = o.name || '';
-            el.querySelector('[name$="[dob]"]').value = o.dob || '';
-            el.querySelector('[name$="[qualification]"]').value = o.qualification || '';
-            el.querySelector('[name$="[current_post]"]').value = o.current_post || '';
-            el.querySelector('[name$="[feeder_post]"]').value = o.feeder_post || '';
-            el.querySelector('[name$="[reservation_category_id]"]').value = o.reservation_category_id || '';
-            el.querySelector('[name$="[date_of_joining_service]"]').value = o.date_of_joining_service || '';
-            el.querySelector('[name$="[date_of_posting_on_post]"]').value = o.date_of_posting_on_post || '';
-            el.querySelector('[name$="[date_of_posting_on_feeder_post]"]').value = o.date_of_posting_on_feeder_post || '';
-            el.querySelector('[name$="[roster_position]"]').value = o.roster_position || '';
-            el.querySelector('[name$="[deputation_date]"]').value = o.deputation_date || '';
-        });
-    })();
-</script>
+    <script src="{{ asset('js/forms/dpc-working-officers.js') }}" defer></script>
 @endpush

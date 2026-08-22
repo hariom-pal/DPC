@@ -26,15 +26,29 @@ class User extends Authenticatable implements Auditable
 
     /**
      * A stable public identity for the user, added for timeline actor
-     * snapshots (architect directive). The auto-increment `id` remains the
-     * primary key and the route key — only the column is added, so no existing
-     * relation or URL changes.
+     * snapshots (architect directive).
      *
      * @return list<string>
      */
     public function uniqueIds(): array
     {
         return ['uuid'];
+    }
+
+    /**
+     * The public identifier is the UUID (AD-8), and from 2026-08-22 that
+     * includes the URL.
+     *
+     * The column arrived in M6 for timeline actor snapshots, and the note here
+     * used to say the route key was left as `id` "so no existing relation or URL
+     * changes" — which was true and also left `/admin/users/7` in the User
+     * Management screens. `id` remains the primary key, so `created_by`,
+     * `approved_by`, `prepared_by` and every other actor reference are unchanged;
+     * only the four `/admin/users/{user}` URLs now carry a UUID.
+     */
+    public function getRouteKeyName(): string
+    {
+        return 'uuid';
     }
 
     use AuditableTrait;

@@ -63,7 +63,7 @@
                                     <button class="btn btn-outline-secondary btn-sm">New Version</button>
                                 </form>
                                 <form method="POST" action="{{ route('admin.recruitment-rules.destroy', $rule) }}" class="d-inline"
-                                      onsubmit="return confirm('Delete this rule version?');">
+                                      data-confirm="Delete this rule version?">
                                     @csrf @method('DELETE')
                                     <button class="btn btn-outline-danger btn-sm">Delete</button>
                                 </form>

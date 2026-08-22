@@ -44,7 +44,7 @@
                             <td class="text-end text-nowrap">
                                 <a href="{{ route('admin.qualifications.edit', $qualification) }}" class="btn btn-outline-primary btn-sm">Edit</a>
                                 <form method="POST" action="{{ route('admin.qualifications.destroy', $qualification) }}" class="d-inline"
-                                      onsubmit="return confirm('Delete this qualification?');">
+                                      data-confirm="Delete this qualification?">
                                     @csrf @method('DELETE')
                                     <button class="btn btn-outline-danger btn-sm"
                                         @disabled($qualification->recruitment_rule_feeders_count > 0)>Delete</button>

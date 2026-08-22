@@ -9,6 +9,7 @@ use App\Domain\Department\Models\Department;
 use App\Domain\PreDpc\Enums\PreDpcStatus;
 use App\Domain\Signature\Models\Signature;
 use App\Support\Concerns\Blameable;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -19,6 +20,7 @@ use OwenIt\Auditing\Contracts\Auditable;
 
 /**
  * @property int $id
+ * @property string $uuid
  * @property int $department_id
  * @property int $version
  * @property int|null $parent_version_id
@@ -39,7 +41,36 @@ class PreDpcProposal extends Model implements Auditable
 {
     use AuditableTrait;
     use Blameable;
+    use HasUuids;
     use SoftDeletes;
+
+    /**
+     * The columns `HasUuids` fills on create.
+     *
+     * Declared explicitly: the trait's default is the model's *key* name, which
+     * here is the auto-incrementing `id`. Without this it would try to write a
+     * UUID into the primary key.
+     *
+     * @return list<string>
+     */
+    public function uniqueIds(): array
+    {
+        return ['uuid'];
+    }
+
+    /**
+     * The public identifier is the UUID (AD-8), closed for this aggregate on
+     * 2026-08-22 — see the migration that added the column for why it was the
+     * last one outstanding, and why binding on `id` was doing more than leaking
+     * a count.
+     *
+     * `id` remains the primary key, so the version lineage (`parent_version_id`)
+     * and every relation are untouched. Only the URL changes.
+     */
+    public function getRouteKeyName(): string
+    {
+        return 'uuid';
+    }
 
     /**
      * @var list<string>

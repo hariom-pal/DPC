@@ -25,7 +25,7 @@
                             <td class="text-end">
                                 <a href="{{ route('admin.cadres.edit', $cadre) }}" class="btn btn-outline-primary btn-sm">Edit</a>
                                 <form method="POST" action="{{ route('admin.cadres.destroy', $cadre) }}" class="d-inline"
-                                      onsubmit="return confirm('Delete this cadre?');">
+                                      data-confirm="Delete this cadre?">
                                     @csrf @method('DELETE')
                                     <button class="btn btn-outline-danger btn-sm">Delete</button>
                                 </form>

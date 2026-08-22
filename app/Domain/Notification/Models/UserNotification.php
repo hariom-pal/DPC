@@ -56,6 +56,20 @@ class UserNotification extends Model
     }
 
     /**
+     * The public identifier is the UUID (AD-8).
+     *
+     * `POST /notifications/{notification}/read` is the only route that binds
+     * this model, and it used to bind on the sequential id — so the count of
+     * notifications ever issued, across every user, was readable from one
+     * request. The policy already refuses another user's row; this stops the
+     * number itself being on show.
+     */
+    public function getRouteKeyName(): string
+    {
+        return 'uuid';
+    }
+
+    /**
      * @return array<string, string>
      */
     protected function casts(): array

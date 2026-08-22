@@ -90,7 +90,7 @@ class CirculationPendingBusinessDecisionTest extends TestCase
             $this->assertSame('pending_business_decision', $payload['status']);
             $this->assertSame('BD-15', $payload['code']);
             $this->assertNotEmpty($payload['question']);
-            $this->assertSame('docs/BUSINESS_DECISION_REGISTER.md', $payload['route']);
+            $this->assertSame('docs/CGPSC_DPC_PENDING_BUSINESS_DECISIONS.md', $payload['route']);
             $this->assertNotEmpty($payload['not_done']);
             $this->assertSame(9, $payload['affected'][0]['sn']);
         }

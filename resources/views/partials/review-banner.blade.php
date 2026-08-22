@@ -20,7 +20,10 @@
             Reasons: {{ implode(', ', $reviewChainContext['reasons']) }}.
         @endif
     </span>
-    @if (! empty($reviewChainContext['proposal']))
+    {{-- Only for a viewer who can actually open it. The banner reaches the
+         Commission's own screens too — see ReviewDpcComposer::canViewChain() —
+         and this button used to take a Chairman to an access-denied page. --}}
+    @if (! empty($reviewChainContext['proposal']) && ($reviewChainContext['can_view_chain'] ?? false))
         <a class="btn btn-sm btn-outline-dark"
            href="{{ route('dpc-proposals.reviews.chain', $reviewChainContext['proposal']) }}">
             Review Chain

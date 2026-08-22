@@ -32,7 +32,7 @@
                             <td class="text-end">
                                 <a href="{{ route('admin.districts.edit', $district) }}" class="btn btn-outline-primary btn-sm">Edit</a>
                                 <form method="POST" action="{{ route('admin.districts.destroy', $district) }}" class="d-inline"
-                                      onsubmit="return confirm('Delete this district?');">
+                                      data-confirm="Delete this district?">
                                     @csrf @method('DELETE')
                                     <button class="btn btn-outline-danger btn-sm">Delete</button>
                                 </form>

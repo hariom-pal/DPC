@@ -25,7 +25,7 @@
                             <td class="text-end">
                                 <a href="{{ route('admin.committee-configurations.edit', $configuration) }}" class="btn btn-outline-primary btn-sm">Edit</a>
                                 <form method="POST" action="{{ route('admin.committee-configurations.destroy', $configuration) }}" class="d-inline"
-                                      onsubmit="return confirm('Delete this configuration?');">
+                                      data-confirm="Delete this configuration?">
                                     @csrf @method('DELETE')
                                     <button class="btn btn-outline-danger btn-sm">Delete</button>
                                 </form>

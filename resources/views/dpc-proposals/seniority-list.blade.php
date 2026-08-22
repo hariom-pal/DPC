@@ -32,7 +32,8 @@
                 @method('PUT')
 
                 @error('entries')<div class="alert alert-danger py-2">{{ $message }}</div>@enderror
-                <div id="entries"></div>
+                {{-- Seed rows travel as data — see public/js/forms/dpc-seniority-list.js. --}}
+                <div id="entries" data-seed="{{ json_encode($entriesData) }}"></div>
 
                 <button type="button" class="btn btn-outline-primary btn-sm mt-2" id="add-entry">+ Add Entry</button>
 
@@ -79,45 +80,5 @@
 @endsection
 
 @push('scripts')
-<script>
-    (function () {
-        const container = document.getElementById('entries');
-        const tpl = document.getElementById('entry-template').innerHTML;
-        let i = 0;
-
-        function addRow() {
-            const idx = i++;
-            const wrap = document.createElement('div');
-            wrap.innerHTML = tpl.replaceAll('__E__', idx);
-            const el = wrap.firstElementChild;
-            container.appendChild(el);
-            return el;
-        }
-
-        container.addEventListener('click', function (e) {
-            if (e.target.classList.contains('remove-row')) e.target.closest('.entry-card').remove();
-        });
-        document.getElementById('add-entry').addEventListener('click', () => addRow());
-
-        const seed = @json($entriesData);
-        if (seed.length === 0) {
-            addRow();
-        } else {
-            seed.forEach(function (entry) {
-                const el = addRow();
-                el.querySelector('[name$="[seniority_number]"]').value = entry.seniority_number || '';
-                el.querySelector('[name$="[employee_number]"]').value = entry.employee_number || '';
-                el.querySelector('[name$="[name]"]').value = entry.name || '';
-                el.querySelector('[name$="[dob]"]').value = entry.dob || '';
-                el.querySelector('[name$="[qualification]"]').value = entry.qualification || '';
-                el.querySelector('[name$="[current_post]"]').value = entry.current_post || '';
-                el.querySelector('[name$="[feeder_post]"]').value = entry.feeder_post || '';
-                el.querySelector('[name$="[reservation_category_id]"]').value = entry.reservation_category_id || '';
-                el.querySelector('[name$="[date_of_joining_service]"]').value = entry.date_of_joining_service || '';
-                el.querySelector('[name$="[date_of_posting_on_current_post]"]').value = entry.date_of_posting_on_current_post || '';
-                el.querySelector('[name$="[date_of_posting_on_feeder_post]"]').value = entry.date_of_posting_on_feeder_post || '';
-            });
-        }
-    })();
-</script>
+    <script src="{{ asset('js/forms/dpc-seniority-list.js') }}" defer></script>
 @endpush

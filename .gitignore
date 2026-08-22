@@ -28,3 +28,7 @@ _ide_helper.php
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# LibreOffice/OpenOffice lock files — the two source decks in docs/ get opened
+# for reference, and the lock is never something to commit.
+.~lock.*#

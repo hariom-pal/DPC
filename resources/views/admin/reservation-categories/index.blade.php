@@ -25,7 +25,7 @@
                             <td class="text-end">
                                 <a href="{{ route('admin.reservation-categories.edit', $category) }}" class="btn btn-outline-primary btn-sm">Edit</a>
                                 <form method="POST" action="{{ route('admin.reservation-categories.destroy', $category) }}" class="d-inline"
-                                      onsubmit="return confirm('Delete this category?');">
+                                      data-confirm="Delete this category?">
                                     @csrf @method('DELETE')
                                     <button class="btn btn-outline-danger btn-sm">Delete</button>
                                 </form>

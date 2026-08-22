@@ -91,6 +91,33 @@ class DpcProposal extends Model implements Auditable
     }
 
     /**
+     * The public identifier is the UUID (AD-8), and from 2026-08-22 that
+     * includes the URL.
+     *
+     * **Why this was outstanding, and why it is closed now.** The UUID column
+     * arrived in M7 to keep sequential ids out of *signed documents*, and the
+     * migration that added it says in terms that the route key was left alone
+     * "so no relation and no URL changes" — because changing it would have
+     * touched frozen M4. TD-19 then recorded the trait as the closure. Neither
+     * step delivered the half of AD-8 that says an id never appears in a URL:
+     * every DPC screen was still `/dpc-proposals/4`.
+     *
+     * **It was not only a disclosure question.** With `id` as the route key,
+     * MySQL resolves the binding by coercing the segment to an integer, so
+     * `/dpc-proposals/01a0282e-b21f-.../committee` silently served **proposal
+     * 1** — a different record, with a 200, rather than a 404. Every other
+     * aggregate in the application already binds on `uuid` and was never
+     * exposed to that.
+     *
+     * Behaviour-preserving for the database: `id` remains the primary key and
+     * every foreign key still references it. Only the public URL changes.
+     */
+    public function getRouteKeyName(): string
+    {
+        return 'uuid';
+    }
+
+    /**
      * @var list<string>
      */
     protected $fillable = [

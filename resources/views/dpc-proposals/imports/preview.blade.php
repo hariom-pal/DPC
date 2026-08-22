@@ -83,7 +83,7 @@
             <div class="d-flex flex-wrap gap-2 mb-3">
                 @if ($batch->status->isCommittable() && $batch->rejected_count < $batch->total_rows)
                     <form method="POST" action="{{ route('dpc-proposals.imports.commit', [$proposal, $batch]) }}"
-                          onsubmit="return confirm('Replace the {{ $batch->template->label() }} section with the valid rows from this file?');">
+                          data-confirm="Replace the {{ $batch->template->label() }} section with the valid rows from this file?">
                         @csrf<button class="btn btn-success btn-sm">Commit {{ $batch->total_rows - $batch->rejected_count }} Row(s)</button>
                     </form>
                 @endif

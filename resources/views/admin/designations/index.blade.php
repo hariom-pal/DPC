@@ -23,7 +23,7 @@
                             <td class="text-end">
                                 <a href="{{ route('admin.designations.edit', $designation) }}" class="btn btn-outline-primary btn-sm">Edit</a>
                                 <form method="POST" action="{{ route('admin.designations.destroy', $designation) }}" class="d-inline"
-                                      onsubmit="return confirm('Delete this designation?');">
+                                      data-confirm="Delete this designation?">
                                     @csrf @method('DELETE')
                                     <button class="btn btn-outline-danger btn-sm">Delete</button>
                                 </form>

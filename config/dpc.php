@@ -67,7 +67,7 @@ return [
     | Named limiters registered in AppServiceProvider and applied via the
     | `throttle:<name>` middleware. Config-driven so limits can be tuned per
     | environment without code changes. P0 security requirement — see
-    | docs/ARCHITECT_HANDBOOK.md (2026-08-13 review).
+    | docs/CGPSC_DPC_ARCHITECTURE_HANDBOOK.md (2026-08-13 review).
     |
     */
 
@@ -482,25 +482,37 @@ return [
             'content_security_policy' => env('DPC_CSP'),
 
             /*
-            | Enforce the policy, or only report violations. **Report-only is the
-            | default, and that is a finding rather than a preference.**
+            | Enforce the policy, or only report violations. **Enforced by
+            | default since 2026-08-22, when TD-29 closed.**
             |
-            | The application has 7 views with inline `<script>` blocks and ~22
-            | inline event handlers, several on M4's frozen screens. Under an
-            | enforced `script-src 'self'` a browser silently refuses all of them:
-            | the add-a-row buttons on five forms stop working and every
-            | confirmation dialogue before a destructive action stops appearing.
+            | It shipped report-only for most of the project's life, and that was
+            | a finding rather than a preference: the application had 6 views with
+            | inline `<script>` blocks and 21 inline event handlers, several on
+            | M4's frozen screens. Under an enforced `script-src 'self'` a browser
+            | silently refuses all of them — the add-a-row buttons on five forms
+            | stop working, and every confirmation before a destructive action
+            | stops appearing, so the form simply submits.
             |
-            | **The test suite cannot see any of that**, because CSP is enforced by
-            | the browser and not the server — a screen returns 200 either way. So
-            | enforcing it by default would have broken core data entry while every
-            | test agreed it was fine.
+            | **The test suite cannot see any of that**, because CSP is enforced
+            | by the browser and not the server: a screen returns 200 either way.
+            | So the switch was not thrown on a green suite. Every inline handler
+            | was moved into `public/js/`, and the result was then driven in
+            | headless Chromium with the policy *enforced* — twelve checks across
+            | the committee, seniority, working-officers, evaluation-chart,
+            | Pre-DPC and recruitment-rule forms, plus the confirmation dialogues
+            | and the accessibility control — with **zero violations reported and
+            | zero console errors**. Only then was this default changed.
             |
-            | Turn this on once the inline handlers are gone (**TD-29**). Adding
-            | `'unsafe-inline'` instead would make the header decorative while
-            | looking strict.
+            | `ViewsAreCspCleanTest` now fails the build if an inline handler or
+            | script block comes back, so the flag stays honest.
+            |
+            | Left configurable because a header that breaks a page in production
+            | and cannot be turned off without a deploy is worse than an absent
+            | one: `DPC_CSP_ENFORCE=false` reverts to report-only in one line.
+            | Adding `'unsafe-inline'` instead would make the header decorative
+            | while looking strict, and is not offered.
             */
-            'enforce_csp' => (bool) env('DPC_CSP_ENFORCE', false),
+            'enforce_csp' => (bool) env('DPC_CSP_ENFORCE', true),
 
             // Where the browser posts violations. Unset by default: inventing an
             // endpoint that silently discards reports is worse than having none.
@@ -516,6 +528,134 @@ return [
             // Sent only over TLS — pinning `localhost` to HTTPS in a developer's
             // browser is a genuinely annoying thing to do to somebody.
             'hsts' => env('DPC_HSTS', 'max-age=31536000; includeSubDomains'),
+        ],
+
+        /*
+        |----------------------------------------------------------------------
+        | Evidence tables — the database grants a production rollout must apply
+        |----------------------------------------------------------------------
+        |
+        | **TD-1.** These twelve tables hold evidence: a calculation and its
+        | results, the Commission's allotment and schedule, the sitting, its
+        | corrections and holds, the review chain, and the signed documents that
+        | render all of it. Every one is immutable in the application — each model
+        | rejects `update` outside the narrow set below and rejects `delete`
+        | outright — and every one of those guards lives in Eloquent's model
+        | events.
+        |
+        | **The list is here rather than in a runbook because the runbook had
+        | already gone stale.** It was written during M5 and named two tables; M6,
+        | M7, M8 and M9 added ten more, and a document cannot notice a migration.
+        | `EvidenceGrantsTest` compares this list against every model that guards
+        | itself, so the next one cannot be forgotten.
+        |
+        | **A query-builder mass update bypasses model events entirely:**
+        |
+        |   DpcCalculationResult::query()->where(...)->update([...]);
+        |
+        | That is a characteristic of the ORM, not a defect, and it cannot be
+        | closed from inside the application: any guard added lives in the layer
+        | being bypassed. So the honest statement of the guarantee is that no
+        | application code path can edit a completed calculation, and no
+        | developer can do so accidentally — but a developer with database access
+        | can. For a promotion record that may be produced in CAT or the High
+        | Court, that distinction matters, and **database permissions are what
+        | close it.** Triggers were considered and rejected by the architect:
+        | they make a table un-migratable without dropping them first, and the
+        | syntax differs between MySQL and SQLite.
+        |
+        | **`update` is a list of columns, not a flag, and that is the whole
+        | subtlety of this control.** Revoking UPDATE outright on
+        | `dpc_calculation_runs` breaks every calculation, because completing a
+        | run is one UPDATE of `status`. The same is true of a document, which
+        | legitimately gets published after it is generated. A column-level grant
+        | permits exactly the lifecycle move and nothing else; `update => []`
+        | means no UPDATE at all.
+        |
+        | Each list below mirrors the `$permitted` set in that table's model
+        | guard, and `EvidenceGrantsTest` fails if a model with an immutability
+        | guard is missing from this list — which is how a future evidence table
+        | gets into the runbook instead of being remembered.
+        |
+        | `php artisan security:evidence-grants` prints the SQL; `--verify`
+        | reports whether the running database actually refuses the writes.
+        */
+        'evidence_tables' => [
+            // M5. The calculation and its results — the scoring evidence.
+            'dpc_calculation_runs' => [
+                // Draft -> Completed, and nothing else. Revoking UPDATE
+                // outright here stops every calculation from completing.
+                'update' => ['status'],
+            ],
+            'dpc_calculation_results' => [
+                // Written once, never transitioned.
+                'update' => [],
+            ],
+
+            // M7. The sitting, and what it decided.
+            'dpc_proceedings' => [
+                'update' => [
+                    'status', 'promotion_as_on_year',
+                    'latest_calculation_run_id', 'calculated_through_sequence',
+                    'calculation_engine_version', 'final_calculation_run_id',
+                    'approved_at', 'signature_id', 'cancelled_at', 'cancellation_reason',
+                    'closed_by', 'closed_by_name', 'closed_at',
+                    'updated_at',
+                ],
+            ],
+            'dpc_proceeding_overrides' => [
+                // A correction is superseded by a later one; it is never edited.
+                'update' => ['superseded_by_id', 'updated_at'],
+            ],
+            'dpc_proceeding_holds' => [
+                // A hold is released. Nothing else about it moves.
+                'update' => ['released_at', 'updated_at'],
+            ],
+            'dpc_proceeding_documents' => [
+                // Generation writes the bytes, the hash and the signature;
+                // release publishes them. What the document *is* — which
+                // proceeding, which calculation, which version — is fixed.
+                'update' => [
+                    'status', 'disk', 'path', 'content_hash', 'signature_id',
+                    'generated_at', 'generated_by', 'generated_by_name',
+                    'published_at', 'failure_reason', 'updated_at',
+                ],
+            ],
+
+            // M6. Who the Commission gave the DPC to, and when it sits.
+            // Neither was in the original runbook: it predated M6.
+            'dpc_allotments' => [
+                // Accepted, scheduled, superseded. Who it was allotted to and
+                // by whom is history the moment it is written.
+                'update' => ['status', 'accepted_at', 'superseded_by_id', 'updated_at'],
+            ],
+            'dpc_schedules' => [
+                // A sitting is re-scheduled by superseding this row, never by
+                // moving the date on it.
+                'update' => ['superseded_by_id', 'reschedule_reason', 'updated_at'],
+            ],
+
+            // M8. The correction chain — which DPC corrects which, under whose
+            // rules, and from when the supersession bites.
+            'dpc_review_links' => [
+                // A supersession takes effect once and is never lifted.
+                'update' => ['superseded_at', 'updated_at'],
+            ],
+            'dpc_review_calculations' => [
+                // Provenance: which run was executed under which snapshot.
+                'update' => [],
+            ],
+            'dpc_document_review_references' => [
+                'update' => ['supersession_effective_at', 'updated_at'],
+            ],
+
+            // M9. The circulation note.
+            'dpc_circulation_documents' => [
+                'update' => [
+                    'status', 'disk', 'path', 'content_hash', 'signature_id',
+                    'generated_at', 'failure_reason', 'published_at', 'updated_at',
+                ],
+            ],
         ],
     ],
 

@@ -25,7 +25,7 @@
                             <td class="text-end">
                                 <a href="{{ route('admin.reservation-policies.edit', $policy) }}" class="btn btn-outline-primary btn-sm">Edit</a>
                                 <form method="POST" action="{{ route('admin.reservation-policies.destroy', $policy) }}" class="d-inline"
-                                      onsubmit="return confirm('Delete this policy?');">
+                                      data-confirm="Delete this policy?">
                                     @csrf @method('DELETE')
                                     <button class="btn btn-outline-danger btn-sm">Delete</button>
                                 </form>

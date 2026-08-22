@@ -23,7 +23,7 @@
                             <td class="text-end">
                                 <a href="{{ route('admin.pay-scales.edit', $payScale) }}" class="btn btn-outline-primary btn-sm">Edit</a>
                                 <form method="POST" action="{{ route('admin.pay-scales.destroy', $payScale) }}" class="d-inline"
-                                      onsubmit="return confirm('Delete this pay scale?');">
+                                      data-confirm="Delete this pay scale?">
                                     @csrf @method('DELETE')
                                     <button class="btn btn-outline-danger btn-sm">Delete</button>
                                 </form>

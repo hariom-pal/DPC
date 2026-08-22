@@ -35,27 +35,32 @@ class SecurityHeadersTest extends TestCase
         $response->assertHeader('Referrer-Policy', 'same-origin');
 
         $this->assertStringContainsString('camera=()', (string) $response->headers->get('Permissions-Policy'));
-        // Report-only by default: see the class docblock and TD-29. Enforcing the
-        // policy today would silently break the inline handlers this application
-        // still has, in a way no server-side test can see.
-        $this->assertNull($response->headers->get('Content-Security-Policy'));
-        $this->assertNotNull($response->headers->get('Content-Security-Policy-Report-Only'));
+
+        // **Enforced, not report-only, since TD-29 closed on 2026-08-22.** The
+        // views carry no inline script for the policy to refuse — see
+        // ViewsAreCspCleanTest, which is what keeps that true — and the six
+        // repeating forms were driven in headless Chromium under the enforced
+        // policy before this default changed.
+        $this->assertNotNull($response->headers->get('Content-Security-Policy'));
+        $this->assertNull($response->headers->get('Content-Security-Policy-Report-Only'));
     }
 
     /**
-     * The policy is enforced by configuration, not by default.
+     * Enforcement can be stood down without a deploy.
      *
-     * This is the flag to turn on once TD-29's inline handlers are gone. Pinned so
-     * that the switch is known to work before anybody relies on it in production.
+     * Kept pinned in the other direction now: a header that breaks a page in
+     * production and cannot be turned off is worse than an absent one, so the
+     * retreat to report-only has to be known to work — not discovered under
+     * pressure.
      */
-    public function test_the_policy_can_be_enforced_by_configuration(): void
+    public function test_enforcement_can_be_stood_down_to_report_only(): void
     {
-        Config::set('dpc.security.headers.enforce_csp', true);
+        Config::set('dpc.security.headers.enforce_csp', false);
 
         $response = $this->get(route('login'))->assertOk();
 
-        $this->assertNotNull($response->headers->get('Content-Security-Policy'));
-        $this->assertNull($response->headers->get('Content-Security-Policy-Report-Only'));
+        $this->assertNull($response->headers->get('Content-Security-Policy'));
+        $this->assertNotNull($response->headers->get('Content-Security-Policy-Report-Only'));
     }
 
     /**
@@ -66,22 +71,29 @@ class SecurityHeadersTest extends TestCase
     {
         $this->assertStringNotContainsString(
             'report-uri',
-            (string) $this->get(route('login'))->headers->get('Content-Security-Policy-Report-Only'),
+            (string) $this->get(route('login'))->headers->get('Content-Security-Policy'),
         );
 
         Config::set('dpc.security.headers.csp_report_uri', 'https://csp.example.gov.in/report');
 
+        // Worth having on an *enforced* policy too, not only a reporting one: a
+        // violation now means a control has actually stopped working for a user,
+        // which is the case you most want to hear about.
         $this->assertStringContainsString(
             'report-uri https://csp.example.gov.in/report',
-            (string) $this->get(route('login'))->headers->get('Content-Security-Policy-Report-Only'),
+            (string) $this->get(route('login'))->headers->get('Content-Security-Policy'),
         );
     }
 
     /**
-     * The one screen written after the policy existed is CSP-clean, and stays so.
+     * The first screen written after the policy existed, and the pattern the rest
+     * of the application was brought round to.
      *
-     * The rest of the application is not (TD-29). New code is not going to add to
-     * that, and this is what says so.
+     * It was the only CSP-clean view for a while and this test was what said so.
+     * Since TD-29 closed, **every** view is clean and
+     * {@see ViewsAreCspCleanTest} enforces that across the
+     * whole of `resources/views`. This case is kept because it names the pattern —
+     * behaviour in a file, nothing inline — on the screen it started on.
      */
     public function test_the_self_inspection_print_view_uses_no_inline_script(): void
     {
@@ -100,7 +112,7 @@ class SecurityHeadersTest extends TestCase
      */
     public function test_inline_scripts_are_not_permitted_but_inline_styles_are(): void
     {
-        $csp = (string) $this->get(route('login'))->headers->get('Content-Security-Policy-Report-Only');
+        $csp = (string) $this->get(route('login'))->headers->get('Content-Security-Policy');
 
         $this->assertStringContainsString("script-src 'self'", $csp);
         $this->assertStringNotContainsString("script-src 'self' 'unsafe-inline'", $csp);
@@ -135,6 +147,7 @@ class SecurityHeadersTest extends TestCase
 
         $this->get(route('login'))
             ->assertOk()
+            ->assertHeaderMissing('Content-Security-Policy')
             ->assertHeaderMissing('Content-Security-Policy-Report-Only')
             ->assertHeaderMissing('X-Content-Type-Options');
     }
@@ -144,11 +157,11 @@ class SecurityHeadersTest extends TestCase
         Config::set('dpc.security.headers.content_security_policy', "default-src 'none'");
 
         $this->get(route('login'))
-            ->assertHeader('Content-Security-Policy-Report-Only', "default-src 'none'");
+            ->assertHeader('Content-Security-Policy', "default-src 'none'");
 
         Config::set('dpc.security.headers.content_security_policy', '');
 
-        $this->get(route('login'))->assertHeaderMissing('Content-Security-Policy-Report-Only');
+        $this->get(route('login'))->assertHeaderMissing('Content-Security-Policy');
     }
 
     /**

@@ -30,27 +30,36 @@ use Symfony\Component\HttpFoundation\Response;
  * render wrong. An inline-*script* allowance is what turns a reflected string into
  * executable code, so it is not granted.
  *
- * **The policy ships in report-only mode, and that is a finding rather than a
- * preference.** The application has **7 views with inline `<script>` blocks and
- * ~22 inline event handlers** (`onsubmit="return confirm(...)"`,
- * `onchange="this.form.submit()"`), several on M4's frozen screens. Under an
- * *enforced* `script-src 'self'` a browser would silently refuse all of them: the
- * add-a-row buttons on the committee, seniority, working-officers,
- * evaluation-chart and Pre-DPC forms would stop working, and every confirmation
- * dialogue before a destructive action would stop appearing — the form would just
- * submit.
+ * **The policy is enforced by default since 2026-08-22, and how it got there is
+ * the part worth reading.** For most of the project's life it shipped as
+ * `Content-Security-Policy-Report-Only`, because the application had **6 views
+ * with inline `<script>` blocks and 21 inline event handlers**
+ * (`onsubmit="return confirm(...)"`, `onchange="this.form.submit()"`), several on
+ * M4's frozen screens. Under an *enforced* `script-src 'self'` a browser silently
+ * refuses all of them: the add-a-row buttons on the committee, seniority,
+ * working-officers, evaluation-chart, Pre-DPC and recruitment-rule forms stop
+ * working, and every confirmation before a destructive action stops appearing —
+ * the form just submits.
  *
  * **None of that is visible to the test suite, because CSP is enforced by the
- * browser and not by the server.** A screen returns 200 either way. Shipping the
- * policy enforced would therefore have broken core data entry in a way every green
- * test agreed was fine, which is the worst shape a change can have.
+ * browser and not by the server.** A screen returns 200 either way. Enforcing the
+ * policy on the strength of a green suite would have broken core data entry in a
+ * way every test agreed was fine, which is the worst shape a change can have —
+ * so that is not how the switch was thrown.
  *
- * So `Content-Security-Policy-Report-Only` is the default: violations are reported
- * and nothing is blocked. Enforcement is one configuration flag away and should be
- * turned on once the inline handlers are gone — recorded as **TD-29**, with the
- * exact inventory. This is the standard migration path for adding CSP to an
- * existing application, and the alternative — `'unsafe-inline'` — would have made
- * the header decorative while looking strict.
+ * Instead (**TD-29**, closed): every inline handler moved into `public/js/`, seed
+ * data moved onto `data-` attributes, and the confirmations and submit-on-change
+ * selects became two delegated listeners in `portal.js`. The result was then
+ * driven in **headless Chromium with the policy enforced** — twelve checks across
+ * the six repeating forms, the confirmation dialogues, the Pre-DPC rehydration
+ * path and the accessibility control — with **zero violations and zero console
+ * errors**. `ViewsAreCspCleanTest` fails the build if an inline handler returns.
+ *
+ * The alternative — `'unsafe-inline'` — would have made the header decorative
+ * while looking strict, and is still not offered. Reverting to report-only is one
+ * environment variable (`DPC_CSP_ENFORCE=false`), because a header that breaks a
+ * page in production and cannot be turned off without a deploy is worse than an
+ * absent one.
  *
  * **Every header is configurable and can be switched off**, because a header that
  * breaks a page in production and cannot be disabled without a deploy is worse
@@ -89,8 +98,8 @@ class SecurityHeaders
     private function headers(Request $request): array
     {
         return [
-            // Report-only unless enforcement is switched on — see the class
-            // docblock and TD-29 for the inventory that has to be cleared first.
+            // Enforced unless switched back to report-only — see the class
+            // docblock for how the inline-handler inventory was cleared first.
             $this->policyHeaderName() => $this->contentSecurityPolicy(),
 
             // Clickjacking. `SAMEORIGIN` rather than `DENY`: the print view and the
@@ -128,7 +137,7 @@ class SecurityHeaders
      */
     private function policyHeaderName(): string
     {
-        return (bool) config('dpc.security.headers.enforce_csp', false)
+        return (bool) config('dpc.security.headers.enforce_csp', true)
             ? 'Content-Security-Policy'
             : 'Content-Security-Policy-Report-Only';
     }

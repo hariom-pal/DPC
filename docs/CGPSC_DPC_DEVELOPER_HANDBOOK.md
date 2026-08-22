@@ -1,9 +1,11 @@
-# e-DPC Portal — Developer Handover Specification
+# CGPSC DPC Developer Handbook
 
-**For:** a developer joining this codebase with no prior context
-**Date:** 2026-08-19
+**For:** a developer joining this codebase with no prior context, or taking handover of it
+**Version 1.0 · 2026-08-22**
 
-This document is meant to be sufficient on its own. Read §1 and §2, get it running, then read §4 before you change anything.
+This document is meant to be sufficient on its own — read §1 and §2, get it running, then read §4 before you change anything.
+
+Its companions: the **CGPSC DPC Architecture Handbook** for *why* the system is shaped this way, the **Pending Business Decisions** register for what the Commission has not settled, and **Blockers** for what stands between this repository and production.
 
 ---
 
@@ -55,7 +57,7 @@ php artisan serve
 composer gate
 ```
 
-Five parts, all must pass: Pint → PHPStan level 6 → security audit → **MySQL schema build** → PHPUnit. Expect **939 tests / 3018 assertions**. Run the suite bounded — `php -d memory_limit=2G vendor/bin/phpunit` — because CLI `memory_limit` is `-1` here and a runaway takes the host down instead of naming the test it died on.
+Five parts, all must pass: Pint → PHPStan level 6 → security audit → **MySQL schema build** → PHPUnit. Expect **960 tests / 3135 assertions** and **54 migrations / 68 tables**. Run the suite bounded — `php -d memory_limit=2G vendor/bin/phpunit` — because CLI `memory_limit` is `-1` here and a runaway takes the host down instead of naming the test it died on.
 
 ---
 
@@ -63,7 +65,7 @@ Five parts, all must pass: Pint → PHPStan level 6 → security audit → **MyS
 
 ```
 app/
-├── Console/Commands/      6 commands — see §12
+├── Console/Commands/      7 commands — see §12
 ├── Domain/                18 domains — the whole application lives here
 │   └── <Domain>/
 │       ├── Models/         Eloquent models
@@ -85,12 +87,17 @@ app/
 └── Support/Concerns/      shared traits (Blameable, IsMaster)
 
 config/dpc.php             EVERY business rule and tunable. ~1000 lines, heavily commented
-database/migrations/       53, additive only, every one has a working down()
+database/migrations/       54, additive only, every one has a working down()
 database/seeders/          demo dataset built as a sequence of workflow events
-resources/views/           125 Blade views
+resources/views/           125 Blade views — NONE containing inline script (§4)
+public/js/                 9 files, no build step:
+                             portal.js               shell behaviour + data-confirm
+                             searchable-select.js    progressive <select> enhancement
+                             self-inspection-print.js
+                             forms/*.js              one per repeating form (6)
 routes/web.php             223 routes, grouped by role
-tests/{Unit,Feature}/      78 test classes
-docs/                      the four final documents + the two source decks
+tests/{Unit,Feature}/      81 test classes
+docs/                      the five final documents + the two source decks
 ```
 
 ---
@@ -103,11 +110,12 @@ These are not style preferences. Each exists because breaking it caused a real d
 |---|---|
 | **Business logic goes in a Domain Service.** Never a controller, never a model, never a view | Controllers authorise and render. That is all they do |
 | **Business rules go in `config/dpc.php`** | A government notification changes a value, not a class. Every mark and threshold is already there |
-| **Never invent a business rule.** If the decks do not say, refuse and record it | See `docs/BUSINESS_DECISION_REGISTER.md`. Use `Shared\ValueObjects\PendingBusinessDecision` for a structured refusal |
-| **Migrations are additive.** Never alter or drop | 53 migrations, none destructive |
+| **Never invent a business rule.** If the decks do not say, refuse and record it | See `docs/CGPSC_DPC_PENDING_BUSINESS_DECISIONS.md`. Use `Shared\ValueObjects\PendingBusinessDecision` for a structured refusal |
+| **Migrations are additive.** Never alter or drop | 54 migrations, none destructive |
 | **Evidence is never overwritten.** Corrections append and supersede | A recalculation creates a new run; the old one survives |
 | **Actors are snapshotted, not just referenced** | The timeline records who somebody *was*. A renamed user must not rewrite history |
-| **UUIDs are the only public identifier** | Never put a sequential id in a URL or a document |
+| **UUIDs are the only public identifier** | Never put a sequential id in a URL or a document. Give a new route-bound model a `uuid` column, `HasUuids`, `uniqueIds()` **and `getRouteKeyName(): 'uuid'`** — all four. `PublicIdentifierTest` fails if you forget the last, which is exactly what happened to four models for five milestones |
+| **No inline script in a view** | No `<script>` block, no `onclick=`, no `javascript:`. The CSP is *enforced*, so an inline handler does not error — the control silently stops working, and no request-level test can see it. Put behaviour in `public/js/`, pass data on a `data-` attribute, and use `data-confirm` for a confirmation. `ViewsAreCspCleanTest` guards it |
 | **A notification must never fail a workflow** | A failed SMS once rolled back a completed transition. Use `afterCommit` and swallow errors, logging them |
 | **Take the write lock before deciding a transition** | Read state from the locked row. Locking after reading leaves the race where it was |
 | **Add to a frozen milestone by decoration, never by edit** | Bind a decorator in the container, or add a second listener on the same event |
@@ -142,7 +150,7 @@ These are not style preferences. Each exists because breaking it caused a real d
 |---|---|
 | Auth & people | `users`, `roles`, `permissions`, `model_has_*`, `otp_verifications`, `departments` |
 | Masters (15) | `districts`, `designations`, `pay_scales`, `cadres`, `qualifications`, `reservation_categories`, `reservation_policies`, `reservation_rosters`(+`_points`), `committee_types`, `committee_configurations`, `recruitment_rules`(+`_feeders`), `review_reasons`, `vacancy_types`, `dpc_types` |
-| Pre-DPC | `pre_dpc_proposals`, `pre_dpc_posts`, `pre_dpc_post_feeders` |
+| Pre-DPC | `pre_dpc_proposals` (`uuid` added 2026-08-22 — see the Architecture Handbook §4.2), `pre_dpc_posts`, `pre_dpc_post_feeders` |
 | Proposal | `dpc_proposals`, `dpc_committee_members`, `dpc_working_officers`, `dpc_vacancies`, `dpc_seniority_entries`, `dpc_evaluation_rows` + 3 per-year children |
 | Import | `import_batches` and children |
 | Engine | `dpc_calculation_runs`, `dpc_calculation_results` |
@@ -158,6 +166,8 @@ These are not style preferences. Each exists because breaking it caused a real d
 *The ten-field employee snapshot.* The three officer tables each carry the same ten fields as **plain columns with no live foreign key**. A historical proposal cannot change because an HR record was updated later. It is also why an officer has no contact channel — the cause of BD-19.
 
 *Nullable per-year values.* CR, loyalty and property are stored per `(row, year)` and the value is **nullable**, because "recorded as absent" and "not recorded" are different facts. A Circulation DPC exists precisely because an officer is missing a year. Never coalesce a null to `false` here.
+
+**Twelve of these tables are evidence** and are append-only by intent: the two calculation tables, the allotment and schedule, the proceeding with its overrides, holds and documents, the three review-chain tables, and the circulation document. Each model refuses `update` outside a narrow column set and refuses `delete` outright — and each list is mirrored in `config/dpc.php` → `security.evidence_tables`, from which `php artisan security:evidence-grants` generates the production grants. **If you add a model with an immutability guard, add it to that config**; `EvidenceGrantsTest` fails until you do, because the guard alone does not stop a query-builder mass update.
 
 ---
 
@@ -235,6 +245,8 @@ php -d memory_limit=2G vendor/bin/phpunit --testsuite Unit   # 54 tests
 php -d memory_limit=2G vendor/bin/phpunit --filter Circulation
 ```
 
+`composer gate` runs the whole thing and takes about four minutes; its process timeout is disabled, because the suite outgrew Composer's 300-second default and the gate began *timing out* rather than passing or failing.
+
 **The suite runs on in-memory SQLite; the application runs on MySQL.** Know this. An M8 migration passed 84 green tests and could not be created by MySQL at all. Two checks now cover it — `SchemaIdentifierLengthTest` and `schema:verify-mysql` — and **`composer gate` runs the second every time.**
 
 **Tests worth reading before you write your own:**
@@ -244,6 +256,11 @@ php -d memory_limit=2G vendor/bin/phpunit --filter Circulation
 - `AuthorizationCoverageTest` — every authenticated route is role-gated or on a reasoned allowlist.
 - `SchemaIdentifierLengthTest` — every identifier fits MySQL's 64 characters, on any engine.
 - `tests/Feature/PreDpc/PreDpcTransitionLockTest` — how to test a race you cannot reproduce.
+- `PublicIdentifierTest` — every route-bound model with a `uuid` binds on it, enumerated from the **router's own reflection**. Written after AD-8 turned out to be false in four models while 939 tests were green, because every test builds URLs with `route()` and `route()` emits whichever key the model names.
+- `ViewsAreCspCleanTest` — reads Blade *source*, because a screen with an inline handler returns 200 and simply does not work.
+- `EvidenceGrantsTest` — the config list of evidence tables against every model that guards itself. It found that the deployment runbook had gone stale by ten tables.
+
+**The pattern in those last three is the one to copy.** Each asserts a property *across* the codebase, enumerated from the router, the filesystem or the schema — never from a list a person must remember to update. When a decision applies everywhere, that is the only kind of test that can hold it.
 
 Fixtures live in `tests/Concerns/` and `tests/Feature/*/Concerns/`. Reuse them.
 
@@ -254,12 +271,12 @@ Fixtures live in `tests/Concerns/` and `tests/Feature/*/Concerns/`. Reuse them.
 | | |
 |---|---|
 | **No SMS or e-mail gateway** | OTP delivery is logged, not sent. **In production no officer could complete verification.** Not an engineering task — procurement |
-| **CSP is report-only** | ~22 inline event handlers and 7 inline `<script>` blocks would break under enforcement, and no server-side test can see it. The largest remaining engineering item |
+| **Documents are HTML, not PDF** | Rendered behind a contract, so a renderer swaps in without touching the approval path. Whether one is needed depends on BD-4 |
 | **Real CSC signing unimplemented** | Needs the supplier's contract. The mock signs; production refuses rather than pretending |
-| **Eight open business decisions** | See `docs/BUSINESS_DECISION_REGISTER.md`. Three block publishing a promotion list; one can publish a wrong list silently |
+| **Eight open business decisions** | See `docs/CGPSC_DPC_PENDING_BUSINESS_DECISIONS.md`. Three block publishing a promotion list; one can publish a wrong list silently |
 | **A circulation deadlocks if the origin allottee has left** | Only the Member who conducted the original may act, with no escape hatch. Affects no current case; needs a policy ruling |
-| **Documents are HTML, not PDF** | Behind a contract, so a renderer swaps in without touching the approval path |
-| **Evidence tables rely on deployment grants** | Model-layer immutability cannot stop a query-builder mass update |
+| **Evidence tables rely on deployment grants** | Model-layer immutability cannot stop a query-builder mass update. `security:evidence-grants` emits the SQL and `--verify` checks it; a DBA still has to run it |
+| **No online objection on the Self-Inspection screen** | S51 has two buttons, `CLOSE` and `PRINT`, and sends objections to the department in person. Not built — BD-20 asks whether it should be |
 
 ---
 
@@ -273,18 +290,54 @@ Fixtures live in `tests/Concerns/` and `tests/Feature/*/Concerns/`. Reuse them.
 | `qualifications:unmapped` | Feeders whose qualification text matches no master row (`--fix` re-matches) |
 | `pre-dpc:unmatched-feeders` | Feeders that matched no cadre and were omitted from a rule |
 | `notifications:replay --dry-run` | What a replay of the ledger *would* send. Sends nothing; `--dry-run` is required anyway |
+| `security:evidence-grants` | Print the production `GRANT`/`REVOKE` SQL for the twelve evidence tables, derived from `dpc.security.evidence_tables`. **`--verify`** instead attempts each write the grants should refuse, as whichever account the application connects as, and reports what the database did — every probe carries `WHERE id = -1` so no row can match. Run `--verify` at every release, not only at first deployment |
+
+---
+
+## 12a. Debugging guide
+
+**Start by asking which layer is lying to you.** The three that account for most confusion here:
+
+| Symptom | Almost always | How to confirm |
+|---|---|---|
+| A button on a screen does nothing at all — no error, no request | **An inline event handler**, refused by the enforced CSP | Open the browser console: it names the directive. Then run `ViewsAreCspCleanTest`. The fix is never `'unsafe-inline'` |
+| A screen 404s at a URL you built by hand | You used the **sequential id**. Every route-bound model binds on `uuid` | `route('dpc-proposals.show', $proposal)` — never string-concatenate a URL |
+| A write silently does nothing | **A non-fillable column.** Strict attribute mode throws outside production (AD-18), so if it is silent you are in `production` | Check `APP_ENV`, then the model's `$fillable` |
+| `RuntimeException: … is immutable / cannot be edited` | You are updating an **evidence** row. That is the guard working | Append a new row, or supersede. Never widen the guard's permitted list to make a test pass |
+| A test passes and the real screen 403s | The test used `actingAs` with a user whose **department or role** differs from the real actor's | Check the Policy *and* the `role:` middleware on the route — the two are separate gates and both must pass |
+| Migration works in tests, fails on deploy | **SQLite vs MySQL** (§10) | `php artisan schema:verify-mysql`, which is in the gate |
+| A calculation refuses to publish | A pending business decision, by design | The screen names the BD number. See the Pending Business Decisions register |
+| Nobody received a notification | `FEATURE_SMS_GATEWAY` / `FEATURE_EMAIL_GATEWAY` are off by default | The message is in `storage/logs/laravel.log`. **The in-app bell always works** — it is deliberately outside the flag |
+| No OTP arrived in development | Same | Read the code out of `storage/logs/laravel.log` |
+
+**Reading what happened to a record.** Three independent trails, and they answer different questions:
+
+- **`workflow_transitions`** — *what state changes were legal and were made*, with the workflow version that defined them.
+- **`activity_timelines`** — *the legal history*, ordered by `(occurred_at, uuid)` and never by id. This is the one to quote.
+- **`audits`** — *which columns changed on which model*, from the auditing package.
+
+`/admin/audit-trail` reads all three; it is read-only by design and a test enforces that.
+
+**Explaining a promotion.** Every calculation run stores its rule version, engine version, a full snapshot of the configuration it used, the proposal content fingerprint, the git commit and the actor. `ruleSet()` on the run rebuilds exactly the rules it executed under. **Never reason about a stored result from today's config** — that is what the snapshot is for.
+
+**Reproducing anything.** `php artisan demo:seed` rebuilds the whole worked dataset as a sequence of real workflow events and prints every credential. It is faster than constructing state by hand and it exercises the same code paths a user would.
+
+**Driving the browser.** For anything CSP-, JavaScript- or link-related, run the app and drive it. Chromium headless with `--remote-debugging-port` and a CDP script over Node's built-in `WebSocket` needs no packages, and it is how three defects in this project were found that the suite could not see.
 
 ---
 
 ## 13. PPT mapping
 
-All 36 traceability rows are implemented.
+**All 52 slides of `ODPC_NEW_FINAL.pptx` and all 7 of `CONVENTIONAL DPC PROCESS.pptx` are accounted for**, and all 36 traceability rows are implemented. Re-verified slide by slide on 2026-08-22 by extracting the deck text and checking each against the code — which is how the four rows below marked *(added 2026-08-22)* came to be here: they were implemented but had never been written into the mapping, so nothing said whether they had been looked at.
 
 | Slides | Feature | Where |
 |---|---|---|
+| S1, S52 | Title and closing slides | Nothing to implement *(added 2026-08-22)* |
+| S2–S4 | **The six stages of ODPC**, stated as a narrative index: registration → Pre-DPC → DPC proposal → workflow/allotment → date and time → the sitting and its proceedings | All six implemented as M1, M3, M4, M6, M6, M7 *(added 2026-08-22)* |
 | S5–S6 | Department registration | `Domain/Department`, `Auth/RegistrationController` |
 | S7–S11 | Pre-DPC proposal | `Domain/PreDpc` |
-| S12–S18 | DPC proposal: post, committee, officers, seniority, chart | `Domain/Dpc` |
+| S12 | **The eight entries a DPC proposal must carry**: post-to + class, post-from + class, the no-legal-stay declaration, nominated committee members, officers working on the target post, sanctioned post count, the feeder cadre's final seniority list, and the feeder cadre's evaluation chart | All eight present — `dpc-proposals/form` (post pair with class, `legal_stay`), then the four section screens *(added 2026-08-22)* |
+| S13–S18 | DPC proposal: committee, officers, seniority, chart | `Domain/Dpc` |
 | S16–S18 | Excel upload (3 templates) | `Domain/Import` |
 | S19–S25 | AH review and single approval | `Domain/Dpc`, `views/dpc-proposals/review` |
 | S26–S30 | Allotment, acceptance, scheduling | `Domain/Cgpsc` |
@@ -293,7 +346,9 @@ All 36 traceability rows are implemented.
 | S35–S44 | Review DPC and supersession | `Domain/Review` |
 | S45–S48, C3, C7 | Circulation DPC | `Domain/Circulation` |
 | S49–S51 | Self-Inspection | `Domain/SelfInspection` |
+| C1–C2 | The conventional (paper) DPC and the proforma it used | Reference, not a specification of this system. Its per-officer items all have a home: सन्निष्ठा → `dpc_evaluation_loyalty_flags`, अचल संपत्ति → `dpc_evaluation_property_flags`, court case → the `C.CASE` note code, departmental enquiry → `PUNISHMENT`. Its **regular / ad-hoc / PwD-reserved vacancy categories are master data** (`vacancy_types`, editable at `/admin/vacancy-types`), so the Commission adds them without a code change *(added 2026-08-22)* |
 | C4–C6 | Marks, thresholds, zone, super seat | `config/dpc.php` → `scoring`; `Domain/Eligibility` |
+| C5 | Every printed rule, verified line by line: I→I ≥ 15, II→I ≥ 13, II→II ≥ 11, all others ≥ 10; relaxation floor 10 for reserved categories (**off pending BD-2/BD-3**); super seat on all-top-grade with actual seniority as tie-break; I→I last-year CR must not be `ग`; no CR in the window may be `घ`; grade marks `क+`=4 … `घ`=0 | `config/dpc.php` → `scoring.qualifying_scores`, `gates`, `super_seat`, `cr_grade_marks`; one golden test each |
 | Login screens (12 slides) | One authentication flow | `Domain/Authentication` |
 | Implied | Audit trail | `Domain/Audit`, `/admin/audit-trail` |
 | Secondary | Dashboards and reports | `Domain/Report`, `/reports` |
@@ -318,6 +373,6 @@ Read in this order:
 2. `app/Domain/Shared/Workflow/WorkflowEngine.php` — every state change goes through it.
 3. `app/Domain/Eligibility/Services/DpcCalculationService.php` — the engine's persistence point, and the shape of immutable evidence.
 4. `tests/Unit/Eligibility/` — the golden tests, which is the domain stated as assertions.
-5. `docs/BUSINESS_DECISION_REGISTER.md` — what the system deliberately does not decide, and why.
+5. `docs/CGPSC_DPC_PENDING_BUSINESS_DECISIONS.md` — what the system deliberately does not decide, and why.
 
 Then run `demo:seed` and click through the process as each role. It takes about twenty minutes and is worth more than any amount of further reading.

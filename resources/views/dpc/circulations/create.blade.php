@@ -45,7 +45,9 @@
             <form method="GET" action="{{ route('dpc-circulations.create') }}" class="row g-3 align-items-end mb-4">
                 <div class="col-md-6">
                     <label for="origin" class="form-label">DPC ID</label>
-                    <select id="origin" name="origin" class="form-select" onchange="this.form.submit()">
+                    {{-- `data-submit-on-change` rather than an inline handler: see
+                         portal.js. The <noscript> button below is the fallback. --}}
+                    <select id="origin" name="origin" class="form-select" data-submit-on-change>
                         @foreach ($origins as $origin)
                             <option value="{{ $origin->uuid }}" @selected($selected && $selected->id === $origin->id)>
                                 {{ $origin->dpc_code ?? 'DPC #'.$origin->id }}

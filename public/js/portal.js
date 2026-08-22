@@ -1,12 +1,25 @@
 /*
  * e-DPC Portal — presentation behaviour only.
  *
- * Three small things: the accessibility font-size control, the statistics
- * counters, and a busy state on submitted forms. No business behaviour, no
- * network calls, no dependencies beyond Bootstrap's own bundle.
+ * Five small things: the accessibility font-size control, the statistics
+ * counters, the confirmation prompt before a destructive action, the
+ * submit-on-change filter selects, and a busy state on submitted forms. No
+ * business behaviour, no network calls, no dependencies beyond Bootstrap's own
+ * bundle.
  *
  * Everything degrades: with JavaScript off the page renders fully, the
  * statistics show their final values, and forms submit normally.
+ *
+ * **Why the confirmations and the filter selects live here rather than in the
+ * markup.** They were `onsubmit="return confirm(...)"` and
+ * `onchange="this.form.submit()"` attributes until 2026-08-22 — 21 of them
+ * across 20 views, several on M4's frozen screens. An inline handler is an
+ * inline script as far as a browser is concerned, so every one of them had to
+ * go before `script-src 'self'` could be *enforced* rather than merely
+ * reported. That was TD-29, and this is half of closing it: the behaviour is
+ * identical, but it is now declared in an attribute the browser reads as data
+ * (`data-confirm`, `data-submit-on-change`) and executed from a file the policy
+ * already trusts.
  */
 (function () {
     'use strict';
@@ -89,11 +102,53 @@
         }
     }
 
+    /* ------------------------------- confirm before a destructive action */
+
+    /*
+     * Registered before the busy-state listener below, deliberately: a
+     * cancelled submission must not leave a spinner on a button that is never
+     * going anywhere. Both listeners are on `document`, so ordering here is
+     * ordering at run time.
+     */
+    document.addEventListener('submit', function (event) {
+        var form = event.target;
+        if (!(form instanceof HTMLFormElement)) { return; }
+
+        var message = form.dataset.confirm;
+        if (message === undefined || message === '') { return; }
+
+        // Identical in effect to the `onsubmit="return confirm(...)"` this
+        // replaced: a refusal stops the submission and nothing else happens.
+        if (!window.confirm(message)) { event.preventDefault(); }
+    });
+
+    /* ------------------------------------ submit-on-change filter selects */
+
+    /*
+     * A `<select data-submit-on-change>` posts its own form as soon as the
+     * value changes — the pattern behind the "choose a DPC" filter on the
+     * circulation screen. `submit()` rather than `requestSubmit()`, because the
+     * attribute it replaced called `submit()`: it bypasses validation and the
+     * submit event, which is what a GET filter form wants, and it means this
+     * navigation never trips the confirmation or busy handlers above.
+     *
+     * Every screen using it also ships a `<noscript>` submit button, so the
+     * filter still works with JavaScript off.
+     */
+    document.addEventListener('change', function (event) {
+        var el = event.target;
+        if (!el || el.dataset === undefined || el.dataset.submitOnChange === undefined) { return; }
+        if (el.form) { el.form.submit(); }
+    });
+
     /* ------------------------------------------- busy state on submission */
 
     document.addEventListener('submit', function (event) {
         var form = event.target;
         if (!(form instanceof HTMLFormElement) || form.dataset.noBusy !== undefined) { return; }
+
+        // A confirmation refused above already stopped this submission.
+        if (event.defaultPrevented) { return; }
 
         var button = form.querySelector('button[type="submit"], button:not([type])');
         if (!button || button.classList.contains('is-busy')) { return; }

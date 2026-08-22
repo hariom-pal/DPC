@@ -103,7 +103,7 @@
                                     <td>{{ $point->reservationCategory?->code }} — {{ $point->reservationCategory?->name_en }}</td>
                                     <td class="text-end">
                                         <form method="POST" action="{{ route('admin.reservation-rosters.points.destroy', [$roster, $point]) }}" class="d-inline"
-                                              onsubmit="return confirm('Remove this point?');">
+                                              data-confirm="Remove this point?">
                                             @csrf @method('DELETE')
                                             <button class="btn btn-outline-danger btn-sm">Remove</button>
                                         </form>

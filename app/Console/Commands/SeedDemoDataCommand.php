@@ -68,7 +68,7 @@ class SeedDemoDataCommand extends Command
     private function cheatSheet(): void
     {
         $this->newLine();
-        $this->info('e-DPC demo data ready. Full walkthrough: docs/SYSTEM_USER_MANUAL.md');
+        $this->info('e-DPC demo data ready. Full walkthrough: docs/CGPSC_DPC_USER_GUIDE.md');
         $this->newLine();
 
         $this->line('  <options=bold>Password for every demo account:</> '.DemoAccountSeeder::PASSWORD);
