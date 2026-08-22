@@ -192,6 +192,11 @@ Route::middleware('auth')->group(function (): void {
                     ->whereNumber('step')
                     ->name('review');
                 Route::get('/{dpcProposal}/evaluation-chart', [DpcProposalController::class, 'evaluationChart'])->name('evaluation-chart');
+                // The pre-filled S18 template: every officer the Seniority List
+                // projected, with only the evaluation columns left blank
+                // (business directive, 2026-08-22). Declared before the PUT so
+                // the two read in the order an officer uses them.
+                Route::get('/{dpcProposal}/evaluation-chart/template', [DpcProposalController::class, 'evaluationChartTemplate'])->name('evaluation-chart.template');
                 Route::put('/{dpcProposal}/evaluation-chart', [DpcProposalController::class, 'updateEvaluationChart'])->name('evaluation-chart.update');
                 // Excel import (M4 Phase 6): Preview -> Validation -> Error Report -> Commit.
                 Route::post('/{dpcProposal}/imports', [DpcImportController::class, 'store'])->name('imports.store');

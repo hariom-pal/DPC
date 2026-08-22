@@ -50,6 +50,7 @@ class DpcProposalCompletenessService
 {
     public function __construct(
         private readonly VacancyCalculationService $vacancies,
+        private readonly EvaluationCandidateService $candidates,
     ) {}
 
     /**
@@ -63,6 +64,7 @@ class DpcProposalCompletenessService
 
         $vacancyTotal = (int) $proposal->vacancies()->sum('count');
         $sums = $this->vacancies->summary($proposal);
+        $chart = $this->candidates->summary($proposal);
 
         return [
             [
@@ -124,10 +126,19 @@ class DpcProposalCompletenessService
                 'label' => 'Evaluation / Tabulation Chart',
                 'screen' => 'S18',
                 'route' => 'dpc-proposals.evaluation-chart',
-                'complete' => $proposal->evaluation_rows_count > 0,
-                'detail' => $proposal->evaluation_rows_count > 0
-                    ? $proposal->evaluation_rows_count.' officer(s) on the chart'
-                    : 'No evaluation chart entries yet.',
+                // Since 2026-08-22 the chart's officers are projected from the
+                // Seniority List, so "complete" means the two agree — not merely
+                // that some rows exist. A chart that has drifted from the list it
+                // was projected from is the one state that must never reach an
+                // Administrative Head for signature.
+                'complete' => $chart['matches'],
+                'detail' => match (true) {
+                    ! $chart['has_candidates'] => 'Upload the Seniority List first — the chart is generated from it.',
+                    $chart['present'] < 1 => 'The chart has no officers yet, though '.$chart['expected'].' are expected.',
+                    ! $chart['matches'] => $this->candidates->mismatchMessage()
+                        ." Expected {$chart['expected']}, present {$chart['present']}.",
+                    default => $chart['present'].' officer(s) on the chart, matching the Seniority List',
+                },
             ],
         ];
     }

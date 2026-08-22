@@ -218,9 +218,22 @@ class DemoJourneySeeder extends Seeder
             ['sn' => 7, 'year' => 2024, 'grade' => 'क+'],
         ]);
 
+        // Only the officers the Review actually inherited, and only their
+        // evaluation data: the chart carries exactly the Seniority List's
+        // officers since 2026-08-22, and the Review's list is the trimmed one.
+        // This is precisely what an officer uploading the pre-filled template
+        // back does — the same rows, two grades changed.
+        $inherited = $review->fresh()->evaluationRows()->pluck('sn')
+            ->map(fn ($sn): int => (int) $sn)->all();
+
+        $correctedRows = array_values(array_filter(
+            $this->chart->evaluationRows($corrected, 'District Education Officer', 'District Education Officer'),
+            static fn (array $row): bool => in_array((int) $row['sn'], $inherited, true),
+        ));
+
         DemoActor::as($ao, fn () => DemoClock::at('2026-06-12 14:20', fn () => $this->proposals->saveEvaluationRows(
             $review,
-            $this->chart->evaluationRows($corrected, 'District Education Officer', 'District Education Officer'),
+            $this->builder->evaluationOnly($correctedRows),
             $ao,
         )));
 

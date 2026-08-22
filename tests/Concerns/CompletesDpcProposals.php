@@ -114,15 +114,17 @@ trait CompletesDpcProposals
                     $actor,
                 ),
 
-                'evaluation_chart' => $service->saveEvaluationRows($proposal, [[
-                    'sn' => 1,
-                    'name' => 'Evaluated Officer',
-                    'dob' => '1970-01-01',
-                    'reservation_category_id' => $category->id,
-                    'cr_grades' => [['year' => 2017, 'grade' => 'क']],
-                    'loyalty_flags' => [['year' => 2017, 'flag' => true]],
-                    'property_flags' => [['year' => 2017, 'flag' => true]],
-                ]], $actor),
+                // Since the directive of 2026-08-22 the chart's officers are
+                // *projected* from the Seniority List, so the fixture can no
+                // longer invent one. It fills evaluation data onto whichever
+                // officers the projection produced — which is also why the
+                // seniority branch above has to have run first, and why this
+                // helper works in passes.
+                'evaluation_chart' => $service->saveEvaluationRows(
+                    $proposal,
+                    $this->evaluationDataFor($proposal),
+                    $actor,
+                ),
 
                 default => null,
             };
@@ -195,6 +197,28 @@ trait CompletesDpcProposals
         }
 
         return null;
+    }
+
+    /**
+     * Minimal evaluation data for every officer the Seniority List projected.
+     *
+     * One CR year with a top grade, and the two flags recorded — enough to make
+     * the section complete without expressing any opinion about eligibility, so
+     * a test that cares about the workflow is not accidentally asserting a
+     * scoring outcome.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function evaluationDataFor(DpcProposal $proposal): array
+    {
+        return $proposal->evaluationRows()->orderBy('sn')->get()
+            ->map(fn ($row): array => [
+                'sn' => $row->sn,
+                'cr_grades' => [['year' => 2017, 'grade' => 'क']],
+                'loyalty_flags' => [['year' => 2017, 'flag' => true]],
+                'property_flags' => [['year' => 2017, 'flag' => true]],
+            ])
+            ->all();
     }
 
     /**

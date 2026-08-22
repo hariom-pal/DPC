@@ -40,6 +40,7 @@ class DpcProposalService
         private readonly DpcIdGeneratorService $dpcIds,
         private readonly ActivityTimelineService $timeline,
         private readonly DpcProposalCompletenessService $completeness,
+        private readonly EvaluationCandidateService $candidates,
     ) {}
 
     /**
@@ -249,74 +250,58 @@ class DpcProposalService
             }
         });
 
+        // **The Seniority List is the source of truth for who is evaluated**
+        // (business directive, 2026-08-22), so saving it rebuilds the evaluation
+        // candidate list from these very rows. Evaluation data already entered
+        // survives for officers who are still on the list — see
+        // EvaluationCandidateService::keyOf() for how an officer is recognised
+        // across two versions of it.
+        //
+        // Outside the transaction above, deliberately: the projection opens its
+        // own, and a nested transaction here would make a failed projection roll
+        // back a seniority list the department had legitimately saved.
+        $this->candidates->project($proposal->fresh() ?? $proposal);
+
         $this->recordSectionUpdate($proposal, 'seniority_list_updated', 'Seniority list updated', count($entries), $actor);
 
         return $proposal->fresh(['seniorityEntries']) ?? $proposal;
     }
 
     /**
-     * Evaluation / Tabulation Chart (PPT S18) — M4 Phase 5. Same discipline
-     * as the other officer sections: a proposal-time snapshot, no live
-     * employee reference, replaced wholesale inside one transaction, and the
-     * shared entry point manual entry uses today and the planned Excel
-     * import (M4 Phase 6) will call directly with its parsed rows.
+     * Evaluation / Tabulation Chart (PPT S18) — M4 Phase 5, **reworked by the
+     * business directive of 2026-08-22.**
      *
-     * Loyalty, Immovable Property, and CR are written per year (decision
-     * Q4). Nothing here derives a mark, a total, an eligibility verdict, or
-     * a zone size — the chart is stored exactly as entered and the M5
-     * Eligibility Engine computes from it (architect directive).
+     * **This no longer writes employee identity.** The chart's officers and all
+     * ten of their identity fields are projected from the approved Seniority List
+     * when that list is saved; this method updates only what evaluation is
+     * actually about — CR grades, loyalty, immovable property, tribal-area
+     * service and the note. Identity fields in `$rows` are **ignored**, and an
+     * `employee_number` that disagrees with the Seniority List is **refused**.
      *
-     * Deleting the parent rows cascades to the three per-year child tables
-     * at the database level, so the replace is a single delete plus inserts.
+     * Before this, S16, S17 and S18 each carried the same ten fields and nothing
+     * reconciled them: an officer could hold one date of birth on the seniority
+     * list and another on the chart, and because the chart is what the engine
+     * scores, the least-verified copy was the one that decided the promotion.
+     *
+     * **The officer set is immutable here.** A payload that adds, drops or
+     * renames an officer throws rather than being reconciled — enforced at this
+     * layer as well as in the Form Request, because the Excel import calls
+     * straight into here and never sees a request.
+     *
+     * Loyalty, Immovable Property and CR are still written per year (decision
+     * Q4), and nothing here derives a mark, a total, an eligibility verdict or a
+     * zone size — the chart is stored exactly as entered and the M5 Eligibility
+     * Engine computes from it (architect directive).
      *
      * @param  array<int, array<string, mixed>>  $rows
+     *
+     * @throws WorkflowException when the officers do not match the Seniority List
      */
     public function saveEvaluationRows(DpcProposal $proposal, array $rows, ?User $actor = null): DpcProposal
     {
         $this->assertEditable($proposal);
 
-        DB::transaction(function () use ($proposal, $rows): void {
-            $proposal->evaluationRows()->delete();
-
-            foreach ($rows as $row) {
-                $evaluationRow = $proposal->evaluationRows()->create([
-                    'sn' => $row['sn'],
-                    'employee_number' => $row['employee_number'] ?? null,
-                    'name' => $row['name'],
-                    'dob' => $row['dob'],
-                    'qualification' => $row['qualification'] ?? null,
-                    'current_post' => $row['current_post'] ?? null,
-                    'feeder_post' => $row['feeder_post'] ?? null,
-                    'reservation_category_id' => $row['reservation_category_id'],
-                    'date_of_joining_service' => $row['date_of_joining_service'] ?? null,
-                    'date_of_posting_on_current_post' => $row['date_of_posting_on_current_post'] ?? null,
-                    'date_of_posting_on_feeder_post' => $row['date_of_posting_on_feeder_post'] ?? null,
-                    'tribal_area_service_years' => $row['tribal_area_service_years'] ?? null,
-                    'note' => $row['note'] ?? null,
-                ]);
-
-                foreach ($row['cr_grades'] ?? [] as $crGrade) {
-                    $evaluationRow->crGrades()->create([
-                        'year' => $crGrade['year'],
-                        'grade' => $crGrade['grade'] ?? null,
-                    ]);
-                }
-
-                foreach ($row['loyalty_flags'] ?? [] as $flag) {
-                    $evaluationRow->loyaltyFlags()->create([
-                        'year' => $flag['year'],
-                        'flag' => $flag['flag'] ?? null,
-                    ]);
-                }
-
-                foreach ($row['property_flags'] ?? [] as $flag) {
-                    $evaluationRow->propertyFlags()->create([
-                        'year' => $flag['year'],
-                        'flag' => $flag['flag'] ?? null,
-                    ]);
-                }
-            }
-        });
+        $this->candidates->applyEvaluationData($proposal, $rows);
 
         $this->recordSectionUpdate($proposal, 'evaluation_chart_updated', 'Evaluation chart updated', count($rows), $actor);
 

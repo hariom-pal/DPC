@@ -57,7 +57,7 @@ php artisan serve
 composer gate
 ```
 
-Five parts, all must pass: Pint → PHPStan level 6 → security audit → **MySQL schema build** → PHPUnit. Expect **960 tests / 3135 assertions** and **54 migrations / 68 tables**. Run the suite bounded — `php -d memory_limit=2G vendor/bin/phpunit` — because CLI `memory_limit` is `-1` here and a runaway takes the host down instead of naming the test it died on.
+Five parts, all must pass: Pint → PHPStan level 6 → security audit → **MySQL schema build** → PHPUnit. Expect **1006 tests / 3290 assertions** and **54 migrations / 68 tables**. Run the suite bounded — `php -d memory_limit=2G vendor/bin/phpunit` — because CLI `memory_limit` is `-1` here and a runaway takes the host down instead of naming the test it died on.
 
 ---
 
@@ -96,7 +96,7 @@ public/js/                 9 files, no build step:
                              self-inspection-print.js
                              forms/*.js              one per repeating form (6)
 routes/web.php             223 routes, grouped by role
-tests/{Unit,Feature}/      81 test classes
+tests/{Unit,Feature}/      82 test classes
 docs/                      the five final documents + the two source decks
 ```
 
@@ -183,6 +183,7 @@ These are not style preferences. Each exists because breaking it caused a real d
 | `Dpc\DpcProposalService` | All five proposal sections and the submission gate |
 | `Import\ExcelImportService` | The staged Preview → Validate → Commit pipeline |
 | `Dpc\VacancyCalculationService` | Working Officers, Total Vacancy and the Zone of Consideration — all **derived, never stored**. Delegates the zone to M5's pure engine rather than re-implementing it (AD-19) |
+| `Dpc\EvaluationCandidateService` | Projects the Evaluation Chart from the Seniority List and holds the officer-set invariant. **Read `keyOf()` before touching it** — how an officer is recognised across two versions of a list decides whether CR grades follow the right person |
 | `Eligibility\DpcCalculationService` | The **only** class that persists a calculation |
 | `Cgpsc\{Allotment,Scheduling}Service` | The Commission's side |
 | `Proceeding\ProceedingService` | The sitting, corrections, the result |
@@ -233,6 +234,16 @@ Since the directive of 2026-08-22, three arithmetic rules bind the DPC proposal 
 | `SaveWorkingOfficersRequest` / `SaveSeniorityEntriesRequest` | The manual path, and the only one that can put the message beside the field |
 | `ExcelImportService::commit()` | **An import never sees a Form Request.** It hands rows straight to the Domain Service, so a rule living only in the request would be one upload away from being bypassed. Checked *before* the transaction, so a refused file leaves the section untouched |
 | `DpcProposalCompletenessService` | A proposal can be broken by a *later* edit — lower the sanctioned strength after importing the chart and the ceiling is breached by a screen that never validated it. The submission gate is the one place every route passes |
+
+### The Evaluation Chart is projected, not entered
+
+Since 2026-08-22 (Architecture Handbook §7b) `saveEvaluationRows()` **does not write employee identity.** The chart's officers and their ten identity fields are projected from the Seniority List when that list is saved; the method updates CR grades, loyalty, property, tribal-area service and the note, and refuses a payload whose officer set is not exactly the list's.
+
+If you are adding to this area:
+
+- **Identity in a payload is ignored, not rejected** — the pre-filled template carries those columns and the officer uploads it back unchanged. `employee_number` is the exception: a mismatch is refused.
+- **Fixtures must seed the Seniority List first.** Use `SeedsEvaluationCharts`; do not create `dpc_evaluation_rows` directly unless you are deliberately constructing an already-approved proposal, and say so if you are.
+- **The projection is idempotent** and carries evaluation data across a re-import. It has to be: `saveSeniorityEntries()` calls it on every save, and a spelling fix must not cost a department its CR grades.
 
 **Two traps if you add a rule of this shape.**
 
@@ -353,8 +364,9 @@ Fixtures live in `tests/Concerns/` and `tests/Feature/*/Concerns/`. Reuse them.
 | S5–S6 | Department registration | `Domain/Department`, `Auth/RegistrationController` |
 | S7–S11 | Pre-DPC proposal | `Domain/PreDpc` |
 | S12 | **The eight entries a DPC proposal must carry**: post-to + class, post-from + class, the no-legal-stay declaration, nominated committee members, officers working on the target post, sanctioned post count, the feeder cadre's final seniority list, and the feeder cadre's evaluation chart | All eight present — `dpc-proposals/form` (post pair with class, `legal_stay`), then the four section screens *(added 2026-08-22)* |
-| S13–S18 | DPC proposal: committee, officers, seniority, chart | `Domain/Dpc` |
-| S16–S18 | Excel upload (3 templates) | `Domain/Import` |
+| S13–S17 | DPC proposal: committee, officers, seniority | `Domain/Dpc` |
+| S18 | Evaluation Chart — **projected from S17 since 2026-08-22**; the AO supplies CR, loyalty, property, tribal service and a note, nothing else | `Domain/Dpc\EvaluationCandidateService` |
+| S16–S18 | Excel upload (3 templates). **The S18 template is pre-filled per proposal** — a blank one is now useless, because the importer accepts exactly the Seniority List's officers | `Domain/Import` |
 | S19–S25 | AH review and single approval | `Domain/Dpc`, `views/dpc-proposals/review` |
 | S26–S30 | Allotment, acceptance, scheduling | `Domain/Cgpsc` |
 | S31–S33 | The sitting, corrections, CALCULATE | `Domain/Proceeding` |

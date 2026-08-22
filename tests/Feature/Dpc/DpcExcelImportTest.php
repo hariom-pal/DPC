@@ -13,6 +13,7 @@ use App\Domain\Import\Enums\ImportTemplate;
 use App\Domain\Import\Models\ImportBatch;
 use App\Domain\Master\Models\Cadre;
 use App\Domain\Master\Models\DpcType;
+use App\Domain\Master\Models\ReservationCategory;
 use App\Domain\Shared\Models\ActivityTimeline;
 use App\Enums\Role;
 use Database\Seeders\LookupMasterSeeder;
@@ -194,8 +195,35 @@ class DpcExcelImportTest extends TestCase
         $this->assertStringContainsString("'=cmd", (string) $body);
     }
 
+    /**
+     * Two officers on the Seniority List, so an evaluation-chart import has
+     * candidates to match (business directive, 2026-08-22).
+     */
+    private function seniorityFor(int $count): void
+    {
+        app(DpcProposalService::class)->saveSeniorityEntries($this->proposal, array_map(
+            static fn (int $sn): array => [
+                'seniority_number' => $sn,
+                'name' => 'US'.$sn,
+                'dob' => '1964-03-20',
+                'reservation_category_id' => ReservationCategory::query()
+                    ->where('code', 'UR')->firstOrFail()->id,
+            ],
+            range(1, $count),
+        ));
+
+        $this->proposal->refresh();
+    }
+
     public function test_evaluation_chart_year_columns_are_parsed_by_pattern(): void
     {
+        $this->seniorityFor(1);
+
+        // The identity columns are still *present* — this is the file the
+        // pre-filled template produces, and the officer uploads it back
+        // unchanged — but since 2026-08-22 they are read from the Seniority List
+        // rather than from the file. The per-year columns are what this test is
+        // about, and they still parse by pattern.
         $batch = $this->upload(ImportTemplate::EvaluationChartUs, $this->csv([
             ['SN', 'NAME OF US', 'DOB', 'QUAL', 'DOP', 'CAT', 'LOYALTY 2016', 'LOYALTY 2017', 'PROPERTY 2016', 'PROPERTY 2017', 'CR 2016', 'CR 2017', 'NOTE'],
             ['1', 'US1', '20-03-1964', '11TH', '01-01-2012', 'UR', 'Y', 'N', 'Y', 'Y', 'क+', 'क', 'PUNISHMENT'],
@@ -203,11 +231,15 @@ class DpcExcelImportTest extends TestCase
 
         $this->assertSame(0, $batch->rejected_count, 'Expected the S18 row to validate: '.json_encode($batch->rows()->get()->pluck('errors')));
 
-        $this->actingAs($this->ao)->post(route('dpc-proposals.imports.commit', [$this->proposal, $batch]));
+        $this->actingAs($this->ao)->post(route('dpc-proposals.imports.commit', [$this->proposal, $batch]))
+            ->assertSessionHasNoErrors();
 
-        $row = $this->proposal->evaluationRows()->firstOrFail();
+        $row = $this->proposal->fresh()->evaluationRows()->firstOrFail();
         $this->assertSame('PUNISHMENT', $row->note);
-        $this->assertSame('2012-01-01', $row->date_of_posting_on_feeder_post?->format('Y-m-d'));
+
+        // The file's DOP is ignored: the Seniority List seeded above recorded
+        // none, so none is what the chart carries.
+        $this->assertNull($row->date_of_posting_on_feeder_post);
 
         $this->assertSame(2, $row->crGrades()->count());
         $this->assertSame('क+', $row->crGrades()->where('year', 2016)->firstOrFail()->grade);
@@ -515,9 +547,12 @@ class DpcExcelImportTest extends TestCase
 
     public function test_an_evaluation_chart_import_is_unaffected_by_the_vacancy_rules(): void
     {
-        // No rule here concerns the chart, and a gate that fired on it would be
-        // scope creep with a plausible-looking error message.
+        // No *vacancy* rule concerns the chart. The chart has its own rule — it
+        // must carry the Seniority List's officers — so the list is seeded and
+        // the assertion is that the vacancy arithmetic does not additionally
+        // refuse it.
         app(DpcProposalService::class)->saveVacancies($this->proposal, 1, []);
+        $this->seniorityFor(2);
 
         $batch = $this->upload(ImportTemplate::EvaluationChartUs, $this->csv([
             ['SN', 'NAME', 'DOB', 'CAT', 'CR 2017', 'CR 2016'],

@@ -67,19 +67,24 @@ final class DemoDpcBuilder
                     $ao,
                 );
 
+                // The Seniority List is the source of truth for *who* is
+                // evaluated (business directive, 2026-08-22): saving it projects
+                // an evaluation row per officer, identity already filled in.
+                $officers = $this->withinZone($proposal, $spec);
+
                 $this->proposals->saveSeniorityEntries(
                     $proposal,
-                    $this->chart->seniorityEntries(
-                        $this->withinZone($proposal, $spec),
-                        $spec['from'],
-                        $spec['from'],
-                    ),
+                    $this->chart->seniorityEntries($officers, $spec['from'], $spec['from']),
                     $ao,
                 );
 
+                // Evaluation data only, for exactly the officers the projection
+                // produced — the same set, or the chart is refused.
                 $this->proposals->saveEvaluationRows(
                     $proposal,
-                    $this->chart->evaluationRows($spec['officers'], $spec['from'], $spec['from']),
+                    $this->evaluationOnly(
+                        $this->chart->evaluationRows($officers, $spec['from'], $spec['from']),
+                    ),
                     $ao,
                 );
             });
@@ -164,10 +169,10 @@ final class DemoDpcBuilder
      * Cutting the list to the zone makes the data say what the engine was
      * already doing, and every promotion list the demo produces is unchanged.
      *
-     * The **evaluation chart is deliberately not trimmed.** No rule ties its
-     * length to the zone, and the demo narrative points at specific chart rows —
-     * including the officer held for a CR shortfall — which a silent truncation
-     * could remove.
+     * **The evaluation chart is trimmed with it**, necessarily: since the
+     * directive of 2026-08-22 the chart carries exactly the Seniority List's
+     * officers, so the two cannot differ. When the list was trimmed and the chart
+     * was not, the seeder refused itself — which is the invariant working.
      *
      * A spec whose vacancy breakdown does not balance is a **fault in the demo
      * data**, so it throws rather than being quietly corrected: sanctioned counts
@@ -216,6 +221,32 @@ final class DemoDpcBuilder
         }
 
         return array_slice($officers, 0, $required);
+    }
+
+    /**
+     * Strip identity out of a chart payload, leaving what evaluation is about.
+     *
+     * Public because the journey seeder's Review correction needs the same
+     * treatment, and two copies of this would be two chances to forget a field.
+     *
+     * The chart no longer accepts employee identity — it is projected from the
+     * Seniority List — so passing it would offer values that are going to be
+     * ignored. `DemoChart` still produces the full officer shape because the
+     * Seniority List needs it; this is where the two parts separate.
+     *
+     * @param  list<array<string, mixed>>  $rows
+     * @return list<array<string, mixed>>
+     */
+    public function evaluationOnly(array $rows): array
+    {
+        return array_map(static fn (array $row): array => [
+            'sn' => $row['sn'],
+            'cr_grades' => $row['cr_grades'] ?? [],
+            'loyalty_flags' => $row['loyalty_flags'] ?? [],
+            'property_flags' => $row['property_flags'] ?? [],
+            'tribal_area_service_years' => $row['tribal_area_service_years'] ?? null,
+            'note' => $row['note'] ?? null,
+        ], $rows);
     }
 
     /**

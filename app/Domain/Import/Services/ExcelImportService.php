@@ -7,6 +7,7 @@ namespace App\Domain\Import\Services;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Services\DpcProposalService;
+use App\Domain\Dpc\Services\EvaluationCandidateService;
 use App\Domain\Dpc\Services\VacancyCalculationService;
 use App\Domain\Dpc\Validation\DpcRowRules;
 use App\Domain\Import\Enums\ImportBatchStatus;
@@ -50,6 +51,7 @@ class ExcelImportService
         private readonly DpcProposalService $proposals,
         private readonly ActivityTimelineService $timeline,
         private readonly VacancyCalculationService $vacancies,
+        private readonly EvaluationCandidateService $candidates,
     ) {}
 
     /**
@@ -159,7 +161,7 @@ class ExcelImportService
 
         $template = $batch->template;
 
-        $this->assertVacancyArithmetic($template, $proposal, count($payloads));
+        $this->assertSectionInvariants($template, $proposal, $payloads);
 
         DB::transaction(function () use ($template, $proposal, $payloads, $actor, $batch): void {
             match ($template) {
@@ -309,8 +311,8 @@ class ExcelImportService
     }
 
     /**
-     * The derived-vacancy invariants, on the import path (business directive,
-     * 2026-08-22).
+     * The section invariants that a Form Request would have applied, on the
+     * import path (business directives, 2026-08-22).
      *
      * **This is here because an import does not pass through a Form Request.**
      * `commit()` hands its rows straight to the Domain Service, so
@@ -322,32 +324,44 @@ class ExcelImportService
      * Refused *before* the transaction that writes the rows, so a rejected
      * import leaves the proposal exactly as it was rather than half-replaced.
      *
-     * Only the two counted sections are checked. An evaluation-chart import is
-     * unaffected: no rule here concerns it.
+     * All three sections are checked, each by its own rule: the officer chart
+     * against the sanctioned strength, the Seniority List against the Zone of
+     * Consideration, and the Evaluation Chart against the Seniority List.
+     *
+     * @param  list<array<string, mixed>>  $payloads
      */
-    private function assertVacancyArithmetic(ImportTemplate $template, DpcProposal $proposal, int $incoming): void
+    private function assertSectionInvariants(ImportTemplate $template, DpcProposal $proposal, array $payloads): void
     {
-        if ($template === ImportTemplate::CurrentlyWorkingUs) {
-            if (! (bool) config('dpc.vacancy.enforce_sanctioned_ceiling', true)) {
-                return;
-            }
+        match ($template) {
+            ImportTemplate::CurrentlyWorkingUs => $this->assertWithinSanctionedStrength($proposal, count($payloads)),
+            ImportTemplate::FinalSeniorityListUs => $this->assertMatchesZone($proposal, count($payloads)),
+            // The officer set must be the Seniority List's (business directive,
+            // 2026-08-22). Asserted here, before the transaction, because the
+            // service would throw inside it and roll the whole commit back with a
+            // less specific message — and because a count check alone would let a
+            // renumbered spreadsheet through.
+            ImportTemplate::EvaluationChartUs => $this->candidates->assertMatchesCandidates($proposal, $payloads),
+        };
+    }
 
-            $sanctioned = $proposal->sanctioned_post_count;
-
-            if ($sanctioned !== null && $incoming > $sanctioned) {
-                throw new WorkflowException(
-                    'Working Officers cannot exceed the sanctioned strength.'
-                    ." This file carries {$incoming} officer(s) against a sanctioned strength of {$sanctioned}."
-                );
-            }
-
+    private function assertWithinSanctionedStrength(DpcProposal $proposal, int $incoming): void
+    {
+        if (! (bool) config('dpc.vacancy.enforce_sanctioned_ceiling', true)) {
             return;
         }
 
-        if ($template !== ImportTemplate::FinalSeniorityListUs) {
-            return;
-        }
+        $sanctioned = $proposal->sanctioned_post_count;
 
+        if ($sanctioned !== null && $incoming > $sanctioned) {
+            throw new WorkflowException(
+                'Working Officers cannot exceed the sanctioned strength.'
+                ." This file carries {$incoming} officer(s) against a sanctioned strength of {$sanctioned}."
+            );
+        }
+    }
+
+    private function assertMatchesZone(DpcProposal $proposal, int $incoming): void
+    {
         if (! (bool) config('dpc.vacancy.enforce_seniority_matches_zone', true)) {
             return;
         }

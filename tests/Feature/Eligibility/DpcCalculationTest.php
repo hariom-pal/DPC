@@ -25,6 +25,7 @@ use Database\Seeders\LookupMasterSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use RuntimeException;
+use Tests\Concerns\SeedsEvaluationCharts;
 use Tests\TestCase;
 
 /**
@@ -34,6 +35,7 @@ use Tests\TestCase;
 class DpcCalculationTest extends TestCase
 {
     use RefreshDatabase;
+    use SeedsEvaluationCharts;
 
     private Department $department;
 
@@ -113,8 +115,12 @@ class DpcCalculationTest extends TestCase
         }
 
         $service->saveVacancies($this->proposal, 10, $rows);
-        $service->saveEvaluationRows($this->proposal, $officers, $this->ao);
-        $this->proposal->refresh();
+
+        // Seniority List first, chart projected from it (business directive,
+        // 2026-08-22). The officer arrays below are unchanged — the helper is
+        // what splits their identity from their evaluation data — so every
+        // scoring expectation in this file still describes the same officers.
+        $this->seedSeniorityAndChart($this->proposal, $officers);
     }
 
     private function calculate(): DpcCalculationRun
@@ -310,9 +316,26 @@ class DpcCalculationTest extends TestCase
 
         $this->assertSame($first->proposal_version, $second->proposal_version);
 
-        app(DpcProposalService::class)->saveEvaluationRows($this->proposal->fresh(), [
-            $this->officer(1, 'US1', [2013 => 'घ', 2014 => 'घ', 2015 => 'घ', 2016 => 'घ', 2017 => 'घ']),
-        ], $this->ao);
+        // The whole officer set has to be re-supplied now: the chart must always
+        // carry exactly the Seniority List's officers, so a save that mentioned
+        // only US1 would be a refusal rather than an edit. US1's grades change;
+        // everybody else's are re-sent unchanged, which is what an officer
+        // correcting one row on the downloaded template actually uploads.
+        $rows = $this->proposal->fresh()->evaluationRows()->orderBy('sn')->get()
+            ->map(fn ($row): array => [
+                'sn' => $row->sn,
+                'cr_grades' => $row->sn === 1
+                    ? [
+                        ['year' => 2013, 'grade' => 'घ'], ['year' => 2014, 'grade' => 'घ'],
+                        ['year' => 2015, 'grade' => 'घ'], ['year' => 2016, 'grade' => 'घ'],
+                        ['year' => 2017, 'grade' => 'घ'],
+                    ]
+                    : $row->crGrades->map->only(['year', 'grade'])->all(),
+                'loyalty_flags' => $row->loyaltyFlags->map->only(['year', 'flag'])->all(),
+                'property_flags' => $row->propertyFlags->map->only(['year', 'flag'])->all(),
+            ])->all();
+
+        app(DpcProposalService::class)->saveEvaluationRows($this->proposal->fresh(), $rows, $this->ao);
 
         $this->assertNotSame($first->proposal_version, $this->calculate()->proposal_version);
     }
@@ -502,7 +525,10 @@ class DpcCalculationTest extends TestCase
 
     public function test_calculating_an_empty_chart_is_refused(): void
     {
-        $this->seedProposal([]);
+        // Vacancies only. Neither the Seniority List nor the chart is seeded,
+        // which since 2026-08-22 is the only way to reach an empty chart — the
+        // chart is projected, so it is empty exactly when the list is.
+        app(DpcProposalService::class)->saveVacancies($this->proposal, 10, []);
 
         $this->expectException(WorkflowException::class);
 

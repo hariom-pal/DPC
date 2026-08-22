@@ -25,6 +25,8 @@ use Database\Seeders\LookupMasterSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Config;
+use Tests\Concerns\SeedsEvaluationCharts;
 
 /**
  * A department, a Commission, an approved proposal and an open sitting —
@@ -37,6 +39,7 @@ use Illuminate\Support\Carbon;
 trait BuildsProceedings
 {
     use RefreshDatabase;
+    use SeedsEvaluationCharts;
 
     protected Department $department;
 
@@ -118,6 +121,28 @@ trait BuildsProceedings
             'forwarded_at' => now(),
         ]);
 
+        /*
+         * **The Seniority-List-must-match-the-Zone rule is stood down for these
+         * fixtures**, and the reason is worth recording rather than hiding.
+         *
+         * These tests declare between two and six officers to make a *scoring*
+         * point, and the vacancy below is one — which sizes the zone at 5. Two
+         * officers therefore cannot satisfy the rule, and there is no officer
+         * count that satisfies it for every test in this family (the zone takes
+         * the values 5, 8, 10 … and never 2, 3, 4 or 6).
+         *
+         * Left on, `makeProposalSubmittable()` would *rewrite* the seniority
+         * list to five synthetic officers whenever a Review is submitted — and
+         * because the chart is projected from that list, it would replace the
+         * chart the Review inherited, which is the very thing several of these
+         * tests assert about. Standing the rule down keeps each test measuring
+         * what it was written to measure.
+         *
+         * The rule itself is covered directly by DpcVacancyCalculationTest, and
+         * by CompletesDpcProposals in the M4 suite, so nothing is left unproven.
+         */
+        Config::set('dpc.vacancy.enforce_seniority_matches_zone', false);
+
         $this->proposal->vacancies()->create([
             'vacancy_type_id' => VacancyType::query()->firstOrFail()->id,
             'reservation_category_id' => $this->urCategoryId(),
@@ -159,23 +184,11 @@ trait BuildsProceedings
         array $grades,
         array $propertyMissingYears = [],
     ): void {
-        $row = $this->proposal->evaluationRows()->create([
-            'sn' => $sn,
-            'name' => $name,
-            'dob' => '1967-04-09',
-            'qualification' => 'BA',
-            'reservation_category_id' => $categoryId,
-            'tribal_area_service_years' => null,
-        ]);
-
-        foreach ($grades as $year => $grade) {
-            $row->crGrades()->create(['year' => $year, 'grade' => $grade]);
-            $row->loyaltyFlags()->create(['year' => $year, 'flag' => true]);
-            $row->propertyFlags()->create([
-                'year' => $year,
-                'flag' => in_array($year, $propertyMissingYears, true) ? null : true,
-            ]);
-        }
+        // The officer joins the Seniority List, which projects the chart row —
+        // the chart is no longer somewhere an officer can be invented (business
+        // directive, 2026-08-22). Delegated so the two-step flow lives in one
+        // place; see SeedsEvaluationCharts.
+        $this->seedOneOfficer($this->proposal, $sn, $name, $categoryId, $grades, $propertyMissingYears);
     }
 
     protected function corrections(): ProceedingCorrectionService

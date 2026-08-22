@@ -28,7 +28,7 @@ The **e-DPC Portal** conducts the Chhattisgarh Public Service Commission's Depar
 | Database tables | **68** across **54** migrations |
 | Domains | 18 |
 | Routes | 223, all named, all role-gated or on a reasoned allowlist |
-| Tests | **960 passing / 3135 assertions**, 81 test classes |
+| Tests | **1006 passing / 3290 assertions**, 82 test classes |
 | Static analysis | PHPStan (Larastan) **level 6**, zero errors, no baseline |
 | Content-Security-Policy | **enforced** (`script-src 'self'`), browser-verified |
 
@@ -314,6 +314,49 @@ The import check runs *before* its transaction, so a refused file leaves the sec
 
 `Total Vacancy = Sanctioned − Working` means **a department must list every officer in post.** A unit with 40 sanctioned posts, 37 officers serving and 3 vacancies must file all 37; recording 3 officers and 3 vacancies against 40 sanctioned posts is now a refusal rather than a passable approximation. The demonstration dataset itself failed on this when the rule landed — it carried 40 sanctioned posts, 3 working officers and 3 vacancies — which is the clearest evidence that the previous screens permitted a chart nobody could reconcile.
 
+## 7b. The Seniority List is the source of truth for who is evaluated (business directive, 2026-08-22)
+
+S16, S17 and S18 each used to carry the same **ten employee fields**, so a department entered or uploaded the same officer three times. Nothing reconciled them. An officer could be `US4` with one date of birth on the seniority list and another on the evaluation chart — and **the chart is what the scoring engine reads**, so the least-verified copy was the one that decided the promotion.
+
+**The chart is now projected.** Saving the Seniority List creates one evaluation row per officer with all ten identity fields copied across; `sn` takes the seniority number, so "S.N. 4" means the same officer on both screens. The Authorized Officer then supplies only what evaluation is about:
+
+| Supplied by the officer | Projected from the Seniority List |
+|---|---|
+| CR grade (year-wise) | Employee No., Name, DOB, Qualification |
+| Loyalty (year-wise) | Current Post, Feeder Post, Category |
+| Immovable Property (year-wise) | Date of Joining Service |
+| Tribal-area service, Note | Date of Posting on Current / Feeder Post |
+
+### Identity is still *copied*, not read through a relation
+
+A foreign key would have made the chart's identity follow the seniority list forever, including after approval — losing the property the ten-field snapshot standard exists to provide, that a historical proposal cannot change because a record was edited later. Copying keeps the evidence immutable **and needs no migration**: the columns were already there.
+
+### What the screen can no longer express
+
+Identity renders as *text*, not as disabled inputs, so there is no field to re-enable. There is no "add officer" button and no "remove officer" button, because both could only ever be refused. A screen that cannot express an invalid state is better than one that expresses it and is then corrected.
+
+Three refusals back that up, at the request, the import and the submission gate:
+
+- an **extra, missing or renumbered** officer → *"The Evaluation Chart must contain exactly the same officers as the approved Seniority List."*
+- an **employee number that disagrees** with the list → refused by name, because an edited spreadsheet that reassigns one is how an officer's confidential record ends up filed against somebody else;
+- identity fields in the payload → **ignored**. Not an error: the pre-filled template contains those columns and the officer uploads it back unchanged.
+
+### The pre-filled template
+
+`GET /dpc-proposals/{proposal}/evaluation-chart/template` emits a CSV with every officer already on it and only the evaluation columns blank. The blank Evaluation Chart template on the Downloads screen is now of no use, because the importer accepts exactly the Seniority List's officers.
+
+The builder's standing rule is *headers only, no sample row* — a specimen officer is one a department forgets to delete. That reasoning does not apply here: these rows are **the exact set the importer will insist on**, and deleting one is a refusal rather than a silent success.
+
+**One data-loss bug was found and fixed while building it.** The per-year columns span `max_cr_years` ending at an anchor year. Anchored on the *proposal date*, a 2026 proposal emitted 2021–2026 while a chart recording 2012–2016 produced a file with its CR grades **missing** — the department would have filled in the blanks and uploaded a chart that silently wiped five years of records. The anchor is now the chart's own latest recorded year, so the round trip is lossless. Two tests pin it.
+
+### What re-importing a Seniority List does
+
+The candidate set is rebuilt, and evaluation data is carried across for officers still on the list. **Recognition is by employee number first, serial number only as a fallback**, and that ordering is the important part: a serial number is a *position*, not a person. Re-order the list, or drop one officer from the middle, and S.N. 4 is somebody else — carrying CR grades across on serial alone would move one officer's record onto another's row, which is both invisible and decisive. Where no employee number exists, `sn|name` is the best key available; it fails towards *discarding* data rather than misattributing it.
+
+### Where the fixtures had to change, and what that revealed
+
+Every test that built a chart directly now seeds the Seniority List and lets the projection produce it (`SeedsEvaluationCharts`). One consequence is worth recording: the proceedings fixture declares two to six officers to make a scoring point, and no officer count satisfies the zone rule for all of them (the zone takes 5, 8, 10 … and never 2, 3, 4 or 6). Left on, the submission helper would rewrite the seniority list — and therefore replace the chart a Review had inherited, which is exactly what several of those tests assert about. The zone rule is stood down in that fixture, with the reason in the file, and covered directly elsewhere.
+
 ### Future: HRMS makes all three automatic
 
 Recorded as a direction, **not implemented and not scheduled**. When an HRMS integration exists:
@@ -403,7 +446,7 @@ Five parts, all mandatory, run with `composer gate`:
 2. **PHPStan / Larastan level 6** — zero errors, no baseline, no ignores
 3. **`security:audit`** — `composer audit` with retry
 4. **`schema:verify-mysql`** — builds every migration on MySQL in a throwaway database
-5. **PHPUnit** — **960 tests / 3135 assertions**
+5. **PHPUnit** — **1006 tests / 3290 assertions**
 
 ### Why steps 3 and 4 exist, and what they cost to learn
 

@@ -14,7 +14,9 @@ use App\Domain\Dpc\Requests\SaveSeniorityEntriesRequest;
 use App\Domain\Dpc\Requests\SaveWorkingOfficersRequest;
 use App\Domain\Dpc\Services\DpcProposalCompletenessService;
 use App\Domain\Dpc\Services\DpcProposalService;
+use App\Domain\Dpc\Services\EvaluationCandidateService;
 use App\Domain\Dpc\Services\VacancyCalculationService;
+use App\Domain\Import\Services\ImportTemplateBuilder;
 use App\Domain\Master\Models\Cadre;
 use App\Domain\Master\Models\DpcType;
 use App\Domain\Master\Models\ReservationCategory;
@@ -27,6 +29,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 
 class DpcProposalController extends Controller
 {
@@ -49,6 +52,8 @@ class DpcProposalController extends Controller
         private readonly DpcProposalService $service,
         private readonly DpcProposalCompletenessService $completeness,
         private readonly VacancyCalculationService $vacancies,
+        private readonly EvaluationCandidateService $candidates,
+        private readonly ImportTemplateBuilder $templates,
     ) {}
 
     public function index(Request $request): View
@@ -181,11 +186,41 @@ class DpcProposalController extends Controller
 
         return view('dpc-proposals.evaluation-chart', [
             'proposal' => $dpcProposal,
+            // Officers and their identity come from the Seniority List, so the
+            // screen reports how many are expected against how many are present
+            // rather than letting the officer add rows (business directive,
+            // 2026-08-22).
+            'chart' => $this->candidates->summary($dpcProposal),
             'reservationCategories' => ReservationCategory::query()->where('status', MasterStatus::Active->value)->orderBy('code')->get(),
             'crGrades' => config('dpc.evaluation.cr_grades'),
             'maxCrYears' => (int) config('dpc.evaluation.max_cr_years'),
             'noteCodes' => config('dpc.evaluation.note_codes'),
         ]);
+    }
+
+    /**
+     * The Evaluation Chart template, pre-filled with this proposal's officers.
+     *
+     * A per-proposal download rather than the blank one on the Downloads screen:
+     * a blank Evaluation Chart template is now of no use to anybody, because the
+     * importer will only accept exactly the officers the Seniority List holds.
+     */
+    public function evaluationChartTemplate(Request $request, DpcProposal $dpcProposal): Response
+    {
+        $this->authorize('update', $dpcProposal);
+
+        return response(
+            // No explicit year: the builder anchors the per-year columns on the
+            // chart's own data so a download-edit-upload round trip cannot drop
+            // CR years that fall outside the proposal's year window.
+            $this->templates->prefilledEvaluationCsv($dpcProposal),
+            200,
+            [
+                'Content-Type' => 'text/csv; charset=UTF-8',
+                'Content-Disposition' => 'attachment; filename="'
+                    .$this->templates->prefilledEvaluationFilename($dpcProposal).'"',
+            ],
+        );
     }
 
     public function updateEvaluationChart(SaveEvaluationChartRequest $request, DpcProposal $dpcProposal): RedirectResponse

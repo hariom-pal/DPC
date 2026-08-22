@@ -79,14 +79,53 @@ final class DpcRowRules
      */
     public static function evaluationRow(): array
     {
+        /*
+         * **Identity is accepted but not required here** (business directive,
+         * 2026-08-22). The chart's ten employee fields are projected from the
+         * approved Seniority List, so the only field this row must carry is the
+         * `sn` that identifies which projected officer it refers to.
+         *
+         * The identity rules are kept, as `nullable`, for one reason: the
+         * pre-filled template the Authorized Officer downloads *contains* those
+         * columns, and the officer uploads the file back unchanged. Dropping the
+         * rules would leave that data unvalidated on its way past; requiring them
+         * would refuse a file whose identity columns had been deleted, which is
+         * harmless because the Seniority List governs either way.
+         *
+         * `employee_number` is the exception that matters: it is compared against
+         * the Seniority List and a mismatch is refused. That check needs the
+         * proposal, so it lives in SaveEvaluationChartRequest and
+         * EvaluationCandidateService rather than in a per-field rule.
+         */
         return array_merge(
             ['sn' => ['required', 'integer', 'min:1']],
-            self::employeeSnapshot(),
+            self::optional(self::employeeSnapshot()),
             [
                 'date_of_posting_on_current_post' => ['nullable', 'date'],
                 'tribal_area_service_years' => ['nullable', 'integer', 'min:0', 'max:100'],
                 'note' => ['nullable', 'string', 'max:255'],
             ],
+        );
+    }
+
+    /**
+     * The same rules with every `required` relaxed to `nullable`.
+     *
+     * Derived rather than written out a second time, so a field added to the
+     * ten-field employee snapshot cannot be validated on one screen and
+     * unvalidated on another.
+     *
+     * @param  array<string, array<int, mixed>>  $rules
+     * @return array<string, array<int, mixed>>
+     */
+    private static function optional(array $rules): array
+    {
+        return array_map(
+            static fn (array $fieldRules): array => array_values(array_unique(array_merge(
+                ['nullable'],
+                array_filter($fieldRules, static fn (mixed $rule): bool => $rule !== 'required'),
+            ), SORT_REGULAR)),
+            $rules,
         );
     }
 

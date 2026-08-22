@@ -17,6 +17,7 @@ use App\Enums\Role;
 use Database\Seeders\LookupMasterSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\SeedsEvaluationCharts;
 use Tests\TestCase;
 
 /**
@@ -26,6 +27,7 @@ use Tests\TestCase;
 class CalculationUiTest extends TestCase
 {
     use RefreshDatabase;
+    use SeedsEvaluationCharts;
 
     private Department $department;
 
@@ -94,13 +96,17 @@ class CalculationUiTest extends TestCase
             'property_flags' => [],
         ];
 
-        $service->saveEvaluationRows($this->proposal, [
+        // Seniority List first, chart projected from it (business directive,
+        // 2026-08-22). Five officers, not three: the Seniority List has to match
+        // the Zone of Consideration, which one vacancy sizes at 5. The two extra
+        // officers score the same as US3 and change no expectation below.
+        $this->seedSeniorityAndChart($this->proposal, [
             $officer(1, 'US1', [2013 => 'क', 2014 => 'क', 2015 => 'क', 2016 => 'क', 2017 => 'क']),      // 15 EL
             $officer(2, 'US2', [2013 => 'क', 2014 => 'क', 2015 => 'क', 2016 => 'क', 2017 => 'क']),      // 15 EL
             $officer(3, 'US3', [2013 => 'ख', 2014 => 'ख', 2015 => 'ख', 2016 => 'ख', 2017 => 'ख']),      // 10 NE
-        ], $this->ao);
-
-        $this->proposal->refresh();
+            $officer(4, 'US4', [2013 => 'ख', 2014 => 'ख', 2015 => 'ख', 2016 => 'ख', 2017 => 'ख']),      // 10 NE
+            $officer(5, 'US5', [2013 => 'ख', 2014 => 'ख', 2015 => 'ख', 2016 => 'ख', 2017 => 'ख']),      // 10 NE
+        ]);
     }
 
     private function calculate(): DpcCalculationRun
@@ -362,7 +368,7 @@ class CalculationUiTest extends TestCase
             'reservation_category_id' => $st->id,
             'count' => 1,
         ]]);
-        $service->saveEvaluationRows($this->proposal, [[
+        $this->seedSeniorityAndChart($this->proposal, [[
             'sn' => 1, 'name' => 'ST1', 'dob' => '1964-03-20',
             'reservation_category_id' => $st->id,
             'cr_grades' => [
@@ -371,7 +377,7 @@ class CalculationUiTest extends TestCase
                 ['year' => 2017, 'grade' => 'क'],
             ],
             'loyalty_flags' => [], 'property_flags' => [],
-        ]], $this->ao);
+        ]]);
 
         $run = $this->calculate();
 

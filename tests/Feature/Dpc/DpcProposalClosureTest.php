@@ -257,7 +257,16 @@ class DpcProposalClosureTest extends TestCase
         $this->assertStringContainsString('FINAL SENIORITY LIST', $document);
         $this->assertStringContainsString('Seniority Officer', $document);
         $this->assertStringContainsString('EVALUATION / TABULATION CHART', $document);
-        $this->assertStringContainsString('Evaluated Officer', $document);
+
+        // The chart's officers are the Seniority List's since 2026-08-22, so the
+        // signed document shows the *same names* in both sections rather than two
+        // independently typed sets. That the two agree is the point of the
+        // directive, and this is the artefact where disagreement used to matter
+        // most: it is what the Administrative Head put their signature to.
+        $this->assertSame(
+            $this->proposal->fresh()->seniorityEntries()->orderBy('seniority_number')->pluck('name')->all(),
+            $this->proposal->fresh()->evaluationRows()->orderBy('sn')->pluck('name')->all(),
+        );
 
         // Mark and Remark are M5 outputs and must not appear in what the
         // department proposes.

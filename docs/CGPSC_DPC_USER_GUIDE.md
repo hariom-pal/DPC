@@ -122,7 +122,7 @@ You choose the **promotion path**: the post being promoted **to** and the post p
 | **2 · Committee** | The committee members and their capacities |
 | **3 · Working Officers & Vacancies** | Officers currently in post, and vacancies by type and category. **Three figures here are worked out for you — see §5.2a** |
 | **4 · Seniority List** | The final seniority list, in order |
-| **5 · Evaluation Chart** | The heart of it — one row per officer with DOB, qualification, category, dates, and **year-by-year CR grades, loyalty and property declarations** |
+| **5 · Evaluation Chart** | **Generated for you from section 4.** You fill in only the year-by-year CR grades, loyalty and property declarations, tribal-area service and a note — see §5.2c |
 
 **Every section shows whether it is complete.** You cannot submit until all five are.
 
@@ -186,6 +186,48 @@ The Seniority List screen shows all four figures at the top, and says how many o
 
 - **You have not entered the Sanctioned Posts yet.** There is no vacancy, so there is no zone. Fill in section 3 first.
 - **The promotion is not Class-I → Class-I.** The rules give a numerical zone only for that pair. For every other pair, every officer meeting the experience qualification is considered and there is no cap — the screen says *"No cap"* and the list may be any length.
+
+### 5.2c The Evaluation Chart is generated for you
+
+**You do not enter the officers again.** As soon as the Seniority List is saved, the portal builds the Evaluation Chart from it — one row per officer, with everything it already knows about them filled in:
+
+| Filled in for you | You provide |
+|---|---|
+| Employee No., Name, Date of Birth | **CR Grade** (year by year) |
+| Qualification, Category | **Loyalty** (year by year) |
+| Current Post, Feeder Post | **Immovable Property** (year by year) |
+| Date of Joining Service | **Tribal-area Service** |
+| Date of Posting on Current / Feeder Post | **Note** |
+
+Those details are shown as plain text, not as boxes to type in. **To correct any of them, change the Seniority List** — the chart follows automatically, and the CR grades you have already entered are kept.
+
+This is why the old duplication was worth removing: the same officer used to be entered on three screens, nothing checked that the three agreed, and it is the *chart* the Commission's engine scores. The least-checked copy was the one that decided the promotion.
+
+#### The pre-filled spreadsheet
+
+Press **Download pre-filled Excel template** on the Evaluation Chart screen. **Every officer is already on it.** Fill in only Loyalty, Immovable Property, CR, Tribal Area Service and Note, then upload it back through the same screen.
+
+Two things worth knowing:
+
+- **Leave a year blank where nothing was recorded.** Blank means *not recorded*, which is a different fact from "no" — it is what a Circulation DPC exists for. Do not put `N` in a cell you have no record for.
+- **Download it again whenever you like.** It comes back with whatever you have already entered, so it is safe to download, edit a little and upload repeatedly.
+
+#### The counts at the top of the screen
+
+```
+Expected Officers : 10        (from the Seniority List)
+Imported Officers : 10
+```
+
+They must be equal. If they are not:
+
+> **"The Evaluation Chart must contain exactly the same officers as the approved Seniority List."**
+> An officer has been added, removed or renumbered in the file. Download the pre-filled template again and work from that — it is always the right set.
+
+> **"Employee numbers cannot be changed on the Evaluation Chart"**
+> A row's employee number does not match the Seniority List. This one is refused by name rather than ignored, because a reassigned employee number is how one officer's confidential record ends up filed against another's.
+
+If the screen says **"Upload the Seniority List first"**, section 4 is empty — the chart is made from it, so there is nothing to fill in yet.
 
 ### 5.3 Entering officers from a spreadsheet
 
