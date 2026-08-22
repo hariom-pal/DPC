@@ -65,10 +65,12 @@ class DpcWorkingOfficersTest extends TestCase
      */
     private function payload(array $overrides = []): array
     {
+        // Balanced by construction since the vacancy directive of 2026-08-22:
+        // sanctioned 4 − 1 working officer = 3, and the breakdown totals 3.
         return array_merge([
             'sanctioned_post_count' => 4,
             'vacancies' => [
-                ['vacancy_type_id' => $this->clearVacancy->id, 'reservation_category_id' => $this->ur->id, 'count' => 1],
+                ['vacancy_type_id' => $this->clearVacancy->id, 'reservation_category_id' => $this->ur->id, 'count' => 3],
             ],
             'officers' => [
                 ['sn' => 1, 'name' => 'DS1', 'dob' => '1972-03-20', 'reservation_category_id' => $this->ur->id],

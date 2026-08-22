@@ -14,6 +14,7 @@ use App\Domain\Dpc\Requests\SaveSeniorityEntriesRequest;
 use App\Domain\Dpc\Requests\SaveWorkingOfficersRequest;
 use App\Domain\Dpc\Services\DpcProposalCompletenessService;
 use App\Domain\Dpc\Services\DpcProposalService;
+use App\Domain\Dpc\Services\VacancyCalculationService;
 use App\Domain\Master\Models\Cadre;
 use App\Domain\Master\Models\DpcType;
 use App\Domain\Master\Models\ReservationCategory;
@@ -47,6 +48,7 @@ class DpcProposalController extends Controller
     public function __construct(
         private readonly DpcProposalService $service,
         private readonly DpcProposalCompletenessService $completeness,
+        private readonly VacancyCalculationService $vacancies,
     ) {}
 
     public function index(Request $request): View
@@ -128,6 +130,10 @@ class DpcProposalController extends Controller
 
         return view('dpc-proposals.working-officers', [
             'proposal' => $dpcProposal,
+            // Working Officers, Total Vacancy and the Zone are derived, never
+            // typed — the view renders them read-only and does no arithmetic
+            // of its own (business directive, 2026-08-22).
+            'vacancy' => $this->vacancies->summary($dpcProposal),
             'vacancyTypes' => VacancyType::query()->where('status', MasterStatus::Active->value)->orderBy('name_en')->get(),
             'reservationCategories' => ReservationCategory::query()->where('status', MasterStatus::Active->value)->orderBy('code')->get(),
         ]);
@@ -151,6 +157,10 @@ class DpcProposalController extends Controller
 
         return view('dpc-proposals.seniority-list', [
             'proposal' => $dpcProposal,
+            // The list must carry exactly the zone's officer count, so the
+            // screen states the target before the officer starts typing rather
+            // than refusing them afterwards.
+            'vacancy' => $this->vacancies->summary($dpcProposal),
             'reservationCategories' => ReservationCategory::query()->where('status', MasterStatus::Active->value)->orderBy('code')->get(),
         ]);
     }

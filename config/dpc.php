@@ -421,6 +421,64 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Vacancy derivation and the seniority-list gate (M4 — PPT S16/S17)
+    |--------------------------------------------------------------------------
+    |
+    | Business directive, 2026-08-22. Three numbers are derived rather than
+    | typed, and two invariants are enforced on every write:
+    |
+    |   Working Officers = rows on the Currently Working chart
+    |   Total Vacancy    = Sanctioned Post Count − Working Officers
+    |   Zone             = the scoring engine's zone rule for this class pair
+    |
+    | The vacancy-type fields (Clear / Retirement / Promotion / Deputation) no
+    | longer *produce* the total — they classify it — so their sum must equal it.
+    |
+    | **The zone formula is NOT configured here.** It lives once, in
+    | `scoring.zone.rules`, and is applied through the M5 engine (AD-19: never a
+    | second code path). Changing the multiplier is a change there, and it moves
+    | the proposal screen and the calculation together.
+    |
+    | Both switches exist because each gate refuses a save a department might
+    | consider legitimate, and a government system that cannot stand a rule down
+    | without a deploy is worse than one that never had it. Turning either off
+    | reverts to the pre-2026-08-22 behaviour for that rule alone.
+    |
+    */
+
+    'vacancy' => [
+        /*
+        | Refuse a chart carrying more working officers than the post is
+        | sanctioned for. Equality is permitted: a fully-staffed post has no
+        | vacancy, which is unusual for a DPC but not invalid.
+        */
+        'enforce_sanctioned_ceiling' => (bool) env('DPC_VACANCY_ENFORCE_CEILING', true),
+
+        /*
+        | Refuse a vacancy breakdown that does not sum to `sanctioned − working`.
+        |
+        | Worth knowing why this is stricter than it looks: the scoring engine
+        | already fills seats from the sum of these very rows, so before this
+        | rule existed a department could record 4 classified vacancies against
+        | a derived total of 3 and the engine would promote 4 officers. The
+        | invariant makes the number M5 acts on equal the number the screen
+        | shows.
+        */
+        'enforce_classification_balance' => (bool) env('DPC_VACANCY_ENFORCE_BALANCE', true),
+
+        /*
+        | Require the seniority list to carry exactly as many officers as the
+        | zone admits.
+        |
+        | Applies only where the deck gives a formula. For a class pair it does
+        | not (the deck's "other cases": every officer meeting the experience
+        | qualification, uncapped) there is no number to match, and no gate.
+        */
+        'enforce_seniority_matches_zone' => (bool) env('DPC_VACANCY_ENFORCE_ZONE_MATCH', true),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Pre-DPC projection (M3 — PPT S7–S11)
     |--------------------------------------------------------------------------
     |

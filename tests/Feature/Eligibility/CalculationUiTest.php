@@ -68,7 +68,13 @@ class CalculationUiTest extends TestCase
     {
         $service = app(DpcProposalService::class);
 
-        $service->saveVacancies($this->proposal, 10, [[
+        // Sanctioned 1 against 1 classified vacancy and no working officers, so
+        // `sanctioned − working` equals the breakdown (vacancy directive,
+        // 2026-08-22) and the proposal can pass the submission gate. **The
+        // engine's total vacancy is unchanged at 1** — it sums the vacancy rows,
+        // not the sanctioned strength — so every scoring expectation below still
+        // holds.
+        $service->saveVacancies($this->proposal, 1, [[
             'vacancy_type_id' => VacancyType::query()->orderBy('id')->firstOrFail()->id,
             'reservation_category_id' => $this->ur->id,
             'count' => 1,
@@ -155,10 +161,15 @@ class CalculationUiTest extends TestCase
         app(DpcProposalService::class)->saveCommittee($this->proposal, [
             ['name' => 'Chairman', 'capacity' => 'chairman'],
         ], $this->ao);
-        app(DpcProposalService::class)->saveSeniorityEntries($this->proposal, [[
-            'seniority_number' => 1, 'name' => 'US1', 'dob' => '1964-03-20',
-            'reservation_category_id' => $this->ur->id,
-        ]], $this->ao);
+        // One vacancy sizes the zone at `single_vacancy_size` (5), and the
+        // seniority list must match it exactly before the proposal will submit.
+        app(DpcProposalService::class)->saveSeniorityEntries($this->proposal, array_map(
+            fn (int $sn): array => [
+                'seniority_number' => $sn, 'name' => 'US'.$sn, 'dob' => '1964-03-20',
+                'reservation_category_id' => $this->ur->id,
+            ],
+            range(1, 5),
+        ), $this->ao);
 
         $this->actingAs($this->ao)->post(route('dpc-proposals.submit', $this->proposal));
         $this->assertSame('submitted', $this->proposal->fresh()->status->value);

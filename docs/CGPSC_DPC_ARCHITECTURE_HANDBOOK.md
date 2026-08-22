@@ -258,6 +258,76 @@ Every transition re-fetches its row with `lockForUpdate()` **inside** the transa
 
 ---
 
+## 7a. Derived vacancy and the Zone of Consideration (business directive, 2026-08-22)
+
+Three numbers on the DPC proposal are now **derived, not typed**:
+
+```
+Working Officers = rows on the Currently Working chart
+Total Vacancy    = Sanctioned Post Count − Working Officers
+Zone             = the M5 zone rule for this class pair, applied to Total Vacancy
+```
+
+The vacancy-type fields (Clear / Retirement / Promotion / Deputation) no longer *produce* the total — they **classify** it — so their sum must equal it. Three gates enforce this, each switchable in `dpc.vacancy`:
+
+| Rule | Refusal |
+|---|---|
+| `working ≤ sanctioned` | *"Working Officers cannot exceed the sanctioned strength."* |
+| `Σ vacancy rows = sanctioned − working` | *"The sum of all vacancy types must equal the calculated total vacancy."* |
+| `seniority count = zone size` | *"The uploaded Seniority List must contain exactly N officers based on the calculated Zone of Consideration."* |
+
+### Nothing is stored, and the zone is not reimplemented
+
+All three are computed on read by `Dpc\Services\VacancyCalculationService`. Storing them would create a second version of the truth that a later edit could leave stale.
+
+**The service does not contain the zone formula.** It delegates to `Eligibility\Services\ZoneOfConsiderationService` — the pure engine M5 already scores with — because AD-19 says a rule is re-applied through the existing mechanism and never through a second code path. The zone on the proposal screen and the zone a calculation runs under are therefore the same number *by construction*. Writing `(vacancy * 2) + 4` into M4 would have been three lines and would have drifted the first time a notification changed the multiplier; a test pins this by changing the configured multiplier and asserting the proposal screen moves with it.
+
+### Two places where the directive's flat formula and the deck disagree
+
+The directive states the zone as `(Total Vacancy × 2) + 4`. That is exactly the deck's Class-I → Class-I rule, and it matches the directive's worked example (vacancy 3 → 10). It differs from the deck in two cases, and **the deck was followed**, because AD-1 makes the decks the source of business rules and AD-2 forbids inventing one:
+
+| Case | Deck | Flat formula | Implemented |
+|---|---|---|---|
+| **One vacancy** | top **5** (`single_vacancy_size`) | 2×1+4 = 6 | **5** |
+| **Any pair other than Class-I → Class-I** | no formula — every officer meeting the experience qualification, uncapped | 2V+4 | **uncapped, and the seniority gate does not apply** |
+
+Both are `dpc.scoring.zone.rules` configuration, so a ruling that the flat formula should govern everywhere is an environment change plus a golden-test update — not a code change. Both are pinned by named tests so that overriding the deck later is a visible edit rather than a silent drift. **These two cases are the item to put in front of CGPSC**; everything else in the directive is implemented as written.
+
+### Why the balance rule is worth more than it looks
+
+`DpcCalculationService` computes its total vacancy as `array_sum($vacanciesByCategory)` — the sum of the very rows this rule constrains. Before the rule, a department could record four classified vacancies against a derived total of three and **the engine would have promoted four officers.** The invariant makes the number M5 fills seats against equal the number the screen shows.
+
+### Enforced in three places, deliberately
+
+The Form Request, the Excel commit, and the submission checklist. Not redundancy:
+
+- the **import** hands rows straight to the Domain Service and never sees a Form Request, so a rule living only there would be one file upload away from being bypassed;
+- a proposal can be **broken by a later edit** — lower the sanctioned strength after importing the officer chart and the ceiling is breached by a screen that never validated it. The checklist is the one place every route passes before an Administrative Head is asked to sign.
+
+The import check runs *before* its transaction, so a refused file leaves the section as it was rather than half-replaced.
+
+### What this narrowed
+
+`DpcProposalCompletenessService` used to state that it would never size a zone, because M4 does no calculation. That now holds for everything except these three checks, and the docblock says so rather than quietly contradicting itself. Nothing there scores or ranks an officer, and the zone is asked of M5 rather than computed.
+
+### A consequence worth stating plainly
+
+`Total Vacancy = Sanctioned − Working` means **a department must list every officer in post.** A unit with 40 sanctioned posts, 37 officers serving and 3 vacancies must file all 37; recording 3 officers and 3 vacancies against 40 sanctioned posts is now a refusal rather than a passable approximation. The demonstration dataset itself failed on this when the rule landed — it carried 40 sanctioned posts, 3 working officers and 3 vacancies — which is the clearest evidence that the previous screens permitted a chart nobody could reconcile.
+
+### Future: HRMS makes all three automatic
+
+Recorded as a direction, **not implemented and not scheduled**. When an HRMS integration exists:
+
+| Field | Today | With HRMS |
+|---|---|---|
+| Sanctioned Posts | typed by the Authorized Officer | from the Establishment master |
+| Working Officers | derived from the uploaded chart | from HRMS |
+| Total Vacancy | derived | derived, unchanged |
+
+The Authorized Officer would then enter **nothing** on this screen — only classify the vacancies and upload documents. **The architecture already points that way and needs no rework to get there:** the two inputs are read in one service, `Working Officers` is already a *count of rows* rather than a typed figure, HRMS already sits behind a Provider contract (`FEATURE_HRMS`, off, mock implemented), and the derived fields carry no `name` attribute, so no submitted form can set them. Replacing the officer chart's source is a change to where those rows come from, not to any rule built on them. See BD-5: no HRMS integration is scheduled.
+
+---
+
 ## 8. Data architecture
 
 68 tables. The shapes that matter:

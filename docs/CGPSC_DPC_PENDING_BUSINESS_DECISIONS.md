@@ -12,7 +12,7 @@ Nothing here is a defect and nothing here blocks a demonstration. Each item is a
 
 The e-DPC Portal is built and works end to end. Twenty decisions arose during construction that are **matters of policy, not of software**. Each was written down instead of guessed at, because guessing would have meant the system quietly asserting a rule CGPSC had never made — about an officer's promotion, seniority or pay.
 
-**Twelve of the twenty are now closed** — they turned out to be answerable from the presentation decks, or from a decision already taken, or they were engineering questions wearing business clothes. **Eight remain, and only those eight are listed here.**
+**Twelve of the twenty are now closed** — they turned out to be answerable from the presentation decks, or from a decision already taken, or they were engineering questions wearing business clothes. **Eight remained, and a ninth (BD-21) arrived with the vacancy directive of 2026-08-22 — nine in total are listed here.**
 
 For each open item you will find: the requirement it comes from, **what the system does today**, the options, our recommendation, the impact of each answer, and a priority.
 
@@ -46,6 +46,7 @@ Three behaviours, applied consistently:
 | **BD-19** | How does an individual officer sign in to view their own data? | Decides how the self-inspection screen authenticates | P2 |
 | **BD-12** | What if the record supplied to resolve a held promotion is adverse? | Decides what the Commission may do with bad news | P2 |
 | **BD-4** | Does the CSC signing service take raw bytes or a PDF? | Blocks real digital signing in production | P2 — technical, needs CGPSC's supplier |
+| **BD-21** | Does the zone formula `(V × 2) + 4` override the printed rule for a single vacancy, and for class pairs the rules leave uncapped? | Option B would **narrow who is considered** in every non-Class-I promotion | **P1 — new, 2026-08-22** |
 
 ---
 
@@ -246,9 +247,36 @@ Recorded so that nobody reopens them: **BD-1** (punishment — ruled a business 
 
 ---
 
+## BD-21 — Does the zone formula `(V × 2) + 4` override the printed rule in two cases?  *(new, 2026-08-22)*
+
+**Business requirement.** The vacancy directive of 2026-08-22 states the Zone of Consideration as **`(Total Vacancy × 2) + 4`**. That is exactly the rule printed on slide C6 for a **Class-I → Class-I** promotion, and it reproduces the directive's own worked example: 3 vacancies → 10 officers. **In two cases the flat formula and the printed rule give different answers.**
+
+**Current behaviour.** The printed rule is applied, because AD-1 makes the decks the source of business requirements and AD-2 forbids inventing one. Both cases are visible on screen and pinned by named tests, so a decision either way is a recorded change rather than a silent drift.
+
+| Case | The deck | `(V × 2) + 4` | What the system does |
+|---|---|---|---|
+| **Exactly one vacancy** | the top **5** officers | 2×1+4 = **6** | **5** |
+| **Any pair other than Class-I → Class-I** | **no formula** — every officer meeting the experience qualification is considered, with no cap | 2V+4 | **no cap**, and the exact-count rule on the Seniority List does not apply |
+
+**Options.**
+
+| | Option | Consequence |
+|---|---|---|
+| A | **Keep the printed rule** (current behaviour) | The zone matches the Commission's own published sizing. A single-vacancy DPC considers 5 officers, and a Class-II promotion considers everyone qualified |
+| B | Apply `(V × 2) + 4` **to every case** | Simpler to explain in one line. A single-vacancy DPC considers 6 instead of 5, and **every Class-II and Class-III promotion gains a cap the rules do not impose** — which would exclude officers who are currently considered |
+| C | Flat formula for the **single-vacancy** case only, printed rule elsewhere | Removes the one arithmetic exception while leaving the class-pair scope alone |
+
+**Recommendation. Option A.** The second row is the one that matters: extending the formula to class pairs the rules leave uncapped would **narrow the field of officers considered for promotion**, and doing that on the strength of a formula written for a different class pair is the kind of inference this project has consistently refused. If CGPSC intends the formula to govern everywhere, that is a legitimate ruling — but it should be a ruling, because officers become ineligible as a result.
+
+**Impact.** Option A affects nobody: it is what the printed rules say. Option B changes who is considered in **every non-Class-I promotion**, and adds one officer to the zone of every single-vacancy DPC.
+
+**How the answer is applied.** Configuration — `dpc.scoring.zone.rules`, adding an entry per class pair. No code change. The golden test that pins the deck's answers would need updating, which is the intended friction.
+
+---
+
 ## What changed since 2026-08-19
 
-**Nothing in this register.** The eight open items are the same eight, with the same recommendations. The final phase closed engineering work only — the Content-Security-Policy is now enforced, every screen is addressed by a UUID rather than a number, and the evidence-table database grants are now generated by a command instead of a runbook. **None of that touches a business rule**, and the scoring engine was not modified.
+**One item was added: BD-21**, from the vacancy directive of 2026-08-22 — see above. The other eight are unchanged, with the same recommendations. The final phase closed engineering work only — the Content-Security-Policy is now enforced, every screen is addressed by a UUID rather than a number, and the evidence-table database grants are now generated by a command instead of a runbook. **None of that touches a business rule**, and the scoring engine was not modified.
 
 One item is worth re-reading in that light: **BD-19** (how an individual officer signs in). Its Option A — the three facts — remains the running default, and the screen it protects is now behind an enforced Content-Security-Policy and a UUID-addressed URL. That improves the surrounding security; it does not change the recommendation, because the weakness in Option A is that the three facts themselves appear on a departmental seniority list that circulates.
 

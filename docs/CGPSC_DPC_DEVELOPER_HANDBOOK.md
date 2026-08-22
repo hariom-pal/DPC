@@ -182,6 +182,7 @@ These are not style preferences. Each exists because breaking it caused a real d
 | `PreDpc\PreDpcProposalService` | The Pre-DPC lifecycle and projection into masters |
 | `Dpc\DpcProposalService` | All five proposal sections and the submission gate |
 | `Import\ExcelImportService` | The staged Preview → Validate → Commit pipeline |
+| `Dpc\VacancyCalculationService` | Working Officers, Total Vacancy and the Zone of Consideration — all **derived, never stored**. Delegates the zone to M5's pure engine rather than re-implementing it (AD-19) |
 | `Eligibility\DpcCalculationService` | The **only** class that persists a calculation |
 | `Cgpsc\{Allotment,Scheduling}Service` | The Commission's side |
 | `Proceeding\ProceedingService` | The sitting, corrections, the result |
@@ -222,6 +223,21 @@ Two layers, deliberately:
 2. **Service-layer assertions** — immutability and workflow legality. A section is immutable outside `DRAFT`/`RETURNED` **at the Service layer as well as the Policy layer**, so a future caller bypassing the controller cannot mutate a submitted proposal.
 
 **Row rules are shared between manual entry and Excel import** (`Dpc\Validation\DpcRowRules`), so the two paths cannot drift. The `ImportTemplate` enum maps a spreadsheet onto those rules; it does not restate them.
+
+### The vacancy invariants live in three layers, and that is not redundancy
+
+Since the directive of 2026-08-22, three arithmetic rules bind the DPC proposal (Architecture Handbook §7a). Each is checked in **three** places, for a different reason each time:
+
+| Layer | Why it has to be there |
+|---|---|
+| `SaveWorkingOfficersRequest` / `SaveSeniorityEntriesRequest` | The manual path, and the only one that can put the message beside the field |
+| `ExcelImportService::commit()` | **An import never sees a Form Request.** It hands rows straight to the Domain Service, so a rule living only in the request would be one upload away from being bypassed. Checked *before* the transaction, so a refused file leaves the section untouched |
+| `DpcProposalCompletenessService` | A proposal can be broken by a *later* edit — lower the sanctioned strength after importing the chart and the ceiling is breached by a screen that never validated it. The submission gate is the one place every route passes |
+
+**Two traps if you add a rule of this shape.**
+
+1. **A Form Request is validated before the controller authorises.** Both requests bail out when `! $proposal->status->isEditable()`, or a submitted proposal answers an edit attempt with "your list is the wrong length" (302) instead of "this proposal is closed" (403) — quietly replacing the immutability refusal with a validation one. `test_seniority_list_is_immutable_once_submitted` caught exactly that.
+2. **Sections are no longer independent.** Saving the sanctioned strength changes the zone, which changes whether the seniority list is long enough. `CompletesDpcProposals` fills the checklist in **passes** for that reason, and throws rather than looping forever if a fixture cannot be satisfied.
 
 ---
 

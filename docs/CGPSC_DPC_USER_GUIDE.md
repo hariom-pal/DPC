@@ -120,11 +120,72 @@ You choose the **promotion path**: the post being promoted **to** and the post p
 |---|---|
 | **1 · Post Selection** | The promotion path, the DPC type, the proposal date |
 | **2 · Committee** | The committee members and their capacities |
-| **3 · Working Officers & Vacancies** | Officers currently in post, and vacancies by type and category |
+| **3 · Working Officers & Vacancies** | Officers currently in post, and vacancies by type and category. **Three figures here are worked out for you — see §5.2a** |
 | **4 · Seniority List** | The final seniority list, in order |
 | **5 · Evaluation Chart** | The heart of it — one row per officer with DOB, qualification, category, dates, and **year-by-year CR grades, loyalty and property declarations** |
 
 **Every section shows whether it is complete.** You cannot submit until all five are.
+
+### 5.2a Vacancies are calculated, not typed
+
+On **Working Officers & Vacancies** you enter **one** number — the **Sanctioned Posts** for the target cadre. The portal then works out three more and shows them greyed out, because they are consequences rather than choices:
+
+| Field | Where it comes from |
+|---|---|
+| **Working Officers** | Counted from the officer chart on the same screen — however you filled it, by typing or by uploading the Currently Working file |
+| **Total Vacancy** | **Sanctioned Posts − Working Officers** |
+| **Zone of Consideration** | How many officers may be considered for the vacancy. For a Class-I → Class-I promotion it is `(Total Vacancy × 2) + 4`, except with a single vacancy, where the rule is the top 5 |
+
+**Example.** Sanctioned 10, and you upload 7 officers:
+
+```
+Working Officers      : 7
+Total Vacancy         : 3
+Zone of Consideration : 10        (2 × 3 + 4)
+```
+
+**You cannot type over any of the three**, and that is deliberate — a typed vacancy that disagreed with the officer chart is how a DPC ends up promoting more officers than it has seats for.
+
+#### What you still decide: how the vacancy is made up
+
+The four vacancy types stay yours to enter:
+
+- **Clear Vacancy**
+- **Retirement Vacancy**
+- **Promotion Vacancy**
+- **Deputation Vacancy**
+
+They do not add up to the Total Vacancy — they **classify** it — so **they must total exactly the Total Vacancy the portal calculated.** With a Total Vacancy of 3, `Clear 1 + Retirement 1 + Promotion 1 + Deputation 0` is accepted; `Clear 2 + Retirement 2` is refused, because it totals 4.
+
+You may also split each type by reservation category, and the same rule applies to the whole grid: every row added together must equal the Total Vacancy.
+
+#### Two refusals you may meet
+
+> **"Working Officers cannot exceed the sanctioned strength."**
+> Your chart has more officers than the post is sanctioned for. One of the two is wrong. Nothing is saved until you fix it — including on an upload, where the file is refused and your existing chart is left untouched.
+
+> **"The sum of all vacancy types must equal the calculated total vacancy."**
+> The message tells you both numbers. Adjust the vacancy rows, not the Sanctioned Posts, unless the sanctioned figure is what was wrong.
+
+**An important practical point.** Because the vacancy is *derived* from the officer count, **you must list every officer in post** — not a sample. A cadre with 40 sanctioned posts and 37 officers serving needs all 37 on the chart; filing 3 of them would tell the portal there are 37 vacancies.
+
+### 5.2b The Seniority List must match the Zone of Consideration
+
+Where a Zone of Consideration applies, the **Seniority List must contain exactly that many officers** — no more, no fewer.
+
+```
+Zone of Consideration : 10   →   the list must carry exactly 10 officers
+```
+
+The Seniority List screen shows all four figures at the top, and says how many officers it currently holds, so you know the target before you start rather than after being refused.
+
+> **"The uploaded Seniority List must contain exactly 8 officers based on the calculated Zone of Consideration."**
+> The list is the wrong length. The message always names the required number. This applies to typing and to uploading alike, and an upload of the wrong length is refused without disturbing the list you already have.
+
+**When no exact count is required.** Two cases, both shown on screen rather than left to be guessed:
+
+- **You have not entered the Sanctioned Posts yet.** There is no vacancy, so there is no zone. Fill in section 3 first.
+- **The promotion is not Class-I → Class-I.** The rules give a numerical zone only for that pair. For every other pair, every officer meeting the experience qualification is considered and there is no cap — the screen says *"No cap"* and the list may be any length.
 
 ### 5.3 Entering officers from a spreadsheet
 

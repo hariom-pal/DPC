@@ -277,9 +277,17 @@ class DemoJourneySeeder extends Seeder
             'drafted_at' => '2026-03-05 11:20',
             'submitted_at' => '2026-03-14 17:05',
             'approved_at' => '2026-03-18 10:15',
-            'sanctioned' => 10,
+            // Sanctioned 9 − 7 principals in post = 2 vacancies, which the rows
+            // below total exactly (vacancy directive, 2026-08-22).
+            //
+            // This is a Class-II → Class-II promotion, so the deck gives it no
+            // zone formula and no exact seniority count is required — all eight
+            // lecturers stay on the list. Worth having in the demo alongside the
+            // Class-I → Class-I DPC above, which *is* capped (at 14), because the
+            // difference between the two is the thing most easily assumed away.
+            'sanctioned' => 9,
             'vacancies' => [
-                ['clear', 'UR', 2],
+                ['clear', 'UR', 1],
                 ['clear', 'OBC', 1],
             ],
             'committee' => $this->committee($ah, $ao),

@@ -73,8 +73,12 @@ class DemoPipelineSeeder extends Seeder
             'to' => 'Block Education Officer',
             'proposal_date' => '2026-08-03',
             'drafted_at' => '2026-08-03 11:10',
-            'sanctioned' => 8,
-            'vacancies' => [['clear', 'UR', 1], ['clear', 'ST', 1]],
+            // Balanced by the vacancy directive of 2026-08-22: sanctioned minus
+            // working officers must equal the vacancy breakdown. These pipeline
+            // DPCs are Class-II/III pairs, which the deck gives no zone formula,
+            // so the seniority list keeps every officer listed below.
+            'sanctioned' => 4,
+            'vacancies' => [['clear', 'UR', 1]],
             'committee' => $this->committee(),
             'working' => DemoOfficers::generic([
                 'Shri Kamal Narayan Sahu', 'Smt. Bharti Sonwani', 'Shri Yogesh Kumar Dhruw',
@@ -101,8 +105,12 @@ class DemoPipelineSeeder extends Seeder
             'to' => 'Head Master, Middle School',
             'proposal_date' => '2026-07-15',
             'drafted_at' => '2026-07-15 10:00',
-            'sanctioned' => 14,
-            'vacancies' => [['clear', 'UR', 2], ['clear', 'OBC', 1]],
+            // Balanced by the vacancy directive of 2026-08-22: sanctioned minus
+            // working officers must equal the vacancy breakdown. These pipeline
+            // DPCs are Class-II/III pairs, which the deck gives no zone formula,
+            // so the seniority list keeps every officer listed below.
+            'sanctioned' => 4,
+            'vacancies' => [['clear', 'UR', 1]],
             'committee' => $this->committee(),
             'working' => DemoOfficers::generic([
                 'Shri Ravi Prakash Sahu', 'Smt. Kiran Bala Tandon', 'Shri Sunil Kumar Dewangan',
@@ -129,8 +137,12 @@ class DemoPipelineSeeder extends Seeder
             'drafted_at' => '2026-07-02 10:40',
             'submitted_at' => '2026-07-10 15:30',
             'approved_at' => '2026-07-14 11:15',
-            'sanctioned' => 40,
-            'vacancies' => [['clear', 'UR', 2], ['from_retirement', 'SC', 1]],
+            // Balanced by the vacancy directive of 2026-08-22: sanctioned minus
+            // working officers must equal the vacancy breakdown. These pipeline
+            // DPCs are Class-II/III pairs, which the deck gives no zone formula,
+            // so the seniority list keeps every officer listed below.
+            'sanctioned' => 4,
+            'vacancies' => [['from_retirement', 'SC', 1]],
             'working' => DemoOfficers::generic([
                 'Shri Vinay Kumar Sahu', 'Smt. Sushma Bhagat', 'Shri Rajendra Prasad Verma',
             ]),
@@ -155,8 +167,12 @@ class DemoPipelineSeeder extends Seeder
             'drafted_at' => '2026-06-08 09:45',
             'submitted_at' => '2026-06-16 14:20',
             'approved_at' => '2026-06-19 10:05',
-            'sanctioned' => 33,
-            'vacancies' => [['clear', 'UR', 1], ['clear', 'ST', 1]],
+            // Balanced by the vacancy directive of 2026-08-22: sanctioned minus
+            // working officers must equal the vacancy breakdown. These pipeline
+            // DPCs are Class-II/III pairs, which the deck gives no zone formula,
+            // so the seniority list keeps every officer listed below.
+            'sanctioned' => 4,
+            'vacancies' => [['clear', 'ST', 1]],
             'working' => DemoOfficers::generic([
                 'Shri Harish Chandra Sahu', 'Smt. Meenakshi Rao', 'Shri Umesh Kumar Patel',
             ]),
@@ -218,8 +234,12 @@ class DemoPipelineSeeder extends Seeder
             'drafted_at' => '2026-05-11 11:00',
             'submitted_at' => '2026-05-20 16:10',
             'approved_at' => '2026-05-23 10:50',
-            'sanctioned' => 4,
-            'vacancies' => [['clear', 'UR', 1], ['from_promotion', 'OBC', 1]],
+            // Balanced by the vacancy directive of 2026-08-22: sanctioned minus
+            // working officers must equal the vacancy breakdown. These pipeline
+            // DPCs are Class-II/III pairs, which the deck gives no zone formula,
+            // so the seniority list keeps every officer listed below.
+            'sanctioned' => 3,
+            'vacancies' => [['from_promotion', 'OBC', 1]],
             'working' => DemoOfficers::generic([
                 'Shri Girish Kumar Sahu', 'Smt. Nandini Verma',
             ]),

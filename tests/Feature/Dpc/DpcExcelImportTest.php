@@ -7,6 +7,7 @@ namespace Tests\Feature\Dpc;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Department\Models\Department;
 use App\Domain\Dpc\Models\DpcProposal;
+use App\Domain\Dpc\Services\DpcProposalService;
 use App\Domain\Import\Enums\ImportBatchStatus;
 use App\Domain\Import\Enums\ImportTemplate;
 use App\Domain\Import\Models\ImportBatch;
@@ -417,5 +418,117 @@ class DpcExcelImportTest extends TestCase
             ->assertOk()
             ->assertSee('Import Preview')
             ->assertSee('US1');
+    }
+
+    // ------------------------------------------------------------------------
+    // The vacancy directive on the import path (2026-08-22).
+    //
+    // **This is the gap a Form Request cannot cover.** `commit()` hands its rows
+    // straight to the Domain Service, so `SaveWorkingOfficersRequest` and
+    // `SaveSeniorityEntriesRequest` never see them — a rule enforced only in
+    // those requests would be one file upload away from being bypassed.
+    // ------------------------------------------------------------------------
+
+    public function test_an_import_may_not_push_working_officers_past_the_sanctioned_strength(): void
+    {
+        app(DpcProposalService::class)->saveVacancies($this->proposal, 2, []);
+
+        $batch = $this->upload(ImportTemplate::CurrentlyWorkingUs, $this->csv([
+            ['SN', 'NAME', 'DOB', 'CAT'],
+            ['1', 'DS1', '20-03-1972', 'UR'],
+            ['2', 'DS2', '21-03-1972', 'UR'],
+            ['3', 'DS3', '22-03-1972', 'UR'],
+        ]));
+
+        $this->actingAs($this->ao)
+            ->post(route('dpc-proposals.imports.commit', [$this->proposal, $batch]))
+            ->assertSessionHasErrors('commit');
+
+        // Refused *before* the write, so the section is untouched rather than
+        // half-replaced — the reason the check sits outside the transaction.
+        $this->assertSame(0, $this->proposal->fresh()->workingOfficers()->count());
+        $this->assertSame(ImportBatchStatus::Previewed, $batch->fresh()->status);
+    }
+
+    public function test_an_import_within_the_sanctioned_strength_commits_normally(): void
+    {
+        app(DpcProposalService::class)->saveVacancies($this->proposal, 5, []);
+
+        $batch = $this->upload(ImportTemplate::CurrentlyWorkingUs, $this->csv([
+            ['SN', 'NAME', 'DOB', 'CAT'],
+            ['1', 'DS1', '20-03-1972', 'UR'],
+        ]));
+
+        $this->actingAs($this->ao)
+            ->post(route('dpc-proposals.imports.commit', [$this->proposal, $batch]))
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(1, $this->proposal->fresh()->workingOfficers()->count());
+    }
+
+    public function test_a_seniority_import_must_match_the_zone_of_consideration(): void
+    {
+        // One vacancy sizes the zone at 5 (the deck's single-vacancy rule); the
+        // file below carries 2.
+        app(DpcProposalService::class)->saveVacancies($this->proposal, 1, []);
+
+        $batch = $this->upload(ImportTemplate::FinalSeniorityListUs, $this->seniorityFile());
+
+        $this->actingAs($this->ao)
+            ->post(route('dpc-proposals.imports.commit', [$this->proposal, $batch]))
+            ->assertSessionHasErrors('commit');
+
+        $this->assertSame(0, $this->proposal->fresh()->seniorityEntries()->count());
+    }
+
+    public function test_a_seniority_import_matching_the_zone_commits(): void
+    {
+        app(DpcProposalService::class)->saveVacancies($this->proposal, 1, []);
+
+        $rows = [['SN', 'EMPLOYEE NO', 'NAME OF US', 'DOB', 'QUAL', 'CAT', 'DATE OF JOINING IN SERVICE', 'DATE OF POSTING ON US']];
+        for ($sn = 1; $sn <= 5; $sn++) {
+            $rows[] = [(string) $sn, 'EMP-'.$sn, 'US'.$sn, '20-03-1964', '11TH', 'UR', '01-04-1985', '01-01-2012'];
+        }
+
+        $batch = $this->upload(ImportTemplate::FinalSeniorityListUs, $this->csv($rows));
+
+        $this->actingAs($this->ao)
+            ->post(route('dpc-proposals.imports.commit', [$this->proposal, $batch]))
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(5, $this->proposal->fresh()->seniorityEntries()->count());
+    }
+
+    public function test_a_seniority_import_is_unrestricted_before_a_vacancy_is_known(): void
+    {
+        // No sanctioned strength yet, so no zone, so nothing to match. The
+        // existing tests in this class rely on this: they import a two-row
+        // seniority file without touching the vacancy section at all.
+        $batch = $this->upload(ImportTemplate::FinalSeniorityListUs, $this->seniorityFile());
+
+        $this->actingAs($this->ao)
+            ->post(route('dpc-proposals.imports.commit', [$this->proposal, $batch]))
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(2, $this->proposal->fresh()->seniorityEntries()->count());
+    }
+
+    public function test_an_evaluation_chart_import_is_unaffected_by_the_vacancy_rules(): void
+    {
+        // No rule here concerns the chart, and a gate that fired on it would be
+        // scope creep with a plausible-looking error message.
+        app(DpcProposalService::class)->saveVacancies($this->proposal, 1, []);
+
+        $batch = $this->upload(ImportTemplate::EvaluationChartUs, $this->csv([
+            ['SN', 'NAME', 'DOB', 'CAT', 'CR 2017', 'CR 2016'],
+            ['1', 'US1', '20-03-1964', 'UR', 'क', 'क'],
+            ['2', 'US2', '21-03-1964', 'UR', 'ख', 'क'],
+        ]));
+
+        $this->actingAs($this->ao)
+            ->post(route('dpc-proposals.imports.commit', [$this->proposal, $batch]))
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(2, $this->proposal->fresh()->evaluationRows()->count());
     }
 }

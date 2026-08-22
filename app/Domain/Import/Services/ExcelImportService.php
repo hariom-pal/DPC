@@ -7,6 +7,7 @@ namespace App\Domain\Import\Services;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Services\DpcProposalService;
+use App\Domain\Dpc\Services\VacancyCalculationService;
 use App\Domain\Dpc\Validation\DpcRowRules;
 use App\Domain\Import\Enums\ImportBatchStatus;
 use App\Domain\Import\Enums\ImportTemplate;
@@ -48,6 +49,7 @@ class ExcelImportService
     public function __construct(
         private readonly DpcProposalService $proposals,
         private readonly ActivityTimelineService $timeline,
+        private readonly VacancyCalculationService $vacancies,
     ) {}
 
     /**
@@ -156,6 +158,8 @@ class ExcelImportService
         }
 
         $template = $batch->template;
+
+        $this->assertVacancyArithmetic($template, $proposal, count($payloads));
 
         DB::transaction(function () use ($template, $proposal, $payloads, $actor, $batch): void {
             match ($template) {
@@ -302,6 +306,60 @@ class ExcelImportService
         }
 
         return $value;
+    }
+
+    /**
+     * The derived-vacancy invariants, on the import path (business directive,
+     * 2026-08-22).
+     *
+     * **This is here because an import does not pass through a Form Request.**
+     * `commit()` hands its rows straight to the Domain Service, so
+     * `SaveWorkingOfficersRequest` and `SaveSeniorityEntriesRequest` never see
+     * them. Without this, uploading a 12-officer chart against a sanctioned
+     * strength of 10 would succeed — and the rule that a manual save refuses
+     * would be one file upload away from being bypassed entirely.
+     *
+     * Refused *before* the transaction that writes the rows, so a rejected
+     * import leaves the proposal exactly as it was rather than half-replaced.
+     *
+     * Only the two counted sections are checked. An evaluation-chart import is
+     * unaffected: no rule here concerns it.
+     */
+    private function assertVacancyArithmetic(ImportTemplate $template, DpcProposal $proposal, int $incoming): void
+    {
+        if ($template === ImportTemplate::CurrentlyWorkingUs) {
+            if (! (bool) config('dpc.vacancy.enforce_sanctioned_ceiling', true)) {
+                return;
+            }
+
+            $sanctioned = $proposal->sanctioned_post_count;
+
+            if ($sanctioned !== null && $incoming > $sanctioned) {
+                throw new WorkflowException(
+                    'Working Officers cannot exceed the sanctioned strength.'
+                    ." This file carries {$incoming} officer(s) against a sanctioned strength of {$sanctioned}."
+                );
+            }
+
+            return;
+        }
+
+        if ($template !== ImportTemplate::FinalSeniorityListUs) {
+            return;
+        }
+
+        if (! (bool) config('dpc.vacancy.enforce_seniority_matches_zone', true)) {
+            return;
+        }
+
+        $required = $this->vacancies->requiredSeniorityCount($proposal);
+
+        if ($required !== null && $incoming !== $required) {
+            throw new WorkflowException(
+                $this->vacancies->seniorityCountMessage($required)
+                ." This file carries {$incoming}."
+            );
+        }
     }
 
     private function assertProposalEditable(DpcProposal $proposal): void

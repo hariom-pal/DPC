@@ -9,10 +9,12 @@ use App\Domain\Department\Models\Department;
 use App\Domain\Dpc\Enums\CommitteeCapacity;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Services\DpcProposalService;
+use App\Domain\Dpc\Services\VacancyCalculationService;
 use App\Domain\Master\Models\Cadre;
 use App\Domain\Master\Models\DpcType;
 use App\Domain\Master\Models\ReservationCategory;
 use App\Domain\Master\Models\VacancyType;
+use RuntimeException;
 
 /**
  * Builds a DPC Proposal (PPT S12–S25) from a compact specification by calling
@@ -67,7 +69,11 @@ final class DemoDpcBuilder
 
                 $this->proposals->saveSeniorityEntries(
                     $proposal,
-                    $this->chart->seniorityEntries($spec['officers'], $spec['from'], $spec['from']),
+                    $this->chart->seniorityEntries(
+                        $this->withinZone($proposal, $spec),
+                        $spec['from'],
+                        $spec['from'],
+                    ),
                     $ao,
                 );
 
@@ -144,6 +150,72 @@ final class DemoDpcBuilder
             'email' => $member['email'] ?? null,
             'capacity' => ($member['capacity'] ?? CommitteeCapacity::Member)->value,
         ], $members);
+    }
+
+    /**
+     * The officers the Seniority List may carry: exactly the Zone of
+     * Consideration, where the class pair has one (business directive,
+     * 2026-08-22).
+     *
+     * **Trimming here changes no demonstrated outcome, and that is why it is the
+     * right fix.** The scoring engine has always considered `min(zone,
+     * available)` officers, so a list of 16 against a zone of 14 already put two
+     * officers outside contention — they were carried, ranked and then ignored.
+     * Cutting the list to the zone makes the data say what the engine was
+     * already doing, and every promotion list the demo produces is unchanged.
+     *
+     * The **evaluation chart is deliberately not trimmed.** No rule ties its
+     * length to the zone, and the demo narrative points at specific chart rows —
+     * including the officer held for a CR shortfall — which a silent truncation
+     * could remove.
+     *
+     * A spec whose vacancy breakdown does not balance is a **fault in the demo
+     * data**, so it throws rather than being quietly corrected: sanctioned counts
+     * are chosen to tell a story, and adjusting one behind the author's back
+     * would make the story wrong in a way nobody would notice.
+     *
+     * @param  array<string, mixed>  $spec
+     * @return list<array<string, mixed>>
+     */
+    private function withinZone(DpcProposal $proposal, array $spec): array
+    {
+        /** @var list<array<string, mixed>> $officers */
+        $officers = $spec['officers'];
+
+        $vacancies = app(VacancyCalculationService::class);
+        $summary = $vacancies->summary($proposal->fresh());
+
+        if (! $summary['balanced']) {
+            throw new RuntimeException(sprintf(
+                'Demo spec for %s → %s does not balance: sanctioned %s − %d working = %s, '
+                .'but the vacancy breakdown totals %d. Fix the spec, not this builder.',
+                (string) $spec['from'],
+                (string) $spec['to'],
+                var_export($summary['sanctioned'], true),
+                $summary['working'],
+                var_export($summary['total_vacancy'], true),
+                $summary['classified_total'],
+            ));
+        }
+
+        $required = $summary['required_seniority'];
+
+        if ($required === null) {
+            return $officers; // No zone formula for this class pair, so no cap.
+        }
+
+        if (count($officers) < $required) {
+            throw new RuntimeException(sprintf(
+                'Demo spec for %s → %s offers %d officer(s) but the Zone of Consideration is %d. '
+                .'Add officers to the spec — the list cannot be padded with plausible-looking strangers.',
+                (string) $spec['from'],
+                (string) $spec['to'],
+                count($officers),
+                $required,
+            ));
+        }
+
+        return array_slice($officers, 0, $required);
     }
 
     /**

@@ -9,6 +9,7 @@ use App\Domain\Department\Models\Department;
 use App\Domain\Dpc\Enums\DpcProposalStatus;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Services\DpcProposalCompletenessService;
+use App\Domain\Dpc\Services\VacancyCalculationService;
 use App\Domain\Master\Models\DpcType;
 use App\Domain\Master\Models\ReviewReason;
 use App\Domain\Proceeding\Enums\DpcProceedingStatus;
@@ -205,16 +206,52 @@ class ReviewDpcTest extends TestCase
         // Review unsubmittable until the department re-typed a number the
         // original already carried — copy drift, design risk R3, and invisible
         // to a test that only compares section rows.
-        $this->proposal->forceFill(['sanctioned_post_count' => 4])->saveQuietly();
+        // Chosen so the count *balances* rather than merely being present:
+        // since the vacancy directive of 2026-08-22, S16 is complete only when
+        // the breakdown sums to `sanctioned − working`. The fixture records one
+        // vacancy, so the sanctioned strength has to be one above the officer
+        // chart — computed rather than hardcoded, so adding an officer to the
+        // fixture cannot silently unbalance this test.
+        $sanctioned = $this->proposal->workingOfficers()->count() + 1;
+        $this->proposal->forceFill(['sanctioned_post_count' => $sanctioned])->saveQuietly();
 
         $this->concludeOriginal();
         $review = $this->raise();
 
-        $this->assertSame(4, $review->sanctioned_post_count);
+        $this->assertSame($sanctioned, $review->sanctioned_post_count);
         $this->assertNotContains(
             'Working Officers & Vacancies (S16)',
             app(DpcProposalCompletenessService::class)->missingSections($review->fresh()),
         );
+    }
+
+    /**
+     * A Review inherits a *balanced* set of numbers, not just the numbers.
+     *
+     * The copy takes the sanctioned strength, the vacancy rows, the officer
+     * chart and the seniority list, so every invariant the original satisfied
+     * holds in the copy by construction. Worth pinning: a future change that
+     * copied four of those five would leave every Review unsubmittable, and the
+     * failure would surface as an unexplained submission refusal rather than as
+     * a missing copy.
+     */
+    public function test_a_review_inherits_a_balanced_vacancy_and_zone(): void
+    {
+        $sanctioned = $this->proposal->workingOfficers()->count() + 1;
+        $this->proposal->forceFill(['sanctioned_post_count' => $sanctioned])->saveQuietly();
+
+        $this->concludeOriginal();
+        $review = $this->raise()->fresh();
+
+        $vacancies = app(VacancyCalculationService::class);
+        $original = $vacancies->summary($this->proposal->fresh());
+        $copy = $vacancies->summary($review);
+
+        $this->assertSame($original['total_vacancy'], $copy['total_vacancy']);
+        $this->assertSame($original['classified_total'], $copy['classified_total']);
+        $this->assertSame($original['required_seniority'], $copy['required_seniority']);
+        $this->assertTrue($copy['balanced']);
+        $this->assertFalse($copy['exceeds_sanctioned']);
     }
 
     public function test_the_review_is_a_draft_of_type_review_with_no_dpc_id(): void
