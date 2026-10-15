@@ -33,7 +33,7 @@ class SelfInspectionViewService
      */
     public function present(DpcEvaluationRow $row): array
     {
-        $row->loadMissing(['crGrades', 'loyaltyFlags', 'propertyFlags', 'reservationCategory', 'proposal.department', 'proposal.postToCadre', 'proposal.postFromCadre']);
+        $row->loadMissing(['crGrades', 'loyaltyFlags', 'propertyFlags', 'reservationCategory', 'proposal.department', 'proposal.promotionToPost', 'proposal.promotionFromPost']);
 
         $proposal = $row->proposal;
         $deadline = $this->deadlines->resolve($proposal);

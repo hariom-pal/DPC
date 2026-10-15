@@ -1,0 +1,14 @@
+﻿FIELD,VALUE,NOTE
+DPC Year,2026,
+Promotion To Post,"Additional Director, Education",Class I · Level-13A · derived. This is the post the walkthrough fills
+Promotion From Post,Block Education Officer,Class II · Level-12. The seniority list is ten of these
+Share of promotion quota,100,must total 100% across sources
+Minimum experience,5,unit: years — load-bearing; this is what refuses SN 10 at 5.11
+Qualifications,Post-Graduate; Post-Graduate with B.Ed.; Ph.D.,tick all three
+Direct Recruitment %,0,
+Promotion Recruitment %,100,must total 100 with Direct
+Government Order Number,F-2-14/2026/20-Three,
+Effective From,01-01-2026,
+Recruitment Rule,PROJECTED AUTOMATICALLY,v1 is written when the AH approves this Pre-DPC — never typed
+Sanctioned Strength on Additional Director,10,Already on the Department Post Mapping. Check it at 5.3; the sample data does not balance on any other number
+NOTE,,"The seeded ladder sanctions this pair as well as Joint Director -> Additional Director, so the rung carries two feeders and each DPC names the one it runs. On a reset database no order exists at all and the AO raises this one live, which is the point of 5.4."

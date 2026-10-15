@@ -49,7 +49,21 @@ class DashboardSummaryService
             $groups[] = $this->departmentGroup($user);
         }
 
-        if ($user->hasAnyRole([Role::Chairman->value, Role::Member->value])) {
+        /*
+         | The allottee's own group, and the role test alone was not enough to show
+         | it.
+         |
+         | A DPC is allotted to a member of *its own committee* rather than to a
+         | portal role (business correction, 2026-09-07), so the allottee may hold no
+         | role at all. Gated on the role, their dashboard offered no route to the one
+         | screen that lets them accept the DPC — so a DPC could be allotted to
+         | somebody with no way to find it.
+         |
+         | `commissionGroup()` already asks whether the user is the Chairman and
+         | scopes every count to `allotted_to` when they are not, so an allottee sees
+         | their own DPCs here and nothing else.
+         */
+        if ($user->hasAnyRole([Role::Chairman->value, Role::Member->value]) || $this->holdsAnAllotment($user)) {
             $groups[] = $this->commissionGroup($user);
         }
 
@@ -141,10 +155,26 @@ class DashboardSummaryService
     }
 
     /**
+     * Whether a live allotment is sitting in this user's hands.
+     *
+     * `current()` is the same scope the screens use — an allotment that has been
+     * superseded by a re-allotment, or returned to the Chairman, is not theirs any
+     * more and should not put a group on their dashboard.
+     */
+    private function holdsAnAllotment(User $user): bool
+    {
+        return DpcAllotment::query()
+            ->current()
+            ->where('allotted_to', $user->id)
+            ->exists();
+    }
+
+    /**
      * What the Commission has in front of it (PPT S26–S34, S48).
      *
-     * A Chairman sees the allotment queue for the whole Commission; a Member
-     * sees the DPCs that are theirs. That is the same split the screens make.
+     * A Chairman sees the allotment queue for the whole Commission; a Member —
+     * or an allottee who holds no role at all — sees the DPCs that are theirs.
+     * That is the same split the screens make.
      *
      * @return array{title:string, subtitle:string, cards:list<array<string, mixed>>}
      */

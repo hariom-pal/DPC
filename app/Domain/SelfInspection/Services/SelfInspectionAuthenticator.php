@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace App\Domain\SelfInspection\Services;
 
+use App\Domain\Authentication\Services\OtpService;
 use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\SelfInspection\Enums\SelfInspectionAuthDriver;
 use App\Domain\SelfInspection\Enums\SelfInspectionFactor;
 use App\Domain\SelfInspection\Models\SelfInspectionAccess;
 use App\Domain\Shared\ValueObjects\PendingBusinessDecision;
+use App\Enums\OtpChannel;
+use App\Enums\OtpPurpose;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\Request;
 
@@ -35,7 +38,10 @@ use Illuminate\Http\Request;
  */
 class SelfInspectionAuthenticator
 {
-    public function __construct(private readonly SelfInspectionAccessGuard $access) {}
+    public function __construct(
+        private readonly SelfInspectionAccessGuard $access,
+        private readonly OtpService $otp,
+    ) {}
 
     /**
      * The refusal that applies before any input is considered, or null to
@@ -69,6 +75,114 @@ class SelfInspectionAuthenticator
                     .'screen on facts the department already records — no code change.',
             ],
         );
+    }
+
+    /**
+     * Send a one-time code to the mobile number an officer claims (business
+     * instruction, 2026-09-07: *"Self-Inspection is still not with mobile number and
+     * OTP"*).
+     *
+     * ### It answers the same way whether the number is on a list or not
+     *
+     * Returning *"no such officer"* would turn this screen into a lookup service:
+     * feed it numbers and it tells you which ones belong to somebody under
+     * consideration for promotion. So a code is issued only when a row matches, and
+     * the caller is told the same sentence either way. The officer whose number it
+     * is gets a code; anybody else gets silence dressed as success.
+     *
+     * ### The number is normalised the way the rest of the portal normalises one
+     *
+     * Ten digits, whatever the officer typed around them. A department that recorded
+     * `+91 94250-12345` and an officer who types `9425012345` are the same person,
+     * and a match that depended on punctuation would fail for the officer rather
+     * than for the attacker.
+     */
+    public function requestCode(string $mobile, Request $request): void
+    {
+        $normalised = $this->normaliseMobile($mobile);
+
+        if ($normalised === null || $this->rowsForMobile($normalised)->isEmpty()) {
+            /*
+             | Recorded as a failed attempt, and nothing sent. The record is the
+             | point: somebody walking a range of numbers past this screen leaves a
+             | trail, even though the screen tells them nothing.
+             */
+            $this->record(
+                claimedName: '',
+                row: null,
+                matched: false,
+                action: 'identify',
+                request: $request,
+            );
+
+            return;
+        }
+
+        $this->otp->issue($normalised, OtpChannel::Sms, OtpPurpose::Login);
+    }
+
+    /**
+     * Verify the code, and return the rows that mobile number belongs to.
+     *
+     * **Both halves must hold.** The code proves the officer holds the number; the
+     * number is what selects the rows. A verified code for a number that has since
+     * left every list under consideration returns nothing, because
+     * {@see SelfInspectionAccessGuard::inspectableRows()} is re-read here rather
+     * than remembered from when the code was sent.
+     *
+     * @return Collection<int, DpcEvaluationRow>
+     */
+    public function identifyByOtp(string $mobile, string $code, Request $request): Collection
+    {
+        $normalised = $this->normaliseMobile($mobile);
+
+        /** @var Collection<int, DpcEvaluationRow> $none */
+        $none = DpcEvaluationRow::query()->whereRaw('1 = 0')->get();
+
+        if ($normalised === null || ! $this->otp->verify($normalised, OtpPurpose::Login, $code)) {
+            $this->record(claimedName: '', row: null, matched: false, action: 'identify', request: $request);
+
+            return $none;
+        }
+
+        $matches = $this->rowsForMobile($normalised);
+
+        $this->record(
+            claimedName: SelfInspectionFactor::normalise((string) $matches->first()?->name),
+            row: $matches->first(),
+            matched: $matches->isNotEmpty(),
+            action: 'identify',
+            request: $request,
+        );
+
+        return $matches;
+    }
+
+    /**
+     * The inspectable rows carrying this mobile number.
+     *
+     * Compared on the **last ten digits of each**, not on the stored string: a
+     * department may have typed a country code into the snapshot, and an officer
+     * will not. Mirrors `CommitteeMemberDirectory::normaliseMobile()`, so one number
+     * is one number everywhere in the portal.
+     *
+     * @return Collection<int, DpcEvaluationRow>
+     */
+    private function rowsForMobile(string $mobile): Collection
+    {
+        return $this->access->inspectableRows()
+            ->filter(fn (DpcEvaluationRow $row): bool => $this->normaliseMobile((string) $row->mobile) === $mobile)
+            ->values();
+    }
+
+    /**
+     * The ten digits that identify an Indian mobile number, or null.
+     */
+    private function normaliseMobile(string $value): ?string
+    {
+        $digits = preg_replace('/\D+/', '', $value) ?? '';
+
+        return strlen($digits) < 10 ? null : substr($digits, -10);
     }
 
     /**

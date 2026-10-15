@@ -38,7 +38,7 @@ use Illuminate\Support\Carbon;
  *
  * Every one of them is a School Education Department DPC on a distinct rung of
  * the department's own promotion ladder, so no two rows on a list screen are
- * promotions to the same cadre and nothing on screen belongs to a department
+ * promotions to the same post and nothing on screen belongs to a department
  * the presenter has not introduced.
  */
 class DemoPipelineSeeder extends Seeder
@@ -143,9 +143,19 @@ class DemoPipelineSeeder extends Seeder
             // so the seniority list keeps every officer listed below.
             'sanctioned' => 4,
             'vacancies' => [['from_retirement', 'SC', 1]],
-            'working' => DemoOfficers::generic([
-                'Shri Vinay Kumar Sahu', 'Smt. Sushma Bhagat', 'Shri Rajendra Prasad Verma',
-            ]),
+
+            /*
+             | Lecturer is a 50/50 post, so four sanctioned chairs are two
+             | promotion and two direct. Two of the three sitting officers are
+             | direct recruits, which leaves one promotion chair free — without
+             | that this DPC has nothing it is permitted to fill, and the
+             | completeness gate refuses it for having no vacancy.
+             */
+            'working' => DemoOfficers::generic(
+                ['Shri Vinay Kumar Sahu', 'Smt. Sushma Bhagat', 'Shri Rajendra Prasad Verma'],
+                'Post-Graduate with B.Ed.',
+                ['promotion', 'direct', 'direct'],
+            ),
             'officers' => DemoOfficers::generic([
                 'Shri Alok Kumar Mishra', 'Smt. Renuka Sharma', 'Shri Shailendra Kumar Bansod',
                 'Smt. Pramila Kujur', 'Shri Nitin Kumar Sahu', 'Smt. Archana Dubey',
@@ -171,6 +181,7 @@ class DemoPipelineSeeder extends Seeder
             // working officers must equal the vacancy breakdown. These pipeline
             // DPCs are Class-II/III pairs, which the deck gives no zone formula,
             // so the seniority list keeps every officer listed below.
+            'allottee' => 'member3@cgpsc.gov.in',
             'sanctioned' => 4,
             'vacancies' => [['clear', 'ST', 1]],
             'working' => DemoOfficers::generic([
@@ -205,6 +216,7 @@ class DemoPipelineSeeder extends Seeder
             'drafted_at' => '2026-06-22 10:10',
             'submitted_at' => '2026-06-30 16:45',
             'approved_at' => '2026-07-03 12:20',
+            'allottee' => 'member4@cgpsc.gov.in',
             'sanctioned' => 1,
             'vacancies' => [['clear', 'UR', 1]],
             'working' => [],
@@ -238,10 +250,25 @@ class DemoPipelineSeeder extends Seeder
             // working officers must equal the vacancy breakdown. These pipeline
             // DPCs are Class-II/III pairs, which the deck gives no zone formula,
             // so the seniority list keeps every officer listed below.
-            'sanctioned' => 3,
+            'allottee' => 'member5@cgpsc.gov.in',
+
+            /*
+             | **Ten, because Additional Director is a ten-chair post.** The
+             | sanctioned strength lives on the Department Post Mapping, so it is one
+             | master record shared by every DPC on the post — including the
+             | demonstration's own Block Education Officer → Additional Director
+             | sample record, which is built for ten. A spec that set three here would
+             | leave that number in the master and the sample data would not balance.
+             |
+             | Nine chairs held leaves one vacancy, which keeps the Zone of
+             | Consideration at 2(1)+4 = 6 and inside the six officers below.
+             */
+            'sanctioned' => 10,
             'vacancies' => [['from_promotion', 'OBC', 1]],
             'working' => DemoOfficers::generic([
-                'Shri Girish Kumar Sahu', 'Smt. Nandini Verma',
+                'Shri Girish Kumar Sahu', 'Smt. Nandini Verma', 'Shri Bhola Prasad Sahu',
+                'Smt. Draupadi Netam', 'Shri Kailash Chandra Jain', 'Smt. Sarla Bai Uikey',
+                'Shri Toran Lal Dhruw', 'Smt. Shobha Rani Das', 'Shri Prem Kumar Bagh',
             ]),
             'officers' => DemoOfficers::generic([
                 'Shri Vikas Kumar Sahu', 'Smt. Deepika Rathore', 'Shri Shyam Sundar Bharti',
@@ -278,7 +305,7 @@ class DemoPipelineSeeder extends Seeder
             $this->department(),
             $this->officer(Role::AuthorizedOfficer),
             $this->officer(Role::AdministrativeHead),
-            $spec + ['committee' => $this->committee()],
+            $spec + ['committee' => $this->committee($spec['allottee'] ?? null)],
         );
     }
 
@@ -297,6 +324,15 @@ class DemoPipelineSeeder extends Seeder
             $chairman,
             DemoActor::request(),
             Carbon::parse($proposedDate),
+
+            /*
+             | The date the DPC must be concluded by (change register of 2026-08-26,
+             | item 9). A month past the proposed sitting, so the demonstration shows
+             | a real deadline with room in it — an allotment already overdue would
+             | be swept straight back by `dpc:return-expired-allotments` and the
+             | walkthrough would lose its DPC.
+             */
+            Carbon::parse($proposedDate)->addMonth(),
         )));
 
         return $member;
@@ -333,11 +369,50 @@ class DemoPipelineSeeder extends Seeder
      *
      * @return list<array<string, mixed>>
      */
-    private function committee(): array
+    /**
+     * @param  string|null  $allotteeEmail  The Member this DPC will be allotted to, who must hold a seat on it
+     * @return list<array<string, mixed>>
+     */
+    private function committee(?string $allotteeEmail = null): array
     {
+        /*
+         | Ordinary members only, and three of them — the CGPSC Chairman's seat is
+         | placed by `DpcCommitteeService` (item 9), and the size rule asks for
+         | three besides it.
+         |
+         | The second seat is the **allotted Member** wherever this DPC gets as far
+         | as an allotment, because `AllotmentService` refuses to allot a DPC to
+         | somebody who is not already seated on its committee. Where the spec
+         | names no allottee the DPC never leaves the department, and the
+         | Authorized Officer keeps the seat.
+         */
+        $second = $allotteeEmail === null
+            ? $this->officer(Role::AuthorizedOfficer)
+            : User::query()->where('email', $allotteeEmail)->firstOrFail();
+
+        /*
+         | The attribute spread matches the journey committees, and it has to:
+         | the composition rules ask this committee to represent **ST**, **Bhar
+         | Sadhak Sachiv** and **Vibhag Sachiv** as well as SC, OBC and a woman,
+         | and three seats can only carry six requirements if some seats carry
+         | several. Seeded with only SC, female and OBC, these proposals were
+         | refused at submission for three unrepresented attributes at once.
+         */
         return [
-            ['user' => $this->officer(Role::AdministrativeHead), 'capacity' => CommitteeCapacity::Chairman],
-            ['user' => $this->officer(Role::AuthorizedOfficer), 'capacity' => CommitteeCapacity::Member],
+            [
+                'user' => $this->officer(Role::AdministrativeHead),
+                'capacity' => CommitteeCapacity::Member,
+                'is_female' => true, 'is_st' => true, 'is_bhar_sadhak_sachiv' => true,
+            ],
+            ['user' => $second, 'capacity' => CommitteeCapacity::Member, 'is_sc' => true],
+            [
+                'user' => null,
+                'name' => 'Shri Sanjay Kumar Agrawal',
+                'designation' => 'Deputy Secretary, General Administration Department',
+                'mobile' => '9000009002',
+                'capacity' => CommitteeCapacity::Member,
+                'is_obc' => true, 'is_vibhag_sachiv' => true,
+            ],
         ];
     }
 
@@ -348,9 +423,12 @@ class DemoPipelineSeeder extends Seeder
 
     private function officer(Role $role): User
     {
+        // The posting is the assignment, not a column on the user (change item 2).
         return User::query()
-            ->where('department_id', $this->department()->id)
-            ->whereHas('roles', fn ($query) => $query->where('name', $role->value))
+            ->whereHas('assignments', fn ($query) => $query
+                ->whereNotNull('active_flag')
+                ->where('department_id', $this->department()->id)
+                ->where('role', $role->value))
             ->firstOrFail();
     }
 }

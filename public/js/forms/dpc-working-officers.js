@@ -1,6 +1,10 @@
 /*
- * Working Officers & Vacancies form — two repeaters on one screen
- * (M4, screen S16).
+ * Working Officers chart — one repeater (M4, screen S16).
+ *
+ * The vacancy breakdown used to be a second repeater beside this one. Since the
+ * business directive of 2026-09-02 it is derived from this chart and rendered
+ * read-only, so only the officer repeater remains — and each row now says
+ * whether it is an officer or a vacant post.
  *
  * Extracted from an inline `<script>` block on 2026-08-22 so that
  * `script-src 'self'` can be enforced rather than reported (TD-29). The generic
@@ -16,7 +20,9 @@
         var templateEl = document.getElementById(tplId);
         var addBtn = document.getElementById(addBtnId);
 
-        if (!container || !templateEl || !addBtn) { return; }
+        // The Add button is absent when manual entry is off, and the rows still
+        // have to be drawn — so its absence is not a reason to stop.
+        if (!container || !templateEl) { return; }
 
         var tpl = templateEl.innerHTML;
         var seed = JSON.parse(container.dataset.seed || '[]');
@@ -34,37 +40,109 @@
         container.addEventListener('click', function (e) {
             if (e.target.classList.contains('remove-row')) e.target.closest('.row, .officer-card').remove();
         });
-        addBtn.addEventListener('click', function () { addRow(); });
+        if (addBtn) {
+            addBtn.addEventListener('click', function () { addRow(); });
+        }
+
+        var readOnly = container.hasAttribute('data-read-only');
 
         if (seed.length === 0) {
-            addRow();
+            // Nothing to show, and nothing to add: say so rather than drawing an
+            // empty row the officer cannot fill.
+            if (!readOnly) { addRow(); }
         } else {
             seed.forEach(function (item) {
                 var el = addRow();
                 fillRow(el, item);
             });
         }
+
+        if (readOnly) { freeze(container); }
     }
 
-    repeater('vacancies', 'add-vacancy', 'vacancy-template', 'V', function (el, v) {
-        el.querySelector('[name$="[vacancy_type_id]"]').value = v.vacancy_type_id || '';
-        el.querySelector('[name$="[reservation_category_id]"]').value = v.reservation_category_id || '';
-        el.querySelector('[name$="[count]"]').value = v.count == null ? 0 : v.count;
-    });
+    /*
+     * Show the rows, but do not let them be edited.
+     *
+     * Manual entry is off by default since 2026-09-07 — the list comes from the
+     * upload — but the officer must still *see* what was imported, so the grid is
+     * rendered and then frozen rather than not rendered at all.
+     *
+     * `disabled` rather than `readonly`: it covers selects and checkboxes as well as
+     * text boxes, and a disabled field is not posted — which matters because the
+     * route is gated on the same flag and would refuse the payload anyway.
+     */
+    function freeze(container) {
+        container.querySelectorAll('input, select, textarea, button').forEach(function (field) {
+            field.disabled = true;
+        });
+    }
+
 
     repeater('officers', 'add-officer', 'officer-template', 'O', function (el, o) {
         el.querySelector('[name$="[sn]"]').value = o.sn || '';
+        el.querySelector('[name$="[status]"]').value = o.status || 'working';
+        el.querySelector('[name$="[source]"]').value = o.source || 'promotion';
         el.querySelector('[name$="[employee_number]"]').value = o.employee_number || '';
         el.querySelector('[name$="[name]"]').value = o.name || '';
         el.querySelector('[name$="[dob]"]').value = o.dob || '';
         el.querySelector('[name$="[qualification]"]').value = o.qualification || '';
-        el.querySelector('[name$="[current_post]"]').value = o.current_post || '';
-        el.querySelector('[name$="[feeder_post]"]').value = o.feeder_post || '';
-        el.querySelector('[name$="[reservation_category_id]"]').value = o.reservation_category_id || '';
+        el.querySelector('[name$="[promotion_to_post_id]"]').value = o.promotion_to_post_id || '';
+        el.querySelector('[name$="[promotion_from_post_id]"]').value = o.promotion_from_post_id || '';
+        /* Both selectors are anchored on the full name, not on a suffix:
+           `[name$="[reservation_category_id]"]` also matches
+           `[seat_reservation_category_id]`, so a suffix match would depend on
+           which of the two happens to come first in the template. */
+        el.querySelector('[name*="][reservation_category_id"]').value = o.reservation_category_id || '';
+        el.querySelector('[name$="[seat_reservation_category_id]"]').value = o.seat_reservation_category_id || '';
+        el.querySelector('[name$="[mobile]"]').value = o.mobile || '';
         el.querySelector('[name$="[date_of_joining_service]"]').value = o.date_of_joining_service || '';
         el.querySelector('[name$="[date_of_posting_on_post]"]').value = o.date_of_posting_on_post || '';
-        el.querySelector('[name$="[date_of_posting_on_feeder_post]"]').value = o.date_of_posting_on_feeder_post || '';
+        el.querySelector('[name$="[date_of_posting_on_promotion_from_post]"]').value = o.date_of_posting_on_promotion_from_post || '';
         el.querySelector('[name$="[roster_position]"]').value = o.roster_position || '';
-        el.querySelector('[name$="[deputation_date]"]').value = o.deputation_date || '';
+        /* Change register of 2026-08-27, items 3 and 4: a retirement date and a
+           deputation *period*, because one date cannot express an overlap. */
+        el.querySelector('[name$="[date_of_retirement]"]').value = o.date_of_retirement || '';
+        el.querySelector('[name$="[deputation_from]"]').value = o.deputation_from || '';
+        el.querySelector('[name$="[deputation_to]"]').value = o.deputation_to || '';
+        applyStatus(el);
     });
+
+    /*
+     * A vacant post has no person, so the fields that describe one are cleared and
+     * disabled rather than merely ignored. Disabled inputs are not posted, which is
+     * what keeps `prohibited_if` on the server from refusing a row the officer
+     * filled in before switching it to vacant.
+     */
+    var PERSONAL = [
+        '[source]',
+        '[employee_number]', '[name]', '[dob]', '[qualification]',
+        '[promotion_to_post]', '[promotion_from_post]',
+        '[date_of_joining_service]', '[date_of_posting_on_promotion_to_post]',
+        '[date_of_posting_on_promotion_from_post]',
+        '[date_of_retirement]', '[deputation_from]', '[deputation_to]'
+    ];
+
+    function applyStatus(el) {
+        var select = el.querySelector('.row-status');
+        if (!select) { return; }
+
+        var vacant = select.value === 'vacant';
+
+        PERSONAL.forEach(function (suffix) {
+            var field = el.querySelector('[name$="' + suffix + '"]');
+            if (!field) { return; }
+            if (vacant) { field.value = ''; }
+            field.disabled = vacant;
+            field.closest('[class*="col-"]').classList.toggle('opacity-50', vacant);
+        });
+    }
+
+    var officers = document.getElementById('officers');
+    if (officers) {
+        officers.addEventListener('change', function (e) {
+            if (e.target.classList.contains('row-status')) {
+                applyStatus(e.target.closest('.officer-card'));
+            }
+        });
+    }
 })();

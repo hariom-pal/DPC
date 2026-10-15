@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Reports')
+@section('title', __('ui.reports'))
 
 @php
     // Bars are plain divs sized by percentage — no charting library, no CDN and no
@@ -18,17 +18,17 @@
 
             <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
                 <div>
-                    <h1 class="h4 mb-1">Reports</h1>
+                    <h1 class="h4 mb-1">{{ __('ui.reports') }}</h1>
                     <p class="text-muted small mb-0">
                         @if ($scopedToDepartment)
-                            {{ $departmentName }} — your department's own DPCs.
+{{ __('reportsui.index.scoped_lead', ['department' => $departmentName]) }}
                         @else
-                            Every department, across the Commission.
+{{ __('reportsui.index.all_departments') }}
                         @endif
-                        Counted from stored records; nothing here is recalculated.
+{{ __('reportsui.index.counted_from_records') }}
                     </p>
                 </div>
-                <a href="{{ route('reports.export') }}" class="btn btn-outline-secondary btn-sm">Export pipeline (CSV)</a>
+                <a href="{{ route('reports.export') }}" class="btn btn-outline-secondary btn-sm">{{ __('reportsui.index.export_pipeline_csv') }}</a>
             </div>
 
             {{-- Outcomes first: it is the question anybody actually opens a report
@@ -56,10 +56,9 @@
 
             <div class="card border-0 shadow-sm mb-3">
                 <div class="card-body">
-                    <h2 class="h6 mb-1">Where the DPCs are</h2>
+                    <h2 class="h6 mb-1">{{ __('reportsui.index.where_the_dpcs_are') }}</h2>
                     <p class="small text-muted">
-                        The stages of the process, in the order the process runs them.
-                        A DPC appears against every stage it has reached, so these do not sum to a total.
+                        {{ __('reportsui.index.the_stages_of_the_process_in_the_order_the_proce') }}
                     </p>
 
                     @foreach ($pipeline as $stage)
@@ -85,9 +84,9 @@
                 <div class="col-lg-6">
                     <div class="card border-0 shadow-sm h-100">
                         <div class="card-body">
-                            <h2 class="h6 mb-1">DPCs by year</h2>
+                            <h2 class="h6 mb-1">{{ __('reportsui.index.dpcs_by_year') }}</h2>
                             <p class="small text-muted">
-                                By the date the department filed the proposal for, not the day it was entered.
+                                {{ __('reportsui.index.by_the_date_the_department_filed_the_proposal_fo') }}
                             </p>
 
                             @forelse ($byYear as $row)
@@ -104,7 +103,7 @@
                                     </div>
                                 </div>
                             @empty
-                                <p class="small text-muted mb-0">No DPC has been raised yet.</p>
+                                <p class="small text-muted mb-0">{{ __('reportsui.index.no_dpc_has_been_raised_yet') }}</p>
                             @endforelse
                         </div>
                     </div>
@@ -113,23 +112,23 @@
                 <div class="col-lg-6">
                     <div class="card border-0 shadow-sm h-100">
                         <div class="card-body">
-                            <h2 class="h6 mb-1">Corrections and circulations</h2>
+                            <h2 class="h6 mb-1">{{ __('reportsui.index.corrections_and_circulations') }}</h2>
                             <p class="small text-muted">
-                                The two flows that act on a DPC after it has concluded.
+                                {{ __('reportsui.index.the_two_flows_that_act_on_a_dpc_after_it_has_con') }}
                             </p>
                             <ul class="list-group list-group-flush small">
                                 <li class="list-group-item d-flex justify-content-between px-0">
-                                    <span>Review DPCs raised <span class="text-muted">· S35–S44</span></span>
+                                    {!! __('reportsui.index.reviews_raised') !!}
                                     <span class="fw-semibold">{{ number_format($variants['reviews']) }}</span>
                                 </li>
                                 <li class="list-group-item d-flex justify-content-between px-0">
-                                    <span>Circulation notes raised <span class="text-muted">· S45–S48</span></span>
+                                    {!! __('reportsui.index.circulations_raised') !!}
                                     <span class="fw-semibold">{{ number_format($variants['circulations']) }}</span>
                                 </li>
                                 <li class="list-group-item d-flex justify-content-between px-0">
                                     {{-- The signature is the operative act (AQ-17): an
                                          unsigned note releases no promotion. --}}
-                                    <span>Circulation notes signed</span>
+                                    <span>{{ __('reportsui.index.circulation_notes_signed') }}</span>
                                     <span class="fw-semibold">{{ number_format($variants['circulations_signed']) }}</span>
                                 </li>
                             </ul>
@@ -141,18 +140,18 @@
             @if ($byDepartment !== [])
                 <div class="card border-0 shadow-sm">
                     <div class="card-body">
-                        <h2 class="h6 mb-1">By department</h2>
+                        <h2 class="h6 mb-1">{{ __('reportsui.index.by_department') }}</h2>
                         <p class="small text-muted">
-                            Departments with no DPC yet are omitted rather than listed as zeroes.
+                            {{ __('reportsui.index.departments_with_no_dpc_yet_are_omitted_rather_t') }}
                         </p>
                         <div class="table-responsive">
                             <table class="table table-sm align-middle mb-0">
                                 <thead>
                                     <tr>
-                                        <th>Department</th>
-                                        <th class="text-end">DPCs</th>
-                                        <th class="text-end">Forwarded</th>
-                                        <th class="text-end">Results approved</th>
+                                        <th>{{ __('ui.department') }}</th>
+                                        <th class="text-end">{{ __('ui.dpcs') }}</th>
+                                        <th class="text-end">{{ __('reportsui.index.forwarded') }}</th>
+                                        <th class="text-end">{{ __('reportsui.index.results_approved') }}</th>
                                     </tr>
                                 </thead>
                                 <tbody>

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Admin;
 
 use App\Domain\Department\Models\Department;
-use App\Domain\Master\Models\Cadre;
+use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\ReservationCategory;
 use App\Domain\Master\Models\ReservationRoster;
 use App\Domain\Master\Requests\ReservationRosterRequest;
@@ -22,7 +22,7 @@ class ReservationRosterController extends Controller
     public function index(): View
     {
         return view('admin.reservation-rosters.index', [
-            'rosters' => ReservationRoster::query()->with(['department', 'cadre'])->orderBy('name')->paginate(20),
+            'rosters' => ReservationRoster::query()->with(['department', 'post'])->orderBy('name')->paginate(20),
         ]);
     }
 
@@ -68,7 +68,7 @@ class ReservationRosterController extends Controller
         return [
             'roster' => $roster,
             'departments' => Department::query()->orderBy('name')->get(),
-            'cadres' => Cadre::query()->where('status', MasterStatus::Active->value)->orderBy('name')->get(),
+            'posts' => DepartmentPost::query()->where('status', MasterStatus::Active->value)->orderBy('name')->get(),
             'categories' => ReservationCategory::query()->where('status', MasterStatus::Active->value)->orderBy('code')->get(),
             'statuses' => MasterStatus::cases(),
         ];

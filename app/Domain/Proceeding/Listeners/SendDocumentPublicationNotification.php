@@ -21,10 +21,9 @@ use Throwable;
  * triggered it. One unreachable mobile must not stop the next person being
  * told, and none of it may surface as an error to the Commission.
  *
- * The recipient query is deliberately duplicated rather than shared:
- * `SendWorkflowNotification` belongs to frozen M6, and extracting a common
- * resolver would be a functional change to it. Recorded as technical debt —
- * the extraction is the right move the next time that freeze is opened.
+ * "Who should be told" is {@see NotificationRecipientResolver} and is not
+ * restated here — see the note on that call for why the duplicate copies that
+ * once existed are gone.
  */
 class SendDocumentPublicationNotification implements ShouldQueue
 {

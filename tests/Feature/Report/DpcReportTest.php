@@ -11,7 +11,7 @@ use App\Domain\Dpc\Enums\DpcProposalStatus;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Eligibility\Models\DpcCalculationResult;
 use App\Domain\Eligibility\Models\DpcCalculationRun;
-use App\Domain\Master\Models\Cadre;
+use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\DpcType;
 use App\Domain\Proceeding\Enums\DpcProceedingStatus;
 use App\Domain\Proceeding\Models\DpcProceeding;
@@ -58,10 +58,9 @@ class DpcReportTest extends TestCase
         $this->mine = Department::query()->create(['code' => 'SE', 'name' => 'School Education', 'status' => 'active']);
         $this->theirs = Department::query()->create(['code' => 'HE', 'name' => 'Higher Education', 'status' => 'active']);
 
-        $this->ao = User::factory()->create(['department_id' => $this->mine->id]);
-        $this->ao->assignRole(Role::AuthorizedOfficer->value);
+        $this->ao = User::factory()->assignedTo($this->mine->id, Role::AuthorizedOfficer)->create();
 
-        $this->admin = User::factory()->create(['department_id' => null]);
+        $this->admin = User::factory()->create();
         $this->admin->assignRole(Role::Admin->value);
     }
 
@@ -255,7 +254,9 @@ class DpcReportTest extends TestCase
         $this->actingAs($this->ao)->get(route('reports.index'))
             ->assertOk()
             ->assertSee('School Education')
-            ->assertSee("your department's own DPCs", escape: false);
+            // Escaped, not raw: the sentence now comes from the language file
+            // through `{{ }}`, so its apostrophe reaches the page as `&#039;`.
+            ->assertSee("your department's own DPCs");
 
         $this->actingAs($this->admin)->get(route('reports.index'))
             ->assertOk()
@@ -298,16 +299,16 @@ class DpcReportTest extends TestCase
         return DpcProposal::query()->create([
             'department_id' => $department->id,
             'dpc_type_id' => $type->id,
-            'post_to_cadre_id' => $this->cadre($department, 'Deputy Director')->id,
-            'post_from_cadre_id' => $this->cadre($department, 'Under Secretary')->id,
+            'promotion_to_post_id' => $this->departmentPost($department, 'Deputy Director')->id,
+            'promotion_from_post_id' => $this->departmentPost($department, 'Under Secretary')->id,
             'proposal_date' => $date,
             'status' => $status->value,
         ]);
     }
 
-    private function cadre(Department $department, string $name): Cadre
+    private function departmentPost(Department $department, string $name): DepartmentPost
     {
-        return Cadre::query()->firstOrCreate(
+        return DepartmentPost::query()->firstOrCreate(
             ['department_id' => $department->id, 'name' => $name],
             ['class_level' => 'I', 'status' => MasterStatus::Active->value],
         );
@@ -315,7 +316,7 @@ class DpcReportTest extends TestCase
 
     private function allot(DpcProposal $proposal): DpcAllotment
     {
-        $member = User::factory()->create(['department_id' => null]);
+        $member = User::factory()->create();
 
         return DpcAllotment::query()->create([
             'dpc_proposal_id' => $proposal->id,

@@ -22,8 +22,8 @@ use App\Domain\Review\Services\ReviewAwareCalculationService;
 use App\Domain\Review\Services\ReviewDpcService;
 use App\Domain\Shared\Models\ActivityTimeline;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Storage;
 use Tests\Concerns\CompletesDpcProposals;
+use Tests\Concerns\SeatsDpcCommittees;
 use Tests\Feature\Proceeding\Concerns\BuildsProceedings;
 use Tests\TestCase;
 
@@ -40,6 +40,7 @@ class ReviewCalculationTest extends TestCase
 {
     use BuildsProceedings;
     use CompletesDpcProposals;
+    use SeatsDpcCommittees;
 
     protected function setUp(): void
     {
@@ -94,8 +95,6 @@ class ReviewCalculationTest extends TestCase
         // real application, and no test noticed because no test submitted one.
         // Driving the real path is the only thing that would have caught it,
         // and is the only thing that keeps it caught.
-        Storage::fake('local');
-
         $service = app(DpcProposalService::class);
 
         // A Review arrives with its chart copied from the original, so this
@@ -110,6 +109,13 @@ class ReviewCalculationTest extends TestCase
         $this->assertSame(DpcProposalStatus::Approved, $review->status);
         $this->assertNotNull($review->dpc_code, 'approve() must mint the Review its own DPC code');
         $this->assertNotNull($review->signature_id, 'the AH approval must carry a signature');
+
+        /*
+         | Seated before allotting: a DPC is allotted to a serving member of its own
+         | committee (business, 2026-09-06), and the qualification is committee
+         | membership rather than a Commission role (correction, 2026-09-07).
+         */
+        $this->seatCommittee($this->proposal);
 
         app(AllotmentService::class)->allot(
             $review->fresh(), $this->memberOne, $this->chairman, request(), Carbon::parse('2026-09-10'),
@@ -399,7 +405,7 @@ class ReviewCalculationTest extends TestCase
         $this->assertSame(2, $p['chain_depth']);
         $this->assertNotEmpty($p['chain_uuid']);
         $this->assertNotEmpty($p['original_proposal_version']);
-        $this->assertSame('HE202600001', $p['original_dpc_code']);
+        $this->assertSame('DPC-2026-HE-0001', $p['original_dpc_code']);
     }
 
     public function test_the_reviews_calculation_appears_on_its_own_timeline(): void

@@ -7,17 +7,19 @@
     a promotion that has already been decided and published.
 --}}
 <div class="alert alert-warning border-warning d-flex align-items-center gap-3 py-2 mb-3">
-    <strong class="text-uppercase">This is a Review DPC</strong>
+    <strong class="text-uppercase">{{ __('ui.partials.review_banner.this_is_a_review_dpc') }}</strong>
     <span class="small flex-grow-1">
         @if (! empty($reviewChainContext['original_dpc_code']))
-            Correcting <code>{{ $reviewChainContext['original_dpc_code'] }}</code>
-            of {{ $reviewChainContext['original_proposal_date'] }}.
+{!! __('ui.partials.review_banner.correcting', [
+                'code' => e($reviewChainContext['original_dpc_code']),
+                'date' => e($reviewChainContext['original_proposal_date']),
+            ]) !!}
         @endif
         @if (! empty($reviewChainContext['review_number']))
-            Review {{ $reviewChainContext['review_number'] }} in this chain.
+{{ __('ui.partials.review_banner.review_number', ['number' => $reviewChainContext['review_number']]) }}
         @endif
         @if (! empty($reviewChainContext['reasons']))
-            Reasons: {{ implode(', ', $reviewChainContext['reasons']) }}.
+{{ __('ui.partials.review_banner.reasons', ['reasons' => implode(', ', $reviewChainContext['reasons'])]) }}
         @endif
     </span>
     {{-- Only for a viewer who can actually open it. The banner reaches the
@@ -26,7 +28,7 @@
     @if (! empty($reviewChainContext['proposal']) && ($reviewChainContext['can_view_chain'] ?? false))
         <a class="btn btn-sm btn-outline-dark"
            href="{{ route('dpc-proposals.reviews.chain', $reviewChainContext['proposal']) }}">
-            Review Chain
+            {{ __('ui.review_chain') }}
         </a>
     @endif
 </div>

@@ -21,16 +21,16 @@
         @if ($unread > 0)
             <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill text-bg-danger">
                 {{ $unread > 99 ? '99+' : $unread }}
-                <span class="visually-hidden">unread notifications</span>
+                <span class="visually-hidden">{{ __('ui.partials.notification_bell.unread_notifications') }}</span>
             </span>
         @endif
     </button>
 
     <div class="dropdown-menu dropdown-menu-end shadow" style="min-width:22rem;max-width:26rem">
         <h6 class="dropdown-header d-flex justify-content-between align-items-center">
-            <span>Notifications</span>
+            <span>{{ __('ui.notifications') }}</span>
             @if ($unread > 0)
-                <span class="badge text-bg-secondary">{{ $unread }} unread</span>
+                {!! __('ui.partials.notification_bell.n_unread', ['count' => $unread]) !!}
             @endif
         </h6>
 
@@ -49,19 +49,19 @@
                 </button>
             </form>
         @empty
-            <span class="dropdown-item-text text-body-secondary small">Nothing yet.</span>
+            <span class="dropdown-item-text text-body-secondary small">{{ __('ui.partials.notification_bell.nothing_yet') }}</span>
         @endforelse
 
         <div class="dropdown-divider"></div>
 
         <div class="d-flex gap-2 px-3 pb-2">
             <a href="{{ route('notifications.index') }}" class="btn btn-sm btn-outline-primary flex-fill">
-                See all
+                {{ __('ui.partials.notification_bell.see_all') }}
             </a>
             @if ($unread > 0)
                 <form method="POST" action="{{ route('notifications.read-all') }}" class="m-0 flex-fill" data-no-busy>
                     @csrf
-                    <button class="btn btn-sm btn-outline-secondary w-100">Mark all read</button>
+                    <button class="btn btn-sm btn-outline-secondary w-100">{{ __('ui.mark_all_read') }}</button>
                 </form>
             @endif
         </div>

@@ -1,0 +1,16 @@
+﻿FIELD,VALUE,SCREEN
+Department,Higher Education Department,/register
+District,Raipur,/register
+Place,"Mantralaya, Mahanadi Bhawan, Naya Raipur",/register
+PIN,492002,/register
+Department Email,he.secretariat@cg.gov.in,/register
+AO Name,Shri Vivek Kumar Shukla,/register
+AO Designation,Under Secretary,/register
+AO Mobile,9000002101,/register
+AO Email,ao.highereducation@cg.gov.in,/register
+AH Name,Smt. Archana Dubey,/register
+AH Designation,Secretary,/register
+AH Mobile,9000002102,/register
+AH Email,ah.highereducation@cg.gov.in,/register
+Email OTP,123456,/verify  (APP_ENV=local)
+Mobile OTP,123456,/verify  (APP_ENV=local)

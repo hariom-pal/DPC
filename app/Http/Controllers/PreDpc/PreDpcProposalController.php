@@ -4,25 +4,29 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\PreDpc;
 
-use App\Domain\Master\Models\Cadre;
-use App\Domain\Master\Models\PayScale;
+use App\Domain\Master\Enums\ExperienceUnit;
+use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\Qualification;
+use App\Domain\Master\Services\PostAttributeResolver;
+use App\Domain\Master\Services\PostAttributes;
 use App\Domain\PreDpc\Models\PreDpcProposal;
 use App\Domain\PreDpc\Requests\ReturnPreDpcProposalRequest;
 use App\Domain\PreDpc\Requests\SavePreDpcProposalRequest;
 use App\Domain\PreDpc\Services\PreDpcProposalService;
 use App\Domain\Shared\Workflow\WorkflowException;
 use App\Domain\Shared\Workflow\WorkflowTransition;
-use App\Enums\MasterStatus;
-use App\Enums\ServiceClass;
 use App\Http\Controllers\Controller;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
 class PreDpcProposalController extends Controller
 {
-    public function __construct(private readonly PreDpcProposalService $service) {}
+    public function __construct(
+        private readonly PreDpcProposalService $service,
+        private readonly PostAttributeResolver $postAttributes,
+    ) {}
 
     public function index(Request $request): View
     {
@@ -30,8 +34,12 @@ class PreDpcProposalController extends Controller
 
         return view('pre-dpc.index', [
             'proposals' => PreDpcProposal::query()
+                ->with(['promotionToPost', 'promotionSources.promotionFromPost'])
                 ->where('department_id', $this->departmentId($request))
-                ->orderByDesc('version')
+                // Newest exercise first, then newest version within it: the list
+                // is read to find "the current 2026 proposal for this pair".
+                ->orderByDesc('dpc_year')
+                ->orderByDesc('id')
                 ->paginate(20),
         ]);
     }
@@ -52,7 +60,8 @@ class PreDpcProposalController extends Controller
 
         $proposal = $this->service->createDraft($department, $request->user(), $request->validated());
 
-        return redirect()->route('pre-dpc.show', $proposal)->with('status', 'Draft saved.');
+        return redirect()->route('pre-dpc.show', $proposal)
+            ->with('status', "Draft saved as {$proposal->pre_dpc_number}.");
     }
 
     public function edit(Request $request, PreDpcProposal $preDpc): View|RedirectResponse
@@ -69,8 +78,6 @@ class PreDpcProposalController extends Controller
 
         $this->authorize('update', $preDpc);
 
-        $preDpc->load('posts.feeders');
-
         return view('pre-dpc.form', $this->formData($request, $preDpc));
     }
 
@@ -86,7 +93,12 @@ class PreDpcProposalController extends Controller
     public function show(Request $request, PreDpcProposal $preDpc): View
     {
         $this->authorize('view', $preDpc);
-        $preDpc->load('posts.feeders.feederCadre', 'posts.feeders.qualification', 'posts.payScale', 'approver', 'signature');
+        $preDpc->load(
+            'promotionToPost.payScale',
+            'promotionSources.promotionFromPost.payScale',
+            'promotionSources.qualifications',
+            'payScale', 'approver', 'signature', 'parentVersion',
+        );
 
         return view('pre-dpc.show', [
             'proposal' => $preDpc,
@@ -119,6 +131,29 @@ class PreDpcProposalController extends Controller
     public function cancel(Request $request, PreDpcProposal $preDpc): RedirectResponse
     {
         return $this->runTransition($request, $preDpc, fn () => $this->service->cancel($preDpc, $request->user(), $request), 'Proposal cancelled.');
+    }
+
+    /**
+     * Discard a draft (business instruction, 2026-09-06).
+     *
+     * Redirects to the list rather than back, because "back" is the page for a
+     * proposal that no longer appears anywhere.
+     */
+    public function destroy(Request $request, PreDpcProposal $preDpc): RedirectResponse
+    {
+        $this->authorize('delete', $preDpc);
+
+        $number = $preDpc->pre_dpc_number;
+
+        try {
+            $this->service->delete($preDpc, $request->user(), $request);
+        } catch (WorkflowException $e) {
+            return back()->withErrors(['status' => $e->getMessage()]);
+        }
+
+        return redirect()
+            ->route('pre-dpc.index')
+            ->with('status', __('predpc.show.draft_deleted', ['number' => $number ?? '—']));
     }
 
     public function amend(Request $request, PreDpcProposal $preDpc): RedirectResponse
@@ -158,6 +193,50 @@ class PreDpcProposalController extends Controller
     }
 
     /**
+     * Pay Scale, Class and Promotion Duration for the posts asked about
+     * (change item 5).
+     *
+     * **The form does not compute these; it asks for them.** The one derivation
+     * lives in `PostAttributeResolver` and is what the service stores, so the boxes
+     * the officer sees fill in cannot disagree with what is saved. A JSON endpoint
+     * rather than a page of embedded post data because the Department Post master
+     * grows and the mapping attached to a post can be superseded between opening the
+     * form and submitting it.
+     *
+     * **Several posts in one call, and per post rather than per pair.** A promotion
+     * may draw on several feeders and each has its own scale, class and qualifying
+     * service; asking about them one at a time would cost a round trip per row and
+     * let the rows on screen drift out of step with each other.
+     *
+     * Scoped to the signed-in officer's own department by the resolver, which
+     * returns nothing for a post belonging to anyone else — so this cannot be used
+     * to read another department's establishment.
+     */
+    public function derivedAttributes(Request $request): JsonResponse
+    {
+        $this->authorize('create', PreDpcProposal::class);
+
+        $departmentId = $this->departmentId($request);
+        abort_if($departmentId === null, 403);
+
+        $ids = array_map('intval', (array) $request->input('post_ids', []));
+
+        // A single `post_id` is accepted too, so one row changing does not have to
+        // send the whole list.
+        if ($request->filled('post_id')) {
+            $ids[] = $request->integer('post_id');
+        }
+
+        return response()->json([
+            'posts' => $this->postAttributes
+                ->resolveMany($departmentId, array_values(array_filter($ids)))
+                ->map(fn (PostAttributes $attributes): array => $attributes->toArray())
+                ->values()
+                ->all(),
+        ]);
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function formData(Request $request, PreDpcProposal $proposal): array
@@ -166,10 +245,33 @@ class PreDpcProposalController extends Controller
 
         return [
             'proposal' => $proposal,
-            'payScales' => PayScale::query()->where('status', MasterStatus::Active->value)->orderBy('label')->get(),
-            'cadres' => Cadre::query()->where('department_id', $departmentId)->where('status', MasterStatus::Active->value)->orderBy('name')->get(),
+            /*
+             | Only the mapping **in force** may be named on a new Pre-DPC.
+             |
+             | `inForce()` rather than a status check: a superseded mapping is
+             | inactive too, so the status filter alone would have worked by
+             | accident. The scope says what is meant — a mapping the Government
+             | has replaced cannot sanction a promotion today, even though it must
+             | remain on record for the DPCs it did sanction.
+             */
+            'posts' => DepartmentPost::query()
+                ->inForce()
+                ->where('department_id', $departmentId)
+                ->orderBy('name')
+                ->get(),
             'qualifications' => Qualification::query()->selectable()->orderBy('name_en')->get(),
-            'classes' => ServiceClass::cases(),
+            'experienceUnits' => ExperienceUnit::cases(),
+
+            // Pay Scale, Class and Promotion Duration are shown, never chosen
+            // (item 5) — so the form is given the values for the posts already
+            // selected and asks the endpoint above for the rest as rows change.
+            'derived' => $this->postAttributes->resolveMany(
+                $departmentId ?? 0,
+                array_values(array_filter(array_merge(
+                    [$proposal->promotion_to_post_id],
+                    $proposal->promotionSources->pluck('promotion_from_post_id')->all(),
+                ))),
+            ),
         ];
     }
 }

@@ -1,25 +1,22 @@
 @extends('layouts.app')
 
-@section('title', 'DPC Documents')
+@section('title', __('cgpsc.proceedings.documents.dpc_documents'))
 
 @section('content')
     <div class="row justify-content-center">
         <div class="col-lg-11">
             @include('partials.alerts')
 
-            <h1 class="h4 mb-1">Proceedings &amp; Promotion List</h1>
+            <h1 class="h4 mb-1">{{ __('cgpsc.proceedings.documents.proceedings_amp_promotion_list') }}</h1>
             <p class="text-muted small mb-3">
-                The Commission's decision was taken at approval. These documents render it — generating or
-                re-issuing one cannot change what was decided.
+                {{ __('cgpsc.proceedings.documents.the_commission_s_decision_was_taken_at_approval') }}
             </p>
 
             @error('document')<div class="alert alert-danger py-2">{{ $message }}</div>@enderror
 
             @if ($run?->has_pending_decisions)
                 <div class="alert alert-warning">
-                    <strong>This result is provisional.</strong> A business rule affecting it has not been settled,
-                    so the documents <strong>cannot be published to the department</strong>. They may still be
-                    generated and read here.
+{!! __('cgpsc.proceedings.documents.provisional_explained') !!}
                 </div>
             @endif
 
@@ -29,8 +26,8 @@
                         <table class="table table-sm align-middle mb-0">
                             <thead>
                                 <tr>
-                                    <th>Document</th><th>Version</th><th>Status</th>
-                                    <th>Generated</th><th>Signed</th><th>Published</th><th></th>
+                                    <th>{{ __('ui.document') }}</th><th>{{ __('ui.version') }}</th><th>{{ __('ui.status') }}</th>
+                                    <th>{{ __('ui.generated') }}</th><th>{{ __('ui.signed') }}</th><th>{{ __('ui.published') }}</th><th></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -63,14 +60,14 @@
                                         @if ($document->isAvailable())
                                             <a class="btn btn-sm btn-outline-primary" target="_blank"
                                                href="{{ route('cgpsc.proceedings.documents.show', [$proceeding, $document]) }}">
-                                                Open
+                                                {{ __('ui.open') }}
                                             </a>
                                         @endif
                                     </td>
                                 </tr>
                             @empty
                                 <tr><td colspan="7" class="text-muted text-center py-3">
-                                    No documents have been generated for this DPC yet.
+                                    {{ __('cgpsc.proceedings.documents.no_documents_have_been_generated_for_this_dpc_ye') }}
                                 </td></tr>
                             @endforelse
                             </tbody>
@@ -91,7 +88,7 @@
                             @csrf
                             <button class="btn btn-sm btn-success"
                                     @disabled($documents->isEmpty() || $run?->has_pending_decisions)>
-                                Publish to Department
+{{ __('cgpsc.proceedings.documents.publish_to_department') }}
                             </button>
                         </form>
                     </div>
@@ -101,14 +98,13 @@
             @if ($versions->count() > $documents->count())
                 <div class="card border-0 shadow-sm">
                     <div class="card-body">
-                        <h2 class="h6 mb-2">Previous Versions</h2>
+                        <h2 class="h6 mb-2">{{ __('cgpsc.proceedings.documents.previous_versions') }}</h2>
                         <p class="text-muted small mb-2">
-                            A re-issued document never replaces the one already given out. Earlier versions stay
-                            exactly as they were.
+                            {{ __('cgpsc.proceedings.documents.a_re_issued_document_never_replaces_the_one_alre') }}
                         </p>
                         <div class="table-responsive">
                             <table class="table table-sm align-middle mb-0">
-                                <thead><tr><th>Document</th><th>Version</th><th>Generated</th><th>Reference</th></tr></thead>
+                                <thead><tr><th>{{ __('ui.document') }}</th><th>{{ __('ui.version') }}</th><th>{{ __('ui.generated') }}</th><th>{{ __('ui.reference') }}</th></tr></thead>
                                 <tbody>
                                 @foreach ($versions as $version)
                                     <tr>
@@ -127,7 +123,7 @@
 
             <div class="mt-3">
                 <a class="btn btn-sm btn-outline-secondary"
-                   href="{{ route('cgpsc.proceedings.result', $proceeding) }}">Back to Result</a>
+                   href="{{ route('cgpsc.proceedings.result', $proceeding) }}">{{ __('cgpsc.proceedings.documents.back_to_result') }}</a>
             </div>
         </div>
     </div>

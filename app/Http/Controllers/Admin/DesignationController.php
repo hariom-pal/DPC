@@ -8,18 +8,23 @@ use App\Domain\Master\Models\Designation;
 use App\Domain\Master\Requests\DesignationRequest;
 use App\Domain\Master\Services\MasterCrudService;
 use App\Enums\MasterStatus;
+use App\Http\Controllers\Admin\Concerns\ListsAMaster;
 use App\Http\Controllers\Controller;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 
 class DesignationController extends Controller
 {
+    use ListsAMaster;
+
     public function __construct(private readonly MasterCrudService $crud) {}
 
-    public function index(): View
+    public function index(Request $request): View
     {
         return view('admin.designations.index', [
-            'designations' => Designation::query()->orderBy('name')->paginate(20),
+            'designations' => $this->searched($request, Designation::query()->orderBy('name'), 'designations')
+                ->paginate(20)->withQueryString(),
         ]);
     }
 

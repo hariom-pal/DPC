@@ -367,6 +367,76 @@ a.gov-card:hover { color: inherit; }
 .ss-option[aria-selected="true"] { font-weight: 600; }
 .ss-empty { padding: .5rem .6rem; font-size: .85rem; color: #6b7c8d; }
 
+/* ---------------------------------------------------------------------------
+   Searchable checkbox multiselect (public/js/multiselect-dropdown.js)
+
+   Same contract as `.ss-*` above: `.ms-native` is applied by the script and never
+   in the markup, so with JavaScript blocked the plain <select multiple> stays
+   visible and usable. The panel sits above table content (z-index over Bootstrap's
+   .table) because both feeder grids put this control inside a row.
+   --------------------------------------------------------------------------- */
+.ms-wrap { position: relative; }
+.ms-native { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+             overflow: hidden; clip: rect(0, 0, 0, 0); border: 0; }
+.ms-toggle { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ms-toggle.ms-empty-selection { color: #6b7c8d; }
+/* `fixed`, not `absolute`: both feeder grids live inside a `.table-responsive`,
+   whose `overflow-x: auto` clips absolutely-positioned descendants on both axes and
+   swallowed this panel whole. Placed by multiselect-dropdown.js, which sets top /
+   left / width in viewport coordinates and keeps them in step on scroll. */
+.ms-panel { position: fixed; z-index: 1080; max-width: 22rem; padding: .5rem;
+            background: #fff; border: 1px solid #c9d4e0; border-radius: .375rem;
+            box-shadow: 0 .5rem 1rem rgba(11, 79, 158, .18); }
+.ms-options { max-height: 13rem; overflow-y: auto; margin-top: .4rem; }
+.ms-option { padding: .15rem .25rem; }
+.ms-option:hover { background: #eaf2fb; border-radius: .25rem; }
+.ms-option .form-check-label { font-size: .9rem; cursor: pointer; }
+.ms-option.is-chosen { background: #eaf2fb; border-radius: .25rem; }
+.ms-option.is-chosen .form-check-label { font-weight: 600; }
+.ms-empty { padding: .5rem .25rem; font-size: .85rem; color: #6b7c8d; }
+.ms-footer { border-top: 1px solid #e3e9f0; }
+
+/* The chip strip under the control: what is selected, without opening anything. */
+.ms-chips:empty { display: none !important; }
+.ms-chip { background: #eaf2fb; color: #0b4f9e; border: 1px solid #cfe0f4;
+           font-weight: 500; font-size: .78rem; padding: .2rem .4rem; }
+.ms-chip .btn-close { --bs-btn-close-opacity: .55; width: .55em; height: .55em;
+                      padding: .1rem; }
+.ms-chip .btn-close:hover { --bs-btn-close-opacity: 1; }
+
+/* ---------------------------------------------------------------------------
+   Wide tables (public/js/table-hscroll.js)
+
+   A `.table-responsive` puts its scrollbar on its own bottom edge, which on a long
+   table is several screens below the reader. The script adds a floating scrollbar
+   pinned to the viewport, drag-to-pan, and shadows saying there is more to the side.
+
+   Every class below is applied by the script, never in the markup: without it a
+   table keeps the ordinary wrapper and its ordinary scrollbar.
+   --------------------------------------------------------------------------- */
+.hscroll { position: relative; }
+.hscroll.is-panning { cursor: grabbing; user-select: none; }
+
+/* "There is more this way." Inset shadows rather than elements, so nothing is added
+   to the table's own layout and no column is covered. */
+.hscroll.has-more-right { -webkit-mask-image: none; box-shadow: inset -1.25rem 0 1rem -1.25rem rgba(11, 79, 158, .35); }
+.hscroll.has-more-left.has-more-right { box-shadow: inset 1.25rem 0 1rem -1.25rem rgba(11, 79, 158, .35),
+                                                    inset -1.25rem 0 1rem -1.25rem rgba(11, 79, 158, .35); }
+.hscroll.has-more-left:not(.has-more-right) { box-shadow: inset 1.25rem 0 1rem -1.25rem rgba(11, 79, 158, .35); }
+
+/* The floating scrollbar. A real one over a spacer of the table's width, so it
+   behaves as the operating system's does; `overflow-x: scroll` and not `auto`
+   because a bar that appears and disappears under the pointer is worse than none. */
+.hscroll-bar { position: fixed; bottom: 0; z-index: 1035; overflow-x: scroll;
+               overflow-y: hidden; height: 1rem; background: rgba(255, 255, 255, .96);
+               border-top: 1px solid #e3e9f0;
+               box-shadow: 0 -.25rem .5rem rgba(11, 79, 158, .08); }
+.hscroll-spacer { height: 1px; }
+
+@media print {
+    .hscroll-bar { display: none !important; }
+}
+
 /* A sentence of guidance under a column heading.
    `.table > thead th` is uppercase, letter-spaced and nowrap, which is right for a
    heading and wrong for the sentence explaining it — this puts the sentence back

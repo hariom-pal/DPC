@@ -1,18 +1,20 @@
 @extends('layouts.app')
 
-@section('title', 'DPC Result — Approval')
+@section('title', __('cgpsc.proceedings.result.dpc_result_approval'))
 
 @section('content')
     <div class="row justify-content-center">
         <div class="col-lg-12">
             @include('partials.alerts')
 
-            <h1 class="h4 mb-1">Online DPC — Approval</h1>
+            <h1 class="h4 mb-1">{{ __('cgpsc.proceedings.result.online_dpc_approval') }}</h1>
             <p class="text-muted small mb-3">
-                {{ $proceeding->proposal->postFromCadre?->name }} →
-                {{ $proceeding->proposal->postToCadre?->name }},
-                {{ $proceeding->proposal->department?->name }}
-                · DPC ID <code>{{ $proceeding->proposal->dpc_code ?? '—' }}</code>
+{!! __('cgpsc.proceedings.result.subheading', [
+                    'from' => e($proceeding->proposal->promotionFromPost?->name),
+                    'to' => e($proceeding->proposal->promotionToPost?->name),
+                    'department' => e($proceeding->proposal->department?->name),
+                    'code' => e($proceeding->proposal->dpc_code ?? '—'),
+                ]) !!}
             </p>
 
             @error('result')<div class="alert alert-danger py-2">{{ $message }}</div>@enderror
@@ -20,12 +22,12 @@
 
             @if ($run === null)
                 <div class="alert alert-secondary">
-                    This DPC has not been calculated yet.
+{{ __('cgpsc.proceedings.result.not_calculated_yet') }}
                     @if ($canAct)
                         <form method="POST" action="{{ route('cgpsc.proceedings.calculate', $proceeding) }}"
                               class="d-inline">
                             @csrf
-                            <button class="btn btn-sm btn-primary ms-2">CALCULATE</button>
+                            <button class="btn btn-sm btn-primary ms-2">{{ __('ui.calculate') }}</button>
                         </form>
                     @endif
                 </div>
@@ -33,20 +35,18 @@
                 @if ($isStale)
                     {{-- AQ-2: a result that does not reflect the last correction must never be approved. --}}
                     <div class="alert alert-warning">
-                        <strong>Corrections have been recorded since this result was calculated.</strong>
+                        <strong>{{ __('cgpsc.proceedings.result.corrections_have_been_recorded_since_this_result') }}</strong>
                         @if ($staleCorrections->isNotEmpty())
-                            Affected: {{ $staleCorrections->pluck('officer_name')->unique()->implode(', ') }}.
+{{ __('cgpsc.proceedings.result.affected_officers', ['officers' => $staleCorrections->pluck('officer_name')->unique()->implode(', ')]) }}
                         @endif
-                        Calculate again and review the result before approving it.
+                        {{ __('cgpsc.proceedings.result.calculate_again') }}
                     </div>
                 @endif
 
                 @if ($run->has_pending_decisions)
                     {{-- Directive 5: an unresolved business rule is reported, never resolved in code. --}}
                     <div class="alert alert-warning">
-                        <strong>This result is provisional.</strong>
-                        A business rule that would affect it has not been settled, so the system has applied the
-                        printed rule and flagged the cases rather than guessing.
+{!! __('cgpsc.proceedings.result.provisional_explained') !!}
                         <ul class="mb-0 mt-1 small">
                             @foreach ((array) $run->pending_decisions as $pending)
                                 <li>{{ $pending }}</li>
@@ -59,30 +59,29 @@
                     <div class="card-body">
                         <div class="row g-3 small">
                             <div class="col-md-3">
-                                <div class="text-muted">Calculation</div>
+                                <div class="text-muted">{{ __('cgpsc.proceedings.result.calculation') }}</div>
                                 <code>{{ $run->uuid }}</code>
                             </div>
                             <div class="col-md-2">
-                                <div class="text-muted">Rule Version</div>
+                                <div class="text-muted">{{ __('cgpsc.proceedings.result.rule_version') }}</div>
                                 {{ $run->rule_version }}
                             </div>
                             <div class="col-md-2">
-                                <div class="text-muted">Officers Considered</div>
+                                <div class="text-muted">{{ __('cgpsc.proceedings.result.officers_considered') }}</div>
                                 {{ $run->officers_considered }}
                             </div>
                             <div class="col-md-2">
-                                <div class="text-muted">Calculated At</div>
+                                <div class="text-muted">{{ __('cgpsc.proceedings.result.calculated_at') }}</div>
                                 {{ $run->executed_at?->format('d/m/Y h:i A') }}
                             </div>
                             <div class="col-md-3">
-                                <div class="text-muted">Status</div>
+                                <div class="text-muted">{{ __('cgpsc.proceedings.result.status') }}</div>
                                 <span class="badge {{ $proceeding->status->badgeClass() }}">
                                     {{ $proceeding->status->label() }}
                                 </span>
                                 @if ($proceeding->closed_at)
                                     <span class="small">
-                                        closed by {{ $proceeding->closed_by_name }},
-                                        {{ $proceeding->closed_at->format('d/m/Y h:i A') }}
+{{ __('cgpsc.proceedings.result.closed_by', ['actor' => $proceeding->closed_by_name, 'at' => $proceeding->closed_at->format('d/m/Y h:i A')]) }}
                                     </span>
                                 @endif
                             </div>
@@ -92,21 +91,21 @@
 
                 @php
                     $heading = ($proceeding->promotion_as_on_year ?? $defaultYear)
-                        .' — '.$proceeding->proposal->postToCadre?->name
-                        .' FROM '.$proceeding->proposal->postFromCadre?->name;
+                        .' — '.$proceeding->proposal->promotionToPost?->name
+                        .' FROM '.$proceeding->proposal->promotionFromPost?->name;
                 @endphp
 
-                @foreach ([['main', 'MAIN LIST (मुख्य सूचि)'], ['waiting', 'WAITING LIST (अनुपूरक सूचि)']] as [$key, $title])
+                @foreach ([['main', __('cgpsc.proceedings.result.main_list')], ['waiting', __('cgpsc.proceedings.result.waiting_list')]] as [$key, $title])
                     <div class="card border-0 shadow-sm mb-3">
                         <div class="card-body">
-                            <h2 class="h6 mb-1">PROMOTION AS ON {{ $heading }}</h2>
+                            {!! __('cgpsc.proceedings.result.promotion_as_on', ['date' => e($heading)]) !!}
                             <div class="text-muted small mb-2">{{ $title }}</div>
                             <div class="table-responsive">
                                 <table class="table table-sm table-bordered align-middle mb-0">
                                     <thead class="table-light">
                                         <tr>
-                                            <th>SN</th><th>Name</th><th>Category</th>
-                                            <th>Mark</th><th>Remark</th>
+                                            <th>{{ __('ui.sn') }}</th><th>{{ __('ui.name') }}</th><th>{{ __('ui.category') }}</th>
+                                            <th>{{ __('ui.mark') }}</th><th>{{ __('ui.remark') }}</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -121,18 +120,18 @@
                                             <td>
                                                 <strong>{{ $result->remark }}</strong>
                                                 @if ($result->is_super_seat)
-                                                    <span class="badge text-bg-info">SS</span>
+                                                    <span class="badge text-bg-info">{{ __('ui.ss') }}</span>
                                                 @endif
                                                 @if ($holds->has($result->sn))
                                                     {{-- S34's "ST SS CIR": a hold is composed onto the
                                                          remark, not produced by the frozen engine. --}}
-                                                    <span class="badge text-bg-warning">CIR</span>
+                                                    <span class="badge text-bg-warning">{{ __('ui.cir') }}</span>
                                                 @endif
                                             </td>
                                         </tr>
                                     @empty
                                         <tr><td colspan="5" class="text-muted text-center py-2">
-                                            No officers on this list.
+                                            {{ __('cgpsc.proceedings.result.no_officers_on_this_list') }}
                                         </td></tr>
                                     @endforelse
                                     </tbody>
@@ -145,15 +144,13 @@
                 @if ($lists['others']->isNotEmpty())
                     <div class="card border-0 shadow-sm mb-3">
                         <div class="card-body">
-                            <h2 class="h6 mb-2">Not Listed</h2>
+                            <h2 class="h6 mb-2">{{ __('cgpsc.proceedings.result.not_listed') }}</h2>
                             <p class="text-muted small mb-2">
-                                Every officer on the chart has a result. An officer appears here when they were
-                                not eligible, fell outside the zone of consideration, or their category had no
-                                vacancy — so an absence from both lists is explained rather than silent.
+                                {{ __('cgpsc.proceedings.result.every_officer_on_the_chart_has_a_result_an_offic') }}
                             </p>
                             <div class="table-responsive">
                                 <table class="table table-sm align-middle mb-0">
-                                    <thead><tr><th>SN</th><th>Name</th><th>Category</th><th>Mark</th><th>Remark</th></tr></thead>
+                                    <thead><tr><th>{{ __('ui.sn') }}</th><th>{{ __('ui.name') }}</th><th>{{ __('ui.category') }}</th><th>{{ __('ui.mark') }}</th><th>{{ __('ui.remark') }}</th></tr></thead>
                                     <tbody>
                                     @foreach ($lists['others'] as $result)
                                         <tr>
@@ -174,15 +171,13 @@
                 @if ($holds->isNotEmpty())
                     <div class="card border-0 shadow-sm mb-3">
                         <div class="card-body">
-                            <h2 class="h6 mb-2">Promotions Held (परिभ्रमण / CIR)</h2>
+                            <h2 class="h6 mb-2">{{ __('cgpsc.proceedings.result.promotions_held_cir') }}</h2>
                             <p class="text-muted small mb-2">
-                                These officers took part in the DPC, but the promotion action in respect of each
-                                is <strong>reserved</strong> until the matter noted is resolved. A hold is not a
-                                finding on merit — an officer can be top-scoring and still held.
+{!! __('cgpsc.proceedings.result.holds_explained') !!}
                             </p>
                             <div class="table-responsive">
                                 <table class="table table-sm align-middle mb-0">
-                                    <thead><tr><th>SN</th><th>Officer</th><th>Reason</th><th>Detail</th><th>Source</th>@if ($canAct)<th></th>@endif</tr></thead>
+                                    <thead><tr><th>{{ __('ui.sn') }}</th><th>{{ __('ui.officer') }}</th><th>{{ __('ui.reason') }}</th><th>{{ __('ui.detail') }}</th><th>{{ __('cgpsc.proceedings.result.source') }}</th>@if ($canAct)<th></th>@endif</tr></thead>
                                     <tbody>
                                     @foreach ($holds as $officerHolds)
                                         @foreach ($officerHolds as $hold)
@@ -200,7 +195,7 @@
                                                             <form method="POST"
                                                                   action="{{ route('cgpsc.proceedings.holds.destroy', [$proceeding, $hold]) }}">
                                                                 @csrf @method('DELETE')
-                                                                <button class="btn btn-sm btn-outline-secondary py-0">Release</button>
+                                                                <button class="btn btn-sm btn-outline-secondary py-0">{{ __('cgpsc.proceedings.result.release') }}</button>
                                                             </form>
                                                         @endunless
                                                     </td>
@@ -220,49 +215,46 @@
                         <div class="card-body d-flex flex-wrap gap-3 align-items-end">
                             <form method="POST" action="{{ route('cgpsc.proceedings.calculate', $proceeding) }}">
                                 @csrf
-                                <button class="btn btn-outline-primary">CALCULATE AGAIN</button>
+                                <button class="btn btn-outline-primary">{{ __('cgpsc.proceedings.result.calculate_again') }}</button>
                             </form>
 
                             <form method="POST" action="{{ route('cgpsc.proceedings.approve', $proceeding) }}"
                                   class="d-flex gap-2 align-items-end">
                                 @csrf
                                 <div>
-                                    <label class="form-label small mb-0">Promotion as on (year)</label>
+                                    <label class="form-label small mb-0">{{ __('ui.promotion_as_on_year') }}</label>
                                     <input type="number" name="promotion_as_on_year" class="form-control form-control-sm"
                                            value="{{ old('promotion_as_on_year', $defaultYear) }}" style="width:9rem">
                                 </div>
-                                <button class="btn btn-success" @disabled($isStale)>APPROVE BY CGPSC</button>
+                                <button class="btn btn-success" @disabled($isStale)>{{ __('ui.approve_by_cgpsc') }}</button>
                             </form>
 
                             <form method="POST" action="{{ route('cgpsc.proceedings.cancel', $proceeding) }}"
                                   class="d-flex gap-2 align-items-end ms-auto">
                                 @csrf
                                 <div>
-                                    <label class="form-label small mb-0">Reason</label>
+                                    <label class="form-label small mb-0">{{ __('ui.reason') }}</label>
                                     <input type="text" name="reason" class="form-control form-control-sm"
-                                           style="width:18rem" placeholder="Why this DPC is being cancelled">
+                                           style="width:18rem" placeholder="{{ __('cgpsc.proceedings.result.why_this_dpc_is_being_cancelled') }}">
                                 </div>
-                                <button class="btn btn-outline-danger">CANCEL DPC</button>
+                                <button class="btn btn-outline-danger">{{ __('cgpsc.proceedings.result.cancel_dpc') }}</button>
                             </form>
                         </div>
                         <div class="card-footer bg-transparent small text-muted">
-                            Approving pins this calculation permanently. A later calculation cannot change what was
-                            approved, and an approved result cannot be edited by any role — a correction afterwards
-                            is a Review DPC.
+                            {{ __('cgpsc.proceedings.result.approval_note') }}
                         </div>
                     </div>
                 @endif
 
                 <div class="card border-0 shadow-sm">
                     <div class="card-body">
-                        <h2 class="h6 mb-2">Calculation History</h2>
+                        <h2 class="h6 mb-2">{{ __('ui.calculation_history') }}</h2>
                         <p class="text-muted small mb-2">
-                            Every calculation ever run for this DPC. Nothing is overwritten — recalculating creates
-                            a new record and leaves the previous one untouched.
+                            {{ __('cgpsc.proceedings.result.every_calculation_ever_run_for_this_dpc_nothing') }}
                         </p>
                         <div class="table-responsive">
                             <table class="table table-sm align-middle mb-0">
-                                <thead><tr><th>Reference</th><th>Run At</th><th>By</th><th>Main</th><th>Waiting</th><th></th></tr></thead>
+                                <thead><tr><th>{{ __('ui.reference') }}</th><th>{{ __('cgpsc.proceedings.result.run_at') }}</th><th>{{ __('ui.by') }}</th><th>{{ __('ui.main') }}</th><th>{{ __('ui.waiting') }}</th><th></th></tr></thead>
                                 <tbody>
                                 @foreach ($history as $entry)
                                     <tr>
@@ -273,9 +265,9 @@
                                         <td>{{ $entry->waiting_list_count }}</td>
                                         <td>
                                             @if ($proceeding->final_calculation_run_id === $entry->id)
-                                                <span class="badge text-bg-success">Approved</span>
+                                                <span class="badge text-bg-success">{{ __('ui.approved') }}</span>
                                             @elseif ($proceeding->latest_calculation_run_id === $entry->id)
-                                                <span class="badge text-bg-primary">Current</span>
+                                                <span class="badge text-bg-primary">{{ __('cgpsc.proceedings.result.current') }}</span>
                                             @endif
                                         </td>
                                     </tr>
@@ -289,11 +281,11 @@
 
             <div class="mt-3">
                 <a class="btn btn-sm btn-outline-secondary"
-                   href="{{ route('cgpsc.proceedings.show', $proceeding) }}">Back to Workspace</a>
+                   href="{{ route('cgpsc.proceedings.show', $proceeding) }}">{{ __('cgpsc.proceedings.result.back_to_workspace') }}</a>
                 <a class="btn btn-sm btn-outline-primary"
-                   href="{{ route('cgpsc.proceedings.documents.index', $proceeding) }}">Documents</a>
+                   href="{{ route('cgpsc.proceedings.documents.index', $proceeding) }}">{{ __('cgpsc.proceedings.result.documents') }}</a>
                 <a class="btn btn-sm btn-link"
-                   href="{{ route('cgpsc.proceedings.history', $proceeding) }}">Proceeding History</a>
+                   href="{{ route('cgpsc.proceedings.history', $proceeding) }}">{{ __('ui.proceeding_history') }}</a>
             </div>
         </div>
     </div>

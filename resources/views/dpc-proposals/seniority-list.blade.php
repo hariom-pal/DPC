@@ -1,20 +1,30 @@
 @extends('layouts.app')
 
-@section('title', 'Seniority List')
+@section('title', __('ui.seniority_list'))
 
 @php
+    $postIdByName = $departmentPosts->pluck('id', 'name')->all();
     $entriesData = old('entries', $proposal->seniorityEntries->map(fn ($e) => [
         'seniority_number' => $e->seniority_number,
         'employee_number' => $e->employee_number,
         'name' => $e->name,
         'dob' => $e->dob?->format('Y-m-d'),
         'qualification' => $e->qualification,
-        'current_post' => $e->current_post,
-        'feeder_post' => $e->feeder_post,
+        'promotion_to_post' => $e->promotion_to_post,
+        'promotion_from_post' => $e->promotion_from_post,
+
+        // The snapshot stores the post *name*; the form selects by master id, so
+        // a saved row is matched back to its master row to re-select it
+        // (DPC-MODULE-FIX-001). No match -> blank, which is the honest answer for
+        // a post whose mapping has since been superseded.
+        'promotion_to_post_id' => $postIdByName[$e->promotion_to_post] ?? null,
+        'promotion_from_post_id' => $postIdByName[$e->promotion_from_post] ?? null,
         'reservation_category_id' => $e->reservation_category_id,
+        'seat_reservation_category_id' => $e->seat_reservation_category_id,
+        'mobile' => $e->mobile,
         'date_of_joining_service' => $e->date_of_joining_service?->format('Y-m-d'),
-        'date_of_posting_on_current_post' => $e->date_of_posting_on_current_post?->format('Y-m-d'),
-        'date_of_posting_on_feeder_post' => $e->date_of_posting_on_feeder_post?->format('Y-m-d'),
+        'date_of_posting_on_promotion_to_post' => $e->date_of_posting_on_promotion_to_post?->format('Y-m-d'),
+        'date_of_posting_on_promotion_from_post' => $e->date_of_posting_on_promotion_from_post?->format('Y-m-d'),
     ])->all());
 @endphp
 
@@ -22,8 +32,8 @@
     <div class="row justify-content-center">
         <div class="col-lg-11">
             @include('partials.alerts')
-            <h1 class="h4 mb-1">Seniority List</h1>
-            <p class="text-muted small mb-3">{{ $proposal->postFromCadre->name }} की अंतिम पदक्रम सूचि — a snapshot as of today; it will not change later even if HR records change.</p>
+            <h1 class="h4 mb-1">{{ __('ui.seniority_list') }}</h1>
+            <p class="text-muted small mb-3">{{ __('dpc.seniority_list.lead', ['post' => $proposal->promotionFromPost->name]) }}</p>
 
             {{-- The list must carry exactly the zone's officer count. Stated
                  here, before the officer starts typing, rather than only as a
@@ -32,21 +42,21 @@
                 <div class="card-body py-3">
                     <div class="row g-3 text-center">
                         <div class="col-6 col-md-3">
-                            <div class="text-muted small">Sanctioned Posts</div>
+                            <div class="text-muted small">{{ __('dpc.seniority_list.sanctioned_posts') }}</div>
                             <div class="h5 mb-0">{{ $vacancy['sanctioned'] ?? '—' }}</div>
                         </div>
                         <div class="col-6 col-md-3">
-                            <div class="text-muted small">Working Officers <span class="badge text-bg-secondary">auto</span></div>
+                            {!! __('dpc.shared.working_officers_badge') !!}
                             <div class="h5 mb-0">{{ $vacancy['working'] }}</div>
                         </div>
                         <div class="col-6 col-md-3">
-                            <div class="text-muted small">Total Vacancy <span class="badge text-bg-secondary">auto</span></div>
+                            {!! __('dpc.shared.total_vacancy_badge') !!}
                             <div class="h5 mb-0">{{ $vacancy['total_vacancy'] ?? '—' }}</div>
                         </div>
                         <div class="col-6 col-md-3">
-                            <div class="text-muted small">Zone of Consideration <span class="badge text-bg-secondary">auto</span></div>
+                            {!! __('dpc.shared.zone_badge') !!}
                             <div class="h5 mb-0">
-                                {{ $vacancy['required_seniority'] ?? ($vacancy['zone'] && $vacancy['zone']->isUncapped() ? 'No cap' : '—') }}
+                                {{ $vacancy['required_seniority'] ?? ($vacancy['zone'] && $vacancy['zone']->isUncapped() ? __('dpc.shared.no_cap') : '—') }}
                             </div>
                         </div>
                     </div>
@@ -55,30 +65,29 @@
                         <hr class="my-3">
                         @if ($vacancy['seniority_entered'] === $vacancy['required_seniority'])
                             <p class="mb-0 small text-success">
-                                <strong>✓ {{ $vacancy['seniority_entered'] }} officer(s)</strong> — matches the Zone of
-                                Consideration ({{ $vacancy['zone']->formula }}).
+{!! __('dpc.seniority_list.matches_zone', ['count' => $vacancy['seniority_entered'], 'formula' => e($vacancy['zone']->formula)]) !!}
                             </p>
                         @else
                             <p class="mb-0 small">
-                                This list must contain <strong>exactly {{ $vacancy['required_seniority'] }}</strong>
-                                officer(s) — {{ $vacancy['zone']->formula }}. It currently carries
-                                <strong>{{ $vacancy['seniority_entered'] }}</strong>.
+{!! __('dpc.seniority_list.must_contain', [
+                                'required' => $vacancy['required_seniority'],
+                                'formula' => e($vacancy['zone']->formula),
+                                'actual' => $vacancy['seniority_entered'],
+                            ]) !!}
                             </p>
                         @endif
                     @elseif ($vacancy['zone'] && $vacancy['zone']->isUncapped())
                         <hr class="my-3">
                         <p class="mb-0 small text-muted">
-                            A {{ $proposal->postFromCadre->class_level->label() }} →
-                            {{ $proposal->postToCadre->class_level->label() }} promotion has no zone formula, so no
-                            exact officer count is required: every officer meeting the experience qualification is
-                            considered.
+{{ __('dpc.seniority_list.uncapped_zone', ['from' => $proposal->promotionFromPost->class_level->label(), 'to' => $proposal->promotionToPost->class_level->label()]) }}
                         </p>
                     @elseif ($vacancy['sanctioned'] === null)
                         <hr class="my-3">
                         <p class="mb-0 small text-muted">
-                            Enter the Sanctioned Post Count on
-                            <a href="{{ route('dpc-proposals.working-officers', $proposal) }}">Working Officers &amp; Vacancies</a>
-                            first — the Zone of Consideration is calculated from it.
+{!! __('dpc.seniority_list.enter_sanctioned_first', [
+                                'link' => '<a href="'.e(route('dpc-proposals.working-officers', $proposal)).'">'
+                                    .e(__('dpc.seniority_list.working_officers_amp_vacancies')).'</a>',
+                            ]) !!}
                         </p>
                     @endif
                 </div>
@@ -91,14 +100,27 @@
                 @method('PUT')
 
                 @error('entries')<div class="alert alert-danger py-2">{{ $message }}</div>@enderror
-                {{-- Seed rows travel as data — see public/js/forms/dpc-seniority-list.js. --}}
-                <div id="entries" data-seed="{{ json_encode($entriesData) }}"></div>
 
-                <button type="button" class="btn btn-outline-primary btn-sm mt-2" id="add-entry">+ Add Entry</button>
+                {{-- Typing the list in is off by default since 2026-09-07: it comes
+                     from the upload. Hidden by `dpc.manual_entry.seniority_list`
+                     rather than deleted, and the route is gated on the same flag. --}}
+                @unless (config('dpc.manual_entry.seniority_list'))
+                    <p class="text-body-secondary small mb-0">{{ __('dpc.seniority_list.manual_entry_off') }}</p>
+                @endunless
+
+                {{-- Seed rows travel as data — see public/js/forms/dpc-seniority-list.js. --}}
+                <div id="entries" data-seed="{{ json_encode($entriesData) }}"
+                     @unless (config('dpc.manual_entry.seniority_list')) data-read-only @endunless></div>
+
+                @if (config('dpc.manual_entry.seniority_list'))
+                    <button type="button" class="btn btn-outline-primary btn-sm mt-2" id="add-entry">{{ __('dpc.seniority_list.add_entry') }}</button>
+                @endif
 
                 <div class="mt-3">
-                    <button type="submit" class="btn btn-success">Save Seniority List</button>
-                    <a href="{{ route('dpc-proposals.show', $proposal) }}" class="btn btn-outline-secondary">Cancel</a>
+                    @if (config('dpc.manual_entry.seniority_list'))
+                        <button type="submit" class="btn btn-success">{{ __('dpc.seniority_list.save_seniority_list') }}</button>
+                    @endif
+                    <a href="{{ route('dpc-proposals.show', $proposal) }}" class="btn btn-outline-secondary">{{ __('ui.cancel') }}</a>
                 </div>
             </form>
         </div>
@@ -107,35 +129,131 @@
     <template id="entry-template">
         <div class="card border-0 shadow-sm mb-2 entry-card">
             <div class="card-body row g-2">
-                <div class="col-md-1"><label class="form-label">S.N.</label>
+                <div class="col-md-1"><label class="form-label">{{ __('ui.s_n') }}</label>
                     <input type="number" min="1" class="form-control form-control-sm" name="entries[__E__][seniority_number]" required></div>
-                <div class="col-md-2"><label class="form-label">Employee No.</label>
+                <div class="col-md-2"><label class="form-label">{{ __('ui.employee_no') }}</label>
                     <input type="text" class="form-control form-control-sm" name="entries[__E__][employee_number]"></div>
-                <div class="col-md-3"><label class="form-label">Name</label>
+                <div class="col-md-3"><label class="form-label">{{ __('ui.name') }}</label>
                     <input type="text" class="form-control form-control-sm" name="entries[__E__][name]" required></div>
-                <div class="col-md-2"><label class="form-label">DOB</label>
-                    <input type="date" class="form-control form-control-sm" name="entries[__E__][dob]" required></div>
-                <div class="col-md-2"><label class="form-label">Qualification</label>
-                    <input type="text" class="form-control form-control-sm" name="entries[__E__][qualification]"></div>
-                <div class="col-md-2 d-flex align-items-end"><button type="button" class="btn btn-outline-danger btn-sm remove-row">× Remove</button></div>
 
-                <div class="col-md-3"><label class="form-label">Current Post</label>
-                    <input type="text" class="form-control form-control-sm" name="entries[__E__][current_post]"></div>
-                <div class="col-md-3"><label class="form-label">Feeder Post</label>
-                    <input type="text" class="form-control form-control-sm" name="entries[__E__][feeder_post]"></div>
-                <div class="col-md-3"><label class="form-label">Reservation Category</label>
+                {{-- The number the officer signs in with, and where their OTP goes
+
+                     (business instruction, 2026-09-07). Optional. --}}
+
+                <div class="col-md-2"><label class="form-label">{{ __('ui.mobile') }}</label>
+
+                    <input type="text" inputmode="numeric" maxlength="10" class="form-control form-control-sm"
+
+                           name="entries[__E__][mobile]"></div>
+                <div class="col-md-2"><label class="form-label">{{ __('ui.dob') }}</label>
+                    <input type="date" class="form-control form-control-sm" name="entries[__E__][dob]" required></div>
+                <div class="col-md-2"><label class="form-label">{{ __('ui.qualification') }}</label>
+                    <input type="text" class="form-control form-control-sm" name="entries[__E__][qualification]"></div>
+                <div class="col-md-2 d-flex align-items-end"><button type="button" class="btn btn-outline-danger btn-sm remove-row">{{ __('ui.remove_2') }}</button></div>
+
+                <div class="col-md-3"><label class="form-label">{{ __('ui.promotion_to_post') }}</label>
+                    {{-- A Post is a master entity and is never typed
+                         (DPC-MODULE-FIX-001). The list is the department's active
+                         Department Post mappings still in force. --}}
+                    <select class="form-select form-select-sm" name="entries[__E__][promotion_to_post_id]">
+                        <option value="">{{ __('ui.select') }}</option>
+                        @foreach ($departmentPosts as $dp)
+                            <option value="{{ $dp->id }}">{{ $dp->name }}</option>
+                        @endforeach
+                    </select></div>
+                <div class="col-md-3"><label class="form-label">{{ __('ui.promotion_from_post') }}</label>
+                    {{-- A Post is a master entity and is never typed
+                         (DPC-MODULE-FIX-001). The list is the department's active
+                         Department Post mappings still in force. --}}
+                    <select class="form-select form-select-sm" name="entries[__E__][promotion_from_post_id]">
+                        <option value="">{{ __('ui.select') }}</option>
+                        @foreach ($departmentPosts as $dp)
+                            <option value="{{ $dp->id }}">{{ $dp->name }}</option>
+                        @endforeach
+                    </select></div>
+                <div class="col-md-3"><label class="form-label">{{ __('ui.reservation_category') }}</label>
                     <select class="form-select form-select-sm" name="entries[__E__][reservation_category_id]" required>
                         @foreach ($reservationCategories as $rc)<option value="{{ $rc->id }}">{{ $rc->code }} — {{ $rc->name_en }}</option>@endforeach
                     </select></div>
-                <div class="col-md-3"><label class="form-label">Date of Joining</label>
+                {{-- The **seat's** category, beside the officer's own (business
+                     instruction, 2026-09-07). An SC officer selected on merit sits
+                     on a General point: the box above is SC, this one is UR.
+                     Optional — a department that keeps no roster leaves it blank,
+                     and blank means "not recorded" rather than "same as theirs". --}}
+                <div class="col-md-3"><label class="form-label">{{ __('ui.seat_category') }}</label>
+                    <select class="form-select form-select-sm" name="entries[__E__][seat_reservation_category_id]">
+                        <option value="">{{ __('ui.not_recorded') }}</option>
+                        @foreach ($reservationCategories as $rc)<option value="{{ $rc->id }}">{{ $rc->code }} — {{ $rc->name_en }}</option>@endforeach
+                    </select></div>
+                <div class="col-md-3"><label class="form-label">{{ __('dpc.seniority_list.date_of_joining') }}</label>
                     <input type="date" class="form-control form-control-sm" name="entries[__E__][date_of_joining_service]"></div>
-                <div class="col-md-3"><label class="form-label">Date of Posting on Current Post</label>
-                    <input type="date" class="form-control form-control-sm" name="entries[__E__][date_of_posting_on_current_post]"></div>
-                <div class="col-md-3"><label class="form-label">Date of Posting on Feeder Post</label>
-                    <input type="date" class="form-control form-control-sm" name="entries[__E__][date_of_posting_on_feeder_post]"></div>
+                <div class="col-md-3"><label class="form-label">{{ __('ui.date_of_posting_on_promotion_to_post') }}</label>
+                    <input type="date" class="form-control form-control-sm" name="entries[__E__][date_of_posting_on_promotion_to_post]"></div>
+                <div class="col-md-3"><label class="form-label">{{ __('ui.date_of_posting_on_promotion_from_post') }}</label>
+                    <input type="date" class="form-control form-control-sm" name="entries[__E__][date_of_posting_on_promotion_from_post]"></div>
             </div>
         </div>
     </template>
+    {{-- Promotion Candidate accounts for the officers on this list (item 17).
+
+         Here rather than on a screen of its own: the person who needs it is
+         standing on the list when an officer says they cannot sign in. A candidate
+         account has no mobile and no e-mail, so there is no self-service reset to
+         send a code on — the department reissues, which is where credential
+         handover already sits. --}}
+    @if ($proposal->seniorityEntries->isNotEmpty() && $proposal->status->isEditable())
+        <div class="card border-0 shadow-sm mt-3">
+            <div class="card-body">
+                <h2 class="h6 mb-1">{{ __('dpc.seniority_list.accounts.heading') }}</h2>
+                <p class="small text-body-secondary mb-3">{{ __('dpc.seniority_list.accounts.reissue_lead') }}</p>
+
+                @include('dpc-proposals.sections._candidate-accounts')
+
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>{{ __('ui.sn') }}</th>
+                                <th>{{ __('ui.name') }}</th>
+                                <th>{{ __('dpc.seniority_list.accounts.employee_number') }}</th>
+                                <th class="text-end">{{ __('ui.action') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach ($proposal->seniorityEntries->sortBy('seniority_number') as $entry)
+                                <tr>
+                                    <td>{{ $entry->seniority_number }}</td>
+                                    <td>{{ $entry->name }}</td>
+                                    <td>
+                                        @if ($entry->employee_number)
+                                            <code>{{ $entry->employee_number }}</code>
+                                        @else
+                                            <span class="text-body-secondary">—</span>
+                                        @endif
+                                    </td>
+                                    <td class="text-end">
+                                        @if ($entry->employee_number)
+                                            <form method="POST" class="d-inline"
+                                                  action="{{ route('dpc-proposals.candidates.reissue-password', $proposal) }}"
+                                                  data-confirm="{{ __('dpc.seniority_list.accounts.reissue_confirm') }}">
+                                                @csrf
+                                                <input type="hidden" name="employee_number" value="{{ $entry->employee_number }}">
+                                                <button class="btn btn-outline-secondary btn-sm">
+                                                    {{ __('dpc.seniority_list.accounts.reissue') }}
+                                                </button>
+                                            </form>
+                                        @else
+                                            <span class="small text-body-secondary">{{ __('dpc.seniority_list.accounts.no_number') }}</span>
+                                        @endif
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    @endif
 @endsection
 
 @push('scripts')

@@ -11,7 +11,7 @@ use App\Domain\Cgpsc\Services\SchedulingService;
 use App\Domain\Department\Models\Department;
 use App\Domain\Dpc\Enums\DpcProposalStatus;
 use App\Domain\Dpc\Models\DpcProposal;
-use App\Domain\Master\Models\Cadre;
+use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\DpcType;
 use App\Domain\Master\Models\ReservationCategory;
 use App\Domain\Proceeding\Enums\DpcProceedingStatus;
@@ -29,6 +29,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Event;
 use OwenIt\Auditing\Models\Audit;
 use RuntimeException;
+use Tests\Concerns\SeatsDpcCommittees;
 use Tests\TestCase;
 
 /**
@@ -38,6 +39,7 @@ use Tests\TestCase;
 class ProceedingLifecycleTest extends TestCase
 {
     use RefreshDatabase;
+    use SeatsDpcCommittees;
 
     private Department $department;
 
@@ -59,20 +61,20 @@ class ProceedingLifecycleTest extends TestCase
             'code' => 'HE', 'name' => 'Higher Education Department', 'status' => 'active',
         ]);
 
-        $this->chairman = User::factory()->create(['department_id' => null, 'name' => 'Hon. Chairman']);
+        $this->chairman = User::factory()->create(['name' => 'Hon. Chairman']);
         $this->chairman->assignRole(Role::Chairman->value);
 
-        $this->memberOne = User::factory()->create(['department_id' => null, 'name' => 'Member One']);
+        $this->memberOne = User::factory()->create(['name' => 'Member One']);
         $this->memberOne->assignRole(Role::Member->value);
 
-        $this->memberTwo = User::factory()->create(['department_id' => null, 'name' => 'Member Two']);
+        $this->memberTwo = User::factory()->create(['name' => 'Member Two']);
         $this->memberTwo->assignRole(Role::Member->value);
 
-        $postFrom = Cadre::query()->create([
+        $postFrom = DepartmentPost::query()->create([
             'department_id' => $this->department->id, 'name' => 'Under Secretary',
             'class_level' => 'I', 'status' => 'active',
         ]);
-        $postTo = Cadre::query()->create([
+        $postTo = DepartmentPost::query()->create([
             'department_id' => $this->department->id, 'name' => 'Deputy Secretary',
             'class_level' => 'I', 'status' => 'active',
         ]);
@@ -80,11 +82,11 @@ class ProceedingLifecycleTest extends TestCase
         $this->proposal = DpcProposal::query()->create([
             'department_id' => $this->department->id,
             'dpc_type_id' => DpcType::query()->where('code', 'fresh')->firstOrFail()->id,
-            'post_to_cadre_id' => $postTo->id,
-            'post_from_cadre_id' => $postFrom->id,
+            'promotion_to_post_id' => $postTo->id,
+            'promotion_from_post_id' => $postFrom->id,
             'proposal_date' => '2026-06-25',
             'status' => DpcProposalStatus::Approved->value,
-            'dpc_code' => 'HE202600001',
+            'dpc_code' => 'DPC-2026-HE-0001',
             'forwarded_at' => now(),
         ]);
     }
@@ -93,6 +95,13 @@ class ProceedingLifecycleTest extends TestCase
 
     private function allotTo(?User $member = null): DpcAllotment
     {
+        /*
+         | Seated before allotting: a DPC is allotted to a serving member of its own
+         | committee (business, 2026-09-06), and the qualification is committee
+         | membership rather than a Commission role (correction, 2026-09-07).
+         */
+        $this->seatCommittee($this->proposal);
+
         return app(AllotmentService::class)->allot(
             $this->proposal->fresh(),
             $member ?? $this->memberOne,
@@ -473,6 +482,59 @@ class ProceedingLifecycleTest extends TestCase
             '/proceedings/'.$proceeding->id,
             route('cgpsc.proceedings.show', $proceeding),
         );
+    }
+
+    /**
+     * The allottee who holds no portal role conducts the sitting and sees the
+     * candidates on it.
+     *
+     * **This is the far end of the same defect.** Since 2026-09-07 a DPC is allotted
+     * to a member of its own committee and the allottee need hold no role, but
+     * `DpcProceedingPolicy::viewAny()` and `::open()` still asked for one — so an
+     * allottee could be admitted to Schedules, accept, fix a date, and then be
+     * refused the screen that runs the sitting they had just scheduled.
+     *
+     * `view()` and `act()` needed no change: both already bind the individual by
+     * `conducted_by`, and name no role.
+     */
+    public function test_an_allottee_with_no_portal_role_opens_the_sitting_and_sees_the_candidates(): void
+    {
+        $seated = User::factory()->create(['name' => 'Deputy Secretary, GAD']);
+
+        $this->assertSame([], $seated->roles->pluck('name')->all(), 'The point of this test is that they hold none.');
+
+        // Committee membership is the qualification, so it has to exist first.
+        $this->seatAccountOnCommittee($this->proposal, $seated);
+
+        $this->allottedAndScheduled($seated);
+        $this->addEvaluationRow(1, 'Shri Ramesh Chandra Verma');
+
+        $this->open($seated)->assertSessionHasNoErrors();
+
+        $proceeding = DpcProceeding::query()->firstOrFail();
+
+        $this->assertSame($seated->id, $proceeding->conducted_by, 'The allottee conducts it.');
+
+        $this->actingAs($seated)->get(route('cgpsc.proceedings.index'))->assertOk();
+
+        $this->actingAs($seated)->get(route('cgpsc.proceedings.show', $proceeding))
+            ->assertOk()
+            ->assertSee('Shri Ramesh Chandra Verma');
+    }
+
+    /**
+     * And the sitting they may reach is their own.
+     */
+    public function test_a_role_less_allottee_cannot_read_another_conductors_sitting(): void
+    {
+        $this->allottedAndScheduled();
+        $this->open();
+
+        $stranger = User::factory()->create(['name' => 'Somebody Else']);
+
+        $this->actingAs($stranger)
+            ->get(route('cgpsc.proceedings.show', DpcProceeding::query()->firstOrFail()))
+            ->assertForbidden();
     }
 
     public function test_another_member_cannot_view_the_proceeding(): void

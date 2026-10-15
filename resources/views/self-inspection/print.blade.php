@@ -13,7 +13,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Self-Inspection — {{ $row->name }}</title>
+    {!! __('selfinspection.print.title', ['name' => e($row->name)]) !!}
     <link rel="stylesheet" href="{{ asset('vendor/bootstrap/css/bootstrap.min.css') }}">
     <style>
         /* The controls belong to the screen, not to the paper. */
@@ -28,34 +28,34 @@
 
     <div class="d-flex justify-content-between align-items-start border-bottom pb-3 mb-4">
         <div>
-            <h1 class="h5 mb-1">Self-Inspection &amp; Assessment — Officer's own data</h1>
+            <h1 class="h5 mb-1">{{ __('selfinspection.print.self_inspection_amp_assessment_officer_s_own_dat') }}</h1>
             <p class="small text-body-secondary mb-0">
-                स्व-निरीक्षण · Chhattisgarh Public Service Commission — Online DPC
+                {{ __('selfinspection.print.chhattisgarh_public_service_commission_online_dp') }}
             </p>
         </div>
         <div class="text-end small text-body-secondary">
-            Printed {{ $printed_at->format('d-m-Y H:i') }}
+{{ __('selfinspection.print.printed_at', ['at' => $printed_at->format('d-m-Y H:i')]) }}
         </div>
     </div>
 
     <dl class="row small mb-4">
-        <dt class="col-sm-3">Department</dt>
+        <dt class="col-sm-3">{{ __('ui.department') }}</dt>
         <dd class="col-sm-9">{{ $department->name }}</dd>
 
-        <dt class="col-sm-3">DPC</dt>
+        <dt class="col-sm-3">{{ __('ui.dpc') }}</dt>
         <dd class="col-sm-9">{{ $proposal->dpc_code ?? 'Not yet allotted a DPC ID' }}</dd>
 
-        <dt class="col-sm-3">Promotion</dt>
+        <dt class="col-sm-3">{{ __('ui.promotion') }}</dt>
         <dd class="col-sm-9">
-            {{ $proposal->postFromCadre?->name ?? '—' }} &rarr; {{ $proposal->postToCadre?->name ?? '—' }}
+            {{ $proposal->promotionFromPost?->name ?? '—' }} &rarr; {{ $proposal->promotionToPost?->name ?? '—' }}
         </dd>
 
-        <dt class="col-sm-3">Committee sitting</dt>
+        <dt class="col-sm-3">{{ __('ui.committee_sitting') }}</dt>
         <dd class="col-sm-9 mb-0">{{ $sitting_date?->format('d-m-Y') ?? 'Not scheduled yet' }}</dd>
     </dl>
 
     <p class="small fw-semibold">
-        DATA BEING CONSIDERED AS PROVIDED BY YOUR DEPARTMENT FOR ONLINE DPC
+        {{ __('ui.data_being_considered_as_provided_by_your_depart') }}
     </p>
 
     @include('self-inspection.partials.record', [
@@ -74,16 +74,13 @@
          further than the session that produced it, and somebody will eventually
          read this one as though it were a decision. --}}
     <p class="small text-body-secondary mt-4 mb-0">
-        This is a copy of the data supplied by the department for consideration by the Departmental
-        Promotion Committee. <strong>It is not a promotion order, a result, or a decision of any
-        kind</strong>, and it carries no mark, remark or assessment. It is unsigned and is issued for
-        the officer's own inspection.
+{!! __('selfinspection.print.disclaimer') !!}
     </p>
 
     <p class="d-print-none mt-4 mb-0">
         {{-- `data-print` and a delegated listener, not `onclick` — an enforced
              Content-Security-Policy refuses inline handlers. --}}
-        <button type="button" class="btn btn-primary btn-sm" data-print>Print this page</button>
+        <button type="button" class="btn btn-primary btn-sm" data-print>{{ __('selfinspection.print.print_this_page') }}</button>
     </p>
 </div>
 

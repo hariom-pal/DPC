@@ -8,9 +8,11 @@ use App\Domain\Authentication\Models\User;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Eligibility\Enums\CalculationStatus;
 use App\Domain\Eligibility\Enums\ListType;
+use App\Domain\Eligibility\Enums\RemarkCode;
 use App\Domain\Eligibility\Models\DpcCalculationRun;
 use App\Domain\Eligibility\RuleSet;
 use App\Domain\Eligibility\ValueObjects\OfficerRecord;
+use App\Domain\Master\Models\RecruitmentRuleSource;
 use App\Domain\Shared\Services\ActivityTimelineService;
 use App\Domain\Shared\Workflow\WorkflowException;
 use Illuminate\Support\Carbon;
@@ -36,6 +38,8 @@ class DpcCalculationService
     public function __construct(
         private readonly ScoringService $scoring,
         private readonly EligibilityService $eligibility,
+        private readonly PromotionHierarchyService $hierarchy,
+        private readonly CandidateGateService $gates,
         private readonly ZoneOfConsiderationService $zoneService,
         private readonly SuperSeatService $superSeat,
         private readonly ActivityTimelineService $timeline,
@@ -44,8 +48,13 @@ class DpcCalculationService
     public function calculate(DpcProposal $proposal, ?User $actor = null): DpcCalculationRun
     {
         $proposal->loadMissing(
-            'postFromCadre', 'postToCadre',
+            'promotionFromPost.payScale', 'promotionToPost.payScale',
             'evaluationRows.crGrades', 'evaluationRows.reservationCategory',
+
+            // What the merit gates of 2026-08-27 read (items 12 to 19).
+            'evaluationRows.loyaltyFlags', 'evaluationRows.propertyFlags',
+            'evaluationRows.recordGaps.reason',
+
             'vacancies.reservationCategory',
         );
 
@@ -54,23 +63,90 @@ class DpcCalculationService
         }
 
         $rules = RuleSet::fromConfig();
-        $fromClass = $proposal->postFromCadre->class_level;
-        $toClass = $proposal->postToCadre->class_level;
+        $fromClass = $proposal->promotionFromPost->class_level;
+        $toClass = $proposal->promotionToPost->class_level;
+
+        /*
+         | Item 11, once per proposal.
+         |
+         | The post pair is the same for every candidate, so the comparison is made
+         | once — but it produces a *per candidate* rejection, because a status is
+         | something a candidate has and the promotion list has to say so against
+         | each name.
+         */
+        $hierarchyFailures = $this->hierarchy->verdict(
+            $proposal->promotionFromPost,
+            $proposal->promotionToPost,
+        )['failures'];
+
+        // The recruitment rule's terms for *this* DPC's feeder post, which is what
+        // item 12 judges qualification, experience and promotion duration against.
+        $source = $this->promotionSourceFor($proposal);
+
+        $propertyYears = (int) config('dpc.merit.property_return_years', 5);
+        $requiredCrs = (int) config('dpc.merit.required_cr_count', 5);
+        /*
+         | Whether an unmatched qualification refuses a candidate or is merely
+         | reported — BD-39, and `advise` by default.
+         |
+         | The Recruitment Rule names a *level* from the Qualification Master
+         | ("Post-Graduate"); the chart carries the *degree* an operator typed
+         | ("M.A., B.Ed."). Nothing here can know those describe the same officer, so
+         | until the Commission supplies the mapping the finding is surfaced on the
+         | run's pending decisions instead of refusing a promotion.
+         */
+        $enforceQualification = (string) config('dpc.merit.qualification_gate', 'advise') === 'reject';
+
+        $ruleFailureStatus = RemarkCode::tryFrom((string) config('dpc.merit.rule_failure_status', 'NE'))
+            ?? RemarkCode::NotEligible;
 
         // ---- pure engines ------------------------------------------------
         $officers = $proposal->evaluationRows
-            ->map(fn ($row): array => ['row' => $row, 'record' => OfficerRecord::fromEvaluationRow($row)])
+            ->map(fn ($row): array => [
+                'row' => $row,
+                'record' => OfficerRecord::fromEvaluationRow($row, $source),
+            ])
             ->values();
 
-        $assessed = $officers->map(function (array $entry) use ($rules, $fromClass, $toClass): array {
+        $assessed = $officers->map(function (array $entry) use (
+            $rules, $fromClass, $toClass, $hierarchyFailures, $propertyYears, $requiredCrs,
+            $ruleFailureStatus, $enforceQualification
+        ): array {
             $record = $entry['record'];
+
+            /*
+             | The gates run **before** the formula (items 12 to 20).
+             |
+             | The score is still computed for every candidate, including a gated
+             | one, and that is deliberate: a CIR candidate continues in the DPC
+             | (item 19) and has to be ranked, and a reader looking at a Not Eligible
+             | row is entitled to see how the marks fell. What a gate decides is the
+             | *status*, not whether the arithmetic happens.
+             */
+            $gate = $this->gates->assess(
+                $record, $hierarchyFailures, $propertyYears, $requiredCrs, $ruleFailureStatus,
+                $enforceQualification,
+            );
+
             $score = $this->scoring->score($record, $rules);
+            $verdict = $this->eligibility->assess($record, $score, $fromClass, $toClass, $rules);
 
             return [
                 'row' => $entry['row'],
                 'record' => $record,
                 'score' => $score,
-                'verdict' => $this->eligibility->assess($record, $score, $fromClass, $toClass, $rules),
+
+                /*
+                 | A gate overrides the score's verdict, never the other way round.
+                 |
+                 | `EligibilityService` answers "did the marks reach the minimum";
+                 | the gates answer "is this candidate in contention at all". A
+                 | candidate rejected for a missing Property Return is rejected
+                 | whatever they scored, and a CIR candidate is held whatever they
+                 | scored — item 19 says they continue.
+                 */
+                'gate' => $gate,
+                'verdict' => $gate->isDecided() ? $verdict->overriddenBy($gate) : $verdict,
                 'superSeat' => $this->superSeat->assess($record, $score, $rules),
             ];
         });
@@ -176,6 +252,31 @@ class DpcCalculationService
 
             return $run->fresh(['results']) ?? $run;
         });
+    }
+
+    /**
+     * The recruitment rule's terms for **this DPC's** Promotion From Post.
+     *
+     * Item 12 judges qualification, experience and promotion duration against the
+     * rule, and a rule states them *per feeder*: five years as an Assistant Director
+     * is a different condition from five years as a Research Officer. So the source
+     * row is what matters, not the rule as a whole.
+     *
+     * Null when the proposal records no rule, or the rule names no source for this
+     * feeder. The gates then have nothing to check and are skipped — which is the
+     * right answer rather than failing every candidate for a master-data gap.
+     */
+    private function promotionSourceFor(DpcProposal $proposal): ?RecruitmentRuleSource
+    {
+        if ($proposal->recruitment_rule_id === null || $proposal->promotion_from_post_id === null) {
+            return null;
+        }
+
+        return RecruitmentRuleSource::query()
+            ->with('qualifications')
+            ->where('recruitment_rule_id', $proposal->recruitment_rule_id)
+            ->where('promotion_from_post_id', $proposal->promotion_from_post_id)
+            ->first();
     }
 
     /**
@@ -298,8 +399,34 @@ class DpcCalculationService
             $sn = $entry['record']->serialNumber;
             $entries[$index]['list_type'] = $placement[$sn]['list_type'] ?? ListType::None;
             $entries[$index]['list_position'] = $placement[$sn]['list_position'] ?? null;
-            $entries[$index]['remark'] = $placement[$sn]['remark']
-                ?? ($entry['verdict']->eligible ? 'EL' : 'NE');
+            /*
+             | The remark an unlisted officer carries (item 24 of the change register
+             | of 2026-08-27).
+             |
+             | A *listed* officer's remark is their reservation category — 'ST',
+             | 'ST_W' — because on the promotion list the question is which seat they
+             | took, not whether they were eligible. That is unchanged.
+             |
+             | An unlisted officer used to be flatly 'EL' or 'NE'. Item 24 names four
+             | final statuses, and two of them — CIR and Rejected — say something
+             | 'NE' cannot: a rejected candidate is out on a hard ground, and a CIR
+             | candidate is not out at all but held. Collapsing both into 'NE' would
+             | print "Not Eligible" against an officer whose promotion is merely
+             | awaiting a record, which is a different and more damaging statement.
+             |
+             | Only the two new statuses are let through. 'EL' and 'NE' still come
+             | from the score, so the PPT's vocabulary for a scored candidate is
+             | untouched (items 21 and 22).
+             */
+            $gated = in_array(
+                $entry['verdict']->remark,
+                [RemarkCode::Circulation, RemarkCode::Rejected],
+                true,
+            );
+
+            $entries[$index]['remark'] = $placement[$sn]['remark'] ?? ($gated
+                ? $entry['verdict']->remark->value
+                : ($entry['verdict']->eligible ? 'EL' : 'NE'));
         }
 
         return $entries;
@@ -317,11 +444,46 @@ class DpcCalculationService
     {
         $pending = $zonePending;
 
+        /** @var array<string, list<string>> $advisoryOfficers */
+        $advisoryOfficers = [];
+
         foreach ($entries as $entry) {
             if ($entry['verdict']->needsBusinessDecision()) {
                 $pending[] = "S.N. {$entry['record']->serialNumber} ({$entry['record']->name}): "
                     .'reserved-category relaxation may apply but is awaiting a business decision (Q5/Q6).';
             }
+
+            /*
+             | A gate's advisories are pending decisions too (BD-39).
+             |
+             | An advisory is a check the engine declined to apply because the rule
+             | behind it is not settled. Recording it on the run is what keeps the
+             | omission visible: a check quietly skipped and never mentioned is
+             | indistinguishable from a check that passed.
+             */
+            foreach ($entry['gate']->advisories ?? [] as $advisory) {
+                $advisoryOfficers[$advisory][] = "S.N. {$entry['record']->serialNumber} "
+                    ."({$entry['record']->name})";
+            }
+        }
+
+        /*
+         | Aggregated per finding, not per officer.
+         |
+         | A qualification the master and the chart word differently affects *every*
+         | officer under that rule, so one line each would bury the pending decisions
+         | that are about one person — and a list nobody can read is a list in which a
+         | real pending decision goes unnoticed.
+         */
+        foreach ($advisoryOfficers as $advisory => $officers) {
+            $pending[] = sprintf(
+                '%s Affects %d officer(s): %s. Reported and not applied — the comparison between the '
+                .'Qualification Master and the chart\'s free-text qualification is awaiting a business '
+                .'decision (BD-39).',
+                $advisory,
+                count($officers),
+                implode('; ', $officers),
+            );
         }
 
         return array_values(array_unique($pending));
@@ -349,8 +511,8 @@ class DpcCalculationService
 
         $material[] = [
             'vacancies' => $this->vacanciesByCategory($proposal),
-            'from_class' => $proposal->postFromCadre->class_level->value,
-            'to_class' => $proposal->postToCadre->class_level->value,
+            'from_class' => $proposal->promotionFromPost->class_level->value,
+            'to_class' => $proposal->promotionToPost->class_level->value,
         ];
 
         return hash('sha256', (string) json_encode($material));

@@ -13,8 +13,8 @@
             <th>DPC ID</th><td>{{ $proposal->dpc_code ?? '—' }}</td>
         </tr>
         <tr>
-            <th>Promotion From</th><td>{{ $proposal->postFromCadre?->name }}</td>
-            <th>Promotion To</th><td>{{ $proposal->postToCadre?->name }}</td>
+            <th>Promotion From</th><td>{{ $proposal->promotionFromPost?->name }}</td>
+            <th>Promotion To</th><td>{{ $proposal->promotionToPost?->name }}</td>
         </tr>
         <tr>
             <th>Proceeding</th><td class="ref">{{ $proceeding->uuid }}</td>

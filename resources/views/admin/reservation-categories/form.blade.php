@@ -1,6 +1,6 @@
 @extends('layouts.admin')
 
-@section('title', 'Reservation Category')
+@section('title', __('ui.reservation_category'))
 
 @section('content')
     <h1 class="h4 mb-3">{{ $category->exists ? 'Edit Reservation Category' : 'New Reservation Category' }}</h1>
@@ -14,24 +14,24 @@
 
                 <div class="row">
                     <div class="col-md-3 mb-3">
-                        <label class="form-label" for="code">Code</label>
+                        <label class="form-label" for="code">{{ __('ui.code') }}</label>
                         <input type="text" class="form-control @error('code') is-invalid @enderror"
                                id="code" name="code" value="{{ old('code', $category->code) }}" required>
                         @error('code')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
                     <div class="col-md-4 mb-3">
-                        <label class="form-label" for="name_en">Name (English)</label>
+                        <label class="form-label" for="name_en">{{ __('ui.name_english') }}</label>
                         <input type="text" class="form-control @error('name_en') is-invalid @enderror"
                                id="name_en" name="name_en" value="{{ old('name_en', $category->name_en) }}" required>
                         @error('name_en')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
                     <div class="col-md-3 mb-3">
-                        <label class="form-label" for="name_hi">नाम (Hindi)</label>
+                        <label class="form-label" for="name_hi">{{ __('ui.hindi') }}</label>
                         <input type="text" class="form-control @error('name_hi') is-invalid @enderror"
                                id="name_hi" name="name_hi" value="{{ old('name_hi', $category->name_hi) }}" required>
                     </div>
                     <div class="col-md-2 mb-3">
-                        <label class="form-label" for="status">Status</label>
+                        <label class="form-label" for="status">{{ __('ui.status') }}</label>
                         <select class="form-select" id="status" name="status" required>
                             @foreach ($statuses as $status)
                                 <option value="{{ $status->value }}"
@@ -47,11 +47,11 @@
                     <input type="hidden" name="is_reserved" value="0">
                     <input class="form-check-input" type="checkbox" id="is_reserved" name="is_reserved" value="1"
                         @checked(old('is_reserved', $category->is_reserved ?? true))>
-                    <label class="form-check-label" for="is_reserved">Reserved category</label>
+                    <label class="form-check-label" for="is_reserved">{{ __('admin.reservation_categories.form.reserved_category') }}</label>
                 </div>
 
-                <button type="submit" class="btn btn-success">Save</button>
-                <a href="{{ route('admin.reservation-categories.index') }}" class="btn btn-outline-secondary">Cancel</a>
+                <button type="submit" class="btn btn-success">{{ __('ui.save') }}</button>
+                <a href="{{ route('admin.reservation-categories.index') }}" class="btn btn-outline-secondary">{{ __('ui.cancel') }}</a>
             </form>
         </div>
     </div>

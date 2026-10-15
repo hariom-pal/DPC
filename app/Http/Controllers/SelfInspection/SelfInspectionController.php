@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\SelfInspection;
 
 use App\Domain\Dpc\Models\DpcEvaluationRow;
+use App\Domain\SelfInspection\Enums\SelfInspectionAuthDriver;
 use App\Domain\SelfInspection\Enums\SelfInspectionFactor;
 use App\Domain\SelfInspection\Requests\IdentifySelfInspectionRequest;
 use App\Domain\SelfInspection\Services\SelfInspectionAccessGuard;
@@ -45,6 +46,16 @@ class SelfInspectionController extends Controller
     /** Session key holding the absolute expiry of that match. */
     private const SESSION_EXPIRES = 'self_inspection.expires_at';
 
+    /**
+     * Session key holding the mobile number a code was sent to.
+     *
+     * Held in the session rather than posted back in a hidden field, so the number
+     * the code is verified against is the number it was sent to. A hidden field
+     * would let a caller request a code for their own number and then verify it
+     * against somebody else's.
+     */
+    private const SESSION_MOBILE = 'self_inspection.mobile';
+
     public function __construct(
         private readonly SelfInspectionAuthenticator $authenticator,
         private readonly SelfInspectionAccessGuard $guard,
@@ -71,10 +82,18 @@ class SelfInspectionController extends Controller
             return redirect()->route('self-inspection.show');
         }
 
+        $driver = SelfInspectionAuthDriver::configured();
+
         return view('self-inspection.identify', [
             'enabled' => $this->guard->enabled(),
             'pending' => $this->authenticator->unavailable(),
             'factors' => SelfInspectionFactor::configured(),
+
+            // Which of the two forms to draw: the mobile box, or the code box for a
+            // number a code has already gone to.
+            'usesOtp' => $driver->usesOtp(),
+            'awaitingCode' => $driver->usesOtp() && $request->session()->has(self::SESSION_MOBILE),
+            'sentTo' => $this->maskMobile((string) $request->session()->get(self::SESSION_MOBILE, '')),
         ]);
     }
 
@@ -82,6 +101,10 @@ class SelfInspectionController extends Controller
     {
         if (! $this->guard->enabled() || $this->authenticator->unavailable() !== null) {
             return redirect()->route('self-inspection.identify');
+        }
+
+        if (SelfInspectionAuthDriver::configured()->usesOtp()) {
+            return $this->handleOtp($request);
         }
 
         $rows = $this->authenticator->identify($request->answers(), $request);
@@ -106,13 +129,93 @@ class SelfInspectionController extends Controller
                 ]);
         }
 
+        $this->rememberMatch($request, $rows);
+
+        return redirect()->route('self-inspection.show');
+    }
+
+    /**
+     * The two-step mobile-and-code identification (business instruction,
+     * 2026-09-07).
+     *
+     * **Step one always reports success.** Telling the caller that a number is not
+     * on any list would turn this screen into a lookup service — feed it numbers
+     * and it says which belong to somebody under consideration for promotion.
+     * `SelfInspectionAuthenticator::requestCode()` issues a code only for a number
+     * that matches and records a failed attempt for one that does not; this says the
+     * same sentence either way.
+     *
+     * **Step two is the one that can fail**, and it fails with one message for both
+     * a wrong code and a number that has since left every list — for the same
+     * reason the factor driver has one message for every kind of failure.
+     */
+    private function handleOtp(IdentifySelfInspectionRequest $request): RedirectResponse
+    {
+        // "Use a different number" — forget the pending one and start again, so a
+        // code is never verified against a number other than the one it went to.
+        if ($request->boolean('restart')) {
+            $request->session()->forget(self::SESSION_MOBILE);
+
+            return redirect()->route('self-inspection.identify');
+        }
+
+        if (! $request->isCodeStep()) {
+            $mobile = (string) $request->validated('mobile');
+
+            $this->authenticator->requestCode($mobile, $request);
+
+            $request->session()->put(self::SESSION_MOBILE, $mobile);
+
+            return redirect()
+                ->route('self-inspection.identify')
+                ->with('status', __('selfinspection.otp.code_sent', ['mobile' => $this->maskMobile($mobile)]));
+        }
+
+        $mobile = (string) $request->session()->get(self::SESSION_MOBILE, '');
+
+        if ($mobile === '') {
+            // The code box was reached without a number in the session — a stale
+            // tab, or a posted form. Start again rather than guess.
+            return redirect()->route('self-inspection.identify');
+        }
+
+        $rows = $this->authenticator->identifyByOtp($mobile, (string) $request->validated('code'), $request);
+
+        if ($rows->isEmpty()) {
+            return back()->withErrors([
+                'self_inspection' => __('selfinspection.otp.failed'),
+            ]);
+        }
+
+        $request->session()->forget(self::SESSION_MOBILE);
+        $this->rememberMatch($request, $rows);
+
+        return redirect()->route('self-inspection.show');
+    }
+
+    /**
+     * Put the matched rows in the session, with their expiry.
+     *
+     * @param  \Illuminate\Support\Collection<int, DpcEvaluationRow>  $rows
+     */
+    private function rememberMatch(Request $request, $rows): void
+    {
         $request->session()->put(self::SESSION_ROWS, $rows->pluck('id')->all());
         $request->session()->put(
             self::SESSION_EXPIRES,
             now()->addMinutes((int) config('dpc.self_inspection.session_lifetime_minutes', 20))->toIso8601String(),
         );
+    }
 
-        return redirect()->route('self-inspection.show');
+    /**
+     * A mobile number with its middle hidden, for telling an officer where a code
+     * went without printing the number back at whoever asked for it.
+     */
+    private function maskMobile(string $mobile): string
+    {
+        $digits = preg_replace('/\D+/', '', $mobile) ?? '';
+
+        return strlen($digits) < 10 ? '' : substr($digits, 0, 2)."\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}".substr($digits, -2);
     }
 
     /**

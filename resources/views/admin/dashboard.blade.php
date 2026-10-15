@@ -1,20 +1,20 @@
 @extends('layouts.admin')
 
-@section('title', 'Admin Dashboard')
+@section('title', __('admin.dashboard.admin_dashboard'))
 
 @section('content')
-    <h1 class="h4 mb-1">Administration</h1>
-    <p class="text-muted">Master data, user accounts and the portal's current workload.</p>
+    <h1 class="h4 mb-1">{{ __('admin.dashboard.administration') }}</h1>
+    <p class="text-muted">{{ __('admin.dashboard.master_data_user_accounts_and_the_portal_s_curre') }}</p>
 
     <div class="row g-3 mb-4">
         @php
             $tiles = [
-                ['Departments registered', $portal['departments_registered'].' / '.$portal['departments_total'], 'Of the department master', route('admin.departments.index')],
-                ['DPC proposals', $portal['proposals'], $portal['proposals_with_commission'].' forwarded to the Commission', null],
-                ['Sittings open', $portal['sittings_open'], 'Being conducted right now', null],
-                ['Sittings concluded', $portal['sittings_concluded'], 'Result approved by the Commission', null],
-                ['Circulations', $portal['circulations'], 'Held promotions taken up for resolution', null],
-                ['Accounts', $accounts['total'], $accounts['inactive'].' deactivated', route('admin.users.index')],
+                [__('admin.dashboard.tiles.departments.title'), $portal['departments_registered'].' / '.$portal['departments_total'], __('admin.dashboard.tiles.departments.text'), route('admin.departments.index')],
+                [__('admin.dashboard.tiles.proposals.title'), $portal['proposals'], __('admin.dashboard.tiles.proposals.text', ['count' => $portal['proposals_with_commission']]), null],
+                [__('admin.dashboard.tiles.sittings_open.title'), $portal['sittings_open'], __('admin.dashboard.tiles.sittings_open.text'), null],
+                [__('admin.dashboard.tiles.sittings_concluded.title'), $portal['sittings_concluded'], __('admin.dashboard.tiles.sittings_concluded.text'), null],
+                [__('admin.dashboard.tiles.circulations.title'), $portal['circulations'], __('admin.dashboard.tiles.circulations.text'), null],
+                [__('admin.dashboard.tiles.accounts.title'), $accounts['total'], __('admin.dashboard.tiles.accounts.text', ['count' => $accounts['inactive']]), route('admin.users.index')],
             ];
         @endphp
 
@@ -41,10 +41,9 @@
         <div class="col-lg-7">
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body">
-                    <h2 class="h6 mb-1">Master Data</h2>
+                    <h2 class="h6 mb-1">{{ __('admin.dashboard.master_data') }}</h2>
                     <p class="text-muted small">
-                        A department cannot raise a DPC until these are populated. A zero here is the reason
-                        a later screen has nothing to offer.
+                        {{ __('admin.dashboard.a_department_cannot_raise_a_dpc_until_these_are') }}
                     </p>
                     <div class="row g-2">
                         @foreach ($masters as $master)
@@ -64,11 +63,10 @@
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body">
                     <h2 class="h6 mb-1">
-                        <a href="{{ route('admin.users.index') }}" class="text-decoration-none">User Management</a>
+                        <a href="{{ route('admin.users.index') }}" class="text-decoration-none">{{ __('ui.user_management') }}</a>
                     </h2>
                     <p class="text-muted small">
-                        Chairman, Member and administrator accounts are provisioned here. Departmental
-                        Authorized Officers and Administrative Heads arrive through registration.
+                        {{ __('admin.dashboard.chairman_member_and_administrator_accounts_are_p') }}
                     </p>
                     <ul class="list-group list-group-flush small">
                         @foreach ($accounts['by_role'] as $role => $count)
@@ -80,16 +78,16 @@
                     </ul>
 
                     <a href="{{ route('admin.integrations') }}" class="btn btn-outline-secondary btn-sm mt-3">
-                        Integration status
+                        {{ __('admin.dashboard.integration_status') }}
                     </a>
                     {{-- M11. The trail has been written since M1 and had no
                          screen; the first person to want it is answering a
                          contested promotion. --}}
                     <a href="{{ route('admin.audit-trail.index') }}" class="btn btn-outline-secondary btn-sm mt-3">
-                        Audit trail
+                        {{ __('admin.dashboard.audit_trail') }}
                     </a>
                     <a href="{{ route('reports.index') }}" class="btn btn-outline-secondary btn-sm mt-3">
-                        Reports
+                        {{ __('ui.reports') }}
                     </a>
                 </div>
             </div>

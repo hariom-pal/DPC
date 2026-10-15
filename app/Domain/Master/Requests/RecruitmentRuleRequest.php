@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Master\Requests;
 
 use App\Domain\Master\Enums\ExperienceUnit;
-use App\Domain\Master\Models\Cadre;
+use App\Domain\Master\Models\DepartmentPost;
 use App\Enums\MasterStatus;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -20,9 +20,9 @@ class RecruitmentRuleRequest extends FormRequest
     }
 
     /**
-     * Discard feeder rows with no cadre chosen.
+     * Discard feeder rows with no post chosen.
      *
-     * The grid adds blank rows on demand, so a user who presses Add Feeder Cadre
+     * The grid adds blank rows on demand, so a user who presses Add Promotion From Post
      * and then thinks better of it without pressing Remove would otherwise submit
      * an empty row and be told to fill in a field they did not want. An empty row
      * is an abandoned row.
@@ -43,7 +43,7 @@ class RecruitmentRuleRequest extends FormRequest
         $kept = array_filter(
             $feeders,
             static fn ($feeder): bool => is_array($feeder)
-                && trim((string) ($feeder['feeder_cadre_id'] ?? '')) !== '',
+                && trim((string) ($feeder['promotion_from_post_id'] ?? '')) !== '',
         );
 
         // Default the experience unit rather than requiring it on the wire.
@@ -68,7 +68,7 @@ class RecruitmentRuleRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'cadre_id' => ['required', Rule::exists('cadres', 'id')],
+            'post_id' => ['required', Rule::exists('department_posts', 'id')],
             'government_order_number' => ['required', 'string', 'max:255'],
             'direct_recruitment_pct' => ['required', 'numeric', 'between:0,100'],
             'promotion_recruitment_pct' => ['required', 'numeric', 'between:0,100'],
@@ -79,15 +79,15 @@ class RecruitmentRuleRequest extends FormRequest
 
             // A rule that fills any share of its posts by promotion must name
             // where those officers are promoted from. A rule with promotion at 0%
-            // — a cadre recruited entirely directly — legitimately has no feeder,
+            // — a post recruited entirely directly — legitimately has no feeder,
             // so the requirement is conditional rather than absolute.
             'feeders' => ['array', Rule::requiredIf(fn (): bool => $this->hasPromotionQuota())],
 
-            'feeders.*.feeder_cadre_id' => [
+            'feeders.*.promotion_from_post_id' => [
                 'required',
-                'distinct',                          // no duplicate feeder cadre
-                'different:cadre_id',                // a cadre cannot feed itself
-                Rule::exists('cadres', 'id'),
+                'distinct',                          // no duplicate promotion from post
+                'different:post_id',                // a post cannot feed itself
+                Rule::exists('department_posts', 'id'),
             ],
             // Promotion Share (%) — this feeder's slice of the promotion quota.
             // The individual bound is 0..100; that they total exactly 100 is
@@ -101,7 +101,7 @@ class RecruitmentRuleRequest extends FormRequest
             'feeders.*.min_experience_unit' => ['required', Rule::in(ExperienceUnit::values())],
 
             // Optional — a Schedule-IV feeder may impose no qualification beyond
-            // holding the feeder post — but when given it must be a live master
+            // holding the promotion from post — but when given it must be a live master
             // row: Active, and not soft-deleted. A withdrawn qualification cannot
             // be attached to a new rule while remaining on the rules that already
             // cite it.
@@ -110,8 +110,14 @@ class RecruitmentRuleRequest extends FormRequest
             // the query builder, not Eloquent, so the SoftDeletes global scope
             // never applies and a trashed row would otherwise validate — its
             // `status` column is still 'active'.
-            'feeders.*.qualification_id' => [
-                'nullable',
+            //
+            // **Plural since 2026-08-26** (change register item 11): a
+            // Schedule-IV entry accepts *any* of a list of degrees, so the field
+            // is an array. Still optional as a whole — a feeder may impose no
+            // qualification beyond holding the Promotion From Post.
+            'feeders.*.qualification_ids' => ['nullable', 'array'],
+            'feeders.*.qualification_ids.*' => [
+                'integer',
                 Rule::exists('qualifications', 'id')
                     ->where('status', MasterStatus::Active->value)
                     ->whereNull('deleted_at'),
@@ -138,8 +144,8 @@ class RecruitmentRuleRequest extends FormRequest
     /**
      * Direct Recruitment % + Promotion % must total exactly 100%.
      *
-     * Every sanctioned post in a cadre is filled one way or the other, so the
-     * two shares describe the whole cadre and have to account for all of it.
+     * Every sanctioned post in a post is filled one way or the other, so the
+     * two shares describe the whole post and have to account for all of it.
      * The PPT states it by example rather than in words — every row of S9 and
      * S11 reads 0 / 100, and the seeded Schedule-IV ladder is 100/0, 50/50,
      * 25/75 and 0/100 — and no worked example anywhere in either deck leaves a
@@ -191,10 +197,10 @@ class RecruitmentRuleRequest extends FormRequest
     }
 
     /**
-     * A feeder must belong to the same department as the target cadre.
+     * A feeder must belong to the same department as the target post.
      *
-     * Cadres are department-scoped, so a rule promoting into School Education
-     * from a Health Department cadre is not a stricter-than-necessary rule — it
+     * Posts are department-scoped, so a rule promoting into School Education
+     * from a Health Department post is not a stricter-than-necessary rule — it
      * is a corrupt one. Verified against existing data as clean before this was
      * added.
      *
@@ -202,23 +208,23 @@ class RecruitmentRuleRequest extends FormRequest
      */
     private function validateSameDepartment(Validator $validator, array $feeders): void
     {
-        $targetDepartment = Cadre::query()->whereKey($this->input('cadre_id'))->value('department_id');
+        $targetDepartment = DepartmentPost::query()->whereKey($this->input('post_id'))->value('department_id');
 
         if ($targetDepartment === null || $feeders === []) {
             return;
         }
 
-        $departments = Cadre::query()
-            ->whereIn('id', array_filter(array_column($feeders, 'feeder_cadre_id')))
+        $departments = DepartmentPost::query()
+            ->whereIn('id', array_filter(array_column($feeders, 'promotion_from_post_id')))
             ->pluck('department_id', 'id');
 
         foreach ($feeders as $index => $feeder) {
-            $cadreId = is_array($feeder) ? ($feeder['feeder_cadre_id'] ?? null) : null;
+            $postId = is_array($feeder) ? ($feeder['promotion_from_post_id'] ?? null) : null;
 
-            if ($cadreId !== null && ($departments[$cadreId] ?? $targetDepartment) !== $targetDepartment) {
+            if ($postId !== null && ($departments[$postId] ?? $targetDepartment) !== $targetDepartment) {
                 $validator->errors()->add(
-                    "feeders.{$index}.feeder_cadre_id",
-                    'A feeder cadre must belong to the same department as the target cadre.',
+                    "feeders.{$index}.promotion_from_post_id",
+                    'A promotion from post must belong to the same department as the target post.',
                 );
             }
         }
@@ -228,7 +234,7 @@ class RecruitmentRuleRequest extends FormRequest
      * The Promotion Share column must total exactly 100%.
      *
      * A share is this feeder's slice of the promotion quota, so the slices have
-     * to account for all of it — 100% of the quota, not 100% of the cadre. The
+     * to account for all of it — 100% of the quota, not 100% of the post. The
      * error names the actual total, because "must equal 100" without saying what
      * it currently equals makes the user add the column up by hand.
      *
@@ -257,7 +263,7 @@ class RecruitmentRuleRequest extends FormRequest
         }
 
         $validator->errors()->add('feeders', sprintf(
-            'Promotion Share must total exactly 100%% across all feeder cadres. It currently totals %s%%%s.',
+            'Promotion Share must total exactly 100%% across all promotion from posts. It currently totals %s%%%s.',
             self::trim($total),
             $total < 100.0 ? ' — '.self::trim(100.0 - $total).'% is unallocated' : '',
         ));
@@ -280,10 +286,10 @@ class RecruitmentRuleRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'feeders.required' => 'Name at least one feeder cadre. A rule that promotes into this post must say which post officers are promoted from — or set Promotion Recruitment % to 0 if the post is filled entirely by direct recruitment.',
-            'feeders.*.feeder_cadre_id.distinct' => 'This feeder cadre is already listed. Remove the duplicate row.',
-            'feeders.*.feeder_cadre_id.different' => 'The target cadre cannot also be its own feeder cadre.',
-            'feeders.*.qualification_id.exists' => 'Select a qualification that is Active in the Qualification master.',
+            'feeders.required' => 'Name at least one promotion from post. A rule that promotes into this post must say which post officers are promoted from — or set Promotion Recruitment % to 0 if the post is filled entirely by direct recruitment.',
+            'feeders.*.promotion_from_post_id.distinct' => 'This promotion from post is already listed. Remove the duplicate row.',
+            'feeders.*.promotion_from_post_id.different' => 'The target post cannot also be its own promotion from post.',
+            'feeders.*.qualification_ids.*.exists' => 'Select qualifications that are Active in the Qualification master.',
             'feeders.*.min_experience_years.min' => 'Minimum experience cannot be negative.',
             'feeders.*.min_experience_unit.in' => 'Choose Years or Months.',
         ];

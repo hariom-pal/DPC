@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Http\Middleware\EnsureCanWorkAnAllotment;
 use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
@@ -46,6 +47,38 @@ class AuthorizationCoverageTest extends TestCase
         'reports.index' => 'Every role has a reports screen. DpcReportService::scopeFor() decides what '
             .'they see — a department its own DPCs, the Commission all of them.',
         'reports.export' => 'Same scope as the screen it exports.',
+
+        /*
+         | The sitting, from a committee member's side (business instruction,
+         | 2026-09-07).
+         |
+         | **Ungated on purpose, and it is the one case where a role gate would be
+         | the wrong control.** These screens are for a DPC committee member, and
+         | item 7 of the register forbids granting a Commission role for sitting on
+         | one committee — *"do NOT assign any permanent Commission Member role to a
+         | user"* — because it is not an office one holds. A `role:` middleware here
+         | would close the screens to exactly the people they were built for, which
+         | is what `/cgpsc` already does to them.
+         |
+         | The control is a **seat**: every action calls
+         | `CommitteeSittingService::isSeatedOn()` and aborts 403 for anybody not
+         | serving on *that* proposal's committee — which is narrower than any role
+         | gate, because it is per proposal rather than per account.
+         | `CommitteeSittingTest` pins both directions.
+         */
+        'sitting.index' => 'Lists only the DPCs the signed-in account holds a serving committee seat on; '
+            .'an account on none sees an empty list rather than a 403.',
+        'sitting.show' => 'Guarded by CommitteeSittingService::isSeatedOn() on this proposal.',
+        'sitting.candidate' => 'As above, and the row must belong to the proposal or it is a 404.',
+        'sitting.call' => 'As above, and additionally refused outside the scheduled sitting window.',
+        'sitting.conclude' => 'As above, and refused unless the candidate was called first.',
+
+        // Change register of 2026-08-26, item 9 as clarified.
+        'acting-as' => 'Every authenticated account may change the capacity it is acting in, so a role '
+            .'gate here would let the capacity you are currently in decide whether you could leave it. '
+            .'What an account may switch *to* is the set it has been granted, and '
+            .'ActiveRoleService::switchTo() refuses anything else — so this route can only ever narrow '
+            .'or restore permissions the account already holds, never add one.',
     ];
 
     public function test_every_authenticated_route_is_role_gated_or_deliberately_open(): void
@@ -69,6 +102,22 @@ class AuthorizationCoverageTest extends TestCase
                 }
 
                 if (str_starts_with($layer, 'role')) {
+                    $roleGated = true;
+                }
+
+                /*
+                 | A gate that is not a role, and has to count as one here.
+                 |
+                 | The allottee's four actions cannot be described by a role at all:
+                 | a DPC is allotted to a member of its own committee, and committee
+                 | membership is deliberately not an office (2026-09-07). So those
+                 | routes carry `EnsureCanWorkAnAllotment` instead, which admits the
+                 | Chairman, a Member, or somebody holding a live allotment — and
+                 | refuses everybody else. Counting them as ungated would be wrong,
+                 | and allowlisting them as "reachable by every role" would be worse:
+                 | it would state something untrue about them.
+                 */
+                if ($layer === EnsureCanWorkAnAllotment::class) {
                     $roleGated = true;
                 }
             }

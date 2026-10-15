@@ -17,17 +17,17 @@
     <table class="table table-bordered table-sm align-middle mb-0" style="font-size:.875rem">
         <thead class="table-light">
             <tr>
-                <th rowspan="2" class="align-middle">Name</th>
-                <th rowspan="2" class="align-middle">DOB</th>
-                <th rowspan="2" class="align-middle">Qual.</th>
-                <th rowspan="2" class="align-middle">DOP</th>
-                <th rowspan="2" class="align-middle">Cat.</th>
+                <th rowspan="2" class="align-middle">{{ __('ui.name') }}</th>
+                <th rowspan="2" class="align-middle">{{ __('ui.dob') }}</th>
+                <th rowspan="2" class="align-middle">{{ __('ui.qual') }}</th>
+                <th rowspan="2" class="align-middle">{{ __('ui.dop') }}</th>
+                <th rowspan="2" class="align-middle">{{ __('ui.cat') }}</th>
                 @if ($years !== [])
-                    <th colspan="{{ count($years) }}" class="text-center">Loyalty</th>
-                    <th colspan="{{ count($years) }}" class="text-center">Immovable Property</th>
-                    <th colspan="{{ count($years) }}" class="text-center">Year-wise CR</th>
+                    <th colspan="{{ count($years) }}" class="text-center">{{ __('ui.loyalty') }}</th>
+                    <th colspan="{{ count($years) }}" class="text-center">{{ __('ui.immovable_property') }}</th>
+                    <th colspan="{{ count($years) }}" class="text-center">{{ __('ui.year_wise_cr') }}</th>
                 @endif
-                <th rowspan="2" class="align-middle">Note</th>
+                <th rowspan="2" class="align-middle">{{ __('ui.note') }}</th>
             </tr>
             <tr>
                 @foreach (['loyalty', 'property', 'cr'] as $group)
@@ -42,7 +42,7 @@
                 <td class="fw-semibold">{{ $row->name }}</td>
                 <td>{{ $row->dob?->format('d-m-Y') ?? '—' }}</td>
                 <td>{{ $row->qualification ?: '—' }}</td>
-                <td>{{ $row->date_of_posting_on_current_post?->format('d-m-Y') ?? '—' }}</td>
+                <td>{{ $row->date_of_posting_on_promotion_to_post?->format('d-m-Y') ?? '—' }}</td>
                 <td>{{ $row->reservationCategory?->code ?? '—' }}</td>
 
                 @foreach ($years as $year)
@@ -67,7 +67,6 @@
 
 @if ($years === [])
     <p class="small text-body-secondary mt-2 mb-0">
-        Your department has recorded no year-wise CR, loyalty or immovable-property entries against
-        your name on this proposal. If that is not correct, raise it with them.
+        {{ __('selfinspection.partials.record.your_department_has_recorded_no_year_wise_cr_loy') }}
     </p>
 @endif

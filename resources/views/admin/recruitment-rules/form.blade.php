@@ -1,12 +1,11 @@
 @extends('layouts.admin')
 
-@section('title', $rule->exists ? 'Edit Recruitment Rule' : 'New Recruitment Rule')
+@section('title', __($rule->exists ? 'admin.recruitment_rules.form.title_edit' : 'admin.recruitment_rules.form.title_new'))
 
 @section('content')
     <h1 class="h4 mb-1">{{ $rule->exists ? 'Edit Recruitment Rule (v'.$rule->version.')' : 'New Recruitment Rule' }}</h1>
     <p class="text-body-secondary">
-        A recruitment rule records, for one post, how many of its vacancies are filled by promotion and from
-        which post(s) those officers are promoted. Complete the three steps in order.
+        {{ __('admin.recruitment_rules.form.a_recruitment_rule_records_for_one_post_how_many') }}
     </p>
 
     @php
@@ -14,13 +13,15 @@
         //   1. old() — a submission that failed validation, so the user's typing
         //      is never lost;
         //   2. the saved feeders, when editing;
-        //   3. nothing, for a new rule — the user presses Add Feeder Cadre.
-        $rows = collect(old('feeders', $rule->feeders?->map(fn ($f) => [
-            'feeder_cadre_id' => $f->feeder_cadre_id,
+        //   3. nothing, for a new rule — the user presses Add Promotion From Post.
+        $rows = collect(old('promotionSources', $rule->promotionSources?->map(fn ($f) => [
+            'promotion_from_post_id' => $f->promotion_from_post_id,
             'promotion_percentage' => $f->promotion_percentage,
             'min_experience_years' => $f->min_experience_years,
             'min_experience_unit' => $f->min_experience_unit->value,
-            'qualification_id' => $f->qualification_id,
+            // Plural since item 11 (2026-08-26): a Schedule-IV entry accepts any
+            // of a list of degrees.
+            'qualification_ids' => $f->qualifications->pluck('id')->all(),
         ])->all() ?? []));
 
         // Keys are kept exactly as posted. Removing the third of four rows posts
@@ -41,43 +42,43 @@
                 {{-- Step 1 — the post the rule is for                            --}}
                 {{-- ============================================================ --}}
                 <h2 class="h6 text-uppercase text-body-secondary border-bottom pb-2 mb-3">
-                    Step 1 · The post this rule is for
+                    {{ __('admin.recruitment_rules.form.step_1_the_post_this_rule_is_for') }}
                 </h2>
 
                 <div class="row">
                     <div class="col-md-5 mb-3">
-                        <label class="form-label" for="cadre_id">Target Cadre <span class="text-danger">*</span></label>
-                        <select class="form-select @error('cadre_id') is-invalid @enderror"
-                                id="cadre_id" name="cadre_id" required
-                                data-searchable data-searchable-placeholder="Search cadres…">
-                            <option value="">— Select —</option>
-                            @foreach ($cadres as $cadre)
-                                <option value="{{ $cadre->id }}"
-                                        data-department="{{ $cadre->department_id }}"
-                                        @selected(old('cadre_id', $rule->cadre_id) == $cadre->id)>
-                                    {{ $cadre->name }} ({{ $cadre->class_level->label() }}) — {{ $cadre->department?->code }}
+                        {!! __('admin.recruitment_rules.form.target_post_label') !!}
+                        <select class="form-select @error('post_id') is-invalid @enderror"
+                                id="post_id" name="post_id" required
+                                data-searchable data-searchable-placeholder="{{ __('ui.search_posts') }}">
+                            <option value="">{{ __('ui.select') }}</option>
+                            @foreach ($posts as $post)
+                                <option value="{{ $post->id }}"
+                                        data-department="{{ $post->department_id }}"
+                                        @selected(old('post_id', $rule->post_id) == $post->id)>
+                                    {{ $post->name }} ({{ $post->class_level->label() }}) — {{ $post->department?->code }}
                                 </option>
                             @endforeach
                         </select>
-                        @error('cadre_id')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
-                        <div class="form-text">The post officers are promoted <strong>into</strong>.</div>
+                        @error('post_id')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                        <div class="form-text">{!! __('admin.recruitment_rules.form.hint_target_post') !!}</div>
                     </div>
                     <div class="col-md-4 mb-3">
-                        <label class="form-label" for="government_order_number">Government Order No. <span class="text-danger">*</span></label>
+                        <label class="form-label" for="government_order_number">{!! __('admin.recruitment_rules.form.government_order_no') !!}</label>
                         <input type="text" class="form-control @error('government_order_number') is-invalid @enderror"
                                id="government_order_number" name="government_order_number"
                                value="{{ old('government_order_number', $rule->government_order_number) }}" required>
                         @error('government_order_number')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                        <div class="form-text">The notification this rule is taken from.</div>
+                        <div class="form-text">{{ __('admin.recruitment_rules.form.hint_notification') }}</div>
                     </div>
                     <div class="col-md-3 mb-3">
-                        <label class="form-label" for="status">Status <span class="text-danger">*</span></label>
+                        {!! __('admin.recruitment_rules.form.status_label') !!}
                         <select class="form-select" id="status" name="status" required>
                             @foreach ($statuses as $status)
                                 <option value="{{ $status->value }}" @selected(old('status', $rule->status?->value ?? 'draft') === $status->value)>{{ $status->label() }}</option>
                             @endforeach
                         </select>
-                        <div class="form-text">Only a <strong>Draft</strong> can be edited later.</div>
+                        <div class="form-text">{!! __('admin.recruitment_rules.form.hint_status') !!}</div>
                     </div>
                 </div>
 
@@ -85,7 +86,7 @@
                 {{-- Step 2 — how the posts are filled                            --}}
                 {{-- ============================================================ --}}
                 <h2 class="h6 text-uppercase text-body-secondary border-bottom pb-2 mb-3 mt-4">
-                    Step 2 · How the vacancies are filled
+                    {{ __('admin.recruitment_rules.form.step_2_how_the_vacancies_are_filled') }}
                 </h2>
 
                 {{-- The recruitment split, given its own row.
@@ -99,7 +100,7 @@
                 <div class="row align-items-start recruitment-split">
                     <div class="col-md-4 col-lg-3 mb-3">
                         <label class="form-label" for="direct_recruitment_pct">
-                            Direct Recruitment — DR (%) <span class="text-danger">*</span>
+                            {!! __('admin.recruitment_rules.form.direct_recruitment_label') !!}
                         </label>
                         <div class="input-group">
                             <input type="number" step="0.01" min="0" max="100"
@@ -109,11 +110,11 @@
                             <span class="input-group-text">%</span>
                             @error('direct_recruitment_pct')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
-                        <div class="form-text">Share of the sanctioned posts filled by open recruitment.</div>
+                        <div class="form-text">{{ __('admin.recruitment_rules.form.hint_direct_share') }}</div>
                     </div>
                     <div class="col-md-4 col-lg-3 mb-3">
                         <label class="form-label" for="promotion_recruitment_pct">
-                            Promotion — PR (%) <span class="text-danger">*</span>
+                            {!! __('admin.recruitment_rules.form.promotion_label') !!}
                         </label>
                         <div class="input-group">
                             <input type="number" step="0.01" min="0" max="100"
@@ -123,18 +124,17 @@
                             <span class="input-group-text">%</span>
                             @error('promotion_recruitment_pct')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
-                        <div class="form-text">Share filled by promotion. Above 0 requires at least one feeder cadre in Step 3.</div>
+                        <div class="form-text">{{ __('admin.recruitment_rules.form.hint_promotion_share') }}</div>
                     </div>
                     <div class="col-md-4 col-lg-6 mb-3">
-                        <span class="form-label d-block">DR + PR</span>
+                        <span class="form-label d-block">{{ __('admin.recruitment_rules.form.dr_pr') }}</span>
                         <div class="split-total-box border rounded px-3 py-2">
                             <span class="share-total" id="split-total">0%</span>
                             <span id="split-total-mark" aria-hidden="true"></span>
                             <span class="small text-body-secondary ms-2" id="split-total-hint"></span>
                         </div>
                         <div class="form-text">
-                            Every sanctioned post is filled either directly or by promotion,
-                            so DR&nbsp;+&nbsp;PR must total <strong>exactly 100%</strong>.
+                            {!! __('admin.recruitment_rules.form.hint_split_total') !!}
                         </div>
                     </div>
                 </div>
@@ -149,57 +149,59 @@
 
                 <div class="row">
                     <div class="col-md-3 mb-3">
-                        <label class="form-label" for="effective_from">Effective From <span class="text-danger">*</span></label>
+                        {!! __('admin.recruitment_rules.form.effective_from_label') !!}
                         <input type="date" class="form-control @error('effective_from') is-invalid @enderror"
                                id="effective_from" name="effective_from"
                                value="{{ old('effective_from', $rule->effective_from?->format('Y-m-d')) }}" required>
                         @error('effective_from')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
                     <div class="col-md-3 mb-3">
-                        <label class="form-label" for="effective_to">Effective To</label>
+                        <label class="form-label" for="effective_to">{{ __('ui.effective_to') }}</label>
                         <input type="date" class="form-control @error('effective_to') is-invalid @enderror"
                                id="effective_to" name="effective_to"
                                value="{{ old('effective_to', $rule->effective_to?->format('Y-m-d')) }}">
                         @error('effective_to')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                        <div class="form-text">Leave blank while in force.</div>
+                        <div class="form-text">{{ __('admin.recruitment_rules.form.hint_effective_to') }}</div>
                     </div>
                     <div class="col-md-6 mb-3">
-                        <label class="form-label" for="go_document">Government Order PDF</label>
+                        <label class="form-label" for="go_document">{{ __('admin.recruitment_rules.form.government_order_pdf') }}</label>
                         <input type="file" accept="application/pdf" class="form-control @error('go_document') is-invalid @enderror"
                                id="go_document" name="go_document">
                         @if ($rule->go_document_path)
-                            <div class="form-text">Current: <a href="{{ route('admin.recruitment-rules.download', $rule) }}">GO PDF</a> — uploading replaces it.</div>
+                            <div class="form-text">{!! __('admin.recruitment_rules.form.current_go_document', [
+                                'link' => '<a href="'.e(route('admin.recruitment-rules.download', $rule)).'">'.e(__('ui.go_pdf')).'</a>',
+                            ]) !!}</div>
                         @endif
                         @error('go_document')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
                 </div>
 
                 {{-- ============================================================ --}}
-                {{-- Step 3 — the feeder cadres                                   --}}
+                {{-- Step 3 — the promotion from posts                                   --}}
                 {{-- ============================================================ --}}
                 <div class="d-flex justify-content-between align-items-end border-bottom pb-2 mb-3 mt-4">
                     <div>
-                        <h2 class="h6 text-uppercase text-body-secondary mb-1">Step 3 · Feeder cadres (Schedule-IV)</h2>
+                        <h2 class="h6 text-uppercase text-body-secondary mb-1">{{ __('admin.recruitment_rules.form.step_3_promotion_from_posts_schedule_iv') }}</h2>
                         <p class="text-body-secondary small mb-0">
-                            The post(s) officers are promoted <strong>from</strong>, and the conditions each must meet.
+                            {!! __('admin.recruitment_rules.form.step_3_lead') !!}
                         </p>
                     </div>
-                    <button type="button" class="btn btn-outline-primary btn-sm text-nowrap" id="add-feeder">
-                        + Add Feeder Cadre
+                    <button type="button" class="btn btn-outline-primary btn-sm text-nowrap" id="add-promotion-source">
+                        {{ __('admin.recruitment_rules.form.add_promotion_from_post') }}
                     </button>
                 </div>
 
-                @error('feeders')
+                @error('promotionSources')
                     <div class="alert alert-danger py-2" role="alert">{{ $message }}</div>
                 @enderror
 
-                <div class="feeder-grid">
+                <div class="promotion-source-grid">
                     {{-- Fixed layout, with the column widths declared once in the
                          colgroup. Under the default auto layout a long header note
                          either stretches the table past the page (clipping Action)
                          or overflows its own cell into the next one; fixed layout
                          makes every column honour its width and wrap inside it. --}}
-                    <table class="table table-sm align-middle" id="feeders-table" style="table-layout:fixed; min-width:56rem">
+                    <table class="table table-sm align-middle" id="promotion-sources-table" style="table-layout:fixed; min-width:56rem">
                         <colgroup>
                             <col style="width:30%">
                             <col style="width:15%">
@@ -210,43 +212,40 @@
                         <thead class="table-light">
                             <tr>
                                 <th>
-                                    Feeder Cadre <span class="text-danger">*</span>
-                                    <span class="th-note">Chosen from the Cadre master.</span>
+                                    {!! __('admin.recruitment_rules.form.promotion_from_post_label') !!}
+                                    <span class="th-note">{{ __('admin.recruitment_rules.form.chosen_from_the_department_post_master') }}</span>
                                 </th>
                                 <th>
-                                    Promotion Share (%) <span class="text-danger">*</span>
-                                    <span class="th-note">Percentage of promotion quota allocated to this feeder cadre.</span>
+                                    {!! __('admin.recruitment_rules.form.promotion_share_label') !!}
+                                    <span class="th-note">{{ __('admin.recruitment_rules.form.percentage_of_promotion_quota_allocated_to_this') }}</span>
                                 </th>
-                                <th>
-                                    Minimum Experience
-                                    <span class="th-note">Value and unit, e.g. 5 Years.</span>
+                                {{ __('admin.recruitment_rules.form.minimum_experience_label') }}
+                                    <span class="th-note">{{ __('admin.recruitment_rules.form.value_and_unit_e_g_5_years') }}</span>
                                 </th>
-                                <th>
-                                    Minimum Qualification
-                                    <span class="th-note">From the Qualification master.</span>
+                                {{ __('admin.recruitment_rules.form.minimum_qualification_label') }}
+                                    <span class="th-note">{{ __('admin.recruitment_rules.form.from_the_qualification_master') }}</span>
                                 </th>
-                                <th class="text-end">Action</th>
+                                <th class="text-end">{{ __('ui.action') }}</th>
                             </tr>
                         </thead>
                         {{-- The next free row index travels as data — see
                              public/js/forms/recruitment-rule.js and TD-29. --}}
                         <tbody data-next-index="{{ $nextIndex }}">
                             @foreach ($rows as $i => $row)
-                                @include('admin.recruitment-rules.partials.feeder-row', [
+                                @include('admin.recruitment-rules.partials.promotion-source-row', [
                                     'index' => $i, 'row' => $row,
-                                    'cadres' => $cadres, 'qualifications' => $qualifications, 'units' => $units,
+                                    'posts' => $posts, 'qualifications' => $qualifications, 'units' => $units,
                                 ])
                             @endforeach
                         </tbody>
                         <tfoot>
-                            <tr id="feeders-empty" @class(['d-none' => $rows->isNotEmpty()])>
+                            <tr id="promotion-sources-empty" @class(['d-none' => $rows->isNotEmpty()])>
                                 <td colspan="5" class="text-center text-body-secondary py-4">
-                                    No feeder cadre yet. Press <strong>+ Add Feeder Cadre</strong> above,
-                                    or leave this empty if the post is filled entirely by direct recruitment.
+                                    {!! __('admin.recruitment_rules.form.no_promotion_from_post_yet') !!}
                                 </td>
                             </tr>
                             <tr class="table-light">
-                                <th class="text-end">Total</th>
+                                <th class="text-end">{{ __('ui.total') }}</th>
                                 <th>
                                     <span class="share-total" id="share-total">0%</span>
                                     <span id="share-total-mark" aria-hidden="true"></span>
@@ -260,33 +259,32 @@
                 <div class="alert alert-light border small d-flex gap-2 mt-1">
                     <span aria-hidden="true">ℹ</span>
                     <span>
-                        <strong>Promotion Share (%)</strong> is the percentage of the promotion quota allocated to that
-                        feeder cadre — not a percentage of all posts. The shares must total <strong>exactly 100%</strong>.
-                        Example: a post with a 50% promotion quota drawn equally from two cadres is
-                        <em>50% and 50%</em> here, not 25% and 25%.
+                        {!! __('admin.recruitment_rules.form.promotion_share_explained') !!}
                     </span>
                 </div>
 
                 @if ($qualifications->isEmpty())
                     <div class="alert alert-warning py-2 small">
-                        No <strong>Active</strong> qualification exists yet, so Minimum Qualification cannot be set.
-                        Add one under <a href="{{ route('admin.qualifications.index') }}">Administration → Qualifications</a>.
+                        {!! __('admin.recruitment_rules.form.no_qualification_master', [
+                            'link' => '<a href="'.e(route('admin.qualifications.index')).'">'
+                                .e(__('admin.recruitment_rules.form.administration_qualifications')).'</a>',
+                        ]) !!}
                     </div>
                 @endif
 
                 <div class="mt-4 d-flex gap-2">
-                    <button type="submit" class="btn btn-success">Save</button>
-                    <a href="{{ route('admin.recruitment-rules.index') }}" class="btn btn-outline-secondary">Cancel</a>
+                    <button type="submit" class="btn btn-success">{{ __('ui.save') }}</button>
+                    <a href="{{ route('admin.recruitment-rules.index') }}" class="btn btn-outline-secondary">{{ __('ui.cancel') }}</a>
                 </div>
             </form>
         </div>
     </div>
 
     {{-- The blank row the Add button clones. __INDEX__ is replaced on insert. --}}
-    <template id="feeder-row-template">
-        @include('admin.recruitment-rules.partials.feeder-row', [
+    <template id="promotion-source-row-template">
+        @include('admin.recruitment-rules.partials.promotion-source-row', [
             'index' => '__INDEX__', 'row' => null,
-            'cadres' => $cadres, 'qualifications' => $qualifications, 'units' => $units,
+            'posts' => $posts, 'qualifications' => $qualifications, 'units' => $units,
         ])
     </template>
 @endsection

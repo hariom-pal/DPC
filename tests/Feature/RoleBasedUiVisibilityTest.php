@@ -7,12 +7,17 @@ namespace Tests\Feature;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Cgpsc\Models\DpcAllotment;
 use App\Domain\Department\Models\Department;
-use App\Domain\Master\Models\Cadre;
+use App\Domain\Dpc\Enums\DpcProposalStatus;
+use App\Domain\Dpc\Models\DpcProposal;
+use App\Domain\Master\Models\DepartmentPost;
+use App\Domain\Master\Models\DpcType;
 use App\Domain\PreDpc\Models\PreDpcProposal;
 use App\Enums\Role;
 use Database\Seeders\LookupMasterSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\PrescribesQualifications;
+use Tests\Concerns\SeatsDpcCommittees;
 use Tests\TestCase;
 
 /**
@@ -29,7 +34,9 @@ use Tests\TestCase;
  */
 class RoleBasedUiVisibilityTest extends TestCase
 {
+    use PrescribesQualifications;
     use RefreshDatabase;
+    use SeatsDpcCommittees;
 
     private User $ao;
 
@@ -38,6 +45,10 @@ class RoleBasedUiVisibilityTest extends TestCase
     private User $chairman;
 
     private User $member;
+
+    private DepartmentPost $postFrom;
+
+    private DepartmentPost $postTo;
 
     protected function setUp(): void
     {
@@ -49,21 +60,27 @@ class RoleBasedUiVisibilityTest extends TestCase
             'code' => 'HE', 'name' => 'Higher Education Department', 'status' => 'active',
         ]);
 
-        Cadre::query()->create(['department_id' => $department->id, 'name' => 'Under Secretary', 'class_level' => 'I', 'status' => 'active']);
-        Cadre::query()->create(['department_id' => $department->id, 'name' => 'Deputy Secretary', 'class_level' => 'I', 'status' => 'active']);
+        // A Pre-DPC names two existing posts since change items 8-11, so both must
+        // be registered before anything can be drafted.
+        $this->postFrom = DepartmentPost::query()->create([
+            'department_id' => $department->id, 'name' => 'Under Secretary',
+            'class_level' => 'I', 'promotion_duration_years' => 5, 'status' => 'active',
+        ]);
+        $this->postTo = DepartmentPost::query()->create([
+            'department_id' => $department->id, 'name' => 'Deputy Secretary',
+            'class_level' => 'I', 'status' => 'active',
+        ]);
 
-        $this->ao = User::factory()->create(['department_id' => $department->id]);
-        $this->ao->assignRole(Role::AuthorizedOfficer->value);
+        $this->ao = User::factory()->assignedTo($department->id, Role::AuthorizedOfficer)->create();
 
-        $this->ah = User::factory()->create(['department_id' => $department->id]);
-        $this->ah->assignRole(Role::AdministrativeHead->value);
+        $this->ah = User::factory()->assignedTo($department->id, Role::AdministrativeHead)->create();
 
         // CGPSC users hold no department: a DPC reaches the Commission
         // precisely by leaving its department's control.
-        $this->chairman = User::factory()->create(['department_id' => null]);
+        $this->chairman = User::factory()->create();
         $this->chairman->assignRole(Role::Chairman->value);
 
-        $this->member = User::factory()->create(['department_id' => null]);
+        $this->member = User::factory()->create();
         $this->member->assignRole(Role::Member->value);
     }
 
@@ -93,12 +110,21 @@ class RoleBasedUiVisibilityTest extends TestCase
         $this->actingAs($this->ah)->get(route('pre-dpc.create'))->assertForbidden();
 
         $this->actingAs($this->ah)->post(route('pre-dpc.store'), [
+            'dpc_year' => 2026,
+            'promotion_to_post_id' => $this->postTo->id,
+            'direct_recruitment_pct' => 0,
+            'promotion_recruitment_pct' => 100,
+            'promotion_sources' => [
+                [
+                    'promotion_from_post_id' => $this->postFrom->id,
+                    'promotion_percentage' => 100,
+                    'min_experience_years' => 5,
+                    'experience_unit' => 'years',
+                    'qualification_ids' => $this->qualificationIds(),
+                ],
+            ],
             'government_order_number' => 'GO/1',
             'effective_from' => '2026-01-01',
-            'posts' => [[
-                'post_name' => 'Deputy Secretary', 'class_level' => 'I',
-                'direct_recruitment_pct' => 0, 'promotion_recruitment_pct' => 100,
-            ]],
         ])->assertForbidden();
     }
 
@@ -115,26 +141,46 @@ class RoleBasedUiVisibilityTest extends TestCase
     public function test_the_ah_cannot_author_a_pre_dpc_through_any_entry_point(): void
     {
         $this->actingAs($this->ao)->post(route('pre-dpc.store'), [
+            'dpc_year' => 2026,
+            'promotion_to_post_id' => $this->postTo->id,
+            'direct_recruitment_pct' => 0,
+            'promotion_recruitment_pct' => 100,
+            'promotion_sources' => [
+                [
+                    'promotion_from_post_id' => $this->postFrom->id,
+                    'promotion_percentage' => 100,
+                    'min_experience_years' => 5,
+                    'experience_unit' => 'years',
+                    'qualification_ids' => $this->qualificationIds(),
+                ],
+            ],
             'government_order_number' => 'GO/1',
             'effective_from' => '2026-01-01',
-            'posts' => [[
-                'post_name' => 'Deputy Secretary', 'class_level' => 'I',
-                'direct_recruitment_pct' => 0, 'promotion_recruitment_pct' => 100,
-            ]],
         ]);
 
         $draft = PreDpcProposal::query()->latest('id')->firstOrFail();
 
         $this->actingAs($this->ah)->get(route('pre-dpc.edit', $draft))->assertForbidden();
         $this->actingAs($this->ah)->put(route('pre-dpc.update', $draft), [
-            'posts' => [[
-                'post_name' => 'Rewritten By The AH', 'class_level' => 'I',
-                'direct_recruitment_pct' => 0, 'promotion_recruitment_pct' => 100,
-            ]],
+            'dpc_year' => 2026,
+            'promotion_to_post_id' => $this->postTo->id,
+            'direct_recruitment_pct' => 0,
+            'promotion_recruitment_pct' => 100,
+            'promotion_sources' => [
+                [
+                    'promotion_from_post_id' => $this->postFrom->id,
+                    'promotion_percentage' => 100,
+                    'min_experience_years' => 9,
+                    'experience_unit' => 'years',
+                    'qualification_ids' => $this->qualificationIds(),
+                ],
+            ],
         ])->assertForbidden();
 
         // The draft is untouched — the refusal is not merely cosmetic.
-        $this->assertSame('Deputy Secretary', $draft->fresh()->posts()->firstOrFail()->post_name);
+        // The AH's attempted edit changed nothing: the draft still carries the
+        // minimum experience the AO saved, not the 9 the AH tried to write.
+        $this->assertSame(5, $draft->promotionSources()->sole()->min_experience_years);
 
         // The AO, whose draft it is, still can.
         $this->actingAs($this->ao)->get(route('pre-dpc.edit', $draft))->assertOk();
@@ -144,12 +190,21 @@ class RoleBasedUiVisibilityTest extends TestCase
     public function test_the_pre_dpc_screen_offers_each_role_only_its_own_actions(): void
     {
         $this->actingAs($this->ao)->post(route('pre-dpc.store'), [
+            'dpc_year' => 2026,
+            'promotion_to_post_id' => $this->postTo->id,
+            'direct_recruitment_pct' => 0,
+            'promotion_recruitment_pct' => 100,
+            'promotion_sources' => [
+                [
+                    'promotion_from_post_id' => $this->postFrom->id,
+                    'promotion_percentage' => 100,
+                    'min_experience_years' => 5,
+                    'experience_unit' => 'years',
+                    'qualification_ids' => $this->qualificationIds(),
+                ],
+            ],
             'government_order_number' => 'GO/1',
             'effective_from' => '2026-01-01',
-            'posts' => [[
-                'post_name' => 'Deputy Secretary', 'class_level' => 'I',
-                'direct_recruitment_pct' => 0, 'promotion_recruitment_pct' => 100,
-            ]],
         ]);
 
         $draft = PreDpcProposal::query()->latest('id')->firstOrFail();
@@ -243,14 +298,49 @@ class RoleBasedUiVisibilityTest extends TestCase
         $response->assertSee(route('cgpsc.proceedings.index'), escape: false);
     }
 
-    public function test_the_member_cannot_allot_even_by_posting_directly(): void
+    /**
+     * **Which layer refuses this moved on 2026-08-26**, and the test moved with it.
+     *
+     * Item 9 gives allotment to the **DPC Chairman**, designated per DPC from that
+     * DPC's committee — so a Member may legitimately allot *some* DPC, and a
+     * class-level policy can no longer answer the question. `DpcAllotmentPolicy`
+     * now says "a Commission actor could allot something" and
+     * `AllotmentService::assertMayAllot()` says "not this one, and here is who may".
+     *
+     * So this asserts the outcome rather than the gate: a Member who has not been
+     * designated cannot allot, whatever they post.
+     */
+    public function test_the_member_cannot_allot_a_dpc_they_were_not_designated_for(): void
     {
-        // The screen is readable — a Member sees what they have been given —
-        // but the allotment action is refused.
+        // The screen is readable — a Member sees what they have been given.
         $this->actingAs($this->member)->get(route('cgpsc.allotments.index'))->assertOk();
 
-        $this->assertFalse($this->member->can('allot', DpcAllotment::class));
-        $this->assertTrue($this->chairman->can('allot', DpcAllotment::class));
+        // A forwarded proposal for the Member to try to allot. Built here rather
+        // than through the workflow: this test is about the refusal, and driving
+        // the whole department-side flow would make it about something else.
+        $forwarded = DpcProposal::query()->create([
+            'department_id' => $this->postTo->department_id,
+            'dpc_type_id' => DpcType::query()->where('code', 'fresh')->firstOrFail()->id,
+            'promotion_to_post_id' => $this->postTo->id,
+            'promotion_from_post_id' => $this->postFrom->id,
+            'proposal_date' => now()->toDateString(),
+            'status' => DpcProposalStatus::Approved->value,
+            'dpc_code' => 'DPC-2026-RB-0001',
+            'forwarded_at' => now(),
+        ]);
+
+        // Since the clarification of 2026-09-05 the Chairman names who presides as
+        // part of allotting, and the field is required — so the payload has to be
+        // complete for the request to reach the refusal this test is about.
+        $this->seatCommittee($forwarded);
+
+        $this->actingAs($this->member)->post(route('cgpsc.allotments.store', $forwarded), [
+            'allotted_to' => $this->member->id,
+            'dpc_chairman_member_id' => $this->presidingSeatId($forwarded),
+            'complete_by' => now()->addMonths(2)->toDateString(),
+        ])->assertSessionHasErrors('allotment');
+
+        $this->assertSame(0, DpcAllotment::query()->count());
     }
 
     // ------------------------------------------------------------------

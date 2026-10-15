@@ -84,7 +84,7 @@
          *
          * `hidden` and `disabled` are honoured, not just the empty placeholder.
          * A caller that hides an option means it — the feeder grid hides the
-         * target cadre so a post cannot feed itself, and hides cadres already
+         * target post so a post cannot feed itself, and hides posts already
          * chosen on another row — and a list that showed them anyway would offer
          * a choice the server then rejects.
          */
@@ -151,7 +151,7 @@
         function choose(value) {
             select.value = value;
             // Tell the rest of the page: the feeder grid recomputes its total and
-            // its eligible-cadre filtering from the select's change event.
+            // its eligible-post filtering from the select's change event.
             select.dispatchEvent(new Event('change', { bubbles: true }));
             close();
         }

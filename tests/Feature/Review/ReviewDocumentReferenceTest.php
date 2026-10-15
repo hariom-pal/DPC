@@ -22,6 +22,7 @@ use App\Domain\Review\Services\ReviewDpcService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use RuntimeException;
+use Tests\Concerns\SeatsDpcCommittees;
 use Tests\Feature\Proceeding\Concerns\BuildsProceedings;
 use Tests\TestCase;
 
@@ -43,6 +44,7 @@ use Tests\TestCase;
 class ReviewDocumentReferenceTest extends TestCase
 {
     use BuildsProceedings;
+    use SeatsDpcCommittees;
 
     protected function setUp(): void
     {
@@ -102,6 +104,13 @@ class ReviewDocumentReferenceTest extends TestCase
             'approved_at' => now(),
         ])->saveQuietly();
 
+        /*
+         | Seated before allotting: a DPC is allotted to a serving member of its own
+         | committee (business, 2026-09-06), and the qualification is committee
+         | membership rather than a Commission role (correction, 2026-09-07).
+         */
+        $this->seatCommittee($this->proposal);
+
         app(AllotmentService::class)->allot(
             $review->fresh(), $this->memberOne, $this->chairman, request(), Carbon::parse($date),
         );
@@ -140,7 +149,7 @@ class ReviewDocumentReferenceTest extends TestCase
     {
         $this->concludeOriginal();
         $review = $this->raise($this->proposal);
-        $proceeding = $this->conclude($review, 'HE202600002', '2026-09-10');
+        $proceeding = $this->conclude($review, 'DPC-2026-HE-0002', '2026-09-10');
         $this->documents()->generate($proceeding->fresh(), $this->memberOne);
 
         $document = $this->documentOf($proceeding);
@@ -160,7 +169,7 @@ class ReviewDocumentReferenceTest extends TestCase
         // system has to carry its own provenance on its face.
         $this->concludeOriginal();
         $review = $this->raise($this->proposal);
-        $proceeding = $this->conclude($review, 'HE202600002', '2026-09-10');
+        $proceeding = $this->conclude($review, 'DPC-2026-HE-0002', '2026-09-10');
         $this->documents()->generate($proceeding->fresh(), $this->memberOne);
 
         $document = $this->documentOf($proceeding);
@@ -179,7 +188,7 @@ class ReviewDocumentReferenceTest extends TestCase
         // Re-issuing produces a new version rather than overwriting (M7's
         // rule), so each version references itself, not its predecessor.
         $this->concludeOriginal();
-        $proceeding = $this->conclude($this->raise($this->proposal), 'HE202600002', '2026-09-10');
+        $proceeding = $this->conclude($this->raise($this->proposal), 'DPC-2026-HE-0002', '2026-09-10');
 
         $this->documents()->generate($proceeding->fresh(), $this->memberOne);
         $this->documents()->generate($proceeding->fresh(), $this->memberOne);
@@ -215,7 +224,7 @@ class ReviewDocumentReferenceTest extends TestCase
 
         $this->assertSame(0, DpcDocumentReviewReference::query()->count());
 
-        $this->conclude($this->raise($this->proposal), 'HE202600002', '2026-09-10');
+        $this->conclude($this->raise($this->proposal), 'DPC-2026-HE-0002', '2026-09-10');
 
         $reference = $this->referenceOf($original);
         $link = DpcReviewLink::query()->firstOrFail();
@@ -240,11 +249,11 @@ class ReviewDocumentReferenceTest extends TestCase
         $this->concludeOriginal();
         $original = $this->documentOf($this->proceeding->fresh());
 
-        $this->conclude($this->raise($this->proposal), 'HE202600002', '2026-09-10');
+        $this->conclude($this->raise($this->proposal), 'DPC-2026-HE-0002', '2026-09-10');
 
         $html = $this->documents()->contents($original->fresh());
 
-        $this->assertStringContainsString('Superseded By: HE202600002', $html);
+        $this->assertStringContainsString('Superseded By: DPC-2026-HE-0002', $html);
         $this->assertStringContainsString(
             $this->referenceOf($original)->supersession_effective_at->format('d/m/Y'),
             $html,
@@ -259,7 +268,7 @@ class ReviewDocumentReferenceTest extends TestCase
         $this->concludeOriginal();
         $original = $this->documentOf($this->proceeding->fresh());
 
-        $this->conclude($this->raise($this->proposal), 'HE202600002', '2026-09-10');
+        $this->conclude($this->raise($this->proposal), 'DPC-2026-HE-0002', '2026-09-10');
 
         $effective = $this->referenceOf($original)->supersession_effective_at;
 
@@ -280,7 +289,7 @@ class ReviewDocumentReferenceTest extends TestCase
         // Re-issuing the original's promotion list after the correction has
         // taken effect must not produce a document that looks operative.
         $this->concludeOriginal();
-        $this->conclude($this->raise($this->proposal), 'HE202600002', '2026-09-10');
+        $this->conclude($this->raise($this->proposal), 'DPC-2026-HE-0002', '2026-09-10');
 
         $this->documents()->generate($this->proceeding->fresh(), $this->memberOne);
 
@@ -289,7 +298,7 @@ class ReviewDocumentReferenceTest extends TestCase
         $this->assertSame(2, $reissued->document_version);
         $this->assertTrue($this->referenceOf($reissued)->isSuperseded());
         $this->assertStringContainsString(
-            'Superseded By: HE202600002',
+            'Superseded By: DPC-2026-HE-0002',
             $this->documents()->contents($reissued),
         );
     }
@@ -301,16 +310,16 @@ class ReviewDocumentReferenceTest extends TestCase
         $this->concludeOriginal();
 
         $firstReview = $this->raise($this->proposal);
-        $firstProceeding = $this->conclude($firstReview, 'HE202600002', '2026-09-10');
+        $firstProceeding = $this->conclude($firstReview, 'DPC-2026-HE-0002', '2026-09-10');
         $this->documents()->generate($firstProceeding->fresh(), $this->memberOne);
         $firstDocument = $this->documentOf($firstProceeding);
 
-        $this->conclude($this->raise($firstReview, '2026-10-05'), 'HE202600003', '2026-10-20');
+        $this->conclude($this->raise($firstReview, '2026-10-05'), 'DPC-2026-HE-0003', '2026-10-20');
 
         $html = $this->documents()->contents($firstDocument->fresh());
 
-        $this->assertStringContainsString('Superseded By: HE202600003', $html);
-        $this->assertStringNotContainsString('Superseded By: HE202600002', $html);
+        $this->assertStringContainsString('Superseded By: DPC-2026-HE-0003', $html);
+        $this->assertStringNotContainsString('Superseded By: DPC-2026-HE-0002', $html);
         // And its own identity is unchanged — it still corrects the original.
         $this->assertSame(
             $this->proposal->fresh()->uuid,
@@ -323,7 +332,7 @@ class ReviewDocumentReferenceTest extends TestCase
     public function test_a_reference_cannot_be_rewritten(): void
     {
         $this->concludeOriginal();
-        $proceeding = $this->conclude($this->raise($this->proposal), 'HE202600002', '2026-09-10');
+        $proceeding = $this->conclude($this->raise($this->proposal), 'DPC-2026-HE-0002', '2026-09-10');
         $this->documents()->generate($proceeding->fresh(), $this->memberOne);
 
         $reference = $this->referenceOf($this->documentOf($proceeding));
@@ -335,7 +344,7 @@ class ReviewDocumentReferenceTest extends TestCase
     public function test_a_reference_cannot_be_deleted(): void
     {
         $this->concludeOriginal();
-        $proceeding = $this->conclude($this->raise($this->proposal), 'HE202600002', '2026-09-10');
+        $proceeding = $this->conclude($this->raise($this->proposal), 'DPC-2026-HE-0002', '2026-09-10');
         $this->documents()->generate($proceeding->fresh(), $this->memberOne);
 
         $reference = $this->referenceOf($this->documentOf($proceeding));
@@ -351,7 +360,7 @@ class ReviewDocumentReferenceTest extends TestCase
         $this->concludeOriginal();
         $original = $this->documentOf($this->proceeding->fresh());
 
-        $this->conclude($this->raise($this->proposal), 'HE202600002', '2026-09-10');
+        $this->conclude($this->raise($this->proposal), 'DPC-2026-HE-0002', '2026-09-10');
 
         $reference = $this->referenceOf($original);
 

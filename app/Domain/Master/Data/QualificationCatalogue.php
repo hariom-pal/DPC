@@ -10,7 +10,7 @@ use Database\Seeders\QualificationSeeder;
  * The canonical starting list for the Qualification master.
  *
  * It lives in one place because two things need it and they must not drift:
- * the migration that introduces `recruitment_rule_feeders.qualification_id`
+ * the migration that introduces `recruitment_rule_sources.qualification_id`
  * seeds it so that its backfill has something to match against on a
  * migrate-only deployment, and {@see QualificationSeeder}
  * upserts it by code so re-seeding is harmless.
@@ -79,7 +79,7 @@ final class QualificationCatalogue
             'code' => 'PG_BED',
             'name_en' => 'Post-Graduate with B.Ed.',
             'name_hi' => 'बी.एड. सहित स्नातकोत्तर',
-            'description' => 'A master’s degree together with a Bachelor of Education — the standard requirement for teaching cadres above Middle School.',
+            'description' => 'A master’s degree together with a Bachelor of Education — the standard requirement for teaching posts above Middle School.',
         ],
         [
             'code' => 'BED',

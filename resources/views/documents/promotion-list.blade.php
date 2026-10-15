@@ -20,7 +20,7 @@
 
     <h3>
         PROMOTION AS ON {{ $proceeding->promotion_as_on_year ?? '—' }}
-        ON {{ $proposal->postToCadre?->name }} FROM {{ $proposal->postFromCadre?->name }} — MAIN LIST
+        ON {{ $proposal->promotionToPost?->name }} FROM {{ $proposal->promotionFromPost?->name }} — MAIN LIST
     </h3>
     <table>
         <thead>

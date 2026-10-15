@@ -7,13 +7,15 @@ namespace App\Domain\Department\Models;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Dpc\Models\DpcIdSequence;
 use App\Domain\Dpc\Models\DpcProposal;
-use App\Domain\Master\Models\Cadre;
+use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\District;
+use App\Domain\UserManagement\Models\UserDepartmentAssignment;
 use App\Enums\DepartmentStatus;
 use App\Support\Concerns\Blameable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 use OwenIt\Auditing\Auditable as AuditableTrait;
@@ -54,11 +56,37 @@ class Department extends Model implements Auditable
     ];
 
     /**
-     * @return HasMany<User, $this>
+     * The accounts *currently* posted to this department.
+     *
+     * **A `hasManyThrough` since 2026-08-24, not a `hasMany`** (change item 2).
+     * `users.department_id` is gone: an officer is assigned to a department for a
+     * period, so "this department's users" is a question about live assignments
+     * rather than about a column on the account. The `whereNotNull` is what makes
+     * it *currently* — without it a transferred officer would still appear here
+     * for ever.
+     *
+     * @return HasManyThrough<User, UserDepartmentAssignment, $this>
      */
-    public function users(): HasMany
+    public function users(): HasManyThrough
     {
-        return $this->hasMany(User::class);
+        return $this->hasManyThrough(
+            User::class,
+            UserDepartmentAssignment::class,
+            'department_id',
+            'id',
+            'id',
+            'user_id',
+        )->whereNotNull('user_department_assignments.active_flag');
+    }
+
+    /**
+     * Every posting ever made to this department, current or superseded.
+     *
+     * @return HasMany<UserDepartmentAssignment, $this>
+     */
+    public function assignments(): HasMany
+    {
+        return $this->hasMany(UserDepartmentAssignment::class);
     }
 
     /**
@@ -70,11 +98,11 @@ class Department extends Model implements Auditable
     }
 
     /**
-     * @return HasMany<Cadre, $this>
+     * @return HasMany<DepartmentPost, $this>
      */
-    public function cadres(): HasMany
+    public function posts(): HasMany
     {
-        return $this->hasMany(Cadre::class);
+        return $this->hasMany(DepartmentPost::class);
     }
 
     /**

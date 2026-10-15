@@ -1,0 +1,10 @@
+﻿DEPARTMENT,POST NAME,CLASS,PAY SCALE,PROMOTION DURATION (YEARS),SANCTIONED STRENGTH,EFFECTIVE FROM,STATUS
+School Education,Teacher,III,Level-10 (56100-177500),5,,01-01-2026,active
+School Education,"Head Master, Middle School",III,Level-10 (56100-177500),4,4,01-01-2026,active
+School Education,Lecturer,II,Level-11 (67700-208700),5,4,01-01-2026,active
+School Education,"Principal, Higher Secondary School",II,Level-12 (78800-209200),5,9,01-01-2026,active
+School Education,Block Education Officer,II,Level-12 (78800-209200),,4,01-01-2026,active
+School Education,District Education Officer,I,Level-12 (78800-209200),5,4,01-01-2026,active
+School Education,"Joint Director, Education",I,Level-13 (123100-215900),4,12,01-01-2026,active
+School Education,"Additional Director, Education",I,Level-13A (131100-216600),3,10,01-01-2026,active
+School Education,"Director, Public Instruction",I,Level-14 (144200-218200),,1,01-01-2026,active

@@ -7,6 +7,7 @@ namespace Tests\Feature\SelfInspection;
 use App\Domain\Dpc\Enums\DpcProposalStatus;
 use App\Domain\Proceeding\Enums\DpcProceedingStatus;
 use App\Domain\Proceeding\Models\DpcProceeding;
+use App\Domain\SelfInspection\Enums\SelfInspectionFactor;
 use App\Domain\SelfInspection\Models\SelfInspectionAccess;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Config;
@@ -52,9 +53,9 @@ class SelfInspectionTest extends TestCase
             ->assertOk()
             // The configured factors, rendered from configuration rather than
             // written into the view.
-            ->assertSee('Name (as recorded by your department)')
-            ->assertSee('Date of Joining Current Cadre')
-            ->assertSee('Date of Birth');
+            ->assertSee(SelfInspectionFactor::Name->label())
+            ->assertSee(SelfInspectionFactor::DateOfPostingOnPromotionFromPost->label())
+            ->assertSee(SelfInspectionFactor::Dob->label());
     }
 
     /**
@@ -103,7 +104,7 @@ class SelfInspectionTest extends TestCase
 
         // The refusal must not name the factor that failed: naming it turns the
         // screen into a lookup service one field at a time.
-        foreach (['date of birth', 'Date of Birth', 'name', 'cadre'] as $leak) {
+        foreach (['date of birth', 'Date of Birth', 'name', 'post'] as $leak) {
             $this->assertStringNotContainsString($leak, $message);
         }
 
@@ -131,7 +132,7 @@ class SelfInspectionTest extends TestCase
 
         $this->get(route('self-inspection.identify'))
             ->assertOk()
-            ->assertDontSee('Date of Joining Current Cadre');
+            ->assertDontSee('Date of Joining Promotion To Post');
 
         $this->post(route('self-inspection.identify.store'), [
             'name' => $this->row->name,
@@ -165,10 +166,10 @@ class SelfInspectionTest extends TestCase
      */
     public function test_a_factor_absent_from_the_record_cannot_be_satisfied(): void
     {
-        $this->row->forceFill(['date_of_posting_on_current_post' => null])->save();
+        $this->row->forceFill(['date_of_posting_on_promotion_from_post' => null])->save();
 
         $answers = $this->correctFactors();
-        $answers['date_of_posting_on_current_post'] = '2012-01-01';
+        $answers['date_of_posting_on_promotion_from_post'] = '2012-01-01';
 
         $this->post(route('self-inspection.identify.store'), $answers)
             ->assertSessionHasErrors('self_inspection');
@@ -281,19 +282,19 @@ class SelfInspectionTest extends TestCase
 
     public function test_an_officer_on_two_proposals_sees_both_and_can_switch(): void
     {
-        $second = $this->makeProposal(dpcCode: 'SE202600002');
+        $second = $this->makeProposal(dpcCode: 'DPC-2026-SE-0002');
         $secondRow = $this->makeRow($second);
 
         $this->identify();
 
         $this->get(route('self-inspection.show'))
             ->assertOk()
-            ->assertSee('SE202600001')
-            ->assertSee('SE202600002');
+            ->assertSee('DPC-2026-SE-0001')
+            ->assertSee('DPC-2026-SE-0002');
 
         $this->get(route('self-inspection.show', ['row' => $secondRow->id]))
             ->assertOk()
-            ->assertSee('SE202600002');
+            ->assertSee('DPC-2026-SE-0002');
     }
 
     // ------------------------------------------------------------------
@@ -373,7 +374,13 @@ class SelfInspectionTest extends TestCase
         $this->assertSame('identity_factors', $access->auth_driver);
         // The factor set in force is recorded: "this attempt passed" means
         // nothing later without knowing what it had to pass.
-        $this->assertSame(['name', 'date_of_posting_on_current_post', 'dob'], $access->factors_required);
+        // The configured set, not a literal: the third factor changed on
+        // 2026-09-06 because a candidate awaiting promotion cannot answer the one it
+        // replaced. See `dpc.self_inspection.authentication.factors`.
+        $this->assertSame(
+            array_map(static fn (SelfInspectionFactor $f): string => $f->value, SelfInspectionFactor::configured()),
+            $access->factors_required,
+        );
     }
 
     /** The failed attempt is the more valuable half of the record. */

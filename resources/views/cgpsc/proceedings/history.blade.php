@@ -1,17 +1,15 @@
 @extends('layouts.app')
 
-@section('title', 'Proceeding History')
+@section('title', __('ui.proceeding_history'))
 
 @section('content')
     <div class="row justify-content-center">
         <div class="col-lg-10">
             @include('partials.alerts')
 
-            <h1 class="h4 mb-1">Proceeding History</h1>
+            <h1 class="h4 mb-1">{{ __('ui.proceeding_history') }}</h1>
             <p class="text-muted small mb-3">
-                Every step of this DPC's proceeding, in the order it happened, with the person who took it as
-                they were named at the time. This history is read from the workflow record itself, not from
-                the current state of the DPC — renaming a user or changing a record later cannot rewrite it.
+                {{ __('cgpsc.proceedings.history.every_step_of_this_dpc_s_proceeding_in_the_order') }}
             </p>
 
             <div class="card border-0 shadow-sm">
@@ -20,10 +18,10 @@
                         <table class="table table-sm align-middle mb-0">
                             <thead>
                                 <tr>
-                                    <th style="width:14rem">When</th>
-                                    <th>Event</th>
-                                    <th>By</th>
-                                    <th>Detail</th>
+                                    <th style="width:14rem">{{ __('ui.when') }}</th>
+                                    <th>{{ __('ui.event') }}</th>
+                                    <th>{{ __('ui.by') }}</th>
+                                    <th>{{ __('ui.detail') }}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -35,25 +33,24 @@
                                     <td>{{ $entry->actor_name ?? '—' }}</td>
                                     <td class="small">
                                         @if (! empty($properties['dpc_date']))
-                                            Scheduled for {{ $properties['dpc_date'] }}
-                                            {{ $properties['dpc_time'] ?? '' }}.
+{{ __('cgpsc.proceedings.history.scheduled_for', ['date' => $properties['dpc_date'], 'time' => $properties['dpc_time'] ?? '']) }}
                                         @endif
                                         @if (! empty($properties['opened_at']))
-                                            Opened {{ \Illuminate\Support\Carbon::parse($properties['opened_at'])->format('d/m/Y h:i A') }}.
+{{ __('cgpsc.proceedings.history.opened_at', ['at' => \Illuminate\Support\Carbon::parse($properties['opened_at'])->format('d/m/Y h:i A')]) }}
                                         @endif
                                         @if (! empty($properties['remarks']))
                                             <div>{{ $properties['remarks'] }}</div>
                                         @endif
                                         @if (! empty($properties['proceeding_uuid']))
                                             <div class="text-muted">
-                                                Reference <code>{{ $properties['proceeding_uuid'] }}</code>
+{!! __('cgpsc.proceedings.history.reference', ['uuid' => e($properties['proceeding_uuid'])]) !!}
                                             </div>
                                         @endif
                                     </td>
                                 </tr>
                             @empty
                                 <tr><td colspan="4" class="text-muted text-center py-3">
-                                    Nothing has been recorded for this proceeding yet.
+                                    {{ __('cgpsc.proceedings.history.nothing_has_been_recorded_for_this_proceeding_ye') }}
                                 </td></tr>
                             @endforelse
                             </tbody>
@@ -63,7 +60,7 @@
             </div>
 
             <div class="mt-3">
-                <a class="btn btn-sm btn-link" href="{{ route('cgpsc.proceedings.show', $proceeding) }}">Back</a>
+                <a class="btn btn-sm btn-link" href="{{ route('cgpsc.proceedings.show', $proceeding) }}">{{ __('ui.back') }}</a>
             </div>
         </div>
     </div>

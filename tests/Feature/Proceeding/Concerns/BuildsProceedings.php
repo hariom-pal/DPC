@@ -10,22 +10,26 @@ use App\Domain\Cgpsc\Services\SchedulingService;
 use App\Domain\Department\Models\Department;
 use App\Domain\Dpc\Enums\DpcProposalStatus;
 use App\Domain\Dpc\Models\DpcProposal;
-use App\Domain\Dpc\Services\DpcIdGeneratorService;
+use App\Domain\Dpc\Models\DpcWorkingOfficer;
 use App\Domain\Eligibility\Models\DpcCalculationRun;
-use App\Domain\Master\Models\Cadre;
+use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\DpcType;
+use App\Domain\Master\Models\RecruitmentRule;
 use App\Domain\Master\Models\ReservationCategory;
 use App\Domain\Master\Models\VacancyType;
 use App\Domain\Proceeding\Models\DpcProceeding;
 use App\Domain\Proceeding\Services\ProceedingCalculationService;
 use App\Domain\Proceeding\Services\ProceedingCorrectionService;
 use App\Domain\Proceeding\Services\ProceedingService;
+use App\Domain\Shared\Services\IdentifierSequenceService;
+use App\Enums\MasterStatus;
 use App\Enums\Role;
 use Database\Seeders\LookupMasterSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Config;
+use Tests\Concerns\SeatsDpcCommittees;
 use Tests\Concerns\SeedsEvaluationCharts;
 
 /**
@@ -39,6 +43,7 @@ use Tests\Concerns\SeedsEvaluationCharts;
 trait BuildsProceedings
 {
     use RefreshDatabase;
+    use SeatsDpcCommittees;
     use SeedsEvaluationCharts;
 
     protected Department $department;
@@ -66,34 +71,28 @@ trait BuildsProceedings
             'code' => 'HE', 'name' => 'Higher Education Department', 'status' => 'active',
         ]);
 
-        $this->chairman = User::factory()->create(['department_id' => null, 'name' => 'Hon. Chairman']);
+        $this->chairman = User::factory()->create(['name' => 'Hon. Chairman']);
         $this->chairman->assignRole(Role::Chairman->value);
 
-        $this->memberOne = User::factory()->create(['department_id' => null, 'name' => 'Member One']);
+        $this->memberOne = User::factory()->create(['name' => 'Member One']);
         $this->memberOne->assignRole(Role::Member->value);
 
-        $this->memberTwo = User::factory()->create(['department_id' => null, 'name' => 'Member Two']);
+        $this->memberTwo = User::factory()->create(['name' => 'Member Two']);
         $this->memberTwo->assignRole(Role::Member->value);
 
-        $this->authorizedOfficer = User::factory()->create([
-            'department_id' => $this->department->id, 'name' => 'Authorized Officer',
-        ]);
-        $this->authorizedOfficer->assignRole(Role::AuthorizedOfficer->value);
+        $this->authorizedOfficer = User::factory()->assignedTo($this->department->id, Role::AuthorizedOfficer)->create(['name' => 'Authorized Officer']);
 
         // Added for TD-23: driving a proposal through the real submit gate
         // needs the Administrative Head who approves it. Creating the user is
         // additive — no existing test observes the user count.
-        $this->administrativeHead = User::factory()->create([
-            'department_id' => $this->department->id, 'name' => 'Administrative Head',
-        ]);
-        $this->administrativeHead->assignRole(Role::AdministrativeHead->value);
+        $this->administrativeHead = User::factory()->assignedTo($this->department->id, Role::AdministrativeHead)->create(['name' => 'Administrative Head']);
 
         // Class-I -> Class-I, the PPT's own worked case.
-        $postFrom = Cadre::query()->create([
+        $postFrom = DepartmentPost::query()->create([
             'department_id' => $this->department->id, 'name' => 'Under Secretary',
             'class_level' => 'I', 'status' => 'active',
         ]);
-        $postTo = Cadre::query()->create([
+        $postTo = DepartmentPost::query()->create([
             'department_id' => $this->department->id, 'name' => 'Deputy Secretary',
             'class_level' => 'I', 'status' => 'active',
         ]);
@@ -101,8 +100,8 @@ trait BuildsProceedings
         $this->proposal = DpcProposal::query()->create([
             'department_id' => $this->department->id,
             'dpc_type_id' => DpcType::query()->where('code', 'fresh')->firstOrFail()->id,
-            'post_to_cadre_id' => $postTo->id,
-            'post_from_cadre_id' => $postFrom->id,
+            'promotion_to_post_id' => $postTo->id,
+            'promotion_from_post_id' => $postFrom->id,
             'proposal_date' => '2026-06-25',
             'status' => DpcProposalStatus::Approved->value,
             // Minted through the real generator, not hardcoded.
@@ -111,13 +110,14 @@ trait BuildsProceedings
             // it through submit/approve — it is the setup, not the thing under
             // test. But hardcoding the code left the per-department sequence at
             // zero, so the *next* proposal to be approved for real was handed
-            // `HE202600001` again and collided. Nothing in production can reach
+            // `DPC-2026-HE-0001` again and collided. Nothing in production can reach
             // that state, because in production the original consumed the
             // sequence too. Found by TD-23's fix, which was the first test to
             // approve a second proposal for real.
             //
-            // Still the first call, so the value is unchanged: HE202600001.
-            'dpc_code' => app(DpcIdGeneratorService::class)->next($this->department, Carbon::parse('2026-06-25')),
+            // Still the first call, so the value is unchanged: DPC-2026-HE-0001.
+            'dpc_code' => app(IdentifierSequenceService::class)
+                ->next($this->department, IdentifierSequenceService::SERIES_DPC, 2026),
             'forwarded_at' => now(),
         ]);
 
@@ -143,11 +143,63 @@ trait BuildsProceedings
          */
         Config::set('dpc.vacancy.enforce_seniority_matches_zone', false);
 
+        /*
+         | One vacancy, **stated on the chart** (business directive, 2026-09-02).
+         |
+         | This used to insert only the breakdown row, which was enough while the
+         | base vacancy was `Sanctioned − Working` and an empty chart therefore
+         | produced one on its own. A vacancy is now a chart row whose status is
+         | `vacant`, and the breakdown is derived from it — so the chart has to say
+         | so, or the section reads as a breakdown nothing evidences.
+         |
+         | Written directly rather than through `DpcProposalService`, as the
+         | breakdown row below always was: by this point the proposal is past Draft
+         | and the service would rightly refuse to edit it. A fixture is not the
+         | application.
+         */
+        $this->proposal->promotionToPost?->forceFill(['sanctioned_strength' => 1])->save();
+
+        /*
+         | And a 100%-promotion Recruitment Rule, which became a **required input**
+         | with the business directive of 2026-09-02: the promotion vacancy is
+         | `promotion chairs − promotion chairs held`, and without a rule nothing
+         | says how many of the sanctioned chairs are promotion chairs. A real
+         | proposal inherits one from the Pre-DPC it was raised under; this fixture
+         | builds its posts directly, so it registers its own.
+         */
+        if ($this->proposal->promotionToPost !== null) {
+            RecruitmentRule::query()->firstOrCreate(
+                ['post_id' => $this->proposal->promotionToPost->id, 'version' => 1],
+                [
+                    'government_order_number' => 'GO/PROCEEDING/1',
+                    'direct_recruitment_pct' => 0,
+                    'promotion_recruitment_pct' => 100,
+                    'effective_from' => '2020-01-01',
+                    'status' => MasterStatus::Active->value,
+                ],
+            );
+
+            $this->proposal->forceFill(['recruitment_rule_id' => null])->save();
+        }
+
+        $this->proposal->workingOfficers()->create([
+            'sn' => 1,
+            'status' => DpcWorkingOfficer::STATUS_VACANT,
+            'reservation_category_id' => $this->urCategoryId(),
+        ]);
+
         $this->proposal->vacancies()->create([
-            'vacancy_type_id' => VacancyType::query()->firstOrFail()->id,
+            'vacancy_type_id' => VacancyType::query()->where('code', 'clear')->firstOrFail()->id,
             'reservation_category_id' => $this->urCategoryId(),
             'count' => 1,
         ]);
+
+        /*
+         | Seated before allotting: a DPC is allotted to a serving member of its own
+         | committee (business, 2026-09-06), and the qualification is committee
+         | membership rather than a Commission role (correction, 2026-09-07).
+         */
+        $this->seatCommittee($this->proposal);
 
         app(AllotmentService::class)->allot(
             $this->proposal->fresh(), $this->memberOne, $this->chairman, request(), Carbon::parse('2026-07-10'),

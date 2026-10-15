@@ -13,20 +13,20 @@
 
 <div class="alert alert-warning" role="status">
     <h2 class="h6 mb-1">
-        Pending Business Decision — {{ $pending['code'] }}
+{{ __('dpc.circulations.pending.heading', ['code' => $pending['code']]) }}
     </h2>
     <p class="mb-2"><strong>{{ $pending['title'] }}</strong></p>
     <p class="mb-2">{{ $pending['question'] }}</p>
 
     @if (! empty($pending['affected']))
-        <p class="mb-1 small text-uppercase fw-semibold">Officers affected</p>
+        <p class="mb-1 small text-uppercase fw-semibold">{{ __('dpc.circulations.pending_business_decision.officers_affected') }}</p>
         <ul class="mb-2">
             @foreach ($pending['affected'] as $officer)
                 {{-- The panel is shared across business decisions, and their
                      payloads differ: BD-15 names a hold ground, BD-14 names a
                      release date. Neither is assumed. --}}
                 <li>
-                    SN {{ $officer['sn'] }} — {{ $officer['officer_name'] }}
+{{ __('dpc.circulations.pending.officer', ['sn' => $officer['sn'], 'name' => $officer['officer_name']]) }}
                     @if (! empty($officer['reason']))
                         <span class="text-body-secondary">({{ $officer['reason'] }})</span>
                     @endif
@@ -36,7 +36,7 @@
     @endif
 
     @if (! empty($pending['not_done']))
-        <p class="mb-1 small text-uppercase fw-semibold">What the system did not do</p>
+        <p class="mb-1 small text-uppercase fw-semibold">{{ __('dpc.circulations.pending_business_decision.what_the_system_did_not_do') }}</p>
         <ul class="mb-2">
             @foreach ($pending['not_done'] as $line)
                 <li>{{ $line }}</li>
@@ -45,9 +45,9 @@
     @endif
 
     <p class="mb-0 small text-body-secondary">
-        Recorded on this DPC's activity timeline.
+{{ __('dpc.circulations.pending.recorded_on_timeline') }}
         @if (! empty($pending['route']))
-            Tracked in <code>{{ $pending['route'] }}</code>.
+{!! __('dpc.circulations.pending.tracked_in', ['route' => e($pending['route'])]) !!}
         @endif
     </p>
 </div>

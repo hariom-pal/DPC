@@ -24,6 +24,7 @@ use App\Domain\Review\Services\ReviewDpcService;
 use App\Domain\Shared\Models\ActivityTimeline;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Event;
+use Tests\Concerns\SeatsDpcCommittees;
 use Tests\Feature\Proceeding\Concerns\BuildsProceedings;
 use Tests\TestCase;
 
@@ -38,6 +39,7 @@ use Tests\TestCase;
 class ReviewSupersessionTest extends TestCase
 {
     use BuildsProceedings;
+    use SeatsDpcCommittees;
 
     protected function setUp(): void
     {
@@ -88,10 +90,17 @@ class ReviewSupersessionTest extends TestCase
     {
         $review->forceFill([
             'status' => DpcProposalStatus::Approved->value,
-            'dpc_code' => 'HE202600002',
+            'dpc_code' => 'DPC-2026-HE-0002',
             'forwarded_at' => now(),
             'approved_at' => now(),
         ])->saveQuietly();
+
+        /*
+         | Seated before allotting: a DPC is allotted to a serving member of its own
+         | committee (business, 2026-09-06), and the qualification is committee
+         | membership rather than a Commission role (correction, 2026-09-07).
+         */
+        $this->seatCommittee($this->proposal);
 
         app(AllotmentService::class)->allot(
             $review->fresh(), $this->memberOne, $this->chairman, request(), Carbon::parse('2026-09-10'),
@@ -151,8 +160,8 @@ class ReviewSupersessionTest extends TestCase
             ->where('event', 'dpc_review.superseded')->firstOrFail();
 
         $this->assertSame($this->proposal->id, $onOriginal->subject_id);
-        $this->assertSame('HE202600001', $onOriginal->properties['original_dpc_code']);
-        $this->assertSame('HE202600002', $onOriginal->properties['review_dpc_code']);
+        $this->assertSame('DPC-2026-HE-0001', $onOriginal->properties['original_dpc_code']);
+        $this->assertSame('DPC-2026-HE-0002', $onOriginal->properties['review_dpc_code']);
         $this->assertNotEmpty($onReview->properties['superseded_at']);
         $this->assertSame(
             $onReview->properties['chain_uuid'],
@@ -168,8 +177,8 @@ class ReviewSupersessionTest extends TestCase
         $this->approveReview($this->conductReview($this->raise()));
 
         Event::assertDispatched(DpcSupersededByReview::class, function (DpcSupersededByReview $event): bool {
-            return $event->originalDpcCode === 'HE202600001'
-                && $event->reviewDpcCode === 'HE202600002'
+            return $event->originalDpcCode === 'DPC-2026-HE-0001'
+                && $event->reviewDpcCode === 'DPC-2026-HE-0002'
                 && $event->reviewNumber === 1
                 && $event->departmentId === $this->department->id;
         });
@@ -270,9 +279,9 @@ class ReviewSupersessionTest extends TestCase
         $html = $this->documents()->contents($document);
 
         $this->assertStringContainsString('Review DPC', $html);
-        $this->assertStringContainsString('HE202600001', $html);   // original DPC
+        $this->assertStringContainsString('DPC-2026-HE-0001', $html);   // original DPC
         $this->assertStringContainsString('25/06/2026', $html);    // original date
-        $this->assertStringContainsString('HE202600002', $html);   // review DPC
+        $this->assertStringContainsString('DPC-2026-HE-0002', $html);   // review DPC
         $this->assertStringContainsString('20/08/2026', $html);    // review date
         $this->assertStringContainsString('transcribed as', $html); // reason detail
     }
@@ -301,7 +310,7 @@ class ReviewSupersessionTest extends TestCase
 
         $html = $this->documents()->contents($original->fresh());
         $this->assertStringContainsString('SUPERSEDED', $html);
-        $this->assertStringContainsString('HE202600002', $html);
+        $this->assertStringContainsString('DPC-2026-HE-0002', $html);
     }
 
     public function test_the_stored_document_is_never_rewritten(): void

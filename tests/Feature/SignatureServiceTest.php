@@ -17,8 +17,6 @@ class SignatureServiceTest extends TestCase
 
     public function test_mock_provider_signs_and_persists_metadata_and_file(): void
     {
-        Storage::fake('local');
-
         $signer = User::factory()->create();
 
         $signature = app(SignatureService::class)->sign(

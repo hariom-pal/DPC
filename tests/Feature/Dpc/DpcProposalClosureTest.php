@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Tests\Feature\Dpc;
 
 use App\Domain\Authentication\Models\User;
+use App\Domain\Committee\Models\CgpscChairman;
 use App\Domain\Department\Models\Department;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Services\DpcProposalCompletenessService;
 use App\Domain\Dpc\Services\DpcProposalService;
-use App\Domain\Master\Models\Cadre;
-use App\Domain\Master\Models\DpcType;
+use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Shared\Models\ActivityTimeline;
 use App\Domain\Shared\Workflow\WorkflowException;
 use App\Domain\Shared\Workflow\WorkflowTransition;
@@ -22,6 +22,7 @@ use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
 use Tests\Concerns\CompletesDpcProposals;
+use Tests\Concerns\RaisesDpcProposals;
 use Tests\TestCase;
 
 /**
@@ -31,6 +32,7 @@ use Tests\TestCase;
 class DpcProposalClosureTest extends TestCase
 {
     use CompletesDpcProposals;
+    use RaisesDpcProposals;
     use RefreshDatabase;
 
     private Department $department;
@@ -44,28 +46,22 @@ class DpcProposalClosureTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        Storage::fake('local');
-
         $this->seed(RolesAndPermissionsSeeder::class);
         $this->seed(LookupMasterSeeder::class);
 
         $this->department = Department::query()->create(['code' => 'HE', 'name' => 'Higher Education Department', 'status' => 'active']);
 
-        $this->ao = User::factory()->create(['department_id' => $this->department->id]);
-        $this->ao->assignRole(Role::AuthorizedOfficer->value);
+        $this->ao = User::factory()->assignedTo($this->department->id, Role::AuthorizedOfficer)->create();
 
-        $this->ah = User::factory()->create(['department_id' => $this->department->id]);
-        $this->ah->assignRole(Role::AdministrativeHead->value);
+        $this->ah = User::factory()->assignedTo($this->department->id, Role::AdministrativeHead)->create();
 
-        $postFrom = Cadre::query()->create(['department_id' => $this->department->id, 'name' => 'Under Secretary', 'class_level' => 'I', 'status' => 'active']);
-        $postTo = Cadre::query()->create(['department_id' => $this->department->id, 'name' => 'Deputy Secretary', 'class_level' => 'I', 'status' => 'active']);
+        $postFrom = DepartmentPost::query()->create(['department_id' => $this->department->id, 'name' => 'Under Secretary', 'class_level' => 'I', 'status' => 'active']);
+        $postTo = DepartmentPost::query()->create(['department_id' => $this->department->id, 'name' => 'Deputy Secretary', 'class_level' => 'I', 'status' => 'active']);
 
-        $this->actingAs($this->ao)->post(route('dpc-proposals.store'), [
-            'dpc_type_id' => DpcType::query()->where('code', 'fresh')->firstOrFail()->id,
-            'post_to_cadre_id' => $postTo->id,
-            'post_from_cadre_id' => $postFrom->id,
-            'proposal_date' => '2026-06-25',
-        ]);
+        $this->actingAs($this->ao)->post(
+            route('dpc-proposals.store'),
+            $this->dpcStorePayload($this->sanctioningPreDpc($postFrom->id, $postTo->id)),
+        );
         $this->proposal = DpcProposal::query()->latest('id')->firstOrFail();
     }
 
@@ -90,6 +86,7 @@ class DpcProposalClosureTest extends TestCase
             'Working Officers & Vacancies (S16)',
             'Seniority List (S17)',
             'Evaluation / Tabulation Chart (S18)',
+            'Pre-submission Verification (Rule 1.1)',
         ], $missing);
     }
 
@@ -188,8 +185,7 @@ class DpcProposalClosureTest extends TestCase
         $this->actingAs($this->ao)->post(route('dpc-proposals.submit', $this->proposal));
 
         $other = Department::query()->create(['code' => 'PW', 'name' => 'Public Works', 'status' => 'active']);
-        $intruder = User::factory()->create(['department_id' => $other->id]);
-        $intruder->assignRole(Role::AdministrativeHead->value);
+        $intruder = User::factory()->assignedTo($other->id, Role::AdministrativeHead)->create();
 
         $this->actingAs($intruder)
             ->get(route('dpc-proposals.review', [$this->proposal, 1]))
@@ -252,7 +248,14 @@ class DpcProposalClosureTest extends TestCase
         // signed has to contain all five — not just the header.
         $this->assertStringContainsString('SELECTION OF POSTS', $document);
         $this->assertStringContainsString('DPC COMMITTEE', $document);
-        $this->assertStringContainsString('Committee Chairman', $document);
+
+        // The CGPSC Chairman sits on every committee since 2026-08-26, so the seat
+        // is what the signed artefact must name — not a member the fixture invented.
+        $this->assertStringContainsString(
+            CgpscChairman::query()->serving()->firstOrFail()->name,
+            $document,
+        );
+        $this->assertStringContainsString('Committee Member', $document);
         $this->assertStringContainsString('WORKING OFFICERS & VACANCIES', $document);
         $this->assertStringContainsString('FINAL SENIORITY LIST', $document);
         $this->assertStringContainsString('Seniority Officer', $document);
@@ -309,7 +312,11 @@ class DpcProposalClosureTest extends TestCase
         $this->assertSame('returned', $this->proposal->status->value);
         $this->assertSame('Seniority list needs the 2011 entries.', $this->proposal->return_remarks);
 
-        // A returned proposal is editable again, and re-submittable.
+        // A returned proposal is editable again, and re-submittable — once the
+        // department has re-confirmed Rule 1.1 for the new revision the return
+        // opened. The confirmations of the returned revision do not carry over.
+        $this->actingAs($this->ao)->post(route('dpc-proposals.submit', $this->proposal))->assertSessionHasErrors('workflow');
+        $this->confirmRuleOneOne($this->proposal->refresh(), $this->ao);
         $this->actingAs($this->ao)->post(route('dpc-proposals.submit', $this->proposal))->assertSessionHasNoErrors();
         $this->assertSame('submitted', $this->proposal->refresh()->status->value);
     }
@@ -336,11 +343,15 @@ class DpcProposalClosureTest extends TestCase
             $this->assertStringContainsString('CSC DigiSign', $e->getMessage());
         }
 
-        // Nothing was half-committed: no signature, no DPC ID, still submitted.
+        // Nothing was half-committed: no signature, not approved, still submitted.
+        //
+        // The DPC Number is *not* asserted absent any more: since change item 18 it
+        // is issued when the draft is raised, so its presence says nothing about
+        // whether approval happened. What says so is the status and the signature.
         $this->proposal->refresh();
         $this->assertSame('submitted', $this->proposal->status->value);
-        $this->assertNull($this->proposal->dpc_code);
         $this->assertNull($this->proposal->signature_id);
+        $this->assertNull($this->proposal->approved_at);
         $this->assertSame(0, Signature::query()
             ->where('signable_type', $this->proposal->getMorphClass())
             ->where('signable_id', $this->proposal->id)
@@ -377,7 +388,7 @@ class DpcProposalClosureTest extends TestCase
         $proposal->refresh();
         $this->assertSame('submitted', $proposal->status->value);
         $this->assertNull($proposal->signature_id);
-        $this->assertNull($proposal->dpc_code);
+        $this->assertNull($proposal->approved_at);
         $this->assertSame(0, Signature::query()
             ->where('signable_type', $proposal->getMorphClass())
             ->where('signable_id', $proposal->id)

@@ -1,6 +1,6 @@
 @extends('layouts.admin')
 
-@section('title', $payScale->exists ? 'Edit Pay Scale' : 'New Pay Scale')
+@section('title', __($payScale->exists ? 'admin.pay_scales.form.title_edit' : 'admin.pay_scales.form.title_new'))
 
 @section('content')
     <h1 class="h4 mb-3">{{ $payScale->exists ? 'Edit Pay Scale' : 'New Pay Scale' }}</h1>
@@ -14,19 +14,19 @@
 
                 <div class="row">
                     <div class="col-md-6 mb-3">
-                        <label class="form-label" for="label">Label</label>
+                        <label class="form-label" for="label">{{ __('ui.label') }}</label>
                         <input type="text" class="form-control @error('label') is-invalid @enderror"
                                id="label" name="label" value="{{ old('label', $payScale->label) }}" required>
                         @error('label')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
                     <div class="col-md-3 mb-3">
-                        <label class="form-label" for="code">Code</label>
+                        <label class="form-label" for="code">{{ __('ui.code') }}</label>
                         <input type="text" class="form-control @error('code') is-invalid @enderror"
                                id="code" name="code" value="{{ old('code', $payScale->code) }}">
                         @error('code')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
                     <div class="col-md-3 mb-3">
-                        <label class="form-label" for="status">Status</label>
+                        <label class="form-label" for="status">{{ __('ui.status') }}</label>
                         <select class="form-select" id="status" name="status" required>
                             @foreach ($statuses as $status)
                                 <option value="{{ $status->value }}"
@@ -38,8 +38,8 @@
                     </div>
                 </div>
 
-                <button type="submit" class="btn btn-success">Save</button>
-                <a href="{{ route('admin.pay-scales.index') }}" class="btn btn-outline-secondary">Cancel</a>
+                <button type="submit" class="btn btn-success">{{ __('ui.save') }}</button>
+                <a href="{{ route('admin.pay-scales.index') }}" class="btn btn-outline-secondary">{{ __('ui.cancel') }}</a>
             </form>
         </div>
     </div>

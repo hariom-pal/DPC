@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Pre-DPC Proposal v' . $proposal->version)
+@section('title', 'Pre-DPC ' . ($proposal->pre_dpc_number ?? 'Proposal'))
 
 {{-- Actions are gated by `@can`, which asks PreDpcProposalPolicy — the same
      class the controller authorises against (TD-26, closed 2026-08-18). This
@@ -14,22 +14,60 @@
             @include('partials.alerts')
 
             <div class="d-flex justify-content-between align-items-center mb-3">
-                <h1 class="h4 mb-0">Pre-DPC Proposal — v{{ $proposal->version }}</h1>
-                <span class="badge {{ $proposal->status->badgeClass() }} fs-6">{{ $proposal->status->label() }}</span>
+                <div>
+                    <h1 class="h4 mb-0">{{ $proposal->pre_dpc_number ?? 'Pre-DPC Proposal' }}</h1>
+                    <div class="text-muted small">{{ $proposal->exerciseLabel() }} — {{ __('ui.version_n', ['number' => $proposal->version]) }}</div>
+                </div>
+                <div class="text-end">
+                    <span class="badge {{ $proposal->status->badgeClass() }} fs-6">{{ $proposal->status->label() }}</span>
+                    @if ($proposal->isActive())
+                        <div><span class="badge text-bg-primary mt-1">{{ __('predpc.show.active_for_this_exercise') }}</span></div>
+                    @endif
+                </div>
             </div>
 
             @if ($proposal->status->value === 'returned' && $proposal->return_remarks)
-                <div class="alert alert-warning"><strong>Returned:</strong> {{ $proposal->return_remarks }}</div>
+                <div class="alert alert-warning"><strong>{{ __('ui.returned') }}</strong> {{ $proposal->return_remarks }}</div>
             @endif
 
             <div class="card border-0 shadow-sm mb-3">
                 <div class="card-body">
                     <dl class="row mb-0">
-                        <dt class="col-sm-3">Government Order No.</dt><dd class="col-sm-9">{{ $proposal->government_order_number ?? '—' }}</dd>
-                        <dt class="col-sm-3">Effective From</dt><dd class="col-sm-9">{{ $proposal->effective_from?->format('d-m-Y') ?? '—' }}</dd>
-                        <dt class="col-sm-3">Current Version</dt><dd class="col-sm-9">{{ $proposal->is_current ? 'Yes' : 'No' }}</dd>
+                        <dt class="col-sm-3">{{ __('ui.dpc_year') }}</dt><dd class="col-sm-9">{{ $proposal->dpc_year ?? '—' }}</dd>
+                        {{-- **The post, with its own Class and Pay Scale on the same
+                             line** (business instruction, 2026-09-06).
+
+                             They were on the Sanctioned Terms card below and nowhere
+                             else, which put a class and a scale on screen that
+                             belonged to the *feeder* posts while this line named the
+                             promotion post — two different posts, three lines apart,
+                             with nothing saying so. --}}
+                        <dt class="col-sm-3">{{ __('ui.promotion_to_post') }}</dt>
+                        <dd class="col-sm-9">
+                            {{ $proposal->promotionToPost?->name ?? '—' }}
+                            @if ($proposal->class_level || $proposal->payScale)
+                                <span class="text-body-secondary small d-block">
+                                    {{ __('ui.class') }}: <strong>{{ $proposal->class_level?->label() ?? '—' }}</strong>
+                                    &nbsp;·&nbsp;
+                                    {{ __('ui.pay_scale') }}: <strong>{{ $proposal->payScale?->label ?? '—' }}</strong>
+                                </span>
+                            @endif
+                        </dd>
+                        <dt class="col-sm-3">{{ __('predpc.show.government_order_no') }}</dt><dd class="col-sm-9">{{ $proposal->government_order_number ?? '—' }}</dd>
+                        <dt class="col-sm-3">{{ __('ui.effective_from') }}</dt><dd class="col-sm-9">{{ $proposal->effective_from?->format('d-m-Y') ?? '—' }}</dd>
+                        @if ($proposal->parentVersion)
+                            <dt class="col-sm-3">{{ __('predpc.show.amends') }}</dt>
+                            <dd class="col-sm-9">
+                                <a href="{{ route('pre-dpc.show', $proposal->parentVersion) }}">{{ $proposal->parentVersion->pre_dpc_number }}</a>
+                                {{ __('predpc.show.version_of_parent', ['number' => $proposal->parentVersion->version]) }}
+                            </dd>
+                        @endif
                         @if ($proposal->approved_at)
-                            <dt class="col-sm-3">Approved</dt><dd class="col-sm-9">{{ $proposal->approved_at->format('d-m-Y H:i') }} by {{ $proposal->approver?->name }} (signature #{{ $proposal->signature_id }})</dd>
+                            <dt class="col-sm-3">{{ __('ui.approved') }}</dt><dd class="col-sm-9">{{ __('predpc.show.approved_by', [
+                                'at' => $proposal->approved_at->format('d-m-Y H:i'),
+                                'actor' => $proposal->approver?->name,
+                                'id' => $proposal->signature_id,
+                            ]) }}</dd>
                         @endif
                     </dl>
                 </div>
@@ -37,42 +75,114 @@
 
             <div class="card border-0 shadow-sm mb-3">
                 <div class="card-body">
-                    <h2 class="h6">Sanctioned Posts</h2>
-                    <div class="table-responsive">
-                        <table class="table table-sm align-middle mb-0">
-                            <thead><tr><th>Post</th><th>Class</th><th>Pay Scale</th><th>DR %</th><th>PR %</th><th>Feeders</th></tr></thead>
-                            <tbody>
-                                @forelse ($proposal->posts as $post)
+                    <h2 class="h6">{{ __('predpc.show.sanctioned_terms') }}</h2>
+                    {{-- Taken from the posts, never re-entered (change item 5).
+                         Stored on the proposal rather than read live, because an
+                         approved Pre-DPC is a Government Order: it sanctioned
+                         *these* terms, and a later edit to the Department Post
+                         master must not silently restate what it said. --}}
+                    <dl class="row mb-0">
+                        {{-- **The Promotion From Posts' figures, not the promotion
+                             post's** (change register of 2026-08-26, item 3).
+
+                             Promotion eligibility is judged on the officer's current
+                             post, so these are the figures a reader checks a
+                             candidate against. Each feeder has its own, and the
+                             table below states them per feeder; this line is the
+                             summary, so a reader who scans only the terms card is
+                             not shown the scale of the post nobody has been
+                             promoted into yet.
+
+                             The order still *stores* the promotion post's scale and
+                             class, and other things read them — the correction here
+                             is what the screen presents, which is what the register
+                             asked for. --}}
+                        {{-- **The Promotion To Post's own class and pay scale**
+                             (business instruction, 2026-09-06).
+
+                             They were deliberately left off this card by the change
+                             register of 2026-08-26, which put the feeders' figures
+                             here instead because eligibility is judged on the
+                             officer's *current* post. Business asked for both: a
+                             reader also needs to see what the exercise promotes
+                             *into*, and without it the card states a class and a
+                             scale that belong to somebody's old post while naming
+                             the new one two lines above.
+
+                             Read from the proposal, not from the master, for the
+                             reason the card's own note gives: an approved Pre-DPC is
+                             a Government Order, and it sanctioned *these* terms. --}}
+                        <dt class="col-sm-4 fw-normal">{{ __('predpc.show.class_of_promotion_post') }}</dt>
+                        <dd class="col-sm-8">{{ $proposal->class_level?->label() ?? '—' }}</dd>
+                        <dt class="col-sm-4 fw-normal">{{ __('predpc.show.pay_scale_of_promotion_post') }}</dt>
+                        <dd class="col-sm-8">{{ $proposal->payScale?->label ?? '—' }}</dd>
+
+                        <dt class="col-sm-4 fw-normal">{{ __('predpc.show.class_of_feeder_posts') }}</dt>
+                        <dd class="col-sm-8">
+                            {{ $proposal->promotionSources
+                                ->map(fn ($source) => $source->promotionFromPost?->class_level?->label())
+                                ->filter()->unique()->implode(', ') ?: '—' }}
+                        </dd>
+                        <dt class="col-sm-4 fw-normal">{{ __('predpc.show.pay_scale_of_feeder_posts') }}</dt>
+                        <dd class="col-sm-8">
+                            {{ $proposal->promotionSources
+                                ->map(fn ($source) => $source->promotionFromPost?->payScale?->label)
+                                ->filter()->unique()->implode(', ') ?: '—' }}
+                        </dd>
+                        <dt class="col-sm-4 fw-normal">{{ __('predpc.show.recruitment_split') }}</dt>
+                        <dd class="col-sm-8">{{ __('predpc.show.split_value', [
+                            'direct' => $proposal->direct_recruitment_pct,
+                            'promotion' => $proposal->promotion_recruitment_pct,
+                        ]) }}</dd>
+                    </dl>
+                </div>
+            </div>
+
+            {{-- The posts officers may be promoted from.
+
+                 There is usually more than one — Schedule-IV fills most posts from
+                 several feeders with a share each — and each carries its own Pay
+                 Scale, Class and qualifying service, because eligibility is judged
+                 on the officer's current post. --}}
+            <div class="card border-0 shadow-sm mb-3">
+                <div class="card-body">
+                    <h2 class="h6">{{ __('predpc.show.promotion_from_posts') }}</h2>
+                    <p class="small text-body-secondary mb-2">{{ __('predpc.show.promotion_from_posts_lead') }}</p>
+
+                    @if ($proposal->promotionSources->isEmpty())
+                        <p class="small text-body-secondary mb-0">{{ __('predpc.show.no_sources_recorded') }}</p>
+                    @else
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle mb-0">
+                                <thead class="table-light">
                                     <tr>
-                                        <td>{{ $post->post_name }}</td>
-                                        <td>{{ $post->class_level->label() }}</td>
-                                        <td>{{ $post->payScale?->label ?? '—' }}</td>
-                                        <td>{{ $post->direct_recruitment_pct }}</td>
-                                        <td>{{ $post->promotion_recruitment_pct }}</td>
-                                        <td>
-                                            {{-- Read through the label methods, never the raw text: they
-                                                 prefer the master row and fall back to what was typed, so a
-                                                 proposal written before the screen used the masters still
-                                                 shows what it named. --}}
-                                            @forelse ($post->feeders as $feeder)
-                                                <div class="small">
-                                                    {{ $feeder->feederLabel() }} — {{ $feeder->promotion_percentage }}%,
-                                                    {{ $feeder->min_experience_years }} yr
-                                                    @if ($feeder->qualificationLabel())
-                                                        , {{ $feeder->qualificationLabel() }}
-                                                    @endif
-                                                </div>
-                                            @empty
-                                                <span class="text-body-secondary small">Direct recruitment only</span>
-                                            @endforelse
-                                        </td>
+                                        <th>{{ __('ui.promotion_from_post') }}</th>
+                                        <th>{{ __('ui.pay_scale') }}</th>
+                                        <th>{{ __('ui.class') }}</th>
+                                        <th class="text-end">{{ __('predpc.form.share') }}</th>
+                                        <th>{{ __('predpc.show.minimum_experience') }}</th>
+                                        <th>{{ __('ui.promotion_duration') }}</th>
+                                        <th>{{ __('ui.minimum_qualification') }}</th>
                                     </tr>
-                                @empty
-                                    <tr><td colspan="6" class="text-center text-muted py-3">No posts.</td></tr>
-                                @endforelse
-                            </tbody>
-                        </table>
-                    </div>
+                                </thead>
+                                <tbody>
+                                    @foreach ($proposal->promotionSources as $source)
+                                        <tr>
+                                            <td>{{ $source->promotionFromPost?->name ?? '—' }}</td>
+                                            {{-- This feeder's own scale and class, read
+                                                 from its own Department Post Mapping. --}}
+                                            <td>{{ $source->promotionFromPost?->payScale?->label ?? '—' }}</td>
+                                            <td>{{ $source->promotionFromPost?->class_level?->label() ?? '—' }}</td>
+                                            <td class="text-end">{{ rtrim(rtrim(number_format((float) $source->promotion_percentage, 2), '0'), '.') }}%</td>
+                                            <td>{{ $source->experienceLabel() ?? __('ui.none_prescribed') }}</td>
+                                            <td>{{ $source->promotion_duration_years === null ? '—' : __('ui.n_years', ['count' => $source->promotion_duration_years]) }}</td>
+                                            <td>{{ $source->qualificationLabel() ?? __('ui.none_prescribed') }}</td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @endif
                 </div>
             </div>
 
@@ -80,21 +190,37 @@
             <div class="card border-0 shadow-sm mb-3">
                 <div class="card-body d-flex flex-wrap gap-2">
                     @can('update', $proposal)
-                        <a href="{{ route('pre-dpc.edit', $proposal) }}" class="btn btn-outline-primary btn-sm">Edit</a>
-                        <form method="POST" action="{{ route('pre-dpc.submit', $proposal) }}">@csrf<button class="btn btn-success btn-sm">Submit for Approval</button></form>
-                        <form method="POST" action="{{ route('pre-dpc.cancel', $proposal) }}" data-confirm="Cancel this proposal?">@csrf<button class="btn btn-outline-danger btn-sm">Cancel</button></form>
+                        <a href="{{ route('pre-dpc.edit', $proposal) }}" class="btn btn-outline-primary btn-sm">{{ __('ui.edit') }}</a>
+                        <form method="POST" action="{{ route('pre-dpc.submit', $proposal) }}">@csrf<button class="btn btn-success btn-sm">{{ __('ui.submit_for_approval') }}</button></form>
+                        <form method="POST" action="{{ route('pre-dpc.cancel', $proposal) }}" data-confirm="{{ __('ui.cancel_this_proposal') }}">@csrf<button class="btn btn-outline-danger btn-sm">{{ __('ui.cancel') }}</button></form>
+                    @endcan
+
+                    {{-- Draft only (business instruction, 2026-09-06). The policy
+                         decides, so the button appears on exactly the proposals the
+                         route would accept — a returned or approved one is cancelled,
+                         not deleted, because somebody has already seen it.
+
+                         The deletion is soft: the row keeps the Pre-DPC Number it
+                         drew from the department's sequence. --}}
+                    @can('delete', $proposal)
+                        <form method="POST" action="{{ route('pre-dpc.destroy', $proposal) }}"
+                              data-confirm="{{ __('predpc.show.delete_draft_confirm') }}">
+                            @csrf
+                            @method('DELETE')
+                            <button class="btn btn-danger btn-sm">{{ __('predpc.show.delete_draft') }}</button>
+                        </form>
                     @endcan
 
                     @can('approve', $proposal)
-                        <form method="POST" action="{{ route('pre-dpc.approve', $proposal) }}" data-confirm="Approve and digitally sign this proposal?">@csrf<button class="btn btn-success btn-sm">Approve &amp; Sign</button></form>
+                        <form method="POST" action="{{ route('pre-dpc.approve', $proposal) }}" data-confirm="{{ __('predpc.show.approve_and_digitally_sign_this_proposal') }}">@csrf<button class="btn btn-success btn-sm">{{ __('predpc.show.approve_amp_sign') }}</button></form>
                     @endcan
 
                     @can('amend', $proposal)
-                        <form method="POST" action="{{ route('pre-dpc.amend', $proposal) }}">@csrf<button class="btn btn-outline-secondary btn-sm">Amend (new version)</button></form>
+                        <form method="POST" action="{{ route('pre-dpc.amend', $proposal) }}">@csrf<button class="btn btn-outline-secondary btn-sm">{{ __('predpc.show.amend_new_version') }}</button></form>
                     @endcan
 
                     @if (! $proposal->status->isEditable() && $proposal->status->value !== 'submitted' && $proposal->status->value !== 'approved')
-                        <span class="text-muted small align-self-center">No actions available in this state.</span>
+                        <span class="text-muted small align-self-center">{{ __('predpc.show.no_actions_available_in_this_state') }}</span>
                     @endif
                 </div>
 
@@ -103,10 +229,10 @@
                         <form method="POST" action="{{ route('pre-dpc.return', $proposal) }}" class="row g-2">
                             @csrf
                             <div class="col-md-9">
-                                <input type="text" class="form-control form-control-sm @error('return_remarks') is-invalid @enderror" name="return_remarks" placeholder="Remarks (required to return)">
+                                <input type="text" class="form-control form-control-sm @error('return_remarks') is-invalid @enderror" name="return_remarks" placeholder="{{ __('ui.remarks_required_to_return') }}">
                                 @error('return_remarks')<div class="invalid-feedback">{{ $message }}</div>@enderror
                             </div>
-                            <div class="col-md-3"><button class="btn btn-warning btn-sm w-100">Return for Correction</button></div>
+                            <div class="col-md-3"><button class="btn btn-warning btn-sm w-100">{{ __('ui.return_for_correction') }}</button></div>
                         </form>
                     </div>
                 @endcan
@@ -115,24 +241,24 @@
             {{-- Transition history --}}
             <div class="card border-0 shadow-sm">
                 <div class="card-body">
-                    <h2 class="h6">Workflow History</h2>
+                    <h2 class="h6">{{ __('ui.workflow_history') }}</h2>
                     <ul class="list-group list-group-flush">
                         @forelse ($transitions as $t)
                             <li class="list-group-item px-0">
                                 <span class="badge text-bg-light">{{ $t->event }}</span>
                                 {{ $t->from_state }} → {{ $t->to_state }}
-                                <span class="text-muted small">by {{ $t->actor?->name }} on {{ $t->occurred_at->format('d-m-Y H:i') }}</span>
-                                @if ($t->signature_id)<span class="badge text-bg-success">signed #{{ $t->signature_id }}</span>@endif
+                                <span class="text-muted small">{{ __('ui.by_actor_on', ['actor' => $t->actor?->name, 'at' => $t->occurred_at->format('d-m-Y H:i')]) }}</span>
+                                @if ($t->signature_id)<span class="badge text-bg-success">{{ __('ui.signed_hash', ['id' => $t->signature_id]) }}</span>@endif
                                 @if ($t->remarks)<div class="small text-muted">{{ $t->remarks }}</div>@endif
                             </li>
                         @empty
-                            <li class="list-group-item px-0 text-muted">No transitions yet.</li>
+                            <li class="list-group-item px-0 text-muted">{{ __('ui.no_transitions_yet') }}</li>
                         @endforelse
                     </ul>
                 </div>
             </div>
 
-            <a href="{{ route('pre-dpc.index') }}" class="btn btn-link mt-2">← Back to list</a>
+            <a href="{{ route('pre-dpc.index') }}" class="btn btn-link mt-2">{{ __('ui.back_to_list') }}</a>
         </div>
     </div>
 @endsection

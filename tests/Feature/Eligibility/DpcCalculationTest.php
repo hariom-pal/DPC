@@ -14,8 +14,7 @@ use App\Domain\Eligibility\Models\DpcCalculationResult;
 use App\Domain\Eligibility\Models\DpcCalculationRun;
 use App\Domain\Eligibility\Services\DpcCalculationService;
 use App\Domain\Eligibility\Services\ExplainCalculationService;
-use App\Domain\Master\Models\Cadre;
-use App\Domain\Master\Models\DpcType;
+use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\ReservationCategory;
 use App\Domain\Master\Models\VacancyType;
 use App\Domain\Shared\Models\ActivityTimeline;
@@ -25,6 +24,8 @@ use Database\Seeders\LookupMasterSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use RuntimeException;
+use Tests\Concerns\RaisesDpcProposals;
+use Tests\Concerns\SanctionsVacancies;
 use Tests\Concerns\SeedsEvaluationCharts;
 use Tests\TestCase;
 
@@ -34,7 +35,9 @@ use Tests\TestCase;
  */
 class DpcCalculationTest extends TestCase
 {
+    use RaisesDpcProposals;
     use RefreshDatabase;
+    use SanctionsVacancies;
     use SeedsEvaluationCharts;
 
     private Department $department;
@@ -54,21 +57,18 @@ class DpcCalculationTest extends TestCase
         $this->seed(LookupMasterSeeder::class);
 
         $this->department = Department::query()->create(['code' => 'HE', 'name' => 'Higher Education Department', 'status' => 'active']);
-        $this->ao = User::factory()->create(['department_id' => $this->department->id]);
-        $this->ao->assignRole(Role::AuthorizedOfficer->value);
+        $this->ao = User::factory()->assignedTo($this->department->id, Role::AuthorizedOfficer)->create();
 
-        $postFrom = Cadre::query()->create(['department_id' => $this->department->id, 'name' => 'Under Secretary', 'class_level' => 'I', 'status' => 'active']);
-        $postTo = Cadre::query()->create(['department_id' => $this->department->id, 'name' => 'Deputy Secretary', 'class_level' => 'I', 'status' => 'active']);
+        $postFrom = DepartmentPost::query()->create(['department_id' => $this->department->id, 'name' => 'Under Secretary', 'class_level' => 'I', 'status' => 'active']);
+        $postTo = DepartmentPost::query()->create(['department_id' => $this->department->id, 'name' => 'Deputy Secretary', 'class_level' => 'I', 'status' => 'active']);
 
         $this->ur = ReservationCategory::query()->where('code', 'UR')->firstOrFail();
         $this->st = ReservationCategory::query()->where('code', 'ST')->firstOrFail();
 
-        $this->actingAs($this->ao)->post(route('dpc-proposals.store'), [
-            'dpc_type_id' => DpcType::query()->where('code', 'fresh')->firstOrFail()->id,
-            'post_to_cadre_id' => $postTo->id,
-            'post_from_cadre_id' => $postFrom->id,
-            'proposal_date' => '2026-06-25',
-        ]);
+        $this->actingAs($this->ao)->post(
+            route('dpc-proposals.store'),
+            $this->dpcStorePayload($this->sanctioningPreDpc($postFrom->id, $postTo->id)),
+        );
         $this->proposal = DpcProposal::query()->latest('id')->firstOrFail();
     }
 
@@ -91,8 +91,28 @@ class DpcCalculationTest extends TestCase
                 array_keys($crGrades),
                 array_values($crGrades),
             ),
-            'loyalty_flags' => [],
-            'property_flags' => [],
+            /*
+             | Loyalty and Property, for every CR year on the row.
+             |
+             | These were empty until the change register of 2026-08-27, when items 13
+             | to 15 made them mandatory: a Property Return missing from the five-year
+             | window **rejects** the candidate, and a Loyalty Certificate missing
+             | from a CR year holds them at CIR. An officer this class means to be
+             | *promotable* therefore has to carry both, or every scoring assertion
+             | below would be measuring a rejected row.
+             |
+             | Derived from the CR years rather than hardcoded, so a fixture that
+             | changes its window keeps them in step — item 15 ties the certificate to
+             | the CR year, and a mismatch here would produce a CIR nobody intended.
+             */
+            'loyalty_flags' => array_map(
+                static fn (int $year): array => ['year' => $year, 'flag' => true],
+                array_keys($crGrades),
+            ),
+            'property_flags' => array_map(
+                static fn (int $year): array => ['year' => $year, 'flag' => true],
+                array_keys($crGrades),
+            ),
         ];
     }
 
@@ -114,7 +134,7 @@ class DpcCalculationTest extends TestCase
             ];
         }
 
-        $service->saveVacancies($this->proposal, 10, $rows);
+        $this->sanctionVacancies($this->proposal, 10, $rows);
 
         // Seniority List first, chart projected from it (business directive,
         // 2026-08-22). The officer arrays below are unchanged — the helper is
@@ -302,8 +322,8 @@ class DpcCalculationTest extends TestCase
         $reloaded = DpcCalculationRun::query()->whereKey($run->id)->firstOrFail();
 
         $this->assertSame(15, $reloaded->ruleSet()->qualifyingScoreFor(
-            $this->proposal->postFromCadre->class_level,
-            $this->proposal->postToCadre->class_level,
+            $this->proposal->promotionFromPost->class_level,
+            $this->proposal->promotionToPost->class_level,
         ));
         $this->assertNotSame('2027.9', $reloaded->rule_version);
     }
@@ -528,7 +548,7 @@ class DpcCalculationTest extends TestCase
         // Vacancies only. Neither the Seniority List nor the chart is seeded,
         // which since 2026-08-22 is the only way to reach an empty chart — the
         // chart is projected, so it is empty exactly when the list is.
-        app(DpcProposalService::class)->saveVacancies($this->proposal, 10, []);
+        $this->sanctionVacancies($this->proposal, 10);
 
         $this->expectException(WorkflowException::class);
 

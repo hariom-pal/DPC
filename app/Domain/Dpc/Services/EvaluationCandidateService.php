@@ -274,12 +274,18 @@ class EvaluationCandidateService
             'name' => $entry->name,
             'dob' => $entry->dob,
             'qualification' => $entry->qualification,
-            'current_post' => $entry->current_post,
-            'feeder_post' => $entry->feeder_post,
+            'promotion_to_post' => $entry->promotion_to_post,
+            'promotion_from_post' => $entry->promotion_from_post,
             'reservation_category_id' => $entry->reservation_category_id,
+
+            // Carried through the projection (business instruction, 2026-09-07). A
+            // column recorded on the seniority list and dropped here would reach the
+            // committee's own screen already lost.
+            'seat_reservation_category_id' => $entry->seat_reservation_category_id,
+            'mobile' => $entry->mobile,
             'date_of_joining_service' => $entry->date_of_joining_service,
-            'date_of_posting_on_current_post' => $entry->date_of_posting_on_current_post,
-            'date_of_posting_on_feeder_post' => $entry->date_of_posting_on_feeder_post,
+            'date_of_posting_on_promotion_to_post' => $entry->date_of_posting_on_promotion_to_post,
+            'date_of_posting_on_promotion_from_post' => $entry->date_of_posting_on_promotion_from_post,
         ];
     }
 
@@ -301,8 +307,16 @@ class EvaluationCandidateService
             $carried[$this->keyOf($row->employee_number, (int) $row->sn, (string) $row->name)] = [
                 'tribal_area_service_years' => $row->tribal_area_service_years,
                 'note' => $row->note,
+                // `tribal_area` is carried too (item 18). Re-projecting a chart
+                // deletes and rewrites the per-year rows, so a field left out here
+                // is a field silently erased the next time the Seniority List is
+                // saved — and nobody would see it go.
                 'cr_grades' => $row->crGrades
-                    ->map(fn ($g): array => ['year' => $g->year, 'grade' => $g->grade])->all(),
+                    ->map(fn ($g): array => [
+                        'year' => $g->year,
+                        'grade' => $g->grade,
+                        'tribal_area' => $g->tribal_area,
+                    ])->all(),
                 'loyalty_flags' => $row->loyaltyFlags
                     ->map(fn ($f): array => ['year' => $f->year, 'flag' => $f->flag])->all(),
                 'property_flags' => $row->propertyFlags
@@ -354,7 +368,17 @@ class EvaluationCandidateService
         $crGrades = $data['cr_grades'] ?? [];
 
         foreach ($crGrades as $grade) {
-            $row->crGrades()->create(['year' => $grade['year'], 'grade' => $grade['grade'] ?? null]);
+            $row->crGrades()->create([
+                'year' => $grade['year'],
+                'grade' => $grade['grade'] ?? null,
+
+                // Item 18 of the change register of 2026-08-27: the tribal-area
+                // benefit is attributed to the CR year it was served in, and never
+                // carried forward. Null stays null — see DpcRowRules.
+                'tribal_area' => array_key_exists('tribal_area', $grade)
+                    ? $grade['tribal_area']
+                    : null,
+            ]);
         }
 
         /** @var array<int, array<string, mixed>> $loyalty */

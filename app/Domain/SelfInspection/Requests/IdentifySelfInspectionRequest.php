@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\SelfInspection\Requests;
 
+use App\Domain\SelfInspection\Enums\SelfInspectionAuthDriver;
 use App\Domain\SelfInspection\Enums\SelfInspectionFactor;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -33,6 +34,25 @@ class IdentifySelfInspectionRequest extends FormRequest
      */
     public function rules(): array
     {
+        /*
+         | Under the OTP driver the form is two boxes over two steps, not a set of
+         | factors (business instruction, 2026-09-07). The mobile number comes
+         | first; the code comes second, with the number held in the session — so
+         | which of the two is being validated is decided by whether a code was
+         | posted, not by a hidden field the caller controls.
+         */
+        if (SelfInspectionAuthDriver::configured()->usesOtp()) {
+            // "Use a different number" posts neither, and validating either would
+            // refuse the one action whose whole purpose is to clear them.
+            if ($this->boolean('restart')) {
+                return [];
+            }
+
+            return $this->has('code')
+                ? ['code' => ['required', 'string', 'digits:6']]
+                : ['mobile' => ['required', 'string', 'regex:/^[6-9]\\d{9}$/']];
+        }
+
         $rules = [];
 
         foreach (SelfInspectionFactor::configured() as $factor) {
@@ -43,10 +63,25 @@ class IdentifySelfInspectionRequest extends FormRequest
     }
 
     /**
+     * Whether this submission is the second step — an officer entering the code.
+     */
+    public function isCodeStep(): bool
+    {
+        return SelfInspectionAuthDriver::configured()->usesOtp() && $this->has('code');
+    }
+
+    /**
      * @return array<string, string>
      */
     public function attributes(): array
     {
+        if (SelfInspectionAuthDriver::configured()->usesOtp()) {
+            return [
+                'mobile' => (string) __('selfinspection.otp.mobile_label'),
+                'code' => (string) __('selfinspection.otp.code_label'),
+            ];
+        }
+
         $attributes = [];
 
         foreach (SelfInspectionFactor::configured() as $factor) {

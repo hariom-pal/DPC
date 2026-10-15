@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Dpc;
 
+use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Import\Enums\ImportTemplate;
 use App\Domain\Import\Services\ImportTemplateBuilder;
 use App\Http\Controllers\Controller;
@@ -54,6 +55,35 @@ class ImportTemplateController extends Controller
 
         return response(
             $this->templates->csv($resolved, $asOn),
+            200,
+            [
+                'Content-Type' => 'text/csv; charset=UTF-8',
+                'Content-Disposition' => 'attachment; filename="'
+                    .$this->templates->filename($resolved, $asOn).'"',
+            ],
+        );
+    }
+
+    /**
+     * The template for one DPC, with that DPC's own posts already in it.
+     *
+     * The `as_on` year is taken from the proposal rather than from the query
+     * string, so the S18 per-year columns come out right without anybody choosing
+     * a year — which is one fewer thing on a screen business has already called
+     * confusing.
+     */
+    public function downloadFor(Request $request, DpcProposal $dpcProposal, string $template): Response
+    {
+        $this->authorize('view', $dpcProposal);
+
+        $resolved = ImportTemplate::tryFrom($template);
+
+        abort_if($resolved === null, 404);
+
+        $asOn = $dpcProposal->proposal_date->year;
+
+        return response(
+            $this->templates->csv($resolved, $asOn, $dpcProposal->loadMissing('promotionToPost', 'promotionFromPost')),
             200,
             [
                 'Content-Type' => 'text/csv; charset=UTF-8',

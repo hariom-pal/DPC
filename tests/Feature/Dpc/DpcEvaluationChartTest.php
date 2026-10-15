@@ -8,8 +8,7 @@ use App\Domain\Authentication\Models\User;
 use App\Domain\Department\Models\Department;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Services\DpcProposalService;
-use App\Domain\Master\Models\Cadre;
-use App\Domain\Master\Models\DpcType;
+use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\ReservationCategory;
 use App\Domain\Shared\Workflow\WorkflowException;
 use App\Enums\Role;
@@ -18,6 +17,7 @@ use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Testing\TestResponse;
 use Tests\Concerns\CompletesDpcProposals;
+use Tests\Concerns\RaisesDpcProposals;
 use Tests\TestCase;
 
 /**
@@ -39,6 +39,7 @@ use Tests\TestCase;
 class DpcEvaluationChartTest extends TestCase
 {
     use CompletesDpcProposals;
+    use RaisesDpcProposals;
     use RefreshDatabase;
 
     private Department $department;
@@ -56,19 +57,16 @@ class DpcEvaluationChartTest extends TestCase
         $this->seed(LookupMasterSeeder::class);
 
         $this->department = Department::query()->create(['code' => 'HE', 'name' => 'Higher Education Department', 'status' => 'active']);
-        $this->ao = User::factory()->create(['department_id' => $this->department->id]);
-        $this->ao->assignRole(Role::AuthorizedOfficer->value);
+        $this->ao = User::factory()->assignedTo($this->department->id, Role::AuthorizedOfficer)->create();
 
-        $postFrom = Cadre::query()->create(['department_id' => $this->department->id, 'name' => 'Under Secretary', 'class_level' => 'I', 'status' => 'active']);
-        $postTo = Cadre::query()->create(['department_id' => $this->department->id, 'name' => 'Deputy Secretary', 'class_level' => 'I', 'status' => 'active']);
+        $postFrom = DepartmentPost::query()->create(['department_id' => $this->department->id, 'name' => 'Under Secretary', 'class_level' => 'I', 'status' => 'active']);
+        $postTo = DepartmentPost::query()->create(['department_id' => $this->department->id, 'name' => 'Deputy Secretary', 'class_level' => 'I', 'status' => 'active']);
         $this->ur = ReservationCategory::query()->where('code', 'UR')->firstOrFail();
 
-        $this->actingAs($this->ao)->post(route('dpc-proposals.store'), [
-            'dpc_type_id' => DpcType::query()->where('code', 'fresh')->firstOrFail()->id,
-            'post_to_cadre_id' => $postTo->id,
-            'post_from_cadre_id' => $postFrom->id,
-            'proposal_date' => '2026-06-25',
-        ]);
+        $this->actingAs($this->ao)->post(
+            route('dpc-proposals.store'),
+            $this->dpcStorePayload($this->sanctioningPreDpc($postFrom->id, $postTo->id)),
+        );
         $this->proposal = DpcProposal::query()->latest('id')->firstOrFail();
 
         // One officer on the Seniority List by default, so the chart has exactly
@@ -90,12 +88,12 @@ class DpcEvaluationChartTest extends TestCase
                 'name' => "US{$sn}",
                 'dob' => '1964-03-20',
                 'qualification' => '11th',
-                'current_post' => 'Under Secretary',
-                'feeder_post' => 'Under Secretary',
+                'promotion_to_post' => 'Under Secretary',
+                'promotion_from_post' => 'Under Secretary',
                 'reservation_category_id' => $this->ur->id,
                 'date_of_joining_service' => '1985-04-01',
-                'date_of_posting_on_current_post' => '2015-06-01',
-                'date_of_posting_on_feeder_post' => '2012-01-15',
+                'date_of_posting_on_promotion_to_post' => '2015-06-01',
+                'date_of_posting_on_promotion_from_post' => '2012-01-15',
             ],
             range(1, $count),
         ));
@@ -115,12 +113,20 @@ class DpcEvaluationChartTest extends TestCase
             'sn' => $sn,
             'tribal_area_service_years' => 2,
             'note' => 'PUNISHMENT',
+            /*
+             | `tribal_area` per CR year (change register of 2026-08-27, item 18).
+             |
+             | Three states on purpose: served, did not serve, and not recorded. The
+             | third is the one that matters — a chart filled in before this register
+             | has no attribution at all, and null must survive as null rather than
+             | becoming "no".
+             */
             'cr_grades' => [
-                ['year' => 2012, 'grade' => 'क+'],
-                ['year' => 2013, 'grade' => 'क'],
-                ['year' => 2014, 'grade' => 'ख'],
+                ['year' => 2012, 'grade' => 'क+', 'tribal_area' => '1'],
+                ['year' => 2013, 'grade' => 'क', 'tribal_area' => '0'],
+                ['year' => 2014, 'grade' => 'ख', 'tribal_area' => null],
                 ['year' => 2015, 'grade' => 'ग'],
-                ['year' => 2016, 'grade' => 'घ'],
+                ['year' => 2016, 'grade' => 'घ', 'tribal_area' => '1'],
             ],
             'loyalty_flags' => [
                 ['year' => 2012, 'flag' => '1'],
@@ -168,12 +174,12 @@ class DpcEvaluationChartTest extends TestCase
         $this->assertSame('US1', $first->name);
         $this->assertSame('1964-03-20', $first->dob->format('Y-m-d'));
         $this->assertSame('11th', $first->qualification);
-        $this->assertSame('Under Secretary', $first->current_post);
-        $this->assertSame('Under Secretary', $first->feeder_post);
+        $this->assertSame('Under Secretary', $first->promotion_to_post);
+        $this->assertSame('Under Secretary', $first->promotion_from_post);
         $this->assertSame($this->ur->id, $first->reservation_category_id);
         $this->assertSame('1985-04-01', $first->date_of_joining_service->format('Y-m-d'));
-        $this->assertSame('2015-06-01', $first->date_of_posting_on_current_post->format('Y-m-d'));
-        $this->assertSame('2012-01-15', $first->date_of_posting_on_feeder_post->format('Y-m-d'));
+        $this->assertSame('2015-06-01', $first->date_of_posting_on_promotion_to_post->format('Y-m-d'));
+        $this->assertSame('2012-01-15', $first->date_of_posting_on_promotion_from_post->format('Y-m-d'));
     }
 
     public function test_a_chart_row_takes_its_serial_from_the_seniority_number(): void
@@ -204,6 +210,55 @@ class DpcEvaluationChartTest extends TestCase
         $this->assertSame('US1 (corrected)', $row->name);
         $this->assertSame(5, $row->crGrades()->count());
         $this->assertSame(2, $row->tribal_area_service_years);
+
+        // And the per-year attribution survives the re-projection (item 18). This is
+        // the failure that would otherwise be invisible: re-projecting deletes and
+        // rewrites the per-year rows, so a field the carry-forward map omits is a
+        // field silently erased the next time the Seniority List is saved.
+        $this->assertSame(
+            [2012 => true, 2013 => false, 2014 => null, 2015 => null, 2016 => true],
+            $row->crGrades()->orderBy('year')->pluck('tribal_area', 'year')->all(),
+        );
+    }
+
+    /**
+     * Item 18: *"Tribal Area benefit shall always be linked with the same CR year. No
+     * Tribal benefit shall be carried forward to another year."*
+     *
+     * So the flag is stored against the year, and three states are kept — served,
+     * did not serve, and not recorded. Collapsing the third into "no" would make a
+     * pre-register chart assert something the department never said.
+     */
+    public function test_tribal_area_service_is_recorded_against_its_own_cr_year(): void
+    {
+        $this->save([$this->row(1)])->assertSessionHasNoErrors();
+
+        $grades = $this->proposal->fresh()->evaluationRows()->firstOrFail()
+            ->crGrades()->orderBy('year')->get()->keyBy('year');
+
+        $this->assertTrue($grades[2012]->tribal_area);
+        $this->assertFalse($grades[2013]->tribal_area);
+        $this->assertNull($grades[2014]->tribal_area, 'not recorded must stay not recorded');
+        $this->assertNull($grades[2015]->tribal_area, 'an absent key is not a "no"');
+        $this->assertTrue($grades[2016]->tribal_area);
+    }
+
+    /**
+     * The officer-level total is **kept** beside the per-year attribution.
+     *
+     * Item 18 asks for the linkage; item 21 forbids modifying the marking formula,
+     * and `ScoringService` reads `tribal_area_service_years` for PPT §5.2's single
+     * flat bonus. Removing the total would change the score. Recorded as **BD-36**,
+     * and pinned here so neither field is dropped in favour of the other.
+     */
+    public function test_the_officer_level_tribal_total_survives_beside_the_per_year_flags(): void
+    {
+        $this->save([$this->row(1)])->assertSessionHasNoErrors();
+
+        $row = $this->proposal->fresh()->evaluationRows()->firstOrFail();
+
+        $this->assertSame(2, $row->tribal_area_service_years);
+        $this->assertSame(3, $row->crGrades()->whereNotNull('tribal_area')->count());
     }
 
     public function test_an_officer_removed_from_the_seniority_list_leaves_the_chart(): void
@@ -230,7 +285,7 @@ class DpcEvaluationChartTest extends TestCase
             'name' => 'Somebody Else',
             'dob' => '1999-01-01',
             'qualification' => 'PhD',
-            'current_post' => 'Chief Secretary',
+            'promotion_to_post' => 'Chief Secretary',
             'reservation_category_id' => ReservationCategory::query()->where('code', 'ST')->firstOrFail()->id,
             'date_of_joining_service' => '2020-01-01',
         ])])->assertSessionHasNoErrors();
@@ -240,7 +295,7 @@ class DpcEvaluationChartTest extends TestCase
         $this->assertSame('US1', $row->name);
         $this->assertSame('1964-03-20', $row->dob->format('Y-m-d'));
         $this->assertSame('11th', $row->qualification);
-        $this->assertSame('Under Secretary', $row->current_post);
+        $this->assertSame('Under Secretary', $row->promotion_to_post);
         $this->assertSame($this->ur->id, $row->reservation_category_id);
         $this->assertSame('1985-04-01', $row->date_of_joining_service->format('Y-m-d'));
     }
@@ -353,7 +408,7 @@ class DpcEvaluationChartTest extends TestCase
 
         // Identity from the Seniority List; evaluation data from the payload.
         $this->assertSame('EMP-1', $first->employee_number);
-        $this->assertSame('2012-01-15', $first->date_of_posting_on_feeder_post->format('Y-m-d'));
+        $this->assertSame('2012-01-15', $first->date_of_posting_on_promotion_from_post->format('Y-m-d'));
         $this->assertSame(2, $first->tribal_area_service_years);
         $this->assertSame('PUNISHMENT', $first->note);
 
@@ -600,8 +655,7 @@ class DpcEvaluationChartTest extends TestCase
     public function test_another_departments_officer_cannot_download_the_template(): void
     {
         $other = Department::query()->create(['code' => 'PW', 'name' => 'Public Works', 'status' => 'active']);
-        $intruder = User::factory()->create(['department_id' => $other->id]);
-        $intruder->assignRole(Role::AuthorizedOfficer->value);
+        $intruder = User::factory()->assignedTo($other->id, Role::AuthorizedOfficer)->create();
 
         $this->actingAs($intruder)
             ->get(route('dpc-proposals.evaluation-chart.template', $this->proposal))
@@ -613,8 +667,7 @@ class DpcEvaluationChartTest extends TestCase
     public function test_another_departments_officer_cannot_reach_the_chart(): void
     {
         $other = Department::query()->create(['code' => 'PW', 'name' => 'Public Works', 'status' => 'active']);
-        $intruder = User::factory()->create(['department_id' => $other->id]);
-        $intruder->assignRole(Role::AuthorizedOfficer->value);
+        $intruder = User::factory()->assignedTo($other->id, Role::AuthorizedOfficer)->create();
 
         $this->actingAs($intruder)->get(route('dpc-proposals.evaluation-chart', $this->proposal))->assertForbidden();
         $this->actingAs($intruder)->put(

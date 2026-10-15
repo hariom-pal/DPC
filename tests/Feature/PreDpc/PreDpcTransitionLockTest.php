@@ -6,7 +6,7 @@ namespace Tests\Feature\PreDpc;
 
 use App\Domain\Authentication\Models\User;
 use App\Domain\Department\Models\Department;
-use App\Domain\Master\Models\Cadre;
+use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\PreDpc\Enums\PreDpcStatus;
 use App\Domain\PreDpc\Models\PreDpcProposal;
 use App\Domain\PreDpc\Services\PreDpcProposalService;
@@ -16,7 +16,7 @@ use App\Enums\MasterStatus;
 use App\Enums\Role;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Storage;
+use Tests\Concerns\PrescribesQualifications;
 use Tests\TestCase;
 
 /**
@@ -40,6 +40,7 @@ use Tests\TestCase;
  */
 class PreDpcTransitionLockTest extends TestCase
 {
+    use PrescribesQualifications;
     use RefreshDatabase;
 
     private Department $department;
@@ -54,17 +55,13 @@ class PreDpcTransitionLockTest extends TestCase
     {
         parent::setUp();
         $this->seed(RolesAndPermissionsSeeder::class);
-        Storage::fake('local');
-
         $this->department = Department::query()->create([
             'code' => 'SE', 'name' => 'School Education', 'status' => 'active',
         ]);
 
-        $this->ao = User::factory()->create(['department_id' => $this->department->id]);
-        $this->ao->assignRole(Role::AuthorizedOfficer->value);
+        $this->ao = User::factory()->assignedTo($this->department->id, Role::AuthorizedOfficer)->create();
 
-        $this->ah = User::factory()->create(['department_id' => $this->department->id]);
-        $this->ah->assignRole(Role::AdministrativeHead->value);
+        $this->ah = User::factory()->assignedTo($this->department->id, Role::AdministrativeHead)->create();
 
         $this->service = app(PreDpcProposalService::class);
     }
@@ -162,11 +159,15 @@ class PreDpcTransitionLockTest extends TestCase
      */
     public function test_an_incomplete_draft_is_still_refused_with_a_message_about_the_form(): void
     {
+        // Written straight to the table rather than through the service, because
+        // the service now refuses to *create* a proposal without a post pair
+        // (change items 8-11) and this is asserting the submit gate, not that one.
         $empty = PreDpcProposal::query()->create([
+            'pre_dpc_number' => 'PDPC-2026-SE-9999',
             'department_id' => $this->department->id,
+            'dpc_year' => 2026,
             'version' => 9,
             'status' => PreDpcStatus::Draft->value,
-            'is_current' => false,
             'government_order_number' => 'GO/EMPTY',
             'effective_from' => '2026-01-01',
             'prepared_by' => $this->ao->id,
@@ -182,31 +183,31 @@ class PreDpcTransitionLockTest extends TestCase
 
     private function draft(): PreDpcProposal
     {
-        $target = Cadre::query()->create([
+        $target = DepartmentPost::query()->create([
             'department_id' => $this->department->id, 'name' => 'Deputy Director',
             'class_level' => 'I', 'status' => MasterStatus::Active->value,
         ]);
-        $feeder = Cadre::query()->create([
+        $feeder = DepartmentPost::query()->create([
             'department_id' => $this->department->id, 'name' => 'Under Secretary',
             'class_level' => 'I', 'status' => MasterStatus::Active->value,
         ]);
 
         $proposal = $this->service->createDraft($this->department, $this->ao, [
-            'government_order_number' => 'GO/2026/SE/1',
-            'effective_from' => '2026-01-01',
-            'posts' => [[
-                'post_name' => 'Deputy Director',
-                'cadre_id' => $target->id,
-                'class_level' => 'I',
-                'direct_recruitment_pct' => 0,
-                'promotion_recruitment_pct' => 100,
-                'feeders' => [[
-                    'feeder_name' => 'Under Secretary',
-                    'feeder_cadre_id' => $feeder->id,
+            'dpc_year' => 2026,
+            'promotion_to_post_id' => $target->id,
+            'direct_recruitment_pct' => 0,
+            'promotion_recruitment_pct' => 100,
+            'promotion_sources' => [
+                [
+                    'promotion_from_post_id' => $feeder->id,
                     'promotion_percentage' => 100,
                     'min_experience_years' => 5,
-                ]],
-            ]],
+                    'experience_unit' => 'years',
+                    'qualification_ids' => $this->qualificationIds(),
+                ],
+            ],
+            'government_order_number' => 'GO/2026/SE/1',
+            'effective_from' => '2026-01-01',
         ]);
 
         return $proposal->refresh();

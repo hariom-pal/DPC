@@ -117,7 +117,7 @@ class DepartmentMasterTest extends TestCase
     {
         $admin = $this->admin();
         $department = Department::query()->create(['code' => 'SE', 'name' => 'School Education Department', 'status' => 'unregistered']);
-        User::factory()->create(['department_id' => $department->id]);
+        User::factory()->assignedTo($department->id)->create();
 
         $this->actingAs($admin)
             ->delete(route('admin.departments.destroy', $department))

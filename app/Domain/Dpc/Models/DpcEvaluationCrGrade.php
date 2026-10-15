@@ -29,6 +29,17 @@ class DpcEvaluationCrGrade extends Model
         'dpc_evaluation_row_id',
         'year',
         'grade',
+
+        /*
+         | Whether the officer served in a tribal area during *this* CR year
+         | (change register of 2026-08-27, item 18).
+         |
+         | Recorded so the benefit is attributable to its own year and cannot read as
+         | applying to another. **It does not feed the score**: `ScoringService`
+         | applies PPT §5.2's single flat bonus from the officer-level total, and item
+         | 21 forbids modifying that formula. BD-36.
+         */
+        'tribal_area',
     ];
 
     /**
@@ -38,6 +49,7 @@ class DpcEvaluationCrGrade extends Model
     {
         return [
             'year' => 'integer',
+            'tribal_area' => 'boolean',
         ];
     }
 

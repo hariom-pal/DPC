@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Eligibility\Services;
 
 use App\Domain\Authentication\Models\User;
+use App\Domain\Eligibility\Enums\RemarkCode;
 use App\Domain\Eligibility\Models\DpcCalculationResult;
 use App\Domain\Eligibility\Models\DpcCalculationRun;
 
@@ -64,13 +65,40 @@ class ExplainCalculationService
                 .' the rules score over.';
         }
 
-        // Verdict.
-        $lines[] = $result->is_eligible
-            ? 'Eligible: scored '.$verdict['achieved_score'].' against a requirement of '.$verdict['required_score'].'.'
-            : 'Not eligible.';
+        /*
+         | Verdict — stated as one of item 24's four statuses (change register of
+         | 2026-08-27), not as a boolean.
+         |
+         | This screen is the one an officer is shown when they ask why they were not
+         | promoted, and it is the one a tribunal reads. "Not eligible" against a
+         | candidate whose promotion is merely *held* pending a record would be the
+         | wrong answer in the one place it matters most.
+         */
+        $status = $result->status();
+
+        $lines[] = match ($status) {
+            RemarkCode::Eligible, RemarkCode::SuperSeat => 'Eligible: scored '.$verdict['achieved_score']
+                .' against a requirement of '.$verdict['required_score'].'.',
+
+            RemarkCode::Circulation => 'CIR — the promotion is held, not refused: a mandatory record is '
+                .'unavailable and has been justified with a reason and a supporting document. The candidate '
+                .'continues in this DPC. Scored '.$verdict['achieved_score'].' against a requirement of '
+                .$verdict['required_score'].'.',
+
+            RemarkCode::Rejected => 'Rejected. Scored '.$verdict['achieved_score'].' against a requirement of '
+                .$verdict['required_score'].', but the rejection stands on the ground(s) below whatever the '
+                .'marks were.',
+
+            RemarkCode::NotEligible => 'Not eligible.',
+        };
 
         foreach ($verdict['failure_reasons'] ?? [] as $reason) {
             $lines[] = 'Reason: '.$reason;
+        }
+
+        // Which record is being awaited (item 19). "CIR" on its own does not say.
+        foreach ($result->gateCitations() as $citation) {
+            $lines[] = 'Awaiting: '.$citation;
         }
 
         if ($result->is_super_seat) {

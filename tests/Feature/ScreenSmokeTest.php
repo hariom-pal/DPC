@@ -61,12 +61,13 @@ class ScreenSmokeTest extends TestCase
             // The individual role holds no account in practice — Self-Inspection
             // identifies an officer by facts, not credentials — but the role exists,
             // so a user holding it must not be able to break a screen either.
-            $user = User::factory()->create([
-                'department_id' => in_array($role, [Role::AuthorizedOfficer, Role::AdministrativeHead], true)
-                    ? $department->id
-                    : null,
-            ]);
-            $user->assignRole($role->value);
+            // A departmental role is held through an assignment, which is also
+            // what grants it (change item 2); a Commission role is a plain grant
+            // and holds no department. Both paths are exercised because both are
+            // real, and a screen must not break for either.
+            $user = $role->isDepartmental()
+                ? User::factory()->assignedTo($department, $role)->create()
+                : tap(User::factory()->create(), fn (User $u) => $u->assignRole($role->value));
 
             $identities[$role->value] = $user;
         }
@@ -84,19 +85,35 @@ class ScreenSmokeTest extends TestCase
 
         $failures = [];
 
-        foreach ($screens as $uri) {
-            foreach ($identities as $label => $user) {
-                $request = $user === null ? $this : $this->actingAs($user);
-                $status = $request->get($uri)->getStatusCode();
+        /*
+         | Every screen, for every role, **in both locales** (change item 7).
+         |
+         | Hindi is not a cosmetic pass: a translation key that resolves to an
+         | array, or a Hindi file that fails to parse, produces a 500 on exactly
+         | the screens a Hindi-reading officer uses and on none of the English
+         | ones. Rendering only in English would have declared the bilingual
+         | portal green while half of it was broken.
+         */
+        foreach (['en', 'hi'] as $locale) {
+            app()->setLocale($locale);
+            session(['locale' => $locale]);
 
-                if ($status >= 500) {
-                    $failures[] = "GET {$uri} returned {$status} for {$label}";
+            foreach ($screens as $uri) {
+                foreach ($identities as $label => $user) {
+                    $request = $user === null ? $this : $this->actingAs($user);
+                    $status = $request->get($uri)->getStatusCode();
+
+                    if ($status >= 500) {
+                        $failures[] = "GET {$uri} returned {$status} for {$label} in {$locale}";
+                    }
                 }
             }
         }
 
+        app()->setLocale('en');
+
         $this->assertSame([], $failures, sprintf(
-            '%d screen/role combination(s) returned a server error. A 403 or a redirect would be '
+            '%d screen/role/locale combination(s) returned a server error. A 403 or a redirect would be '
             ."fine — a 500 is what a demo finds in front of the people the demo is for:\n  - %s",
             count($failures),
             implode("\n  - ", $failures),

@@ -9,6 +9,8 @@ use App\Domain\Authentication\Events\OtpRequested;
 use App\Domain\Authentication\Listeners\SendCredentialNotification;
 use App\Domain\Authentication\Listeners\SendOtpNotification;
 use App\Domain\Authentication\Models\User;
+use App\Domain\Cgpsc\Events\DpcSittingScheduled;
+use App\Domain\Cgpsc\Listeners\AnnounceSittingToParticipants;
 use App\Domain\Cgpsc\Models\DpcAllotment;
 use App\Domain\Cgpsc\Policies\DpcAllotmentPolicy;
 use App\Domain\Circulation\Documents\CirculationDocumentRenderer;
@@ -17,6 +19,7 @@ use App\Domain\Circulation\Models\DpcCirculation;
 use App\Domain\Circulation\Policies\DpcCirculationPolicy;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Policies\DpcProposalPolicy;
+use App\Domain\Master\Services\ClassLabelRepository;
 use App\Domain\Notification\Listeners\RecordInAppNotification;
 use App\Domain\Notification\Listeners\RecordPublicationNotification;
 use App\Domain\Notification\Listeners\RecordSupersessionNotification;
@@ -40,6 +43,7 @@ use App\Domain\Shared\Events\WorkflowTransitioned;
 use App\Domain\Shared\Listeners\SendWorkflowNotification;
 use App\Enums\Feature;
 use App\Http\View\Composers\NotificationBellComposer;
+use App\Http\View\Composers\PortalNoticeComposer;
 use App\Http\View\Composers\PortalStatisticsComposer;
 use App\Http\View\Composers\ReviewDpcComposer;
 use App\Integrations\Contracts\DirectoryProvider;
@@ -55,6 +59,7 @@ use App\Integrations\Mock\SeedDirectoryProvider;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
@@ -77,6 +82,21 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        /*
+         | The Class Master's labels (change item 1), memoised **per request**.
+         |
+         | `scoped()` rather than `singleton()`, and that distinction is the whole
+         | reason this binding exists rather than a static on the model. A
+         | singleton — or a static — outlives the request under a long-lived worker
+         | (Octane, or a queue worker rendering documents), so an administrator's
+         | rename would not appear until the process recycled. Laravel flushes
+         | scoped instances at every request boundary.
+         |
+         | The memo itself is not optional: `ServiceClass::label()` is called from
+         | roughly thirty view sites, several inside loops over a hundred officers.
+         */
+        $this->app->scoped(ClassLabelRepository::class);
+
         // The proceedings-document renderer, behind a contract so PDF can
         // later replace HTML without touching the approval path (AQ-3).
         // Bound like every other provider: business logic depends on the
@@ -140,6 +160,23 @@ class AppServiceProvider extends ServiceProvider
         // have half-worked should not become a 500 in front of a user.
         Model::preventSilentlyDiscardingAttributes(! $this->app->isProduction());
 
+        /*
+         | Pagination renders as Bootstrap 5, because that is what the portal is
+         | built in (reported 2026-09-06: *"pagination in Manage Users is
+         | distorted"*).
+         |
+         | Laravel's default paginator markup is Tailwind, and Tailwind is not on any
+         | page here — so `{{ $users->links() }}` emitted a column of unstyled
+         | fragments on **every** index screen in the admin area. Manage Users is
+         | simply the first list long enough to paginate, which is why it was noticed
+         | there.
+         |
+         | Set once here rather than by publishing the views: there is nothing to
+         | customise, and a published copy is one more thing to keep in step with the
+         | framework.
+         */
+        Paginator::useBootstrapFive();
+
         // OTP and credential delivery are authentication infrastructure, not
         // the "notification matrix" feature — nobody can log in without them,
         // so FEATURE_NOTIFICATIONS does not gate them. Their transport is
@@ -163,6 +200,22 @@ class AppServiceProvider extends ServiceProvider
         // its own in-app listener beside its own SMS one.
         Event::listen(ProceedingDocumentsPublished::class, RecordPublicationNotification::class);
         Event::listen(DpcSupersededByReview::class, RecordSupersessionNotification::class);
+
+        /*
+         | Announcing a sitting to the committee and the candidates (business
+         | clarification, 2026-09-05).
+         |
+         | **Registered outside `Feature::Notifications`, unlike the SMS listeners
+         | below it, and the reason is the same one the in-app listeners above give.**
+         | This one listener carries both channels: it writes the in-app record —
+         | which calls nothing outside the application — and attempts SMS and
+         | e-mail through the `SmsSender` and `Mail` bindings, both of which fall
+         | back to log drivers when no gateway is procured. Gating the whole
+         | listener on the integration flag would switch off the in-app copy too,
+         | which is the channel that always works and the only one a candidate can
+         | actually receive today.
+         */
+        Event::listen(DpcSittingScheduled::class, AnnounceSittingToParticipants::class);
 
         if (Feature::Notifications->enabled()) {
             Event::listen(WorkflowTransitioned::class, SendWorkflowNotification::class);
@@ -193,6 +246,11 @@ class AppServiceProvider extends ServiceProvider
         // no business logic, no policy, and guarded so a database or cache
         // failure can never take down the front door.
         View::composer('welcome', PortalStatisticsComposer::class);
+
+        // Suggestion 6. The notice board is master data now; the composer falls
+        // back to the catalogue so an installation that has published nothing
+        // still shows a notice board rather than an empty box.
+        View::composer('welcome', PortalNoticeComposer::class);
 
         $this->configureRateLimiting();
     }

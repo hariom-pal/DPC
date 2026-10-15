@@ -13,16 +13,16 @@
     calculation (AD-23).
 --}}
 
-@section('title', 'Circulation DPC — Commission')
+@section('title', __('cgpsc.circulations.show.circulation_dpc_commission'))
 
 @section('content')
     <div class="container py-4">
-        <h1 class="h4 mb-1">Circulation {{ $circulation->circulation_code ?? '—' }}</h1>
+        {!! __('cgpsc.circulations.show.heading', ['code' => e($circulation->circulation_code ?? '—')]) !!}
         <p class="text-body-secondary">
             {{ $circulation->department?->name }} ·
-            Origin DPC <strong>{{ $circulation->origin_dpc_code ?? '—' }}</strong>
+{!! __('cgpsc.circulations.show.origin_dpc', ['code' => e($circulation->origin_dpc_code ?? '—')]) !!}
             @if ($circulation->origin_dpc_date)
-                dated {{ $circulation->origin_dpc_date->format('d-m-Y') }}
+{{ __('cgpsc.circulations.show.dated', ['date' => $circulation->origin_dpc_date->format('d-m-Y')]) }}
             @endif
             · {{ $circulation->status->label() }}
         </p>
@@ -42,24 +42,22 @@
         @endif
 
         <div class="alert alert-secondary">
-            The DPC is <strong>not re-run</strong>. No officer's marks are recalculated and no other officer's
-            position changes. What this note decides is whether a promotion the Commission
-            <strong>reserved</strong> now proceeds.
+{!! __('cgpsc.circulations.show.lead') !!}
         </div>
 
-        <h2 class="h6">Officers on this note</h2>
+        <h2 class="h6">{{ __('cgpsc.circulations.show.officers_on_this_note') }}</h2>
         <div class="table-responsive mb-4">
             <table class="table table-sm align-middle">
                 <thead>
                     <tr>
-                        <th>SN</th>
-                        <th>Officer</th>
-                        <th>Ground held on</th>
-                        <th>What the department supplied</th>
-                        <th>Received</th>
-                        <th>Decision</th>
+                        <th>{{ __('ui.sn') }}</th>
+                        <th>{{ __('ui.officer') }}</th>
+                        <th>{{ __('cgpsc.circulations.show.ground_held_on') }}</th>
+                        <th>{{ __('cgpsc.circulations.show.what_the_department_supplied') }}</th>
+                        <th>{{ __('cgpsc.circulations.show.received') }}</th>
+                        <th>{{ __('cgpsc.circulations.show.decision') }}</th>
                         @can('consent', $circulation)
-                            <th>Record</th>
+                            <th>{{ __('ui.record') }}</th>
                         @endcan
                     </tr>
                 </thead>
@@ -77,11 +75,11 @@
                                         {{ $item->decision->label() }}
                                     </span>
                                 @else
-                                    <span class="text-body-secondary">Not yet decided</span>
+                                    <span class="text-body-secondary">{{ __('cgpsc.circulations.show.not_yet_decided') }}</span>
                                 @endif
                                 @if ($item->hold_released_at)
                                     <div class="small text-success">
-                                        Released {{ $item->hold_released_at->format('d-m-Y H:i') }}
+{{ __('cgpsc.circulations.show.released_at', ['at' => $item->hold_released_at->format('d-m-Y H:i')]) }}
                                     </div>
                                 @endif
                             </td>
@@ -92,10 +90,10 @@
                                           class="d-flex gap-1">
                                         @csrf
                                         <button name="decision" value="consented" class="btn btn-sm btn-outline-success">
-                                            Consent
+                                            {{ __('cgpsc.circulations.show.consent') }}
                                         </button>
                                         <button name="decision" value="returned" class="btn btn-sm btn-outline-secondary">
-                                            Return
+                                            {{ __('ui.return') }}
                                         </button>
                                     </form>
                                 </td>
@@ -106,24 +104,22 @@
             </table>
         </div>
 
-        <h2 class="h6">The DPC result — before and after</h2>
+        <h2 class="h6">{{ __('cgpsc.circulations.show.the_dpc_result_before_and_after') }}</h2>
         @if ($rows->isEmpty())
-            <div class="alert alert-warning">The origin DPC's approved result could not be located.</div>
+            <div class="alert alert-warning">{{ __('cgpsc.circulations.show.origin_result_missing') }}</div>
         @else
             <p class="small text-body-secondary">
-                Approved calculation run <code>{{ $run?->uuid ?? '—' }}</code>. Marks and positions are as
-                approved at the original sitting and are identical in both columns.
+{!! __('cgpsc.circulations.show.run_provenance', ['uuid' => e($run?->uuid ?? '—')]) !!}
             </p>
             <div class="table-responsive">
                 <table class="table table-sm align-middle">
                     <thead>
                         <tr>
-                            <th>SN</th>
-                            <th>Officer</th>
-                            <th>Category</th>
-                            <th>List</th>
-                            <th>Remark — <em>before</em></th>
-                            <th>Remark — <em>after</em></th>
+                            <th>{{ __('ui.sn') }}</th>
+                            <th>{{ __('ui.officer') }}</th>
+                            <th>{{ __('ui.category') }}</th>
+                            <th>{{ __('cgpsc.circulations.show.list') }}</th>
+{!! __('cgpsc.circulations.show.remark_columns') !!}
                         </tr>
                     </thead>
                     <tbody>
@@ -136,13 +132,13 @@
                                 <td>
                                     {{ $row['remark'] }}
                                     @if ($row['held_before'])
-                                        <span class="badge text-bg-warning">CIR</span>
+                                        <span class="badge text-bg-warning">{{ __('ui.cir') }}</span>
                                     @endif
                                 </td>
                                 <td>
                                     {{ $row['remark'] }}
                                     @if ($row['held_after'])
-                                        <span class="badge text-bg-warning">CIR</span>
+                                        <span class="badge text-bg-warning">{{ __('ui.cir') }}</span>
                                     @endif
                                 </td>
                             </tr>
@@ -157,7 +153,7 @@
                 @if ($circulation->status->value === 'approved')
                     <form method="POST" action="{{ route('cgpsc.circulations.consent', $circulation) }}">
                         @csrf
-                        <button type="submit" class="btn btn-primary">APPROVE BY CGPSC</button>
+                        <button type="submit" class="btn btn-primary">{{ __('ui.approve_by_cgpsc') }}</button>
                     </form>
                 @endif
             @endcan
@@ -168,7 +164,7 @@
                     {{-- The operative act: this is where reserved promotions
                          are released (AQ-17), and the screen says so. --}}
                     <button type="submit" class="btn btn-success">
-                        Sign the circulation note — releases the consented promotions
+                        {{ __('cgpsc.circulations.show.sign_the_circulation_note_releases_the_consented') }}
                     </button>
                 </form>
             @endcan
@@ -177,9 +173,9 @@
         @can('returnToDepartment', $circulation)
             <form method="POST" action="{{ route('cgpsc.circulations.return', $circulation) }}" class="mt-3">
                 @csrf
-                <label for="remarks" class="form-label">Return to the department for further evidence</label>
+                <label for="remarks" class="form-label">{{ __('cgpsc.circulations.show.return_to_the_department_for_further_evidence') }}</label>
                 <textarea id="remarks" name="remarks" class="form-control mb-2" rows="2" required></textarea>
-                <button type="submit" class="btn btn-outline-secondary">Return to department</button>
+                <button type="submit" class="btn btn-outline-secondary">{{ __('cgpsc.circulations.show.return_to_department') }}</button>
             </form>
         @endcan
     </div>

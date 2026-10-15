@@ -7,6 +7,7 @@ namespace App\Domain\Review\Services;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Dpc\Enums\DpcProposalStatus;
 use App\Domain\Dpc\Models\DpcProposal;
+use App\Domain\Dpc\Services\DpcRevisionService;
 use App\Domain\Eligibility\Models\DpcCalculationRun;
 use App\Domain\Master\Models\DpcType;
 use App\Domain\Proceeding\Enums\DpcProceedingStatus;
@@ -16,6 +17,7 @@ use App\Domain\Review\Models\DpcProposalReviewReason;
 use App\Domain\Review\Models\DpcReviewLink;
 use App\Domain\Shared\Models\ActivityTimeline;
 use App\Domain\Shared\Services\ActivityTimelineService;
+use App\Domain\Shared\Services\IdentifierSequenceService;
 use App\Domain\Shared\Workflow\WorkflowException;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Model;
@@ -40,7 +42,11 @@ use Illuminate\Support\Str;
  */
 class ReviewDpcService
 {
-    public function __construct(private readonly ActivityTimelineService $timeline) {}
+    public function __construct(
+        private readonly ActivityTimelineService $timeline,
+        private readonly IdentifierSequenceService $identifiers,
+        private readonly DpcRevisionService $revisions,
+    ) {}
 
     /**
      * S37 — raise a Review of a concluded DPC.
@@ -159,7 +165,7 @@ class ReviewDpcService
             ->where('status', DpcProposalStatus::Approved->value)
             ->whereNotIn('id', $alreadyReviewed)
             ->whereIn('id', $this->concludedProposalIds())
-            ->with(['postFromCadre', 'postToCadre'])
+            ->with(['promotionFromPost', 'promotionToPost'])
             ->orderByDesc('proposal_date')
             ->get();
     }
@@ -189,7 +195,7 @@ class ReviewDpcService
 
         $links = DpcReviewLink::query()
             ->inChain($chainUuid)
-            ->with(['review.postToCadre', 'original.postToCadre'])
+            ->with(['review.promotionToPost', 'original.promotionToPost'])
             ->get();
 
         if ($links->isEmpty()) {
@@ -427,9 +433,38 @@ class ReviewDpcService
 
         $review = DpcProposal::query()->create([
             'department_id' => $original->department_id,
+
+            /*
+             | Change item 19: a Review DPC is a *new promotion exercise*, so it
+             | gets a **new DPC Number at revision 1** rather than continuing the
+             | original's. Item 18's rule — a return bumps the revision, not the
+             | number — governs corrections *within* one exercise, and a Review is
+             | not one of those: it supersedes a concluded DPC.
+             |
+             | The number is minted here, at creation, for the same reason it is on
+             | a fresh DPC: a Review that has been returned twice must still be
+             | citable.
+             */
+            'dpc_code' => $this->identifiers->next(
+                $original->department()->firstOrFail(),
+                IdentifierSequenceService::SERIES_DPC,
+                (int) ($original->dpc_year ?? $proposalDate->format('Y')),
+            ),
+            'revision_number' => 1,
+
+            // Inherited from the original, which inherited them from the Pre-DPC
+            // (change item 11). A Review corrects how a promotion was decided, not
+            // which promotion it was, so the exercise and its terms are the same.
+            'pre_dpc_proposal_id' => $original->pre_dpc_proposal_id,
+            'dpc_year' => $original->dpc_year,
+            'pay_scale_id' => $original->pay_scale_id,
+            'class_level' => $original->class_level?->value,
+            'promotion_duration_years' => $original->promotion_duration_years,
+            'recruitment_rule_id' => $original->recruitment_rule_id,
+
             'dpc_type_id' => DpcType::query()->where('code', 'review')->firstOrFail()->id,
-            'post_to_cadre_id' => $original->post_to_cadre_id,
-            'post_from_cadre_id' => $original->post_from_cadre_id,
+            'promotion_to_post_id' => $original->promotion_to_post_id,
+            'promotion_from_post_id' => $original->promotion_from_post_id,
             'original_dpc_proposal_id' => $original->id,
             'legal_stay' => false,
             // S16's sanctioned post count belongs to the section whose rows are
@@ -457,8 +492,30 @@ class ReviewDpcService
             'created_by' => $actor->id,
         ]);
 
+        // Revision 1 of the Review (change item 18). Opened through the same
+        // service the fresh path uses, so a Review's revision history behaves
+        // identically — including the guard that makes a superseded revision
+        // read-only.
+        $this->revisions->open($review, $actor);
+
         foreach ($original->committeeMembers as $member) {
-            $review->committeeMembers()->create($this->attributesOf($member));
+            /*
+             | The replacement history does not travel to a Review DPC (change
+             | register of 2026-08-26, item 9e).
+             |
+             | `committeeMembers` is already scoped to the serving members, so a
+             | member replaced on the original is not copied at all — which is
+             | right: the review's committee is the committee, not the story of how
+             | the original's came to be. Carrying `replaced_at` across would
+             | additionally be false, because nobody has been replaced *on the
+             | review*, and those columns are deliberately not fillable.
+             */
+            $review->committeeMembers()->create($this->attributesOf($member, [
+                'replaced_at',
+                'replaced_by',
+                'replacement_reason',
+                'replaces_id',
+            ]));
         }
 
         foreach ($original->vacancies as $vacancy) {

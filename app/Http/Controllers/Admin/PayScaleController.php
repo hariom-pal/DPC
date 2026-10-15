@@ -8,18 +8,23 @@ use App\Domain\Master\Models\PayScale;
 use App\Domain\Master\Requests\PayScaleRequest;
 use App\Domain\Master\Services\MasterCrudService;
 use App\Enums\MasterStatus;
+use App\Http\Controllers\Admin\Concerns\ListsAMaster;
 use App\Http\Controllers\Controller;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 
 class PayScaleController extends Controller
 {
+    use ListsAMaster;
+
     public function __construct(private readonly MasterCrudService $crud) {}
 
-    public function index(): View
+    public function index(Request $request): View
     {
         return view('admin.pay-scales.index', [
-            'payScales' => PayScale::query()->orderBy('label')->paginate(20),
+            'payScales' => $this->searched($request, PayScale::query()->orderBy('label'), 'pay-scales')
+                ->paginate(20)->withQueryString(),
         ]);
     }
 

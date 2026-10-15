@@ -51,7 +51,7 @@ class HtmlDocumentRenderer implements DocumentRenderer
     public function render(DpcProceeding $proceeding, DocumentType $type): string
     {
         $proceeding->loadMissing([
-            'proposal.department', 'proposal.postFromCadre', 'proposal.postToCadre',
+            'proposal.department', 'proposal.promotionFromPost', 'proposal.promotionToPost',
             'conductedBy', 'closedBy', 'schedule',
         ]);
 

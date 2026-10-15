@@ -6,17 +6,22 @@ namespace Tests\Feature\Eligibility;
 
 use App\Domain\Authentication\Models\User;
 use App\Domain\Department\Models\Department;
+use App\Domain\Dpc\Enums\PreviousDpcBasis;
+use App\Domain\Dpc\Enums\ProposalVerificationItem;
 use App\Domain\Dpc\Models\DpcProposal;
+use App\Domain\Dpc\Services\DpcCommitteeService;
 use App\Domain\Dpc\Services\DpcProposalService;
+use App\Domain\Dpc\Services\ProposalVerificationService;
 use App\Domain\Eligibility\Models\DpcCalculationRun;
-use App\Domain\Master\Models\Cadre;
-use App\Domain\Master\Models\DpcType;
+use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\ReservationCategory;
 use App\Domain\Master\Models\VacancyType;
 use App\Enums\Role;
 use Database\Seeders\LookupMasterSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\RaisesDpcProposals;
+use Tests\Concerns\SanctionsVacancies;
 use Tests\Concerns\SeedsEvaluationCharts;
 use Tests\TestCase;
 
@@ -26,7 +31,9 @@ use Tests\TestCase;
  */
 class CalculationUiTest extends TestCase
 {
+    use RaisesDpcProposals;
     use RefreshDatabase;
+    use SanctionsVacancies;
     use SeedsEvaluationCharts;
 
     private Department $department;
@@ -47,22 +54,18 @@ class CalculationUiTest extends TestCase
 
         $this->department = Department::query()->create(['code' => 'HE', 'name' => 'Higher Education Department', 'status' => 'active']);
 
-        $this->ao = User::factory()->create(['department_id' => $this->department->id]);
-        $this->ao->assignRole(Role::AuthorizedOfficer->value);
+        $this->ao = User::factory()->assignedTo($this->department->id, Role::AuthorizedOfficer)->create();
 
-        $this->ah = User::factory()->create(['department_id' => $this->department->id]);
-        $this->ah->assignRole(Role::AdministrativeHead->value);
+        $this->ah = User::factory()->assignedTo($this->department->id, Role::AdministrativeHead)->create();
 
-        $postFrom = Cadre::query()->create(['department_id' => $this->department->id, 'name' => 'Under Secretary', 'class_level' => 'I', 'status' => 'active']);
-        $postTo = Cadre::query()->create(['department_id' => $this->department->id, 'name' => 'Deputy Secretary', 'class_level' => 'I', 'status' => 'active']);
+        $postFrom = DepartmentPost::query()->create(['department_id' => $this->department->id, 'name' => 'Under Secretary', 'class_level' => 'I', 'status' => 'active']);
+        $postTo = DepartmentPost::query()->create(['department_id' => $this->department->id, 'name' => 'Deputy Secretary', 'class_level' => 'I', 'status' => 'active']);
         $this->ur = ReservationCategory::query()->where('code', 'UR')->firstOrFail();
 
-        $this->actingAs($this->ao)->post(route('dpc-proposals.store'), [
-            'dpc_type_id' => DpcType::query()->where('code', 'fresh')->firstOrFail()->id,
-            'post_to_cadre_id' => $postTo->id,
-            'post_from_cadre_id' => $postFrom->id,
-            'proposal_date' => '2026-06-25',
-        ]);
+        $this->actingAs($this->ao)->post(
+            route('dpc-proposals.store'),
+            $this->dpcStorePayload($this->sanctioningPreDpc($postFrom->id, $postTo->id)),
+        );
         $this->proposal = DpcProposal::query()->latest('id')->firstOrFail();
     }
 
@@ -76,7 +79,7 @@ class CalculationUiTest extends TestCase
         // engine's total vacancy is unchanged at 1** — it sums the vacancy rows,
         // not the sanctioned strength — so every scoring expectation below still
         // holds.
-        $service->saveVacancies($this->proposal, 1, [[
+        $this->sanctionVacancies($this->proposal, 1, [[
             'vacancy_type_id' => VacancyType::query()->orderBy('id')->firstOrFail()->id,
             'reservation_category_id' => $this->ur->id,
             'count' => 1,
@@ -92,8 +95,19 @@ class CalculationUiTest extends TestCase
                 array_keys($grades),
                 array_values($grades),
             ),
-            'loyalty_flags' => [],
-            'property_flags' => [],
+            // Both records on every CR year. Empty until the change register of
+            // 2026-08-27: item 13 rejects a candidate whose Property Return is
+            // missing from the mandatory window and item 15 holds one whose Loyalty
+            // Certificate is, so a screen test with neither would be rendering a
+            // page full of rejections rather than the two lists it means to assert.
+            'loyalty_flags' => array_map(
+                static fn (int $y): array => ['year' => $y, 'flag' => true],
+                array_keys($grades),
+            ),
+            'property_flags' => array_map(
+                static fn (int $y): array => ['year' => $y, 'flag' => true],
+                array_keys($grades),
+            ),
         ];
 
         // Seniority List first, chart projected from it (business directive,
@@ -164,8 +178,18 @@ class CalculationUiTest extends TestCase
         // is no longer editable. Gating this on `update` would make the engine
         // unusable at exactly the point it is needed.
         $this->seedChart();
-        app(DpcProposalService::class)->saveCommittee($this->proposal, [
-            ['name' => 'Chairman', 'capacity' => 'chairman'],
+        // The CGPSC Chairman's seat is placed by the service, so the fixture
+        // supplies only the ordinary members the size rule asks for.
+        // The required combination between them (business, 2026-09-06): a member
+        // holds at most one social category, so SC, ST and OBC take one seat each,
+        // and the last also carries the three that combine freely. An incomplete
+        // committee blocks submission, and this test is about calculation.
+        app(DpcCommitteeService::class)->compose($this->proposal, [
+            ['name' => 'Member A', 'mobile' => '9000000041', 'capacity' => 'member', 'is_sc' => true],
+            ['name' => 'Member B', 'mobile' => '9000000042', 'capacity' => 'member', 'is_st' => true],
+            ['name' => 'Member C', 'mobile' => '9000000043', 'capacity' => 'member',
+                'is_obc' => true, 'is_female' => true,
+                'is_bhar_sadhak_sachiv' => true, 'is_vibhag_sachiv' => true],
         ], $this->ao);
         // One vacancy sizes the zone at `single_vacancy_size` (5), and the
         // seniority list must match it exactly before the proposal will submit.
@@ -176,6 +200,15 @@ class CalculationUiTest extends TestCase
             ],
             range(1, 5),
         ), $this->ao);
+
+        // Rule 1.1: the department's four confirmations, required by the gate.
+        $verification = app(ProposalVerificationService::class);
+        foreach (ProposalVerificationItem::cases() as $item) {
+            $verification->confirm(
+                $this->proposal->refresh(), $item, $this->ao, 'No previous DPC for this post.',
+                ['basis' => PreviousDpcBasis::None->value],
+            );
+        }
 
         $this->actingAs($this->ao)->post(route('dpc-proposals.submit', $this->proposal));
         $this->assertSame('submitted', $this->proposal->fresh()->status->value);
@@ -312,8 +345,7 @@ class CalculationUiTest extends TestCase
         $run = $this->calculate();
 
         $other = Department::query()->create(['code' => 'PW', 'name' => 'Public Works', 'status' => 'active']);
-        $intruder = User::factory()->create(['department_id' => $other->id]);
-        $intruder->assignRole(Role::AuthorizedOfficer->value);
+        $intruder = User::factory()->assignedTo($other->id, Role::AuthorizedOfficer)->create();
 
         $this->actingAs($intruder)->get(route('dpc-proposals.calculations.index', $this->proposal))->assertForbidden();
         $this->actingAs($intruder)->get(route('dpc-proposals.calculations.show', [$this->proposal, $run->uuid]))->assertForbidden();
@@ -326,12 +358,10 @@ class CalculationUiTest extends TestCase
         $this->seedChart();
         $run = $this->calculate();
 
-        $this->actingAs($this->ao)->post(route('dpc-proposals.store'), [
-            'dpc_type_id' => DpcType::query()->where('code', 'fresh')->firstOrFail()->id,
-            'post_to_cadre_id' => $this->proposal->post_to_cadre_id,
-            'post_from_cadre_id' => $this->proposal->post_from_cadre_id,
-            'proposal_date' => '2026-06-26',
-        ]);
+        $this->actingAs($this->ao)->post(
+            route('dpc-proposals.store'),
+            $this->dpcStorePayload($this->sanctioningPreDpc($this->proposal->promotion_from_post_id, $this->proposal->promotion_to_post_id)),
+        );
         $otherProposal = DpcProposal::query()->latest('id')->firstOrFail();
 
         $this->actingAs($this->ao)
@@ -363,7 +393,7 @@ class CalculationUiTest extends TestCase
         $st = ReservationCategory::query()->where('code', 'ST')->firstOrFail();
         $service = app(DpcProposalService::class);
 
-        $service->saveVacancies($this->proposal, 10, [[
+        $this->sanctionVacancies($this->proposal, 10, [[
             'vacancy_type_id' => VacancyType::query()->orderBy('id')->firstOrFail()->id,
             'reservation_category_id' => $st->id,
             'count' => 1,
@@ -376,7 +406,16 @@ class CalculationUiTest extends TestCase
                 ['year' => 2015, 'grade' => 'क'], ['year' => 2016, 'grade' => 'क'],
                 ['year' => 2017, 'grade' => 'क'],
             ],
-            'loyalty_flags' => [], 'property_flags' => [],
+            'loyalty_flags' => [
+                ['year' => 2013, 'flag' => true], ['year' => 2014, 'flag' => true],
+                ['year' => 2015, 'flag' => true], ['year' => 2016, 'flag' => true],
+                ['year' => 2017, 'flag' => true],
+            ],
+            'property_flags' => [
+                ['year' => 2013, 'flag' => true], ['year' => 2014, 'flag' => true],
+                ['year' => 2015, 'flag' => true], ['year' => 2016, 'flag' => true],
+                ['year' => 2017, 'flag' => true],
+            ],
         ]]);
 
         $run = $this->calculate();
@@ -455,12 +494,10 @@ class CalculationUiTest extends TestCase
             $this->actingAs($this->ao)->post(route('dpc-proposals.calculate', $this->proposal));
         }
 
-        $this->actingAs($this->ao)->post(route('dpc-proposals.store'), [
-            'dpc_type_id' => DpcType::query()->where('code', 'fresh')->firstOrFail()->id,
-            'post_to_cadre_id' => $this->proposal->post_to_cadre_id,
-            'post_from_cadre_id' => $this->proposal->post_from_cadre_id,
-            'proposal_date' => '2026-06-27',
-        ]);
+        $this->actingAs($this->ao)->post(
+            route('dpc-proposals.store'),
+            $this->dpcStorePayload($this->sanctioningPreDpc($this->proposal->promotion_from_post_id, $this->proposal->promotion_to_post_id)),
+        );
         $other = DpcProposal::query()->latest('id')->firstOrFail();
 
         // The second proposal has no chart, so the business error proves the

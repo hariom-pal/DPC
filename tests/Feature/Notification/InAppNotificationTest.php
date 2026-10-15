@@ -314,10 +314,13 @@ class InAppNotificationTest extends TestCase
 
     private function user(string $name, Role $role, ?Department $department): User
     {
-        $user = User::factory()->create([
-            'name' => $name,
-            'department_id' => $department?->id,
-        ]);
+        // Two routes, because there are two (change item 2): a departmental role
+        // is granted by a posting, a Commission role by a plain grant.
+        if ($department !== null) {
+            return User::factory()->assignedTo($department, $role)->create(['name' => $name]);
+        }
+
+        $user = User::factory()->create(['name' => $name]);
         $user->assignRole($role->value);
 
         return $user;

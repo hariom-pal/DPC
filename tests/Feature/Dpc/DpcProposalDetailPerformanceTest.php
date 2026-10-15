@@ -7,8 +7,7 @@ namespace Tests\Feature\Dpc;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Department\Models\Department;
 use App\Domain\Dpc\Models\DpcProposal;
-use App\Domain\Master\Models\Cadre;
-use App\Domain\Master\Models\DpcType;
+use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\ReservationCategory;
 use App\Domain\Master\Models\VacancyType;
 use App\Enums\Role;
@@ -16,6 +15,7 @@ use Database\Seeders\LookupMasterSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Tests\Concerns\RaisesDpcProposals;
 use Tests\TestCase;
 
 /**
@@ -30,6 +30,7 @@ use Tests\TestCase;
  */
 class DpcProposalDetailPerformanceTest extends TestCase
 {
+    use RaisesDpcProposals;
     use RefreshDatabase;
 
     private Department $department;
@@ -38,33 +39,44 @@ class DpcProposalDetailPerformanceTest extends TestCase
 
     private ReservationCategory $ur;
 
-    private Cadre $postTo;
+    private DepartmentPost $postTo;
 
-    private Cadre $postFrom;
+    private DepartmentPost $postFrom;
 
     protected function setUp(): void
     {
         parent::setUp();
+
+        /*
+         | Manual entry is off by default since 2026-09-07 — the two grids are
+         | upload-only — and the routes are gated on the same setting the screens
+         | are. Switched on for this class, which exercises those routes directly.
+         |
+         | Kept as tests rather than deleted: the instruction was *"hide it, in case
+         | we want it back"*, and a feature nobody tests is not one that can come
+         | back.
+         */
+        config([
+            'dpc.manual_entry.working_officers' => true,
+            'dpc.manual_entry.seniority_list' => true,
+        ]);
         $this->seed(RolesAndPermissionsSeeder::class);
         $this->seed(LookupMasterSeeder::class);
 
         $this->department = Department::query()->create(['code' => 'HE', 'name' => 'Higher Education Department', 'status' => 'active']);
-        $this->ao = User::factory()->create(['department_id' => $this->department->id]);
-        $this->ao->assignRole(Role::AuthorizedOfficer->value);
+        $this->ao = User::factory()->assignedTo($this->department->id, Role::AuthorizedOfficer)->create();
 
-        $this->postFrom = Cadre::query()->create(['department_id' => $this->department->id, 'name' => 'Under Secretary', 'class_level' => 'I', 'status' => 'active']);
-        $this->postTo = Cadre::query()->create(['department_id' => $this->department->id, 'name' => 'Deputy Secretary', 'class_level' => 'I', 'status' => 'active']);
+        $this->postFrom = DepartmentPost::query()->create(['department_id' => $this->department->id, 'name' => 'Under Secretary', 'class_level' => 'I', 'status' => 'active']);
+        $this->postTo = DepartmentPost::query()->create(['department_id' => $this->department->id, 'name' => 'Deputy Secretary', 'class_level' => 'I', 'status' => 'active']);
         $this->ur = ReservationCategory::query()->where('code', 'UR')->firstOrFail();
     }
 
     private function buildProposal(int $officerCount): DpcProposal
     {
-        $this->actingAs($this->ao)->post(route('dpc-proposals.store'), [
-            'dpc_type_id' => DpcType::query()->where('code', 'fresh')->firstOrFail()->id,
-            'post_to_cadre_id' => $this->postTo->id,
-            'post_from_cadre_id' => $this->postFrom->id,
-            'proposal_date' => '2026-06-25',
-        ]);
+        $this->actingAs($this->ao)->post(
+            route('dpc-proposals.store'),
+            $this->dpcStorePayload($this->sanctioningPreDpc($this->postFrom->id, $this->postTo->id)),
+        );
         $proposal = DpcProposal::query()->latest('id')->firstOrFail();
 
         $officers = [];
@@ -128,6 +140,18 @@ class DpcProposalDetailPerformanceTest extends TestCase
     {
         $small = $this->buildProposal(2);
         $large = $this->buildProposal(25);
+
+        /*
+         | Warm anything request-scoped before measuring.
+         |
+         | The Class Master's label memo (`ClassLabelRepository`) is one query per
+         | request, and a test process shares one application instance across
+         | several `get()` calls — so the *first* measured request pays for it and
+         | the second does not, which showed up here as a one-query difference that
+         | had nothing to do with officer count. Measuring after a warm-up asks the
+         | question this test is actually about: does a section fail to eager load.
+         */
+        $this->queryCountForDetail($small);
 
         $smallCount = $this->queryCountForDetail($small);
         $largeCount = $this->queryCountForDetail($large);

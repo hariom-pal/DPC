@@ -50,13 +50,30 @@ class UserManagementTest extends TestCase
             ->assertSessionHasErrors('email');
     }
 
-    public function test_non_provisionable_role_is_rejected(): void
+    /**
+     * The two roles that are *not* provisionable, and each for its own reason.
+     *
+     * `individual` is the unauthenticated Self-Inspection actor of S49–S51 and
+     * holds no account at all. `promotion_candidate` holds a real login, but the
+     * account is created by the Seniority List that names the officer (change
+     * item 17) and never typed in by hand — provisioning one here would create a
+     * candidate with no DPC to be a candidate in.
+     *
+     * The two department roles *are* provisionable as of 2026-08-24: change item 1
+     * put Users and Role Assignments under the single CGPSC Administrator.
+     */
+    public function test_a_role_that_cannot_be_provisioned_by_hand_is_rejected(): void
     {
-        $this->actingAs($this->admin())
-            ->post(route('admin.users.store'), [
-                'name' => 'X', 'email' => 'x@cgpsc.gov.in', 'mobile' => '9812345678', 'role' => Role::AuthorizedOfficer->value,
-            ])
-            ->assertSessionHasErrors('role');
+        foreach ([Role::Individual, Role::PromotionCandidate] as $index => $role) {
+            $this->actingAs($this->admin())
+                ->post(route('admin.users.store'), [
+                    'name' => 'X',
+                    'email' => "x{$index}@cgpsc.gov.in",
+                    'mobile' => '981234567'.$index,
+                    'role' => $role->value,
+                ])
+                ->assertSessionHasErrors('role');
+        }
     }
 
     public function test_admin_can_deactivate_and_reactivate_an_account(): void

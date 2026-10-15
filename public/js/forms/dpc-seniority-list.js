@@ -29,11 +29,20 @@
     container.addEventListener('click', function (e) {
         if (e.target.classList.contains('remove-row')) e.target.closest('.entry-card').remove();
     });
-    document.getElementById('add-entry').addEventListener('click', function () { addRow(); });
+    // Absent when manual entry is off (2026-09-07); the rows are still drawn.
+    var addBtn = document.getElementById('add-entry');
+
+    if (addBtn) {
+        addBtn.addEventListener('click', function () { addRow(); });
+    }
 
     var seed = JSON.parse(container.dataset.seed || '[]');
+    var readOnly = container.hasAttribute('data-read-only');
+
     if (seed.length === 0) {
-        addRow();
+        // Nothing to show, and nothing to add: an empty row the officer cannot fill
+        // is worse than none.
+        if (!readOnly) { addRow(); }
     } else {
         seed.forEach(function (entry) {
             var el = addRow();
@@ -42,12 +51,35 @@
             el.querySelector('[name$="[name]"]').value = entry.name || '';
             el.querySelector('[name$="[dob]"]').value = entry.dob || '';
             el.querySelector('[name$="[qualification]"]').value = entry.qualification || '';
-            el.querySelector('[name$="[current_post]"]').value = entry.current_post || '';
-            el.querySelector('[name$="[feeder_post]"]').value = entry.feeder_post || '';
-            el.querySelector('[name$="[reservation_category_id]"]').value = entry.reservation_category_id || '';
+            el.querySelector('[name$="[promotion_to_post_id]"]').value = entry.promotion_to_post_id || '';
+            el.querySelector('[name$="[promotion_from_post_id]"]').value = entry.promotion_from_post_id || '';
+            /* Both selectors are anchored on the full name, not on a suffix:
+               `[name$="[reservation_category_id]"]` also matches
+               `[seat_reservation_category_id]`, so a suffix match would depend on
+               which of the two happens to come first in the template. */
+            el.querySelector('[name*="][reservation_category_id"]').value = entry.reservation_category_id || '';
+            el.querySelector('[name$="[seat_reservation_category_id]"]').value = entry.seat_reservation_category_id || '';
+            el.querySelector('[name$="[mobile]"]').value = entry.mobile || '';
             el.querySelector('[name$="[date_of_joining_service]"]').value = entry.date_of_joining_service || '';
-            el.querySelector('[name$="[date_of_posting_on_current_post]"]').value = entry.date_of_posting_on_current_post || '';
-            el.querySelector('[name$="[date_of_posting_on_feeder_post]"]').value = entry.date_of_posting_on_feeder_post || '';
+            el.querySelector('[name$="[date_of_posting_on_promotion_to_post]"]').value = entry.date_of_posting_on_promotion_to_post || '';
+            el.querySelector('[name$="[date_of_posting_on_promotion_from_post]"]').value = entry.date_of_posting_on_promotion_from_post || '';
+        });
+    }
+
+    /*
+     * Show the rows, but do not let them be edited.
+     *
+     * Manual entry is off by default since 2026-09-07 — the list comes from the
+     * upload — but the officer must still *see* what was imported, so the grid is
+     * rendered and then frozen rather than not rendered at all.
+     *
+     * `disabled` rather than `readonly`: it covers selects as well as text boxes,
+     * and a disabled field is not posted — which matters because the route is gated
+     * on the same flag and would refuse the payload anyway.
+     */
+    if (readOnly) {
+        container.querySelectorAll('input, select, textarea, button').forEach(function (field) {
+            field.disabled = true;
         });
     }
 })();

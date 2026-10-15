@@ -144,14 +144,14 @@ These are not style preferences. Each exists because breaking it caused a real d
 
 ## 5. Database
 
-68 tables. The groups:
+73 tables. The groups:
 
 | Group | Tables |
 |---|---|
-| Auth & people | `users`, `roles`, `permissions`, `model_has_*`, `otp_verifications`, `departments` |
-| Masters (15) | `districts`, `designations`, `pay_scales`, `cadres`, `qualifications`, `reservation_categories`, `reservation_policies`, `reservation_rosters`(+`_points`), `committee_types`, `committee_configurations`, `recruitment_rules`(+`_feeders`), `review_reasons`, `vacancy_types`, `dpc_types` |
-| Pre-DPC | `pre_dpc_proposals` (`uuid` added 2026-08-22 — see the Architecture Handbook §4.2), `pre_dpc_posts`, `pre_dpc_post_feeders` |
-| Proposal | `dpc_proposals`, `dpc_committee_members`, `dpc_working_officers`, `dpc_vacancies`, `dpc_seniority_entries`, `dpc_evaluation_rows` + 3 per-year children |
+| Auth & people | `users` (`employee_number` added 2026-08-24), `user_department_assignments`, `roles`, `permissions`, `model_has_*`, `otp_verifications`, `departments` |
+| Masters (20) | `districts`, `designations`, `pay_scales`, `department_posts` *(renamed by migration `360001` on 2026-08-24)*, `department_post_orders` *(replaced `department_post_documents` on 2026-08-26 — one row per Government Order)*, `service_classes`, `qualifications`, `reservation_categories`, `reservation_policies`, `reservation_rosters`(+`_points`), `committee_types`, `committee_configurations`, `cgpsc_chairmen` *(new 2026-08-26; `commission_members` was withdrawn on the same date)*, `recruitment_rules`(+`_sources`, +`rr_source_qualifications`), `review_reasons`, `vacancy_types`, `dpc_types`, `portal_notices` |
+| Pre-DPC | `pre_dpc_proposals` (`uuid` added 2026-08-22 — see the Architecture Handbook §4.2) + `pre_dpc_promotion_sources`. `pre_dpc_posts` and `pre_dpc_post_feeders` were dropped on 2026-08-24 in favour of a single post pair; **`pre_dpc_promotion_sources` restored the list of Promotion From Posts on 2026-08-25**, because Schedule-IV fills most posts from several feeders under one Government Order. One order, one Promotion To Post, many sources |
+| Proposal | `dpc_proposals`, `dpc_proposal_revisions`, `dpc_committee_members`, `dpc_working_officers`, `dpc_vacancies`, `dpc_seniority_entries`, `dpc_evaluation_rows` + 3 per-year children |
 | Import | `import_batches` and children |
 | Engine | `dpc_calculation_runs`, `dpc_calculation_results` |
 | Commission | `dpc_allotments`, `dpc_schedules` |
@@ -167,19 +167,63 @@ These are not style preferences. Each exists because breaking it caused a real d
 
 *Nullable per-year values.* CR, loyalty and property are stored per `(row, year)` and the value is **nullable**, because "recorded as absent" and "not recorded" are different facts. A Circulation DPC exists precisely because an officer is missing a year. Never coalesce a null to `false` here.
 
+**Three more shapes arrived with the change register of 2026-08-24.**
+
+*The nullable-flag unique index.* `user_department_assignments.active_flag` and `pre_dpc_proposals.active_flag` are `1` or `NULL`, never `0`. A unique index that includes such a column reads as *at most one active row per key, any number of superseded ones* — because NULLs do not collide, in MySQL or SQLite. Writing `0` instead would make the second superseded row a constraint violation. Use `whereNotNull('active_flag')`, never `where('active_flag', 1)`, so the intent survives a reader.
+
+*A department is a row, not a column.* `users` has no `department_id`. Read `$user->department` (an accessor over `activeAssignment`) and write through `DepartmentAssignmentService`. A query that needs to filter by department joins the assignment: `whereHas('assignments', fn ($q) => $q->whereNotNull('active_flag')->where('department_id', $id))`. Three demo seeders were still querying the dropped column and died on a fresh database — if you find a fourth, that is the shape it should take.
+
+*A Department Post Mapping is effective-dated.* `department_posts` carries
+`government_order_number`, `government_order_date`, `effective_from`, `effective_to`
+and the nullable `active_flag`, and its unique index is
+`(department_id, name, active_flag)` — so one mapping is in force per post and any
+number are superseded. **A new Government Order writes a new row**; the previous one
+is closed and kept, which is what lets a concluded DPC be audited against the order
+that authorised it. `DepartmentPostMappingService::supersede()` is the only way to do
+it, and `active_flag` is derived from `status` by a model hook rather than set at each
+call site.
+
+*The orders became plural on 2026-08-26* (change register item 10). `department_post_documents`
+held **versions of one PDF** with `unique(department_post_id, is_current)`, so a
+mapping amended by a corrigendum could record it only by retiring the original
+order's scan. `department_post_orders` is **one row per Government Order** — its
+number, its date and its own PDF — and none of them retires another.
+`DepartmentPostOrder` refuses to be edited or deleted, permitting only `sort_order`
+to change. Note the distinction it preserves: superseding a *mapping* is still a new
+`department_posts` row; adding an *order* leaves the mapping alone.
+
+*Two names for one thing, retired.* `recruitment_rule_feeders` is `recruitment_rule_sources`, its model is `RecruitmentRuleSource` and its relation is `promotionSources()` — change item 6 renamed the columns and the screens, and this finishes the job. **The posted field is still `feeders`**: that is the screen's wire format, not the schema, and renaming it churns the view, the JavaScript, the request and every test for nothing. The name is `_sources` rather than `_promotion_sources` because the longer one produces a 65-character constraint name and MySQL stops at 64.
+
+*Identifier series.* `dpc_id_sequences` gained a `series` column, so the same per-department, per-year counter machinery issues both `DPC-…` and `PDPC-…` numbers under one lock. `IdentifierSequenceService::next($department, $series, $year)` is the only writer.
+
 **Twelve of these tables are evidence** and are append-only by intent: the two calculation tables, the allotment and schedule, the proceeding with its overrides, holds and documents, the three review-chain tables, and the circulation document. Each model refuses `update` outside a narrow column set and refuses `delete` outright — and each list is mirrored in `config/dpc.php` → `security.evidence_tables`, from which `php artisan security:evidence-grants` generates the production grants. **If you add a model with an immutability guard, add it to that config**; `EvidenceGrantsTest` fails until you do, because the guard alone does not stop a query-builder mass update.
 
 ---
 
 ## 6. Controllers, services, policies
 
-**Controllers** (`app/Http/Controllers/`) are grouped `Admin/`, `Auth/`, `Cgpsc/`, `Dpc/`, `PreDpc/`, `SelfInspection/`, plus `DashboardController`, `NotificationController`, `ReportController`, `HealthController`. Every one is thin.
+**Controllers** (`app/Http/Controllers/`) are grouped `Admin/`, `Auth/`, `Candidate/`, `Cgpsc/`, `Dpc/`, `PreDpc/`, `SelfInspection/`, plus `DashboardController`, `NotificationController`, `ReportController`, `HealthController`. Every one is thin.
+
+**The routes added on 2026-08-24**, all UUID-keyed (AD-8):
+
+| Route | Middleware | Notes |
+|---|---|---|
+| `admin/service-classes` | `role:admin` | Class Master. The `code` is read-only after creation |
+| `admin/commission-members` | `role:admin` | Item 13's master |
+| `admin/users/{user}/assignments` (GET / POST / DELETE) | `role:admin` | Post, transfer, release. DELETE is a release, not a deletion |
+| `pre-dpc/post-attributes` | departmental | Answers item 5's derivation **per post** — `post_ids[]` or a single `post_id`, returning `{"posts": [...]}`. It answered for a *pair* until 2026-08-25, which put the promotion post's Pay Scale beside a feeder. **Declared before `pre-dpc/{preDpc}`** or the literal is swallowed by the wildcard |
+| `my-dpc` (index, show) | `role:promotion_candidate` | Item 17. `show` takes a **string**, resolved only from the candidate's own proposals — no route-model binding to be talked out of |
 
 **Services** hold everything. The ones you will meet first:
 
 | Service | Owns |
 |---|---|
-| `PreDpc\PreDpcProposalService` | The Pre-DPC lifecycle and projection into masters |
+| `PreDpc\PreDpcProposalService` | The Pre-DPC lifecycle and projection into masters. `applySources()` rewrites the order's Promotion From Posts on save — deleted and recreated, refusing a non-live post, a self-promotion, a duplicate or an empty list. `projectToMasters()` composes the Recruitment Rule for the To Post from that order's own sources |
+| `UserManagement\DepartmentAssignmentService` | The only way a user is posted, transferred or released |
+| `UserManagement\PromotionCandidateProvisioner` | Candidate accounts, keyed on `employee_number`, reused never duplicated |
+| `Committee\CommitteeSelectionService` | The exact set-cover optimiser. Proposes only; `CommitteeComplianceService` is what refuses |
+| `Dpc\DpcRevisionService` | Revision numbers and the round-trip history. Writes no `dpc_code` — that is the point |
+| `Master\PostAttributeResolver` | What **one** post's mapping determines — its Pay Scale, its Class, its Promotion Duration — as a `PostAttributes`. `resolveMany()` answers a form full of feeder rows in one query. It answered per *pair* until 2026-08-25, reading Pay Scale and Class off the To post, which stated the scale of the post nobody had been promoted into yet |
 | `Dpc\DpcProposalService` | All five proposal sections and the submission gate |
 | `Import\ExcelImportService` | The staged Preview → Validate → Commit pipeline |
 | `Dpc\VacancyCalculationService` | Working Officers, Total Vacancy and the Zone of Consideration — all **derived, never stored**. Delegates the zone to M5's pure engine rather than re-implementing it (AD-19) |
@@ -254,7 +298,7 @@ If you are adding to this area:
 
 ## 9. Configuration
 
-`config/dpc.php` is the most important file in the repository. Blocks: `otp`, `sms`, `signature`, `rate_limiting`, `directory`, `documents`, `admin`, `workflows`, `proceeding`, `dpc_id`, `evaluation`, `pre_dpc`, `security`, `notifications`, `self_inspection`, `timezone`, `circulation`, `application`, `scoring`, `limits`, `imports`.
+`config/dpc.php` is the most important file in the repository. Blocks: `otp`, `sms`, `signature`, `rate_limiting`, `directory`, `documents`, `admin`, `workflows`, `proceeding`, `dpc_id`, `evaluation`, `committee`, `security`, `notifications`, `self_inspection`, `timezone`, `circulation`, `application`, `scoring`, `limits`, `imports`.
 
 **`scoring` is where every business rule lives** — marks, thresholds, bonuses, zone rules, super-seat logic. Bump `rule_version` whenever any value changes: it is the label a stored calculation is explained by, and leaving it stale makes two rule sets indistinguishable.
 
@@ -265,6 +309,8 @@ Feature flags live in `config/features.php` via the `Feature` enum, and every on
 ---
 
 ## 10. Testing
+
+**`Tests\TestCase` does two things for you, and both are there because doing them per test does not work.** It fakes the `local` disk, so no test writes into `storage/app/private` — six test files used to, and a document test could then be satisfied by a file the *previous* run left behind. And it flushes the Class Master's static memo, which would otherwise carry one test's labels into the next while `RefreshDatabase` rolled the rows back underneath it. **Do not call `Storage::fake('local')` in a test**; it is already done, and a second call only invites the reader to think it was needed.
 
 ```bash
 php -d memory_limit=2G vendor/bin/phpunit                    # everything
@@ -314,10 +360,27 @@ Fixtures live in `tests/Concerns/` and `tests/Feature/*/Concerns/`. Reuse them.
 | `demo:seed` | Rebuild the demonstration database and print the cheat sheet. Refuses in production |
 | `schema:verify-mysql` | Build every migration on MySQL in a throwaway database. **In the gate** |
 | `security:audit` | `composer audit` with retry; refuses a stale-cache pass. **In the gate** |
-| `qualifications:unmapped` | Feeders whose qualification text matches no master row (`--fix` re-matches) |
-| `pre-dpc:unmatched-feeders` | Feeders that matched no cadre and were omitted from a rule |
+| `qualifications:unmapped` | Recruitment-rule rows whose qualification text matches no master row (`--fix` re-matches) |
 | `notifications:replay --dry-run` | What a replay of the ledger *would* send. Sends nothing; `--dry-run` is required anyway |
+| `dpc:reset-transactional-data` | Clear every Pre-DPC/DPC workflow record, keeping all masters and all users. `--dry-run` lists what would go. **Refuses in production** — the list includes the audit trail. Every table in the schema must appear in one of its two lists, and it refuses to run if one does not |
+| `dpc:return-expired-allotments` | Return DPCs not concluded by their completion date to the CGPSC Chairman. `--dry-run` lists them; `--as-of=YYYY-MM-DD` treats another date as today. Idempotent — a row already carrying `returned_at` is skipped. **Scheduled daily at 00:15**, so it is normally not run by hand |
+| `demo:credentials` | Reset every demo password to one known value, create any missing demo user, and write `docs/demo/DEMO_LOGIN_CREDENTIALS.{md,pdf}`. **Refuses in production** |
+| `lang:check` | Missing, extra and identical-in-both keys per locale — the checks `BilingualCoverageTest` runs, with output a translator can read. `--locale=` defaults to `hi` |
 | `security:evidence-grants` | Print the production `GRANT`/`REVOKE` SQL for the twelve evidence tables, derived from `dpc.security.evidence_tables`. **`--verify`** instead attempts each write the grants should refuse, as whichever account the application connects as, and reports what the database did — every probe carries `WHERE id = -1` so no row can match. Run `--verify` at every release, not only at first deployment |
+
+### The scheduler
+
+**One entry, and it needs a system cron.** `routes/console.php` registers
+`dpc:return-expired-allotments` daily at 00:15, `withoutOverlapping()` and
+`onOneServer()`. Nothing runs it unless the host has:
+
+```cron
+* * * * * cd /path/to/app && php artisan schedule:run >> /dev/null 2>&1
+```
+
+Without that line the registration is inert, which is the exact failure the
+scheduling was added to fix — the command existed and was tested for a fortnight
+while never once running. `php artisan schedule:list` is the check.
 
 ---
 
@@ -353,6 +416,208 @@ Fixtures live in `tests/Concerns/` and `tests/Feature/*/Concerns/`. Reuse them.
 
 ---
 
+## 12b. What the change register of 2026-08-26 moved, for a maintainer
+
+Read this before touching a committee, an allotment or an authorisation check.
+Everything here changed on 2026-08-26 and the old shape is still described in
+comments and older documents.
+
+### Renamed, moved or removed
+
+| Was | Is now | Note |
+|---|---|---|
+| `CommissionMember` (model + master) | *gone* | Attributes live on `dpc_committee_members` |
+| `CommitteeSelectionService` | *gone* | Nothing to select from; the validator covers it |
+| `MemberLevelRule` | *gone* | Unenforceable without a registered member post — **BD-29** |
+| `CommitteeProposal` (value object) | *gone* | Belonged to the optimiser |
+| `DepartmentPostDocument` | `DepartmentPostOrder` | One row per Government Order, not per file version |
+| `DpcProposalService::saveCommittee()` | `DpcCommitteeService::compose()` | Four operations, three actors |
+| `CommitteeCapacity::Chairman` | `CommitteeCapacity::CgpscChairman` | Plus `is_dpc_chairman` as a separate flag |
+| `MemberCategory::Bhar` | `MemberCategory::BharSadhakSachiv` | And `VibhagSachiv` is new |
+| `recruitment_rule_sources.qualification_id` | `rr_source_qualifications` | Many-to-many |
+| `pre_dpc_promotion_sources.qualification_id` | `pre_dpc_source_qualifications` | Many-to-many |
+| `department_posts.government_order_number` / `_date` | `department_post_orders` | Plural |
+
+### Three traps
+
+**1. `hasRole()` no longer means "was granted".** `ResolveActiveRole` constrains the
+loaded `roles` relation to the role the session is *acting as*. So:
+
+- **Authorisation** — use `hasRole()` / `hasAnyRole()`. This is the acting-capacity
+  question, and it is what every policy asks.
+- **"Does this account hold X at all"** — use `holdsRole()` or `grantedRoles()`.
+  These query the pivot. The role switcher, user listings and the credential sheet
+  need this one.
+
+Getting it backwards in a policy would widen a permission; getting it backwards in
+the switcher produces a switcher that offers only the current role.
+
+**2. `$proposal->committeeMembers` is scoped to serving members.** Replaced members
+are excluded, because every caller wants that reading — the completeness check counts
+these against the size bounds, the documents print them, the review chain copies
+them. Use `committeeHistory()` for the substitutions.
+
+**3. The committee's Chairman seat is not in the payload.** `compose()` places it and
+discards any `cgpsc_chairman` row that was submitted. A fixture or seeder that lists
+one will silently have it dropped; supply ordinary members only, and enough of them
+to satisfy `CommitteeRuleResolver::forProposal()->minMembers`.
+
+### The new fixture precondition
+
+`Tests\TestCase::setUp()` seeds a serving `CgpscChairman`. Item 9 makes the seat
+mandatory and `DpcCommitteeService` refuses to compose a committee without one, so
+this is a precondition of the **whole** DPC workflow rather than of the committee
+screen alone — a fixture that omitted it would fail at submission with a message
+about a master nobody was testing. A test about the Chairman itself deletes or
+replaces the row, which `CgpscChairmanTest` and `DpcChairmanDesignationTest` both do.
+
+### The new command
+
+`php artisan dpc:return-expired-allotments` sends DPCs past their completion date
+back to the Chairman. `--dry-run` lists them, `--as-of=YYYY-MM-DD` is for
+verification. It is idempotent — a returned row carries `returned_at` and is
+excluded — because the natural failure mode of a scheduled task is running more
+often than intended.
+
+**It is registered in `routes/console.php` since 2026-09-05.** It was not before,
+so for a fortnight it existed, was tested, and never ran. If you add a command
+whose whole value is that it happens by itself, the registration is part of the
+feature — `php artisan schedule:list` is how you find out it is not.
+
+### Writing a test that allots
+
+Since the clarification of 2026-09-05 the Chairman names who presides **as part of
+allotting**, and `dpc_chairman_member_id` is required — so a proposal with no
+committee can no longer be allotted through HTTP at all. `Tests\Concerns\SeatsDpcCommittees`
+seats a minimal committee and returns the seat id, so a test about scheduling or a
+proceeding does not become a test about committee composition:
+
+```php
+use SeatsDpcCommittees;
+
+$this->seatCommittee($this->proposal);
+
+$this->post(route('cgpsc.allotments.store', $this->proposal), [
+    'allotted_to' => $member->id,
+    'dpc_chairman_member_id' => $this->presidingSeatId($this->proposal),
+    'complete_by' => '2026-09-30',
+]);
+```
+
+It writes the rows directly rather than calling `DpcCommitteeService::compose()`,
+which would also require a `cgpsc_chairmen` master the test never mentions. The
+service-layer `allot()` still takes the presiding member as an **optional** last
+argument, so tests that drive the service rather than the form need no committee.
+
+---
+
+## 12c. What the change register of 2026-08-27 moved, for a maintainer
+
+Read this before touching a vacancy figure, an eligibility verdict or an evaluation-chart
+fixture. Everything here changed on 2026-08-27.
+
+### Renamed, moved or removed
+
+| Was | Is now | Note |
+|---|---|---|
+| `saveVacancies($proposal, int $sanctioned, array $rows)` | `saveVacancies($proposal, array $rows, ?User $actor)` | Sanctioned strength comes from the master; **the parameter order changed** |
+| `dpc_proposals.sanctioned_post_count` (entered) | `department_posts.sanctioned_strength` (master) | The proposal column survives as a **snapshot**, written by the service |
+| `sanctioned_post_count` on the working-officers form | *gone* | Item 1 — the officer must not be able to type it |
+| `dpc_working_officers.deputation_date` | `deputation_from` (+ new `deputation_to`) | A deputation is a period, not a date |
+| `OfficerRecord::$experienceYearsOnFeederPost` | `$serviceMonthsOnFeederPost` | **Months.** See the trap below |
+| `OfficerRecord::$requiredExperienceYears` | `$requiredExperienceMonths` | Via `RecruitmentRuleSource::minExperienceInMonths()` |
+| `OfficerRecord::$requiredPromotionDurationYears` | `$requiredPromotionDurationMonths` | And it is read from **`dpc_proposals`**, not from the rule source |
+| `RemarkCode` — 3 cases | 5 cases (`EL`, `NE`, `SS`, `CIR`, `RJ`) | Item 24 |
+| `$result->is_eligible` in a view | `$result->status()` | Returns `RemarkCode`; the boolean cannot say four things |
+
+### New
+
+| Thing | Purpose |
+|---|---|
+| `VacancyEngine` | Pure. The nine figures of item 8 |
+| `VacancyBreakdown` | Readonly VO carrying them, plus the period and the contributors |
+| `VacancyCalculationRecorder` | Persists to the append-only `dpc_vacancy_calculations` |
+| `PromotionHierarchyService` | Item 11 — Class, Pay Scale level, Grade Pay |
+| `CandidateGateService` | Pure. Items 12–20, run **before** the formula |
+| `CandidateGateVerdict` | Status + reasons + citations + **advisories** |
+| `RecordReason` (master) | Item 16. Admin CRUD at `admin/record-reasons` |
+| `DpcEvaluationRecordGap` | Items 14/15/19. One row per (officer, kind, year) |
+| `RecordGapService` | Records a gap with its reason and its PDF, or nothing |
+| `dpc_evaluation_cr_grades.tribal_area` | Item 18 — the benefit attributed to its CR year |
+| `pay_scales.level` / `.grade_pay` | What makes a scale *comparable* |
+
+### Five traps
+
+**1. Experience is compared in months, and the message is not.** `min_experience_unit`
+exists because a rule may publish 18 *months* — the enum's own docblock says rounding
+those up to a year changes who is eligible. Both sides of the comparison are therefore in
+months. If you add a third service check, convert it: comparing a month count against a
+year count silently refuses officers who qualify, and the arithmetic looks fine.
+
+The *reported* figure still uses whichever unit reads naturally —
+`CandidateGateService::duration()` says "5 year(s)" for 60 and "18 month(s)" for 18 —
+because an officer told "60 month(s) required, 47 month(s) served" has to do the
+arithmetic themselves.
+
+**2. A gate overrides the score; nothing overrides a gate.** The composition lives in one
+method, `EligibilityVerdict::overriddenBy()`. Do not re-derive a status anywhere else, and
+do not infer one from `is_eligible` — `is_eligible` is false for CIR, and CIR is *not* a
+refusal (item 19 says the candidate continues).
+
+**3. Only a gap with a document counts.** `DpcEvaluationRecordGap::hasDocument()` gates
+whether the gap reaches `OfficerRecord::$justifiedCrGapYears` at all. Three layers check
+it — the request, the service and the value object — and that is not redundancy: the
+failure mode is a gap the screen shows as accounted for and the engine reads as
+unaccounted for, which nobody can debug from the outside.
+
+**4. Re-projecting a chart deletes and rewrites the per-year rows.** So a field left out
+of `EvaluationCandidateService::carriedEvaluationData()` is a field **silently erased the
+next time the Seniority List is saved**, and nothing errors. `tribal_area` was added there
+at the same time as the column; if you add a fifth per-year field, add it in three places
+— the migration, `writeEvaluationData()` and the carry-forward map — and write the test
+that saves the seniority list twice.
+
+**5. A fixture with fewer than five Property Returns now describes a rejected officer.**
+Item 13 rejects a candidate whose window has a hole, so any fixture representing a
+*promotable* officer must carry the full window. `CompletesDpcProposals::evaluationDataFor()`
+and `SeedsEvaluationCharts::seedOneOfficer()` both do. **Property defaults to the full
+window; loyalty defaults to the CR years** — not the same default, and the difference is
+item 15's: a certificate belongs to a CR year, but the Property Return window is
+continuous and independent of the CR chart.
+
+### Configuration added
+
+```
+dpc.vacancy.period                  { from: {month,day}, to: {month,day} }  # BD-34
+dpc.vacancy.promotion_rounding      floor | ceil | round                    # BD-33
+dpc.merit.property_return_years     5                                       # BD-37
+dpc.merit.required_cr_count         5
+dpc.merit.rule_failure_status       NE | RJ                                 # BD-32
+dpc.merit.qualification_gate        advise | reject                         # BD-39
+dpc.documents.max_kb                10240
+```
+
+`qualification_gate` defaults to `advise`, and that default is a business position, not a
+convenience: the Recruitment Rule names a qualification *level* and the chart carries a
+*degree*, so the comparison cannot be made. An unmatched qualification lands on the run's
+pending decisions, aggregated into one entry naming every officer affected, and changes no
+status. Do not flip it to `reject` without BD-39.
+
+### Where to look when a merit outcome surprises you
+
+1. `dpc_calculation_results.verdict` — `remark`, `failure_reasons`, `gate_citations`. The
+   stored verdict is the answer; the screens read it rather than recomputing.
+2. `dpc_calculation_runs.pending_decisions` — anything the engine declined to apply.
+3. `dpc_evaluation_record_gaps` for the officer — and check `path` is not null.
+4. `dpc_vacancy_calculations` with `superseded_by_id IS NULL` — the nine figures with the
+   inputs they were computed from.
+5. The **Explain Result** screen — `dpc-proposals/{proposal}/calculations/{run}/officers/{sn}`,
+   served by `ExplainCalculationService` — narrates one officer end to end from the stored
+   verdict alone, and now states which of the four statuses they reached, on what ground,
+   and which record is awaited.
+
+---
+
 ## 13. PPT mapping
 
 **All 52 slides of `ODPC_NEW_FINAL.pptx` and all 7 of `CONVENTIONAL DPC PROCESS.pptx` are accounted for**, and all 36 traceability rows are implemented. Re-verified slide by slide on 2026-08-22 by extracting the deck text and checking each against the code — which is how the four rows below marked *(added 2026-08-22)* came to be here: they were implemented but had never been written into the mapping, so nothing said whether they had been looked at.
@@ -363,7 +628,7 @@ Fixtures live in `tests/Concerns/` and `tests/Feature/*/Concerns/`. Reuse them.
 | S2–S4 | **The six stages of ODPC**, stated as a narrative index: registration → Pre-DPC → DPC proposal → workflow/allotment → date and time → the sitting and its proceedings | All six implemented as M1, M3, M4, M6, M6, M7 *(added 2026-08-22)* |
 | S5–S6 | Department registration | `Domain/Department`, `Auth/RegistrationController` |
 | S7–S11 | Pre-DPC proposal | `Domain/PreDpc` |
-| S12 | **The eight entries a DPC proposal must carry**: post-to + class, post-from + class, the no-legal-stay declaration, nominated committee members, officers working on the target post, sanctioned post count, the feeder cadre's final seniority list, and the feeder cadre's evaluation chart | All eight present — `dpc-proposals/form` (post pair with class, `legal_stay`), then the four section screens *(added 2026-08-22)* |
+| S12 | **The eight entries a DPC proposal must carry**: post-to + class, post-from + class, the no-legal-stay declaration, nominated committee members, officers working on the target post, sanctioned post count, the Promotion From Post's final seniority list, and its evaluation chart | All eight present — `dpc-proposals/form` (post pair with class, `legal_stay`), then the four section screens *(added 2026-08-22)* |
 | S13–S17 | DPC proposal: committee, officers, seniority | `Domain/Dpc` |
 | S18 | Evaluation Chart — **projected from S17 since 2026-08-22**; the AO supplies CR, loyalty, property, tribal service and a note, nothing else | `Domain/Dpc\EvaluationCandidateService` |
 | S16–S18 | Excel upload (3 templates). **The S18 template is pre-filled per proposal** — a blank one is now useless, because the importer accepts exactly the Seniority List's officers | `Domain/Import` |

@@ -50,8 +50,8 @@ class SchedulingController extends Controller
             ->with([
                 'allottee',
                 'proposal.department',
-                'proposal.postFromCadre',
-                'proposal.postToCadre',
+                'proposal.promotionFromPost',
+                'proposal.promotionToPost',
             ])
             ->orderBy('allotted_at')
             ->get();
@@ -86,6 +86,34 @@ class SchedulingController extends Controller
             fn () => $this->scheduling->accept($dpcProposal, $request->user(), $request),
             'DPC accepted. You can now set the date and time.',
         );
+    }
+
+    /**
+     * The allottee refuses the DPC, and it goes back to the CGPSC Chairman with the
+     * reason (business instruction, 2026-09-06).
+     *
+     * The counterpart of {@see accept()}, on the same screen and guarded the same
+     * way — only the member a DPC was allotted to may decline it.
+     */
+    public function decline(Request $request, DpcProposal $dpcProposal): RedirectResponse
+    {
+        $this->authorizeAllottee($dpcProposal);
+
+        $validated = $request->validate([
+            // The reason is the whole value of the transition: what the Chairman
+            // needs in order to allot again is not that somebody refused but why.
+            'decline_reason' => ['required', 'string', 'min:5', 'max:1000'],
+        ], [
+            'decline_reason.required' => __('cgpsc.schedules.index.decline_reason_required'),
+            'decline_reason.min' => __('cgpsc.schedules.index.decline_reason_required'),
+        ]);
+
+        return $this->run(fn () => $this->allotments->decline(
+            $dpcProposal,
+            $request->user(),
+            (string) $validated['decline_reason'],
+            $request,
+        ), __('cgpsc.schedules.index.declined'));
     }
 
     public function store(ScheduleDpcRequest $request, DpcProposal $dpcProposal): RedirectResponse
@@ -124,7 +152,7 @@ class SchedulingController extends Controller
         $this->authorize('viewAny', DpcAllotment::class);
 
         return view('cgpsc.schedules.history', [
-            'proposal' => $dpcProposal->load('department', 'postFromCadre', 'postToCadre'),
+            'proposal' => $dpcProposal->load('department', 'promotionFromPost', 'promotionToPost'),
             'events' => $this->scheduling->historyFromTimeline($dpcProposal),
         ]);
     }

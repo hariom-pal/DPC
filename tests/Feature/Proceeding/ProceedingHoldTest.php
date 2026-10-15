@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Proceeding;
 
+use App\Domain\Eligibility\Enums\RemarkCode;
 use App\Domain\Proceeding\Enums\CorrectableField;
 use App\Domain\Proceeding\Enums\DpcProceedingStatus;
 use App\Domain\Proceeding\Enums\HoldReason;
@@ -70,9 +71,29 @@ class ProceedingHoldTest extends TestCase
         $this->assertStringContainsString('2016', (string) $hold->detail);
     }
 
+    /**
+     * A hold is raised by the proceedings subsystem, not by the engine (AQ-4).
+     *
+     * **This test changed with the change register of 2026-08-27, and the change is
+     * the interesting part.** It used to assert `is_eligible === true`: a hold was
+     * *independent* of merit because the frozen engine had no opinion about Property
+     * Returns at all, so an officer could be top-scoring, Super-Seated and held all
+     * at once. Item 13 gives the engine that opinion — a Property Return missing from
+     * the mandatory continuous window is now `Rejected` — so the same officer is now
+     * held *and* rejected.
+     *
+     * What survives is the independence that AQ-4 was actually about: **the hold is
+     * detected from the records, not read off the engine's verdict.** The score is
+     * still computed, Super Seat is still awarded on the marks (items 21 and 23 —
+     * neither formula was touched), and the hold still fires. Only the final status
+     * now reflects the register.
+     *
+     * That the two subsystems both act on one missing Property Return is recorded as
+     * **BD-38**: whether item 13's rejection is meant to supersede the M6 hold, or sit
+     * beside it, is a question for the Commission and not one to settle in a fixture.
+     */
     public function test_a_hold_is_independent_of_merit(): void
     {
-        // The whole reason holds live outside the frozen engine (AQ-4).
         $this->officer(8, 'US8', $this->stCategoryId(),
             [2013 => 'क+', 2014 => 'क+', 2015 => 'क+', 2016 => 'क+', 2017 => 'क+'],
             propertyMissingYears: [2016],
@@ -82,10 +103,20 @@ class ProceedingHoldTest extends TestCase
 
         $result = $this->latestRun()->results()->where('officer_name', 'US8')->firstOrFail();
 
+        // The formula still ran, and still ran unmodified: 20 marks, Super Seat.
         $this->assertSame(20, $result->score_breakdown['total']);
         $this->assertTrue($result->is_super_seat);
-        $this->assertTrue($result->is_eligible);
-        // Top-scoring, Super-Seated — and held.
+
+        // But item 13 rejects the missing Property Return, whatever the marks say,
+        // and the reason names the year so the officer can answer it.
+        $this->assertFalse($result->is_eligible);
+        $this->assertSame(RemarkCode::Rejected->value, $result->remark);
+
+        $reasons = implode(' ', $result->verdict['failure_reasons']);
+        $this->assertStringContainsString('Property Return', $reasons);
+        $this->assertStringContainsString('2016', $reasons);
+
+        // And the hold fired on its own, from the records rather than the verdict.
         $this->assertTrue($this->holds()->isHeld($this->proceeding->fresh(), 8));
     }
 

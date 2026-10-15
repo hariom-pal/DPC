@@ -10,7 +10,7 @@
 
 @extends('layouts.portal')
 
-@section('title', 'Self-Inspection & Assessment — e-DPC Portal')
+@section('title', __('selfinspection.landing.self_inspection_assessment_e_dpc_portal'))
 
 @section('content')
     <div class="py-5" style="background:linear-gradient(180deg,#eef4fb 0%,var(--gov-surface) 55%)">
@@ -22,9 +22,9 @@
                             @include('partials.logo', [
                                 'which' => 'cgpsc', 'class' => 'mb-3', 'style' => 'height:56px', 'alt' => '',
                             ])
-                            <h1 class="h4 mb-1">Self-Inspection &amp; Assessment</h1>
+                            <h1 class="h4 mb-1">{{ __('selfinspection.landing.self_inspection_amp_assessment') }}</h1>
                             <p class="text-body-secondary small mb-0">
-                                स्व-निरीक्षण · विभागीय अधिकारीयों व कर्मचारियों को स्वयं के डाटा अवलोकन की सुविधा
+                                {{ __('selfinspection.landing.text') }}
                             </p>
                         </div>
 
@@ -32,10 +32,9 @@
 
                         @if (! $enabled)
                             <div class="alert alert-secondary" role="status">
-                                <strong class="d-block mb-1">Self-Inspection is currently closed.</strong>
+                                <strong class="d-block mb-1">{{ __('selfinspection.landing.self_inspection_is_currently_closed') }}</strong>
                                 <span class="small">
-                                    The facility is opened by the Commission while departmental proposals are
-                                    under consideration. Please try again later, or ask your department.
+                                    {{ __('selfinspection.landing.the_facility_is_opened_by_the_commission_while_d') }}
                                 </span>
                             </div>
                         @elseif ($pending !== null)
@@ -54,14 +53,12 @@
                             </div>
                         @else
                             <p>
-                                If your department has forwarded a Departmental Promotion Committee proposal
-                                that includes you, you may view <strong>the data it recorded about you</strong>
-                                before the Committee sits.
+{!! __('selfinspection.landing.lead') !!}
                             </p>
 
                             <ul class="list-unstyled d-grid gap-3 my-4">
                                 @foreach ([
-                                    ['eye', 'What you will see', 'Your date of birth, qualification, date of joining the current cadre, category, and your year-wise CR grades, loyalty and immovable-property records — exactly as your department supplied them.'],
+                                    ['eye', 'What you will see', 'Your date of birth, qualification, date of joining the current post, category, and your year-wise CR grades, loyalty and immovable-property records — exactly as your department supplied them.'],
                                     ['shield', 'What you will not see', 'No marks, no remarks and no promotion decision. Those are produced by the Committee, which has not yet sat.'],
                                     ['audit', 'Every visit is recorded', 'The date, time and outcome of each attempt to open this screen is written to a permanent record.'],
                                 ] as [$icon, $title, $text])
@@ -78,7 +75,7 @@
                             </ul>
 
                             <a href="{{ route('self-inspection.identify') }}" class="btn btn-primary btn-lg w-100">
-                                View my data / मेरा डाटा देखें
+                                {{ __('selfinspection.landing.view_my_data') }}
                             </a>
                         @endif
 
@@ -87,15 +84,14 @@
                         {{-- S51's own instruction, stated here as well so an
                              officer knows the route before they see the data. --}}
                         <p class="small text-body-secondary mb-0">
-                            <strong>If the data is wrong:</strong> raise it with your <strong>department</strong>,
-                            in person. The Chhattisgarh Public Service Commission does not consider
-                            representations about departmental data.
+{!! __('selfinspection.landing.if_wrong') !!}
                         </p>
                     </div>
 
                     <p class="text-center small text-body-secondary mt-3 mb-0">
-                        This screen is for the officer under consideration. Departmental users should
-                        <a href="{{ route('login') }}">sign in</a> instead.
+{!! __('selfinspection.landing.for_officers_only', [
+                            'link' => '<a href="'.e(route('login')).'">'.e(__('selfinspection.landing.sign_in')).'</a>',
+                        ]) !!}
                     </p>
                 </div>
             </div>

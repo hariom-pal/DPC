@@ -120,7 +120,7 @@ class DemoJourneySeeder extends Seeder
                 ['clear', 'ST', 1],
                 ['from_promotion', 'OBC', 1],
             ],
-            'committee' => $this->committee($ah, $ao),
+            'committee' => $this->committee($ah, $member),
             'working' => DemoOfficers::jointDirectorsInPost(),
             'officers' => $officers,
         ]);
@@ -132,6 +132,10 @@ class DemoJourneySeeder extends Seeder
             $chairman,
             DemoActor::request(),
             Carbon::parse('2026-05-20'),
+
+            // The date it must be concluded by (item 9, 2026-08-26). Comfortably
+            // after the sitting, which is what the register describes.
+            Carbon::parse('2026-06-30'),
         )));
 
         // S30 — the Member accepts, then fixes the date and time of the sitting.
@@ -303,7 +307,7 @@ class DemoJourneySeeder extends Seeder
                 ['clear', 'UR', 1],
                 ['clear', 'OBC', 1],
             ],
-            'committee' => $this->committee($ah, $ao),
+            'committee' => $this->committee($ah, $member),
             'working' => DemoOfficers::principalsInPost(),
             'officers' => DemoOfficers::lecturers(),
         ]);
@@ -477,11 +481,36 @@ class DemoJourneySeeder extends Seeder
      *
      * @return list<array<string, mixed>>
      */
-    private function committee(User $ah, User $ao): array
+    private function committee(User $ah, User $member): array
     {
+        /*
+         | Ordinary members only, and three of them.
+         |
+         | The CGPSC Chairman's seat is placed by `DpcCommitteeService` from the
+         | administered record (change register of 2026-08-26, item 9), so a
+         | seeder that listed a `chairman` row would have it discarded. Three
+         | because that is the minimum the size rule asks for *besides* the
+         | Chairman.
+         |
+         | The attributes are spread so the demonstration shows item 8's point:
+         | one member carries three, which is what lets a small committee satisfy
+         | several requirements.
+         */
         return [
-            ['user' => $ah, 'capacity' => CommitteeCapacity::Chairman],
-            ['user' => $ao, 'capacity' => CommitteeCapacity::Member],
+            [
+                'user' => $ah,
+                'capacity' => CommitteeCapacity::Member,
+                'is_female' => true, 'is_st' => true, 'is_bhar_sadhak_sachiv' => true,
+            ],
+            /*
+             | The Member the Chairman will allot this DPC to, and **that is a
+             | rule, not a convenience**: `AllotmentService` refuses an allotment
+             | to somebody who does not already hold a seat on the DPC's own
+             | committee. The Authorized Officer sat here until that rule arrived;
+             | he proposes the DPC, he does not decide it, so the seat was wrong
+             | on the business as well as on the check.
+             */
+            ['user' => $member, 'capacity' => CommitteeCapacity::Member, 'is_sc' => true],
             [
                 'user' => null,
                 'name' => 'Shri Sanjay Kumar Agrawal',
@@ -489,6 +518,7 @@ class DemoJourneySeeder extends Seeder
                 'mobile' => '9000009001',
                 'email' => 'ds.gad@cg.gov.in',
                 'capacity' => CommitteeCapacity::Member,
+                'is_obc' => true, 'is_vibhag_sachiv' => true,
             ],
         ];
     }
@@ -523,9 +553,12 @@ class DemoJourneySeeder extends Seeder
 
     private function officer(Department $department, Role $role): User
     {
+        // The posting is the assignment, not a column on the user (change item 2).
         return User::query()
-            ->where('department_id', $department->id)
-            ->whereHas('roles', fn ($query) => $query->where('name', $role->value))
+            ->whereHas('assignments', fn ($query) => $query
+                ->whereNotNull('active_flag')
+                ->where('department_id', $department->id)
+                ->where('role', $role->value))
             ->firstOrFail();
     }
 }

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Admin;
 
 use App\Domain\Master\Enums\ExperienceUnit;
-use App\Domain\Master\Models\Cadre;
+use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\Qualification;
 use App\Domain\Master\Models\RecruitmentRule;
 use App\Domain\Master\Requests\RecruitmentRuleRequest;
@@ -21,7 +21,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class RecruitmentRuleController extends Controller
 {
     private const RULE_FIELDS = [
-        'cadre_id', 'government_order_number', 'direct_recruitment_pct',
+        'post_id', 'government_order_number', 'direct_recruitment_pct',
         'promotion_recruitment_pct', 'effective_from', 'effective_to', 'status',
     ];
 
@@ -31,7 +31,7 @@ class RecruitmentRuleController extends Controller
     {
         return view('admin.recruitment-rules.index', [
             'rules' => RecruitmentRule::query()
-                ->with(['cadre', 'feeders.feederCadre', 'feeders.qualification'])
+                ->with(['post', 'promotionSources.promotionFromPost', 'promotionSources.qualifications'])
                 ->orderByDesc('id')
                 ->paginate(20),
         ]);
@@ -61,7 +61,7 @@ class RecruitmentRuleController extends Controller
                 ->with('status', 'Only draft rules can be edited. Create a new version to amend an active rule.');
         }
 
-        $recruitmentRule->load('feeders.feederCadre', 'feeders.qualification');
+        $recruitmentRule->load('promotionSources.promotionFromPost', 'promotionSources.qualifications');
 
         return view('admin.recruitment-rules.form', $this->formData($recruitmentRule));
     }
@@ -108,8 +108,8 @@ class RecruitmentRuleController extends Controller
     }
 
     /**
-     * The form needs every active cadre with its department, because the feeder
-     * picker is filtered client-side to the target cadre's own department — a
+     * The form needs every active post with its department, because the feeder
+     * picker is filtered client-side to the target post's own department — a
      * feeder from another department is rejected server-side, so offering one
      * would be offering a choice that cannot be saved.
      *
@@ -119,7 +119,7 @@ class RecruitmentRuleController extends Controller
     {
         return [
             'rule' => $rule,
-            'cadres' => Cadre::query()
+            'posts' => DepartmentPost::query()
                 ->with('department:id,code,name')
                 ->where('status', MasterStatus::Active->value)
                 ->orderBy('name')

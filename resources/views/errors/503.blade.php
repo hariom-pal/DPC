@@ -11,12 +11,12 @@
                         @include('partials.icon', ['name' => 'refresh', 'size' => 28])
                     </div>
                     <div class="error-code">503</div>
-                    <h1 class="h4 mb-2">Under maintenance</h1>
-                    <p class="text-body-secondary mb-4">The portal is briefly unavailable while maintenance completes. Please try again shortly.</p>
+                    <h1 class="h4 mb-2">{{ __('errorpages.errors.503.under_maintenance') }}</h1>
+                    <p class="text-body-secondary mb-4">{{ __('errorpages.errors.503.the_portal_is_briefly_unavailable_while_maintena') }}</p>
                     <div class="d-flex flex-wrap gap-2 justify-content-center">
-                        <a href="{{ url('/') }}" class="btn btn-primary">Go to the home page</a>
+                        <a href="{{ url('/') }}" class="btn btn-primary">{{ __('ui.go_to_the_home_page') }}</a>
                         @auth
-                            <a href="{{ route('dashboard') }}" class="btn btn-outline-primary">Dashboard</a>
+                            <a href="{{ route('dashboard') }}" class="btn btn-outline-primary">{{ __('ui.dashboard_link') }}</a>
                         @endauth
                     </div>
                 </div>

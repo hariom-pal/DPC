@@ -7,8 +7,7 @@ namespace Tests\Feature\Security;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Department\Models\Department;
 use App\Domain\Dpc\Models\DpcProposal;
-use App\Domain\Master\Models\Cadre;
-use App\Domain\Master\Models\DpcType;
+use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\PreDpc\Models\PreDpcProposal;
 use App\Domain\SelfInspection\Models\SelfInspectionAccess;
 use App\Domain\Shared\Workflow\WorkflowTransition;
@@ -23,6 +22,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use ReflectionClass;
 use Symfony\Component\Finder\Finder;
+use Tests\Concerns\RaisesDpcProposals;
 use Tests\Feature\AuthorizationCoverageTest;
 use Tests\TestCase;
 
@@ -47,6 +47,7 @@ use Tests\TestCase;
  */
 class PublicIdentifierTest extends TestCase
 {
+    use RaisesDpcProposals;
     use RefreshDatabase;
 
     /**
@@ -192,22 +193,19 @@ class PublicIdentifierTest extends TestCase
             'code' => 'PI', 'name' => 'Public Instruction Department', 'status' => 'active',
         ]);
 
-        $officer = User::factory()->create(['department_id' => $department->id]);
-        $officer->assignRole(Role::AuthorizedOfficer->value);
+        $officer = User::factory()->assignedTo($department->id, Role::AuthorizedOfficer)->create();
 
-        $from = Cadre::query()->create([
+        $from = DepartmentPost::query()->create([
             'department_id' => $department->id, 'name' => 'Lecturer', 'class_level' => 'II', 'status' => 'active',
         ]);
-        $to = Cadre::query()->create([
+        $to = DepartmentPost::query()->create([
             'department_id' => $department->id, 'name' => 'Principal', 'class_level' => 'I', 'status' => 'active',
         ]);
 
-        $this->actingAs($officer)->post(route('dpc-proposals.store'), [
-            'dpc_type_id' => DpcType::query()->where('code', 'fresh')->firstOrFail()->id,
-            'post_to_cadre_id' => $to->id,
-            'post_from_cadre_id' => $from->id,
-            'proposal_date' => '2026-06-25',
-        ])->assertRedirect();
+        $this->actingAs($officer)->post(
+            route('dpc-proposals.store'),
+            $this->dpcStorePayload($this->sanctioningPreDpc($from, $to)),
+        )->assertRedirect();
 
         return [$officer, DpcProposal::query()->latest('id')->firstOrFail()];
     }

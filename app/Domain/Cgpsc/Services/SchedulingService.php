@@ -6,6 +6,7 @@ namespace App\Domain\Cgpsc\Services;
 
 use App\Domain\Authentication\Models\User;
 use App\Domain\Cgpsc\Enums\AllotmentStatus;
+use App\Domain\Cgpsc\Events\DpcSittingScheduled;
 use App\Domain\Cgpsc\Models\DpcAllotment;
 use App\Domain\Cgpsc\Models\DpcSchedule;
 use App\Domain\Dpc\Models\DpcProposal;
@@ -28,6 +29,16 @@ use Illuminate\Support\Facades\DB;
  * **The scheduled date is not validated against the allotment's default DPC
  * date** (architect Decision 4). The default is informational until CGPSC
  * specifies a rule, and inventing one here would be inventing a business rule.
+ * The **completion deadline** is a different matter and is enforced — see
+ * {@see assertWithinCompletionDate()}.
+ *
+ * **Fixing or moving a sitting announces it** (business clarification,
+ * 2026-09-05): {@see DpcSittingScheduled} is dispatched, and
+ * `AnnounceSittingToParticipants` tells every serving committee member and every
+ * officer on the Seniority List the date, the time and how to attend. That is a
+ * wider audience than the workflow notification this service already fires, which
+ * reaches the department's officers and the allottee — so it is a second event
+ * rather than a widening of the first.
  */
 class SchedulingService
 {
@@ -78,6 +89,38 @@ class SchedulingService
     /**
      * S30 — the allottee sets the DPC date and time.
      */
+    /**
+     * The sitting must fall on or before the date the DPC is due to be concluded
+     * (change register of 2026-08-26, item 9 as clarified).
+     *
+     * > *The member with the DPC will schedule it on or before that date. They may
+     * > even reschedule the date.*
+     *
+     * So rescheduling is permitted and is bounded: the member moves the sitting
+     * within the window the Chairman set, and cannot move the window. Without this,
+     * "reschedule" would be a way to opt out of the deadline entirely, and the
+     * return-to-Chairman rule that depends on it would never fire.
+     *
+     * **Allotments made before this register carry no deadline**, and those are
+     * unbounded — there is no date to be late for, and inventing one would make a
+     * historical allotment retrospectively overdue.
+     */
+    private function assertWithinCompletionDate(DpcAllotment $allotment, Carbon $date): void
+    {
+        if ($allotment->complete_by === null) {
+            return;
+        }
+
+        if ($date->gt($allotment->complete_by)) {
+            throw new WorkflowException(sprintf(
+                'This DPC must be concluded by %s, so it cannot be scheduled for %s. '
+                .'Ask the Chairman to re-allot it if it needs longer.',
+                $allotment->complete_by->format('d-m-Y'),
+                $date->format('d-m-Y'),
+            ));
+        }
+    }
+
     public function schedule(
         DpcProposal $proposal,
         User $member,
@@ -90,6 +133,8 @@ class SchedulingService
         if ($allotment->status !== AllotmentStatus::Accepted) {
             throw new WorkflowException('This DPC must be accepted before it can be scheduled.');
         }
+
+        $this->assertWithinCompletionDate($allotment, $date);
 
         $from = $this->allotments->state($proposal);
         $def = $this->engine->assertAllowed('dpc_cgpsc', 'schedule', $from, $member);
@@ -128,6 +173,14 @@ class SchedulingService
                 [$member->id],
             );
 
+            /*
+             | Tell everybody who has to attend (business clarification,
+             | 2026-09-05). Dispatched inside the transaction but delivered only
+             | after it commits — the listener is `afterCommit` — so a message can
+             | never announce a sitting that was rolled back.
+             */
+            DpcSittingScheduled::dispatch($proposal, $schedule);
+
             return $schedule;
         });
     }
@@ -154,6 +207,8 @@ class SchedulingService
         if ($existing === null) {
             throw new WorkflowException('This DPC has not been scheduled yet, so it cannot be re-scheduled.');
         }
+
+        $this->assertWithinCompletionDate($allotment, $date);
 
         $normalisedTime = Carbon::parse($time)->format('H:i:s');
 
@@ -197,6 +252,10 @@ class SchedulingService
                 ],
                 [$member->id],
             );
+
+            // The same announcement, worded as a move: somebody told three times
+            // that a DPC is "scheduled" is somebody who attends on the wrong day.
+            DpcSittingScheduled::dispatch($proposal, $schedule, isReschedule: true);
 
             return $schedule;
         });

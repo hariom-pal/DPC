@@ -7,7 +7,7 @@
         <div class="col-md-6 col-lg-5">
             <div class="card border-0 shadow-sm">
                 <div class="card-body p-4">
-                    <h1 class="h4 mb-3 text-center">OTP Verification / ओ.टी.पी. सत्यापन</h1>
+                    <h1 class="h4 mb-3 text-center">{{ __('authui.verify.otp_verification') }}</h1>
 
                     @include('partials.alerts')
 
@@ -16,7 +16,7 @@
                         @if ($user->email)
                             <div class="mb-3">
                                 <label for="email_code" class="form-label">
-                                    Email OTP (sent to {{ $user->email }})
+                                    {{ __('authui.verify.email_otp_sent_to', ['email' => $user->email]) }}
                                 </label>
                                 <input type="text" class="form-control" id="email_code" name="email_code"
                                        inputmode="numeric" maxlength="{{ config('dpc.otp.length') }}" required>
@@ -24,12 +24,12 @@
                         @endif
                         <div class="mb-3">
                             <label for="mobile_code" class="form-label">
-                                Mobile OTP (sent to {{ $user->mobile }})
+                                {{ __('authui.verify.mobile_otp_sent_to', ['mobile' => $user->mobile]) }}
                             </label>
                             <input type="text" class="form-control" id="mobile_code" name="mobile_code"
                                    inputmode="numeric" maxlength="{{ config('dpc.otp.length') }}" required autofocus>
                         </div>
-                        <button type="submit" class="btn btn-success w-100">Verify / सत्यापित करें</button>
+                        <button type="submit" class="btn btn-success w-100">{{ __('authui.verify.verify') }}</button>
                     </form>
                 </div>
             </div>

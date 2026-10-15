@@ -1,29 +1,29 @@
 @extends('layouts.admin')
-@section('title', 'Qualifications')
+@section('title', __('admin.qualifications.index.qualifications'))
 @section('content')
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <h1 class="h4 mb-0">Qualification Master / अर्हता मास्टर</h1>
-        <a href="{{ route('admin.qualifications.create') }}" class="btn btn-success btn-sm">+ New</a>
+        <h1 class="h4 mb-0">{{ __('admin.qualifications.index.qualification_master') }}</h1>
+        <a href="{{ route('admin.qualifications.create') }}" class="btn btn-success btn-sm">{{ __('ui.new') }}</a>
     </div>
 
     <p class="text-body-secondary small">
-        The list a recruitment rule's <strong>Minimum Qualification</strong> is chosen from. A qualification that
-        rules already cite cannot be deleted — set it to <em>Inactive</em> to take it out of the dropdown while
-        leaving those rules untouched.
+{!! __('admin.qualifications.index.lead') !!}
     </p>
 
     <div class="card border-0 shadow-sm">
+        @include('admin.partials.master-toolbar', ['master' => 'qualifications'])
+
         <div class="table-responsive">
             <table class="table table-striped mb-0 align-middle">
                 <thead>
                     <tr>
-                        <th>Code</th>
-                        <th>Name (EN)</th>
-                        <th>नाम (HI)</th>
-                        <th>Description</th>
-                        <th class="text-end">Used by</th>
-                        <th>Status</th>
-                        <th class="text-end">Actions</th>
+                        <th>{{ __('ui.code') }}</th>
+                        <th>{{ __('ui.name_en') }}</th>
+                        <th>{{ __('ui.hi') }}</th>
+                        <th>{{ __('ui.description') }}</th>
+                        <th class="text-end">{{ __('admin.qualifications.index.used_by') }}</th>
+                        <th>{{ __('ui.status') }}</th>
+                        <th class="text-end">{{ __('ui.actions') }}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -34,25 +34,25 @@
                             <td>{{ $qualification->name_hi }}</td>
                             <td class="small text-body-secondary">{{ $qualification->description }}</td>
                             <td class="text-end">
-                                @if ($qualification->recruitment_rule_feeders_count > 0)
-                                    <span class="badge text-bg-light">{{ $qualification->recruitment_rule_feeders_count }} rule(s)</span>
+                                @if ($qualification->recruitment_rule_sources_count > 0)
+                                    {!! __('admin.qualifications.index.rule_count', ['count' => $qualification->recruitment_rule_sources_count]) !!}
                                 @else
                                     <span class="text-body-secondary">—</span>
                                 @endif
                             </td>
                             <td><x-status-badge :status="$qualification->status" /></td>
                             <td class="text-end text-nowrap">
-                                <a href="{{ route('admin.qualifications.edit', $qualification) }}" class="btn btn-outline-primary btn-sm">Edit</a>
+                                <a href="{{ route('admin.qualifications.edit', $qualification) }}" class="btn btn-outline-primary btn-sm">{{ __('ui.edit') }}</a>
                                 <form method="POST" action="{{ route('admin.qualifications.destroy', $qualification) }}" class="d-inline"
-                                      data-confirm="Delete this qualification?">
+                                      data-confirm="{{ __('admin.qualifications.index.delete_this_qualification') }}">
                                     @csrf @method('DELETE')
                                     <button class="btn btn-outline-danger btn-sm"
-                                        @disabled($qualification->recruitment_rule_feeders_count > 0)>Delete</button>
+                                        @disabled($qualification->recruitment_rule_sources_count > 0)>{{ __('ui.delete') }}</button>
                                 </form>
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="7" class="text-center text-muted py-4">No records yet.</td></tr>
+                        <tr><td colspan="7" class="text-center text-muted py-4">{{ __('ui.no_records_yet') }}</td></tr>
                     @endforelse
                 </tbody>
             </table>

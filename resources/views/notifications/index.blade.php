@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Notifications')
+@section('title', __('ui.notifications'))
 
 @section('content')
     <div class="row justify-content-center">
@@ -9,11 +9,11 @@
 
             <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
                 <div>
-                    <h1 class="h4 mb-1">Notifications</h1>
+                    <h1 class="h4 mb-1">{{ __('ui.notifications') }}</h1>
                     <p class="text-muted small mb-0">
-                        Everything the system has told you, kept in the application.
+{{ __('ui.notifications_lead') }}
                         @if ($unreadCount > 0)
-                            <strong>{{ $unreadCount }} unread.</strong>
+{!! __('ui.n_unread_strong', ['count' => $unreadCount]) !!}
                         @endif
                     </p>
                 </div>
@@ -25,7 +25,7 @@
                     @if ($unreadCount > 0)
                         <form method="POST" action="{{ route('notifications.read-all') }}" class="m-0">
                             @csrf
-                            <button class="btn btn-sm btn-outline-secondary">Mark all read</button>
+                            <button class="btn btn-sm btn-outline-secondary">{{ __('ui.mark_all_read') }}</button>
                         </form>
                     @endif
                 </div>
@@ -46,7 +46,7 @@
                                         {{ $notification->title }}
                                     </span>
                                     @if ($notification->isUnread())
-                                        <span class="badge text-bg-primary">New</span>
+                                        <span class="badge text-bg-primary">{{ __('notifications.index.new') }}</span>
                                     @endif
                                 </div>
 
@@ -70,7 +70,7 @@
                         </li>
                     @empty
                         <li class="list-group-item text-muted text-center py-5">
-                            {{ $unreadOnly ? 'Nothing unread.' : 'You have no notifications yet.' }}
+                            {{ $unreadOnly ? __('ui.nothing_unread') : __('ui.no_notifications_yet') }}
                         </li>
                     @endforelse
                 </ul>
@@ -81,8 +81,7 @@
             {{-- Said plainly, because an actor who sees a notification here and
                  no SMS will otherwise assume something is broken. --}}
             <p class="small text-muted mt-3 mb-0">
-                Notifications are also sent by SMS and e-mail once those gateways are
-                connected. This list does not depend on them.
+                {{ __('notifications.index.notifications_are_also_sent_by_sms_and_e_mail_on') }}
             </p>
         </div>
     </div>

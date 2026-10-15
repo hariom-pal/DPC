@@ -123,7 +123,7 @@ class CirculationRaiseTest extends TestCase
         $this->assertSame(CirculationStatus::Draft, $circulation->status);
         $this->assertSame($this->proposal->id, $circulation->origin_dpc_proposal_id);
         $this->assertSame($this->proceeding->id, $circulation->origin_dpc_proceeding_id);
-        $this->assertSame('HE202600001', $circulation->origin_dpc_code);
+        $this->assertSame('DPC-2026-HE-0001', $circulation->origin_dpc_code);
         $this->assertNull($circulation->circulation_code, 'The code is minted at approval, not at raising.');
 
         $item = $circulation->items()->firstOrFail();
@@ -166,15 +166,14 @@ class CirculationRaiseTest extends TestCase
         // one query still answers "everything that happened to this DPC".
         $this->assertSame($this->proposal->id, $entry->subject_id);
         $this->assertSame('Authorized Officer', $entry->actor_name);
-        $this->assertSame('HE202600001', $entry->properties['origin_dpc_code']);
+        $this->assertSame('DPC-2026-HE-0001', $entry->properties['origin_dpc_code']);
         $this->assertCount(1, $entry->properties['items']);
     }
 
     public function test_a_dpc_of_another_department_cannot_be_circulated(): void
     {
         $other = Department::query()->create(['code' => 'FI', 'name' => 'Finance', 'status' => 'active']);
-        $intruder = User::factory()->create(['department_id' => $other->id]);
-        $intruder->assignRole(Role::AuthorizedOfficer->value);
+        $intruder = User::factory()->assignedTo($other->id, Role::AuthorizedOfficer)->create();
 
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage('belongs to another department');

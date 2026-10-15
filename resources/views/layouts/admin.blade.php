@@ -19,7 +19,7 @@
                     'which' => 'cgpsc', 'class' => 'bg-white rounded-circle p-1',
                     'style' => 'height:32px', 'alt' => '',
                 ])
-                <span>e-DPC Portal — Administration</span>
+                <span>{{ __('ui.layouts.admin.e_dpc_portal_administration') }}</span>
             </a>
             <div class="d-flex align-items-center gap-2">
                 <span class="text-white small d-none d-md-inline">{{ auth()->user()->name }}</span>
@@ -30,7 +30,7 @@
                 @include('partials.notification-bell')
                 <form method="POST" action="{{ route('logout') }}" class="m-0">
                     @csrf
-                    <button type="submit" class="btn btn-sm btn-outline-light">Logout</button>
+                    <button type="submit" class="btn btn-sm btn-outline-light">{{ __('ui.logout') }}</button>
                 </form>
             </div>
         </div>
@@ -41,39 +41,49 @@
             <aside class="col-12 col-md-3 col-lg-2 bg-white border-end min-vh-100 p-0">
                 <div class="list-group list-group-flush">
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.dashboard') ? 'active' : '' }}"
-                       href="{{ route('admin.dashboard') }}">Dashboard</a>
+                       href="{{ route('admin.dashboard') }}">{{ __('ui.layouts.admin.nav.dashboard') }}</a>
                     <a class="list-group-item list-group-item-action fw-semibold {{ request()->routeIs('admin.departments.*') ? 'active' : '' }}"
-                       href="{{ route('admin.departments.index') }}">Departments</a>
+                       href="{{ route('admin.departments.index') }}">{{ __('ui.layouts.admin.nav.departments') }}</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.districts.*') ? 'active' : '' }}"
-                       href="{{ route('admin.districts.index') }}">Districts</a>
+                       href="{{ route('admin.districts.index') }}">{{ __('ui.layouts.admin.nav.districts') }}</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.designations.*') ? 'active' : '' }}"
-                       href="{{ route('admin.designations.index') }}">Designations</a>
+                       href="{{ route('admin.designations.index') }}">{{ __('ui.layouts.admin.nav.designations') }}</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.pay-scales.*') ? 'active' : '' }}"
-                       href="{{ route('admin.pay-scales.index') }}">Pay Scales</a>
-                    <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.cadres.*') ? 'active' : '' }}"
-                       href="{{ route('admin.cadres.index') }}">Cadres</a>
+                       href="{{ route('admin.pay-scales.index') }}">{{ __('ui.layouts.admin.nav.pay_scales') }}</a>
+                    <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.department-posts.*') ? 'active' : '' }}"
+                       href="{{ route('admin.department-posts.index') }}">{{ __('ui.layouts.admin.nav.department_posts') }}</a>
+                    <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.service-classes.*') ? 'active' : '' }}"
+                       href="{{ route('admin.service-classes.index') }}">{{ __('ui.layouts.admin.nav.class_master') }}</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.qualifications.*') ? 'active' : '' }}"
-                       href="{{ route('admin.qualifications.index') }}">Qualifications</a>
+                       href="{{ route('admin.qualifications.index') }}">{{ __('ui.layouts.admin.nav.qualifications') }}</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.reservation-policies.*') ? 'active' : '' }}"
-                       href="{{ route('admin.reservation-policies.index') }}">Reservation Policies</a>
+                       href="{{ route('admin.reservation-policies.index') }}">{{ __('ui.layouts.admin.nav.reservation_policies') }}</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.reservation-rosters.*') ? 'active' : '' }}"
-                       href="{{ route('admin.reservation-rosters.index') }}">Reservation Rosters</a>
+                       href="{{ route('admin.reservation-rosters.index') }}">{{ __('ui.layouts.admin.nav.reservation_rosters') }}</a>
+                    <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.cgpsc-chairman.*') ? 'active' : '' }}"
+                       href="{{ route('admin.cgpsc-chairman.index') }}">{{ __('ui.layouts.admin.nav.cgpsc_chairman') }}</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.committee-types.*') ? 'active' : '' }}"
-                       href="{{ route('admin.committee-types.index') }}">Committee Types</a>
+                       href="{{ route('admin.committee-types.index') }}">{{ __('ui.layouts.admin.nav.committee_types') }}</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.committee-configurations.*') ? 'active' : '' }}"
-                       href="{{ route('admin.committee-configurations.index') }}">Committee Configurations</a>
+                       href="{{ route('admin.committee-configurations.index') }}">{{ __('ui.layouts.admin.nav.committee_configurations') }}</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.recruitment-rules.*') ? 'active' : '' }}"
-                       href="{{ route('admin.recruitment-rules.index') }}">Recruitment Rules</a>
+                       href="{{ route('admin.recruitment-rules.index') }}">{{ __('ui.layouts.admin.nav.recruitment_rules') }}</a>
                     <a class="list-group-item list-group-item-action fw-semibold {{ request()->routeIs('admin.users.*') ? 'active' : '' }}"
-                       href="{{ route('admin.users.index') }}">User Management</a>
+                       href="{{ route('admin.users.index') }}">{{ __('ui.layouts.admin.nav.user_management') }}</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.reservation-categories.*') ? 'active' : '' }}"
-                       href="{{ route('admin.reservation-categories.index') }}">Reservation Categories</a>
+                       href="{{ route('admin.reservation-categories.index') }}">{{ __('ui.layouts.admin.nav.reservation_categories') }}</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.vacancy-types.*') ? 'active' : '' }}"
-                       href="{{ route('admin.vacancy-types.index') }}">Vacancy Types</a>
+                       href="{{ route('admin.vacancy-types.index') }}">{{ __('ui.layouts.admin.nav.vacancy_types') }}</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.dpc-types.*') ? 'active' : '' }}"
-                       href="{{ route('admin.dpc-types.index') }}">DPC Types</a>
+                       href="{{ route('admin.dpc-types.index') }}">{{ __('ui.layouts.admin.nav.dpc_types') }}</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.review-reasons.*') ? 'active' : '' }}"
-                       href="{{ route('admin.review-reasons.index') }}">Review Reasons</a>
+                       href="{{ route('admin.review-reasons.index') }}">{{ __('ui.layouts.admin.nav.review_reasons') }}</a>
+                    <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.record-reasons.*') ? 'active' : '' }}"
+                       href="{{ route('admin.record-reasons.index') }}">{{ __('ui.layouts.admin.nav.record_reasons') }}</a>
+                    <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.portal-notices.*') ? 'active' : '' }}"
+                       href="{{ route('admin.portal-notices.index') }}">{{ __('ui.layouts.admin.nav.portal_notices') }}</a>
+                    <a class="list-group-item list-group-item-action fw-semibold {{ request()->routeIs('admin.pre-dpc-links.*') ? 'active' : '' }}"
+                       href="{{ route('admin.pre-dpc-links.index') }}">{{ __('ui.layouts.admin.nav.pre_dpc_links') }}</a>
                 </div>
             </aside>
             <main class="col-12 col-md-9 col-lg-10 py-4">
@@ -88,6 +98,8 @@
     {{-- Enhances any <select data-searchable> into a type-to-filter dropdown.
          Deferred and additive: without it the selects stay plain and usable. --}}
     <script src="{{ asset('js/searchable-select.js') }}" defer></script>
+    <script src="{{ asset('js/multiselect-dropdown.js') }}" defer></script>
+    <script src="{{ asset('js/table-hscroll.js') }}" defer></script>
     @stack('scripts')
 </body>
 </html>

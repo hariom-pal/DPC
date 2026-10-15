@@ -8,6 +8,7 @@ use App\Domain\Department\Models\Department;
 use App\Domain\Master\Models\Designation;
 use App\Domain\Master\Models\District;
 use App\Enums\DepartmentStatus;
+use App\Enums\Role;
 use Database\Seeders\DepartmentMasterSeeder;
 use Database\Seeders\DesignationSeeder;
 use Database\Seeders\DistrictSeeder;
@@ -57,7 +58,7 @@ class OtpVerificationTest extends TestCase
             'mobile_code' => '123456',
         ])->assertRedirect(route('login'));
 
-        $ao = $department->users()->where('level', 1)->firstOrFail();
+        $ao = $department->users()->role(Role::AuthorizedOfficer->value)->firstOrFail();
         $this->assertTrue($ao->fresh()->isFullyVerified());
         $this->assertSame(DepartmentStatus::Active, $department->fresh()->status);
     }
@@ -72,7 +73,7 @@ class OtpVerificationTest extends TestCase
             'mobile_code' => '000000',
         ])->assertSessionHasErrors('mobile_code');
 
-        $ao = $department->users()->where('level', 1)->firstOrFail();
+        $ao = $department->users()->role(Role::AuthorizedOfficer->value)->firstOrFail();
         $this->assertFalse($ao->fresh()->isFullyVerified());
     }
 }

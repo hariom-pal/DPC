@@ -6,6 +6,7 @@ namespace App\Domain\Eligibility\Models;
 
 use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\Eligibility\Enums\ListType;
+use App\Domain\Eligibility\Enums\RemarkCode;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use RuntimeException;
@@ -99,6 +100,70 @@ class DpcCalculationResult extends Model
             // Cascade from a deleted run is impossible: runs cannot be deleted.
             throw new RuntimeException('Calculation results are permanent evidence and cannot be deleted.');
         });
+    }
+
+    /**
+     * The candidate's final status — one of item 24's four (change register of
+     * 2026-08-27).
+     *
+     * Read from the **stored verdict**, not recomputed and not inferred from
+     * `is_eligible`. Two reasons, and both matter:
+     *
+     * - `is_eligible` is a boolean, and item 24 has four values. Inferring the status
+     *   from it would print "Not Eligible" against a CIR candidate — whose promotion
+     *   is *held pending a record*, not refused. That is a materially different and
+     *   more damaging statement to put on a government promotion list.
+     * - A result is evidence. Recomputing the status at display time would let a
+     *   screen disagree with the run it is showing, and the whole point of storing
+     *   the verdict is that the calculation is reproducible from what was saved.
+     *
+     * Falls back to the boolean only for rows written before this register, which
+     * carry no `remark` in their verdict. Those really do have just two states.
+     */
+    public function status(): RemarkCode
+    {
+        $stored = $this->verdict['remark'] ?? null;
+
+        if (is_string($stored)) {
+            $code = RemarkCode::tryFrom($stored);
+
+            if ($code !== null) {
+                return $code;
+            }
+        }
+
+        return $this->is_eligible ? RemarkCode::Eligible : RemarkCode::NotEligible;
+    }
+
+    /**
+     * The grounds recorded against this result, gate reasons first.
+     *
+     * Empty for a clean pass. Kept as a method rather than left to each view to dig
+     * into the verdict array, because a rejection an officer cannot read the ground
+     * for is indefensible if the promotion is challenged.
+     *
+     * @return list<string>
+     */
+    public function failureReasons(): array
+    {
+        $reasons = $this->verdict['failure_reasons'] ?? [];
+
+        return is_array($reasons) ? array_values(array_filter($reasons, 'is_string')) : [];
+    }
+
+    /**
+     * The justified missing records behind a CIR (item 19).
+     *
+     * "CIR" on its own does not say what is awaited, and the officer is entitled to
+     * know which record is holding their promotion.
+     *
+     * @return list<string>
+     */
+    public function gateCitations(): array
+    {
+        $citations = $this->verdict['gate_citations'] ?? [];
+
+        return is_array($citations) ? array_values(array_filter($citations, 'is_string')) : [];
     }
 
     /**

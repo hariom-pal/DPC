@@ -65,8 +65,44 @@ class OtpService
         return true;
     }
 
+    /**
+     * The code to issue.
+     *
+     * Three sources, in a deliberate order:
+     *
+     * 1. **`APP_ENV=local` → the demonstration OTP** (`DEMO_OTP`, default
+     *    `123456`). A demonstration machine has no SMS gateway and no mail
+     *    transport, so an OTP reaches only the application log — and only if a
+     *    queue worker happens to be running, because delivery is queued. That
+     *    makes registration undemonstrable for reasons that have nothing to do
+     *    with the workflow being shown.
+     * 2. **`DPC_OTP_FAKE_CODE`** — the pre-existing knob, kept unchanged for
+     *    deterministic assertions in tests and throwaway environments.
+     * 3. **A random code**, which is what every other environment gets.
+     *
+     * **Only the randomness is removed, and only in `local`.** The row is still
+     * written, the TTL still expires it, `max_attempts` still counts, and
+     * {@see verify()} still consumes it — so the flow being demonstrated is the
+     * real one rather than a bypass of it. There is no branch in `verify()` and
+     * there must not be: a second acceptance path is a second thing to get wrong
+     * on a host where it must never fire.
+     *
+     * **The gate is `app()->environment('local')`, not a config flag.** A
+     * configuration value can be set anywhere by accident; the environment
+     * cannot be `local` on a UAT or production host. `DEMO_OTP` sitting in a
+     * production `.env` therefore does nothing whatsoever, which is the property
+     * that makes this safe to ship.
+     */
     private function generateCode(): string
     {
+        if (app()->environment('local')) {
+            $demo = (string) config('dpc.otp.demo_code', '');
+
+            if ($demo !== '') {
+                return $demo;
+            }
+        }
+
         $fake = config('dpc.otp.fake_code');
 
         if ($fake !== null && $fake !== '') {

@@ -1,17 +1,15 @@
 @extends('layouts.app')
 
-@section('title', 'Online DPC — Proceedings')
+@section('title', __('cgpsc.proceedings.index.online_dpc_proceedings'))
 
 @section('content')
     <div class="row justify-content-center">
         <div class="col-lg-11">
             @include('partials.alerts')
 
-            <h1 class="h4 mb-1">Online DPC — Proceedings</h1>
+            <h1 class="h4 mb-1">{{ __('cgpsc.proceedings.index.online_dpc_proceedings') }}</h1>
             <p class="text-muted small mb-3">
-                DPCs that have been scheduled and are ready to be conducted. The sitting is opened by the
-                member the DPC is allotted to. A Chairman who wishes to conduct a DPC re-allots it to
-                himself first, so that one member remains accountable for the proceeding.
+                {{ __('cgpsc.proceedings.index.dpcs_that_have_been_scheduled_and_are_ready_to_b') }}
             </p>
 
             @error('proceeding')<div class="alert alert-danger py-2">{{ $message }}</div>@enderror
@@ -22,10 +20,10 @@
                         <table class="table table-sm align-middle mb-0">
                             <thead>
                                 <tr>
-                                    <th>SN</th><th>Department</th><th>DPC ID</th>
-                                    <th>Post From</th><th>Post To</th>
-                                    <th>Allotted To</th><th>DPC Date &amp; Time</th>
-                                    <th>Status</th><th style="width:16rem">Action</th>
+                                    <th>{{ __('ui.sn') }}</th><th>{{ __('ui.department') }}</th><th>{{ __('ui.dpc_id') }}</th>
+                                    <th>{{ __('ui.post_from') }}</th><th>{{ __('ui.post_to') }}</th>
+                                    <th>{{ __('cgpsc.proceedings.index.allotted_to') }}</th><th>{{ __('cgpsc.proceedings.index.dpc_date_amp_time') }}</th>
+                                    <th>{{ __('ui.status') }}</th><th style="width:16rem">{{ __('ui.action') }}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -39,15 +37,15 @@
                                     <td>{{ $index + 1 }}</td>
                                     <td>{{ $proposal?->department?->name }}</td>
                                     <td><code>{{ $proposal?->dpc_code ?? '—' }}</code></td>
-                                    <td>{{ $proposal?->postFromCadre?->name }}</td>
-                                    <td>{{ $proposal?->postToCadre?->name }}</td>
+                                    <td>{{ $proposal?->promotionFromPost?->name }}</td>
+                                    <td>{{ $proposal?->promotionToPost?->name }}</td>
                                     <td>{{ $allotment->allottee?->name }}</td>
                                     <td>
                                         @if ($schedule)
                                             {{ $schedule->dpc_date->format('d/m/Y') }}
                                             {{ \Illuminate\Support\Carbon::parse($schedule->dpc_time)->format('h:i A') }}
                                         @else
-                                            <span class="text-muted">Not scheduled</span>
+                                            <span class="text-muted">{{ __('cgpsc.proceedings.index.not_scheduled') }}</span>
                                         @endif
                                     </td>
                                     <td>
@@ -56,9 +54,9 @@
                                                 {{ $proceeding->status->label() }}
                                             </span>
                                         @elseif ($schedule)
-                                            <span class="badge text-bg-secondary">Awaiting Proceeding</span>
+                                            <span class="badge text-bg-secondary">{{ __('cgpsc.proceedings.index.awaiting_proceeding') }}</span>
                                         @else
-                                            <span class="badge text-bg-light text-dark">Not Scheduled</span>
+                                            <span class="badge text-bg-light text-dark">{{ __('cgpsc.proceedings.index.not_scheduled_2') }}</span>
                                         @endif
                                     </td>
                                     <td>
@@ -73,21 +71,21 @@
                                              button that could only 403. --}}
                                         @if ($proceeding && auth()->user()->can('view', $proceeding))
                                             <a class="btn btn-sm btn-outline-primary"
-                                               href="{{ route('cgpsc.proceedings.show', $proceeding) }}">Open Workspace</a>
+                                               href="{{ route('cgpsc.proceedings.show', $proceeding) }}">{{ __('cgpsc.proceedings.index.open_workspace') }}</a>
                                             <a class="btn btn-sm btn-link"
-                                               href="{{ route('cgpsc.proceedings.history', $proceeding) }}">History</a>
+                                               href="{{ route('cgpsc.proceedings.history', $proceeding) }}">{{ __('ui.history') }}</a>
                                         @elseif ($proceeding)
                                             <span class="text-muted small">
                                                 {{-- The stored name, not the relation: it is already
                                                      on the row, and it is what the record says. --}}
-                                                Conducted by {{ $proceeding->conducted_by_name ?: 'another Member' }}
+{{ __('cgpsc.proceedings.index.conducted_by', ['actor' => $proceeding->conducted_by_name ?: __('cgpsc.proceedings.index.another_member')]) }}
                                             </span>
                                         @elseif ($schedule && $isAllottee($allotment))
                                             <form method="POST"
                                                   action="{{ route('cgpsc.proceedings.open', $proposal) }}"
                                                   class="d-inline">
                                                 @csrf
-                                                <button class="btn btn-sm btn-primary">Open Proceeding</button>
+                                                <button class="btn btn-sm btn-primary">{{ __('cgpsc.proceedings.index.open_proceeding') }}</button>
                                             </form>
                                         @else
                                             <span class="text-muted small">—</span>
@@ -96,7 +94,7 @@
                                 </tr>
                             @empty
                                 <tr><td colspan="9" class="text-muted text-center py-3">
-                                    No DPCs are awaiting a proceeding.
+                                    {{ __('cgpsc.proceedings.index.no_dpcs_are_awaiting_a_proceeding') }}
                                 </td></tr>
                             @endforelse
                             </tbody>

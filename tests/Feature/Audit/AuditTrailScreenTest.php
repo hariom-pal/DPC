@@ -349,7 +349,7 @@ class AuditTrailScreenTest extends TestCase
             'causer_id' => $this->officer->id,
             'actor_uuid' => $this->officer->uuid,
             'actor_name' => $this->officer->name,
-            'properties' => ['dpc_code' => 'SE202600001'],
+            'properties' => ['dpc_code' => 'DPC-2026-SE-0001'],
             'occurred_at' => Carbon::parse('2026-08-05 11:30:00'),
         ]);
 

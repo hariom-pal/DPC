@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\PreDpc\Policies;
 
 use App\Domain\Authentication\Models\User;
+use App\Domain\PreDpc\Enums\PreDpcStatus;
 use App\Domain\PreDpc\Models\PreDpcProposal;
 use App\Enums\Role;
 
@@ -79,6 +80,30 @@ class PreDpcProposalPolicy
     public function cancel(User $user, PreDpcProposal $proposal): bool
     {
         return $this->update($user, $proposal);
+    }
+
+    /**
+     * Deleting a draft (business instruction, 2026-09-06).
+     *
+     * **Draft only, and strictly.** `update()` would also permit a *returned*
+     * proposal, and a returned one has been seen by the Administrative Head and
+     * carries their remarks — deleting it would erase a decision somebody made.
+     * A draft has been seen by nobody, which is what makes it disposable.
+     *
+     * Everything past draft has its own ending already: {@see cancel()} for a
+     * proposal the officer has abandoned, and a cancelled row stays on the record
+     * with its status, because "this exercise was proposed and then dropped" is
+     * itself worth being able to answer.
+     *
+     * The deletion is a **soft** one either way — see
+     * `PreDpcProposalService::delete()` — so this is about who may put a draft out
+     * of sight, not about who may destroy a record.
+     */
+    public function delete(User $user, PreDpcProposal $proposal): bool
+    {
+        return $this->create($user)
+            && $this->sameDepartment($user, $proposal)
+            && $proposal->status === PreDpcStatus::Draft;
     }
 
     /**

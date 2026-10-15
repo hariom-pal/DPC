@@ -44,8 +44,7 @@ class ImportTemplateTest extends TestCase
             'code' => 'SE', 'name' => 'School Education', 'status' => 'active',
         ]);
 
-        $this->ao = User::factory()->create(['department_id' => $department->id]);
-        $this->ao->assignRole(Role::AuthorizedOfficer->value);
+        $this->ao = User::factory()->assignedTo($department->id, Role::AuthorizedOfficer)->create();
 
         $this->builder = app(ImportTemplateBuilder::class);
     }
@@ -195,9 +194,23 @@ class ImportTemplateTest extends TestCase
         // Without the BOM, Excel on Windows reads a Hindi post name as mojibake.
         $this->assertStringStartsWith("\xEF\xBB\xBF", (string) $body);
         $this->assertStringContainsString('CR 2017', (string) $body);
-        // Headers only: a specimen row is one a department forgets to delete, and
-        // the importer would take it as a real officer.
-        $this->assertSame(1, count(array_filter(explode("\n", trim((string) $body)))));
+
+        /*
+         | Header, guidance, example — three lines (business instruction,
+         | 2026-09-06: *"the blank CSV should actually contain a sample value"*, and
+         | *"what goes in these fields, when, how, and in what format?"*).
+         |
+         | This asserted **headers only** until then, on the reasoning that a
+         | specimen row is one a department forgets to delete and the importer would
+         | take as a real officer. That objection is answered rather than overruled:
+         | both added lines begin with `#`, and `ExcelImportService::isGuidance()`
+         | skips them — so forgetting to delete them costs nothing.
+         */
+        $lines = array_values(array_filter(explode("\n", trim((string) $body))));
+
+        $this->assertCount(3, $lines);
+        $this->assertStringStartsWith('"# ', $lines[1]);
+        $this->assertStringStartsWith('"# ', $lines[2]);
     }
 
     /**
@@ -229,18 +242,21 @@ class ImportTemplateTest extends TestCase
     {
         $partial = file_get_contents(resource_path('views/dpc-proposals/imports/_upload.blade.php'));
 
-        $this->assertStringContainsString('dpc-import-templates.download', (string) $partial);
+        // The per-DPC route since 2026-09-06: the template carries this proposal's
+        // own posts, so nobody types a post name from memory. The as-on year comes
+        // from the proposal inside the controller rather than from the query string,
+        // which is one fewer thing on the screen.
+        $this->assertStringContainsString('dpc-import-templates.download-for', (string) $partial);
         // The template is the one that screen uploads, not a fixed one.
         $this->assertStringContainsString("'template' => \$template->value", (string) $partial);
-        // And the per-year columns follow the proposal's own year.
-        $this->assertStringContainsString("'as_on' => optional(\$proposal->proposal_date)->year", (string) $partial);
+        $this->assertStringContainsString("'dpcProposal' => \$proposal", (string) $partial);
     }
 
     public function test_the_templates_are_for_departmental_users(): void
     {
         $this->get(route('dpc-import-templates.index'))->assertRedirect(route('login'));
 
-        $member = User::factory()->create(['department_id' => null]);
+        $member = User::factory()->create();
         $member->assignRole(Role::Member->value);
 
         $this->actingAs($member)->get(route('dpc-import-templates.index'))->assertForbidden();
@@ -258,6 +274,10 @@ class ImportTemplateTest extends TestCase
     private function matchesYearColumn(string $normalised): bool
     {
         foreach ([
+            // Per-year tribal-area service (change register of 2026-08-27, item 18).
+            // First, matching the importer, so "TRIBAL AREA 2015" cannot fall
+            // through to the CR pattern.
+            '/^tribal_?(?:area_?)?(?:service_?)?(\d{4})$/',
             '/^(?:year_wise_)?cr_?(\d{4})$/',
             '/^loyalty_?(\d{4})$/',
             '/^(?:immovable_)?(?:property|property_details|immovable_property_details)_?(\d{4})$/',
@@ -268,5 +288,41 @@ class ImportTemplateTest extends TestCase
         }
 
         return false;
+    }
+    // ------------------------------------------------------------------
+    // The legacy headers, and their cutoff (suggestion 11)
+    // ------------------------------------------------------------------
+
+    public function test_the_headers_renamed_by_item_6_are_still_accepted(): void
+    {
+        config(['dpc.imports.legacy_headers_until' => null]);
+
+        $map = ImportTemplate::FinalSeniorityListUs->columnMap();
+
+        $this->assertSame('promotion_to_post', $map['current_post']);
+        $this->assertSame('promotion_from_post', $map['feeder_post']);
+    }
+
+    public function test_a_cutoff_in_the_past_stops_accepting_them(): void
+    {
+        config(['dpc.imports.legacy_headers_until' => now()->subDay()->toDateString()]);
+
+        $map = ImportTemplate::FinalSeniorityListUs->columnMap();
+
+        $this->assertArrayNotHasKey('current_post', $map);
+        $this->assertArrayNotHasKey('feeder_post', $map);
+
+        // The current headers are unaffected — this retires an alias, not a column.
+        $this->assertSame('promotion_to_post', $map['promotion_to_post']);
+        $this->assertSame('promotion_from_post', $map['promotion_from_post']);
+    }
+
+    public function test_the_cutoff_day_itself_still_accepts_them(): void
+    {
+        // A cutoff of "the 31st" means the 31st is the last day it works, not the
+        // first day it does not.
+        config(['dpc.imports.legacy_headers_until' => now()->toDateString()]);
+
+        $this->assertArrayHasKey('current_post', ImportTemplate::FinalSeniorityListUs->columnMap());
     }
 }

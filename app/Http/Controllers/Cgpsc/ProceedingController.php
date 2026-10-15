@@ -52,7 +52,7 @@ class ProceedingController extends Controller
             // not conducting (AQ-6).
             ->when(! $user->hasRole(Role::Chairman->value),
                 fn ($query) => $query->where('allotted_to', $user->id))
-            ->with(['allottee', 'proposal.department', 'proposal.postFromCadre', 'proposal.postToCadre'])
+            ->with(['allottee', 'proposal.department', 'proposal.promotionFromPost', 'proposal.promotionToPost'])
             ->orderBy('allotted_at')
             ->get();
 
@@ -113,8 +113,8 @@ class ProceedingController extends Controller
 
         $proceeding->load([
             'proposal.department',
-            'proposal.postFromCadre',
-            'proposal.postToCadre',
+            'proposal.promotionFromPost',
+            'proposal.promotionToPost',
             'proposal.evaluationRows.reservationCategory',
             'proposal.evaluationRows.crGrades',
             'proposal.evaluationRows.loyaltyFlags',

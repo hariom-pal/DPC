@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace Tests\Feature\Admin;
 
 use App\Domain\Authentication\Models\User;
-use App\Domain\Master\Models\Cadre;
+use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\Qualification;
 use App\Domain\Master\Models\RecruitmentRule;
 use App\Enums\MasterStatus;
 use App\Enums\Role;
-use Database\Seeders\CadreSeeder;
 use Database\Seeders\DepartmentMasterSeeder;
+use Database\Seeders\DepartmentPostSeeder;
 use Database\Seeders\QualificationSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -28,7 +28,7 @@ class QualificationMasterTest extends TestCase
 
     private function admin(): User
     {
-        $this->seed([RolesAndPermissionsSeeder::class, DepartmentMasterSeeder::class, CadreSeeder::class]);
+        $this->seed([RolesAndPermissionsSeeder::class, DepartmentMasterSeeder::class, DepartmentPostSeeder::class]);
         $admin = User::factory()->create();
         $admin->assignRole(Role::Admin->value);
 
@@ -94,18 +94,22 @@ class QualificationMasterTest extends TestCase
         $admin = $this->admin();
         $qualification = Qualification::query()->where('code', 'GRAD')->firstOrFail();
 
-        $target = Cadre::query()->where('name', 'Deputy Secretary')->firstOrFail();
-        $feeder = Cadre::query()->where('name', 'Under Secretary')->firstOrFail();
+        $target = DepartmentPost::query()->where('name', 'Deputy Secretary')->firstOrFail();
+        $feeder = DepartmentPost::query()->where('name', 'Under Secretary')->firstOrFail();
 
         $rule = RecruitmentRule::query()->create([
-            'cadre_id' => $target->id, 'version' => 1, 'government_order_number' => 'GO/1',
+            'post_id' => $target->id, 'version' => 1, 'government_order_number' => 'GO/1',
             'direct_recruitment_pct' => 0, 'promotion_recruitment_pct' => 100,
             'effective_from' => '2020-01-01', 'status' => MasterStatus::Active->value,
         ]);
-        $rule->feeders()->create([
-            'feeder_cadre_id' => $feeder->id, 'promotion_percentage' => 100,
-            'min_experience_years' => 5, 'qualification_id' => $qualification->id,
+        $source = $rule->promotionSources()->create([
+            'promotion_from_post_id' => $feeder->id, 'promotion_percentage' => 100,
+            'min_experience_years' => 5,
         ]);
+
+        // A pivot since item 11 (2026-08-26), so "in use" is a join rather than a
+        // column on the source.
+        $source->qualifications()->attach($qualification->id, ['sort_order' => 0]);
 
         $this->actingAs($admin)
             ->delete(route('admin.qualifications.destroy', $qualification))

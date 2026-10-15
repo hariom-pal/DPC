@@ -33,7 +33,24 @@ class LoginController extends Controller
     {
         $credentials = $request->validated();
         $login = (string) $credentials['login'];
-        $field = str_contains($login, '@') ? 'email' : 'mobile';
+
+        /*
+         | Three identifiers, and the third is what makes change item 17 usable.
+         |
+         | An email is unambiguous. A ten-digit string is a mobile number. Anything
+         | else is an employee number — which is the *only* identifier a Promotion
+         | Candidate's account has, because a Seniority List carries no email
+         | address and no mobile number. Without this a candidate account could be
+         | created and never signed into.
+         |
+         | Ordered from most specific to least, and each column is unique, so no
+         | two officers can resolve to one another.
+         */
+        $field = match (true) {
+            str_contains($login, '@') => 'email',
+            (bool) preg_match('/^\d{10}$/', $login) => 'mobile',
+            default => 'employee_number',
+        };
 
         $user = User::query()->where($field, $login)->first();
 

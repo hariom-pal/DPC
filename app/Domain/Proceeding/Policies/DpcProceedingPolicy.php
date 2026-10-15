@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Proceeding\Policies;
 
 use App\Domain\Authentication\Models\User;
+use App\Domain\Cgpsc\Models\DpcAllotment;
 use App\Domain\Proceeding\Models\DpcProceeding;
 use App\Enums\Role;
 
@@ -25,9 +26,23 @@ use App\Enums\Role;
  */
 class DpcProceedingPolicy
 {
+    /**
+     * Who may open the sitting workspace.
+     *
+     * **The allottee has to be here, and a role test alone left them out.** A DPC is
+     * conducted by the member it was allotted to, and since 2026-09-07 the allottee
+     * need hold no role: the qualification is membership of that DPC's committee,
+     * which is deliberately not an office. Gated on the role, an allottee could
+     * schedule the sitting and then be refused the screen that runs it.
+     *
+     * Nothing widens by admitting them. {@see self::view()} still requires
+     * `conducted_by === $user->id` for anybody who is not the Chairman, so an
+     * allottee reaches their own sitting and no other.
+     */
     public function viewAny(User $user): bool
     {
-        return $user->hasAnyRole([Role::Chairman->value, Role::Member->value]);
+        return $user->hasAnyRole([Role::Chairman->value, Role::Member->value])
+            || $this->holdsAnAllotment($user);
     }
 
     /**
@@ -46,7 +61,26 @@ class DpcProceedingPolicy
      */
     public function open(User $user): bool
     {
-        return $user->hasAnyRole([Role::Chairman->value, Role::Member->value]) && $user->is_active;
+        return $user->is_active
+            && ($user->hasAnyRole([Role::Chairman->value, Role::Member->value])
+                || $this->holdsAnAllotment($user));
+    }
+
+    /**
+     * Whether a live allotment is sitting in this user's hands.
+     *
+     * The coarse half of the question, asked at the two moments when no proceeding
+     * exists yet to authorise against. Which *particular* DPC they may open is the
+     * service's business — it checks the allottee of that proposal — and `current()`
+     * is the same scope the screens use, so an allotment already returned to the
+     * Chairman or superseded by a re-allotment does not count.
+     */
+    private function holdsAnAllotment(User $user): bool
+    {
+        return DpcAllotment::query()
+            ->current()
+            ->where('allotted_to', $user->id)
+            ->exists();
     }
 
     /**

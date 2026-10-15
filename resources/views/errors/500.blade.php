@@ -11,12 +11,12 @@
                         @include('partials.icon', ['name' => 'shield', 'size' => 28])
                     </div>
                     <div class="error-code">500</div>
-                    <h1 class="h4 mb-2">Something went wrong</h1>
-                    <p class="text-body-secondary mb-4">The problem has been recorded. Nothing you submitted has been partly saved — the system completes an action or does none of it.</p>
+                    <h1 class="h4 mb-2">{{ __('errorpages.errors.500.something_went_wrong') }}</h1>
+                    <p class="text-body-secondary mb-4">{{ __('errorpages.errors.500.the_problem_has_been_recorded_nothing_you_submit') }}</p>
                     <div class="d-flex flex-wrap gap-2 justify-content-center">
-                        <a href="{{ url('/') }}" class="btn btn-primary">Go to the home page</a>
+                        <a href="{{ url('/') }}" class="btn btn-primary">{{ __('ui.go_to_the_home_page') }}</a>
                         @auth
-                            <a href="{{ route('dashboard') }}" class="btn btn-outline-primary">Dashboard</a>
+                            <a href="{{ route('dashboard') }}" class="btn btn-outline-primary">{{ __('ui.dashboard_link') }}</a>
                         @endauth
                     </div>
                 </div>

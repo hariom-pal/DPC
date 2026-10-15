@@ -62,7 +62,7 @@ class ProceedingCalculationService
 
         $proposal = $proceeding->proposal;
         $proposal->loadMissing([
-            'postFromCadre', 'postToCadre',
+            'promotionFromPost', 'promotionToPost',
             'evaluationRows.crGrades', 'evaluationRows.reservationCategory',
             'evaluationRows.loyaltyFlags', 'evaluationRows.propertyFlags',
             'vacancies.reservationCategory',

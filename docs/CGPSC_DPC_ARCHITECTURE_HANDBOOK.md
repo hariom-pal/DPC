@@ -131,7 +131,7 @@ The final-phase directive required completing all technical debt not requiring a
 
 **Nothing in the scoring or eligibility engines was touched.** The M5 engine freeze holds in substance: the only M5-area change is one additional column recorded on a run.
 
-**One behavioural change was made deliberately** and is not covered by the above: an unmatched Pre-DPC feeder now **refuses the approval** rather than silently producing a recruitment rule with no feeder cadre. It is configurable (`dpc.pre_dpc.refuse_unmatched_feeder`, default on) and it is in unfrozen M3.
+**One behavioural change was made deliberately** and is not covered by the above: an unmatched Pre-DPC feeder refused the approval rather than silently producing a recruitment rule with no post behind it. That path no longer exists — since the change register of 2026-08-24 a Pre-DPC names **registered** Department Posts by id, so there is nothing left to fail to match, and the configuration flag that governed it has been removed.
 
 ### 4.2 The Freeze Exception of 2026-08-22 — and the finding that forced it
 
@@ -323,9 +323,9 @@ S16, S17 and S18 each used to carry the same **ten employee fields**, so a depar
 | Supplied by the officer | Projected from the Seniority List |
 |---|---|
 | CR grade (year-wise) | Employee No., Name, DOB, Qualification |
-| Loyalty (year-wise) | Current Post, Feeder Post, Category |
+| Loyalty (year-wise) | Promotion To Post, Promotion From Post, Category |
 | Immovable Property (year-wise) | Date of Joining Service |
-| Tribal-area service, Note | Date of Posting on Current / Feeder Post |
+| Tribal-area service, Note | Date of Posting on Promotion To / From Post |
 
 ### Identity is still *copied*, not read through a relation
 
@@ -417,7 +417,7 @@ For most of the project it shipped `Content-Security-Policy-Report-Only`, and th
 
 **Retreat is one environment variable.** `DPC_CSP_ENFORCE=false` returns to report-only without a deploy, because a header that breaks a page in production and cannot be turned off is worse than an absent one. `'unsafe-inline'` is still not offered.
 
-**One improvement came out of the extraction rather than being aimed at.** The Pre-DPC script built an option element by interpolating a cadre name into an HTML string; rewritten, it sets `textContent`. That was the one place on the screen where a database value would have been parsed as markup.
+**One improvement came out of the extraction rather than being aimed at.** The Pre-DPC script built an option element by interpolating a post name into an HTML string; rewritten, it sets `textContent`. That was the one place on the screen where a database value would have been parsed as markup.
 
 ---
 
@@ -520,6 +520,493 @@ Two checks now close it: `SchemaIdentifierLengthTest` catches identifier length 
 **Environment.** MySQL 8, Redis, PHP 8.4, no Node. `php artisan optimize` caches config, events, routes and views; `optimize:clear` reverses it. `migrate --force` is additive throughout, and every migration has a working `down()`.
 
 **Do not run `demo:seed` in production** — it refuses there, because it creates accounts with a published shared password.
+
+---
+
+## 13a. The change register of 2026-08-24
+
+Twenty-three changes, filed as one register. Most were shape changes rather than feature additions, which is why they are here rather than in a milestone: they moved where a fact lives.
+
+### The five that changed the model
+
+**One Administrator, and it belongs to the Commission (items 1, 2).** `Role::Admin` is labelled *CGPSC Administrator*; no departmental administrator exists, and `Role::departmental()` names the three roles that do. Membership of a department left `users` entirely and became `user_department_assignments` — one row per posting, with `active_flag` as a nullable `1`, so `unique(user_id, active_flag)` means *at most one active posting, any number of closed ones*. `User::$department` is now an accessor over that relation.
+
+The gain is not tidiness. A transfer used to overwrite `users.department_id`, which silently rewrote history: an old proposal would report the officer who signed it as belonging to whichever department they had moved to since. Postings are now dated records, and `DepartmentAssignmentService` is the only way to create one — one transaction, incumbent read `lockForUpdate()`, Spatie grant re-projected from the assignment. Doing those three separately is how a role outlives the posting that granted it.
+
+**A Pre-DPC is one promotion (items 8–11).** It was a Government Order with a list of posts, each with a list of feeders — two child tables, in practice holding one row each. It is now **one order for one Promotion To Post**, plus a DPC Year, naming every post that promotion may draw on. `pre_dpc_active_exercise_unique_v2` on `(department_id, promotion_to_post_id, dpc_year, active_flag)` enforces the register's own rule: one active approved order per exercise, previous versions kept and marked inactive.
+
+**The key does not name the From Post, and that was learned the hard way.** Item 9 states the key as *Department + From Post + To Post + DPC Year*, and on 2026-08-24 that was read as *one post pair per order* — collapsing both child tables into a single pair of columns. Schedule-IV does not work that way. A post is routinely filled from several feeders with a share each, under **one** Government Order, and after the reshape such an order could not be recorded at all: the second feeder was refused by the very index item 9 asked for. `pre_dpc_promotion_sources` restored the list on 2026-08-25 and the From Post left the key — which is why the original design needed no From Post in it either.
+
+**Each source carries its own terms, and that is not duplication.** The share, the qualifying service, the minimum qualification and the promotion duration are set *per feeder* by the recruitment rule: five years as an Assistant Director is a different condition from five years as a Research Officer. What stays on the order is what describes the post being **filled** — `pay_scale_id` and `class_level` — because `MemberLevelRule` reads `class_level` as the promotion post's class (item 16), and moving it would have silently changed who may sit on a committee.
+
+**A DPC still runs exactly one feeder.** The seniority list, the qualifying service and the scoring engine are all per feeder, so the choice is made when the DPC is raised, from the sources its order sanctions. `DpcProposalService::sourceFor()` takes the only source when there is one and refuses to guess when there are several — a guessed feeder would be printed on a signed document.
+
+**`projectToMasters()` composes the Recruitment Rule for a *To* post from its order's sources.** A multi-feeder Schedule-IV rule is one order naming several posts, which is how the orders are actually issued.
+
+**A DPC exists only under a Pre-DPC (items 11, 12).** `DpcProposal::$pre_dpc_proposal_id` is `RESTRICT`, `createFromPreDpc()` is the only creation path, and the eight facts it inherits — department, year, both posts, recruitment rule, class, pay scale, promotion duration — are read from the order rather than posted by the client. `proposal_date` is `Carbon::today()`, never a request field.
+
+**Revisions, not renumbering (items 18, 19).** A return for correction bumps `revision_number` and opens a `dpc_proposal_revisions` row; the DPC Number never changes. `DpcProposalRevision` refuses at the model level to update a superseded revision or any column outside `PERMITTED_UPDATES`, and refuses deletion outright. A genuinely new exercise is a new proposal with a new number at revision 1 — which falls out of the design rather than needing a rule.
+
+### The two that added a master
+
+**Commission Members (items 13–16).** *Withdrawn on 2026-08-26 — see §13c. Described here as it was, because the reasoning is what §13c reverses.* A committee is composed by the categories it must represent, and a login cannot say whether the person holding it is SC, ST, OBC, female or Bhar. `commission_members` held the person, five independent category flags, a nullable `user_id` (a retired officer sitting as an expert has no login) and `chairman_eligible`.
+
+`CommitteeSelectionService` then solves the actual problem: **the fewest members whose combined categories cover the requirement.** That is set cover, and set cover is NP-hard — which is fine, because the input is five categories and a few dozen members, so exhaustive enumeration in increasing size is exact and costs less than the query that fetched the rows. A greedy approximation was rejected: it can return four where three suffice, and against a six-member ceiling being one member off is the difference between a valid committee and a refused one.
+
+Advice and enforcement are deliberately separate. The optimiser proposes; `CommitteeComplianceService` refuses on save. Advice that silently enforced would make a lawful-but-unusual committee impossible to record.
+
+**Class Master (item 1).** `service_classes` makes the bilingual name, display order and active flag administrable. The `code` is not: the code set is statutory, and the M5 engine keys `scoring.zone.rules` on class *pairs*, so a code invented at runtime would be a class the engine has no rule for and would fall through to the uncapped default. Codes are seeded from `ServiceClass` and validated against it. `ClassLabelRepository` is bound with `$app->scoped()` — per request, not per process, because a static would leak a stale label across requests under Octane or a queue worker.
+
+### The one that touched every screen
+
+**Bilingual, from language files only (item 7).** 120 views, ~1,800 strings, two locales. Three things made it verifiable rather than hopeful:
+
+- Every English string was kept **byte-identical**, so the existing suite proved the replacement changed nothing.
+- `BilingualCoverageTest` asserts key parity between locales, that no key a view renders resolves to an array, and that every view compiles.
+- The check that actually holds the line **compiles each view, deletes every PHP island, and looks at what is left**. What is left is exactly the text the page prints without asking the catalogue. Two earlier checks read the template instead and passed while 283 strings were still hardcoded — a check that certifies unfinished work as finished is worse than no check.
+
+`resources/views/documents/` is exempt, and that is a business decision rather than an oversight: those templates render the signed proceedings and promotion list, and translating a government order changes the language it is issued in. Recorded as a Pending Business Question.
+
+### The one that added a login
+
+**Promotion Candidate (item 17).** Every officer on a Seniority List gets an account keyed on `employee_number`, reused if it already exists — `PromotionCandidateProvisioner` never creates a second account for the same person, and never demotes an officer who already holds a departmental role. `CandidateDpcController` resolves a proposal **only** from the candidate's own forwarded proposals and 404s otherwise; there is no route-model binding to be talked out of.
+
+Publication, not approval, is what reveals a result: the query reads `whereNotNull('published_at')`, because `DocumentStatus` describes generation (pending / generated / failed) and publication is a separate act by the Commission. Reading a status there would have shown a candidate their result the moment the document existed.
+
+---
+
+## 13b. The improvement register of 2026-08-25
+
+Fourteen proposals raised while implementing the change register, then built on instruction. Most were straightforward; four were not, and those are the ones worth recording — in three of them **the proposal was wrong, and writing the code is what found it**.
+
+### An employee number does not identify a person
+
+`users.employee_number` was the identity a Promotion Candidate account was matched on. It cannot be: an employee number is issued **by a department**, so two departments can each hold an officer numbered 1024.
+
+The written-up risk was that one officer might *see* another's DPC. Reproducing it found something worse. Matching on the number alone reached `ensureCandidateRole()`, which called `assign()` — and `assign()` retires the incumbent posting. So a Forest upload carrying a number Higher Education had already used **transferred that officer into Forest**, closing their real posting and stripping their departmental role. A serving Under Secretary, moved by another department's data entry.
+
+The obvious fix — `unique(department_id, employee_number)` — was rejected, and the reason generalises. It contradicts the register: items 2 and 17 both say never create duplicate users, and a per-department identity mints a second account for a genuinely transferred officer. **The portal cannot tell a transfer from a collision by looking at a number, and neither could the index.** So the code assumes neither: candidature is scoped to the departments an account has actually been posted to, an existing account is never re-posted, and the clash is *reported* for a person to resolve. The question is BD-27.
+
+**The pattern to take from it:** when two readings of the same data are both plausible and only one can be acted on, report and stop. That is the same doctrine as `PendingBusinessDecision`, applied to identity rather than to scoring.
+
+### A feature can be complete, tested and unusable
+
+The same work found that `saveSeniorityEntries()` called `provision()` and **discarded the result**. Every candidate account was created with a random temporary password that was hashed and thrown away. No officer could ever sign in — and the whole suite passed, because no test tried to log in with a *generated* password; the fixtures set their own.
+
+Item 17 was delivered, tested, documented and dead. The provisioner's own docblock said the screen showed the credentials; nothing did. **A test that constructs the state it asserts on cannot notice that the state is unreachable in production.**
+
+### A name that does not fit is a design constraint
+
+`recruitment_rule_promotion_sources` produces a 65-character foreign-key name and MySQL stops at 64. The alternatives were a shorter table or hand-written constraint names on one table while every other table uses Laravel's derivation — and a schema where one table names its keys differently is a schema whose next migration gets it wrong. The table is `recruitment_rule_sources`.
+
+### A guard that returns early can report success on a broken state
+
+The first version of that rename dropped the foreign keys, renamed the table, and failed re-adding them. On the next run its guard saw the table already renamed and **returned, recording the migration as done** — leaving the database without three constraints. Both directions are now idempotent *and complete*: a partly-applied run is finished rather than skipped, and the keys are read from `information_schema` rather than derived, because one of them had been renamed before and guessing its name is what failed in the first place.
+
+### And one about tooling
+
+The bilingual split was applied by a script that matched a leaf key by name at its indent level — which finds the first key of that name *anywhere in the file*. `evaluation_chart.subheading` and `working_officers.subheading` resolved to the same line and one silently overwrote the other. Two values were corrupted before it was caught by a re-read of the results.
+
+The repair was cheap; the lesson is not. **A bulk edit needs a verification pass that reads back what it wrote**, keyed the way the edit was specified — every one of the 64 paths was then checked to hold its intended value, and diffed against `HEAD` to prove nothing else moved.
+
+---
+
+## 13c. The change register of 2026-08-26
+
+Nineteen items — thirteen written, six added in clarification. Three of them reverse
+or reshape decisions taken two days earlier, and the reversals are the part worth
+reading, because each says something about where a fact belongs.
+
+### The Commission Members master is withdrawn (items 5, 7, 8)
+
+The register of 2026-08-24 created a `commission_members` master so that a committee
+could be composed *by the categories its members represent*. This register removes
+it, and the reason is a better answer to the same question:
+
+> *Committee Members are NOT permanent system roles. Committee Membership is valid
+> only for that specific DPC. This should be stored only in the DPC Committee
+> assignment.*
+
+A person is not permanently "the SC member". They are the member who represented SC
+**on this committee, on this DPC** — and on the next one they may represent nothing.
+Holding that on a master made it a standing property of an individual, which is
+precisely what it is not. So the six composition attributes now live on
+`dpc_committee_members`, and the master is gone.
+
+Two consequences fell out, and both are recorded rather than hidden:
+
+- **`MemberLevelRule` was removed.** Item 16 of the earlier register required a
+  member's post to be equal to or higher than the promotion post, and ranked it
+  using the post recorded on the master. With no master a committee row carries a
+  free-text designation and no registered post, so the rule cannot be evaluated at
+  all. Leaving a `permits()` that returned true for every member — on a screen
+  stating the rule was in force — would have claimed an enforcement that did not
+  exist. It is **BD-29**.
+- **`CommitteeSelectionService` was removed.** It proposed an optimal committee by
+  set cover *over the master*. With nothing to select from there is nothing to
+  optimise; what the register actually asks for is that the *validator* accept a
+  committee whose members cover the requirements between them, which
+  `CommitteeComplianceService::uncovered()` does.
+
+### Two chairmen, and only one of them is a seat (item 9)
+
+The register distinguishes them, and the schema now does too:
+
+| | Who | How it is held |
+|---|---|---|
+| **CGPSC Chairman** | The serving Chairman of the Commission | A seat on *every* committee, `capacity = cgpsc_chairman`, placed by the system. The Authorized Officer can neither add nor remove it. |
+| **DPC Chairman** | Whoever conducts *this* DPC | `is_dpc_chairman`, a nullable flag beside the capacity, designated by the CGPSC Chairman from that committee — possibly themselves. |
+
+**The DPC Chairman is a flag and not a third capacity**, and that is a design
+decision rather than a shortcut. The register says the CGPSC Chairman may take the
+conduct themselves; as a capacity, that person would need two contradictory values
+on one row. As a flag they need one row that says both.
+
+`cgpsc_chairmen` is an effective-dated chain rather than a flag on a user, for the
+reason every dated record in this schema exists: a Chairman succeeded in March must
+not retrospectively appear on February's committee. `unique(active_flag)` with a
+nullable flag makes "at most one serving Chairman" a fact the database holds.
+
+### Allotment authority, as settled on 2026-09-05
+
+> *Every approved DPC is automatically routed to the default CGPSC Chairman. The
+> CGPSC Chairman decides: which member will receive the DPC for execution. Who
+> will act as the DPC Chairman. The Completion Deadline.*
+> — business clarification, 2026-09-05
+
+**Three decisions, one act, one actor.** `AllotmentService::allot()` takes the
+allottee, the presiding committee member and the deadline together, and
+`transition()` writes all three in one transaction: the allotment row, and the
+designation of who presides through `DpcCommitteeService::designateChairman()`.
+Collecting them on one form is not a UI convenience — it is what stops a DPC
+existing in a state where it is allotted and nobody presides.
+
+**This reverses the reading of item 9d of the register of 2026-08-26** (*"DPC will
+be allocated by the DPC Chairman, not by the CGPSC Chairman"*), which this codebase
+had enforced as *only* the designated DPC Chairman may allot. That left the CGPSC
+Chairman unable to act on a DPC once somebody else was designated — including to
+perform the very remedies the clarification gives them by name when a deadline
+lapses. `assertMayAllot()` now admits the CGPSC Chairman **always**, and still
+admits this DPC's designated Chairman, because widening who may act did not require
+narrowing it elsewhere.
+
+**Three distinct responsibilities, and two of them may be one person:**
+
+| Role | Where it lives | What it does |
+|---|---|---|
+| CGPSC Chairman | `Role::Chairman` | allots — names the allottee, the DPC Chairman and the deadline |
+| DPC Allottee | `dpc_allotments.allotted_to` | coordinates and conducts; schedules the sitting within the deadline |
+| DPC Chairman | `dpc_committee_members.is_dpc_chairman` | presides over this one sitting |
+
+The allottee and the DPC Chairman **may be the same person or different people**,
+and nothing in the schema or the services couples them. The DPC Chairman is valid
+for that DPC only: it is a column on a membership, not a role, so
+`designateChairman()` grants nothing that outlives the proposal — pinned by
+`CommitteeMembershipTest`.
+
+**The authorisation is still split across two layers on purpose.**
+`DpcAllotmentPolicy` is class-level and can only ask *"could this actor ever
+allot"*; the controller authorises before it has a proposal in hand. Whether they
+may allot **this** one is the service's question. Both run on every allotment, and
+the service's check binds non-HTTP callers too.
+
+**The authorisation is split across two layers on purpose.** `DpcAllotmentPolicy`
+is class-level and can only ask *"could this actor ever allot"*; the controller
+authorises before it has a proposal in hand. Whether they may allot **this** one is
+the service's question. Both run on every allotment, and the service's check binds
+non-HTTP callers too.
+
+An allotment now carries `complete_by`, and a DPC not concluded by it returns to the
+Chairman. The return is a **new state on the lapsed row** (`returned_at`,
+`return_reason`, `status = returned`) rather than an edit of `allotted_to`, because
+both facts have to stand afterwards: *this member held it until this date and did
+not conclude it*, and *that member holds it now*. `AllotmentStatus::Returned` is
+distinct from `Superseded` for the same reason — a superseded allotment was moved on
+from by a decision, a returned one lapsed, and collapsing them would make "how often
+do allotments run over" unanswerable.
+
+`scopeCurrent()` excludes `returned_at` as well as `superseded_by_id`. Missing that
+would leave a DPC simultaneously back with the Chairman and already allotted.
+
+**The sweep is now scheduled, which it was not.** `dpc:return-expired-allotments`
+existed and was tested from the day the deadline did, and was registered nowhere —
+so "automatically returns" was true of the code and false of the system. It runs
+daily at 00:15 from `routes/console.php`, `withoutOverlapping()` and
+`onOneServer()`. Daily rather than hourly because the deadline is a date: a DPC due
+on the 30th is overdue on the 31st, and sweeping more often than the unit the rule
+is written in buys nothing. **This needs a system cron running `schedule:run`** —
+without one the registration is as inert as no registration, which is exactly the
+failure it fixes.
+
+**The return is auditable end to end**, which the clarification requires in as many
+words. It writes a `dpc_cgpsc.allotment_returned` timeline entry naming the member
+and the deadline, and `historyFromTimeline()` reads it back alongside the allotment
+and re-allotment events — so the allotment history explains *why* a DPC moved
+rather than showing two allotments and no reason between them.
+
+### Re-allotting to the same member is permitted when the terms change
+
+The clarification's list of remedies opens with *"reassign the same DPC Allottee"*
+and goes on to changing the DPC Chairman and extending the deadline. `reallot()`
+used to refuse the same allottee outright, which made the commonest remedy of the
+four — granting an extension to the member already holding the DPC — unreachable.
+It now refuses only a re-allotment that changes **nothing**: same allottee, same
+deadline, same presiding member. That is not an extension, it is a duplicate row
+with a reason attached.
+
+### The sitting is bounded by the deadline, at two layers
+
+> *Meeting Date must always be on or before the Completion Deadline … If
+> rescheduled, the new meeting date must also remain within the Completion
+> Deadline.*
+
+`SchedulingService::assertWithinCompletionDate()` has enforced this since the
+deadline existed and binds every caller including non-HTTP ones.
+`BoundsTheSittingByTheDeadline`, used by both scheduling Form Requests, adds the
+same refusal **against the date field** — a `WorkflowException` becomes a
+page-level banner after a redirect, with the offending date already discarded. Two
+layers, one rule, one wording; the trait builds no rule of its own.
+
+An allotment carrying **no** deadline is unbounded at both layers. Those predate
+the column, and inventing a deadline for them would make a historical allotment
+retrospectively overdue.
+
+### Announcing a sitting (business clarification, 2026-09-05)
+
+> *Once the DPC Allottee schedules the meeting, automatic SMS and Email
+> notifications shall be sent to: All Committee Members, All Candidates.*
+
+`DpcSittingScheduled` is a domain event of its own rather than a widening of
+`WorkflowTransitioned`, which already fires on `schedule`. The existing listener
+tells the *workflow participants* — the department's officers and the allottee —
+that a state changed. This tells a different and much larger audience a different
+thing: the date, the time and how to attend. One listener deciding which of two
+audiences and which of two messages applied, keyed on an event name, is the shape
+that was avoided.
+
+`AnnounceSittingToParticipants` resolves two audiences into one
+`SittingRecipient` value object: serving committee members (contact details from
+the membership row, which may name somebody with no account at all), and the
+officers on the Seniority List, matched to accounts by employee number.
+
+**A Seniority List carries no mobile and no e-mail**, by design — the ten-field
+snapshot is a service record, not a directory. So a candidate receives the **in-app
+notification** and there is no channel to send them SMS or e-mail on. That is a
+data gap, not a coding one, and it is reported rather than hidden: the listener
+logs `{sms, email, unreachable, recipients}`, so *"13 told in-app, 4 reachable
+externally, 9 not"* is visible. Closing it needs a contact channel on the candidate
+record and is recorded as **FBE-002**.
+
+### The active role gates the session (item 9f)
+
+One identity may hold several roles — Authorized Officer, Administrative Head,
+Member, Chairman. That raises a question no previous version had to answer: when an
+officer who is both an AO and a Member presses *Approve*, in which capacity did they
+approve? A portal that unions their permissions cannot say.
+
+So the **active role narrows** what the session may do, and the mechanism is one
+line in `ResolveActiveRole`: the user's loaded `roles` relation is replaced with just
+the active role. Every existing check then answers about the active role without
+being edited — every policy, every `role:` middleware, `hasPermissionTo()`.
+
+**That is the whole reason it is done there.** The alternative was overriding
+`hasRole()` on the model, or revisiting sixteen policies and trusting that none was
+missed. A gating rule applied in one place cannot be forgotten in one of sixteen,
+and the one that was forgotten would be a permission leak nobody was looking for.
+
+`User::grantedRoleNames()` queries the pivot directly, which is what lets the
+switcher still list what the account may switch *to* after the narrowing has run.
+Reading the relation there would produce a switcher offering only the role already
+active.
+
+### A Government Order is a row, not two columns (item 10)
+
+The old shape had a number and a date on `department_posts` and *versions of one PDF*
+in `department_post_documents`, so a mapping amended by a corrigendum could only
+record it by retiring the original order's scan. `department_post_orders` is one row
+per order — number, date and its own PDF — and none of them retires another.
+
+`DepartmentPostOrder` refuses to be edited or deleted, permitting only `sort_order`
+to change: everything that says *what the order is* is fixed when it is recorded.
+Superseding a *mapping* remains a different operation and still lives on
+`department_posts`.
+
+### Qualifications are a set (item 11)
+
+A Schedule-IV entry accepts *any* of a list of degrees, and one nullable
+`qualification_id` could record one of them. Two pivots —
+`rr_source_qualifications` and `pre_dpc_source_qualifications` — hold the sets. The
+two sides are recorded independently because an order may be issued under a rule
+that has since been amended, and collapsing them would make one rewrite the other.
+
+`min_qualification` (free text) is kept on both, for the reasons the migrations that
+introduced the master link already gave: it is what the Government Order actually
+said, text matching no master row must stay readable, and `qualifications:unmapped`
+reports on it.
+
+**Both pivots needed explicitly-named foreign keys.**
+`pre_dpc_source_qualifications_pre_dpc_promotion_source_id_foreign` is exactly 64
+characters and its recruitment-rule counterpart is over — see §11's note on
+`SchemaIdentifierLengthTest`, which exists because a derived 65-character constraint
+once passed the whole SQLite suite and could not be created on MySQL at all.
+
+---
+
+## 13d. The change register of 2026-08-27 — the Vacancy and Merit engines
+
+Twenty-four items across two engines. Architecturally the register did one thing
+repeatedly: it **moved a number out of the officer's hands and onto a master**, and then
+made the engine read it. Sanctioned strength, working strength and the promotion
+percentage were all typed into a form before this register and are all derived now.
+
+The second theme is subtler and matters more: the register introduced **gates that decide
+a candidate's status before the marking formula runs**, while forbidding any change to
+the formula itself. Keeping those two facts from colliding is most of the design below.
+
+### The vacancy figure is now derived, and stored as evidence
+
+```
+DepartmentPost.sanctioned_strength ─┐
+DpcWorkingOfficer rows (count)      ├─→ VacancyEngine ─→ VacancyBreakdown ─→ DpcVacancyCalculation
+  · date_of_retirement              │      (pure)         (9 figures)          (append-only)
+  · deputation_from / _to           │
+RecruitmentRule.promotion_pct     ──┘
+```
+
+`VacancyEngine` is **pure**: no database, no clock, no configuration read inside a rule.
+It is handed a proposal and answers. That is what lets the nine figures item 8 requires
+be golden-tested, and it is what makes the period reproducible — the window is derived
+from `dpc_year`, and `Carbon::today()` appears nowhere in it. A vacancy figure that
+depended on when the calculation ran could not be defended a year later, which is the
+only timescale that matters for a promotion challenge.
+
+`dpc_vacancy_calculations` is an **evidence table**: append-only, model-guarded, and in
+`dpc.security.evidence_tables` so the database grants match. A superseding calculation
+writes a new row and points the old one at it; nothing is edited. It stores the exact
+fractional promotion figure beside the rounded one and names the rounding rule applied,
+so a re-run under a different rule is visibly a different answer rather than a silent
+one (BD-33).
+
+**One ordering constraint is load-bearing.** Working Strength is the count of the
+uploaded Working Officer List, so the vacancies cannot be recorded until that list
+exists. `DpcProposalController` saves officers **before** vacancies for that reason, and
+`DemoDpcBuilder` was corrected to do the same — before the fix it recorded a calculation
+describing the chart that was about to replace it.
+
+### The gates run before the formula, and never touch it
+
+```
+PromotionHierarchyService   once per proposal   → item 11
+         ↓
+CandidateGateService        once per candidate  → items 12–20
+         ↓
+ScoringService              the PPT's formula   → item 21   (unchanged)
+EligibilityService          the PPT's minimum   → item 22   (unchanged)
+SuperSeatService            the PPT's rule      → item 23   (unchanged)
+```
+
+Both new services are pure, matching the three below them. The composition rule is
+stated once, in `EligibilityVerdict::overriddenBy()`: **a gate overrides the score, never
+the other way round.** A candidate rejected for a missing Property Return is rejected
+whatever they scored; a CIR candidate is held whatever they scored.
+
+**The score survives the override**, and that is deliberate. `EligibilityService` answers
+"did the marks reach the minimum"; the gates answer "is this candidate in contention at
+all". Discarding the score would make the two engines' findings mutually exclusive when
+they are cumulative — and a reader looking at a rejected row is entitled to see how the
+marks fell, because an officer refused promotion is entitled to every ground.
+
+**Why the order of the gates is itself the business rule.** Rejection first (a rejected
+candidate is out, and a score printed beside a rejection reads as a near miss). Then the
+recruitment rule (a candidate the rule excludes is not in contention, whatever their
+records say). Then CIR (item 19 says a justified gap *continues in the DPC*, so it must
+not read as a merit failure — a CR that is missing cannot be scored, and a shortfall
+caused by its absence would be the officer paying for their department's filing).
+
+### A missing record became a statement rather than an absence
+
+Before this register a missing CR was a year with no grade, and the engine scored what it
+found. `dpc_evaluation_record_gaps` now holds the department's *account* of why it is
+missing — a reason from `record_reasons`, mandatory remarks where the reason demands
+them, and a supporting PDF with its SHA-256 — and having given that account, the
+candidate stays in the exercise with the promotion **held** rather than dropping out.
+
+Two design choices in that table are worth the ink:
+
+- **One `kind` column rather than two tables.** A missing CR and a missing Loyalty
+  Certificate carry identical information, are validated identically, and produce the
+  identical consequence — item 19 names them in one sentence. Two tables would be two
+  places to add the next field to, and one of them would be missed.
+- **`requires_remarks` is a column on `record_reasons`, not a comparison against the
+  code `other`.** An Administrator can mark *Court Case* as needing the case number
+  without a deployment, and a Commission that renames or replaces "Other" does not
+  silently switch the rule off.
+
+**Only a gap with its document attached counts as justified.** Item 19 makes both
+mandatory, so a reason saved with no file has not met the condition that opens the CIR
+path — enforced in `OfficerRecord::fromEvaluationRow()`, in `RecordGapRequest` and again
+in `RecordGapService`. Treating a document-less reason as justified would let the upload
+be skipped by saving the form and never returning to it, which is the one way this rule
+can be evaded.
+
+### Four statuses, and the one place they could have been lost
+
+`RemarkCode` carries item 24's four values. The risk was never the enum — it was the
+**display**, which read `is_eligible` and had two states to say four things. A candidate
+whose promotion is *held pending a record* shown as "Not Eligible" is a materially
+different and more damaging statement, and it is the one a government promotion list
+would carry into an appeal.
+
+So `DpcCalculationResult::status()` reads the **stored verdict** rather than the boolean,
+and rather than recomputing: a result is evidence, and recomputing at display time would
+let a screen disagree with the run it is showing. Rows written before this register carry
+no `remark` in their verdict and fall back to the boolean — those really do have only two
+states.
+
+### Where the register argued with itself, and what we did
+
+Three collisions, all recorded rather than resolved in code:
+
+| Collision | Reading applied | Recorded as |
+|---|---|---|
+| Item 12 says a rule failure is *Not Eligible*; item 20 lists the same conditions under *Automatically Reject* | Item 12 — the more specific instruction, and the less final | **BD-32**, switchable by `dpc.merit.rule_failure_status` |
+| Item 18 attributes the tribal-area benefit to its CR year; item 21 forbids changing the marking formula, and PPT §5.2 awards one flat bonus | Item 18 as a **linkage** requirement, item 21 as the **formula**. The data now records which year; the score still adds one bonus | **BD-36** |
+| Item 12 requires the qualification validated against the Recruitment Rule; the rule holds a *level* (`Post-Graduate`) and the chart holds a *degree* (`M.A., B.Ed.`) | The finding is **reported and not applied**. Experience and Promotion Duration — which compare numbers — are enforced | **BD-39**, the highest-priority open question in the project |
+
+That third row is the one to understand. Enforcing a substring match would refuse
+officers who plainly hold the qualification, and **a promotion refused in writing on a
+ground that is not true is the worst error this system can make** — worse than a blocked
+list, because a blocked list is visibly incomplete and a wrong refusal is not. So the
+gate reports, the run is marked provisional, and `dpc.merit.qualification_gate` turns it
+on the day the Commission supplies a degree-to-level mapping.
+
+### Two defects the register's own work exposed
+
+Neither was introduced by this register; both were found by implementing it, and both are
+recorded because the *class* of error recurs.
+
+- **`min_experience_unit` was being ignored.** A recruitment rule may publish 18
+  **months**, and the gate was comparing that number against whole years — so an officer
+  with 20 months of service was refused for having "1 year" against a requirement of
+  "18". The enum exists precisely because *rounding those up to a year changes who is
+  eligible*, and the first code to actually compare the value rounded it. Both sides are
+  now carried in months (`RecruitmentRuleSource::minExperienceInMonths()`,
+  `OfficerRecord::$serviceMonthsOnFeederPost`), and the *message* is still phrased in
+  whichever unit the rule used.
+- **`promotion_duration_years` was read off the wrong table.** It sits on
+  `dpc_proposals`, carried across from the Pre-DPC; the gate read it from
+  `recruitment_rule_sources`, where it does not exist. Eloquent returns null for an
+  undefined attribute rather than erroring, so item 12's third check was **silently
+  switched off** and no test failed. PHPStan found it. The lesson is the one already in
+  §11: a static-analysis error about an undefined property on a model is never noise.
+
+### What did not change
+
+The marking formula, the qualifying score, Super Seat, the Zone of Consideration, and
+every M4/M5/M6 freeze. Items 21 to 23 said so in terms, and the golden tests that pin the
+PPT's answers were not touched — the fixtures around them were, because officers who are
+meant to be *promotable* now have to carry five Property Returns and five CRs, and a
+fixture that did not was measuring a rejected row.
 
 ---
 

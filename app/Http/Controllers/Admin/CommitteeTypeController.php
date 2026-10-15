@@ -8,18 +8,23 @@ use App\Domain\Master\Models\CommitteeType;
 use App\Domain\Master\Requests\CommitteeTypeRequest;
 use App\Domain\Master\Services\MasterCrudService;
 use App\Enums\MasterStatus;
+use App\Http\Controllers\Admin\Concerns\ListsAMaster;
 use App\Http\Controllers\Controller;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 
 class CommitteeTypeController extends Controller
 {
+    use ListsAMaster;
+
     public function __construct(private readonly MasterCrudService $crud) {}
 
-    public function index(): View
+    public function index(Request $request): View
     {
         return view('admin.committee-types.index', [
-            'committeeTypes' => CommitteeType::query()->orderBy('code')->paginate(20),
+            'committeeTypes' => $this->searched($request, CommitteeType::query()->orderBy('code'), 'committee-types')
+                ->paginate(20)->withQueryString(),
         ]);
     }
 

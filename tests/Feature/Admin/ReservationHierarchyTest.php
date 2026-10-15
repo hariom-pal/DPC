@@ -6,14 +6,14 @@ namespace Tests\Feature\Admin;
 
 use App\Domain\Authentication\Models\User;
 use App\Domain\Department\Models\Department;
-use App\Domain\Master\Models\Cadre;
+use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\ReservationCategory;
 use App\Domain\Master\Models\ReservationRoster;
 use App\Enums\MasterStatus;
 use App\Enums\Role;
 use App\Enums\ServiceClass;
-use Database\Seeders\CadreSeeder;
 use Database\Seeders\DepartmentMasterSeeder;
+use Database\Seeders\DepartmentPostSeeder;
 use Database\Seeders\LookupMasterSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -25,40 +25,50 @@ class ReservationHierarchyTest extends TestCase
 
     private function admin(): User
     {
-        $this->seed([RolesAndPermissionsSeeder::class, DepartmentMasterSeeder::class, LookupMasterSeeder::class, CadreSeeder::class]);
+        $this->seed([RolesAndPermissionsSeeder::class, DepartmentMasterSeeder::class, LookupMasterSeeder::class, DepartmentPostSeeder::class]);
         $admin = User::factory()->create();
         $admin->assignRole(Role::Admin->value);
 
         return $admin;
     }
 
-    public function test_admin_can_create_a_cadre(): void
+    public function test_admin_can_create_a_post(): void
     {
         $admin = $this->admin();
         $department = Department::query()->where('code', 'HE')->firstOrFail();
 
         $this->actingAs($admin)
-            ->post(route('admin.cadres.store'), [
+            ->post(route('admin.department-posts.store'), [
                 'department_id' => $department->id,
                 'name' => 'Additional Director',
                 'class_level' => ServiceClass::I->value,
                 'status' => MasterStatus::Active->value,
-            ])
-            ->assertRedirect(route('admin.cadres.index'));
 
-        $this->assertDatabaseHas('cadres', ['name' => 'Additional Director', 'department_id' => $department->id]);
+                // Required since 2026-09-06 — the Vacancy Engine reads it here.
+                'sanctioned_strength' => 6,
+
+                // A mapping is effective-dated since 2026-08-25 — it is what a
+                // Government Order authorises from a date.
+                'effective_from' => now()->toDateString(),
+            ])
+            ->assertSessionHasNoErrors()
+            // The details page, which is where the Government Order and its PDF
+            // are shown.
+            ->assertRedirect(route('admin.department-posts.show', DepartmentPost::query()->latest('id')->firstOrFail()));
+
+        $this->assertDatabaseHas('department_posts', ['name' => 'Additional Director', 'department_id' => $department->id]);
     }
 
     public function test_admin_can_create_a_roster_and_add_points_within_size(): void
     {
         $admin = $this->admin();
         $department = Department::query()->where('code', 'HE')->firstOrFail();
-        $cadre = Cadre::query()->where('department_id', $department->id)->firstOrFail();
+        $post = DepartmentPost::query()->where('department_id', $department->id)->firstOrFail();
         $category = ReservationCategory::query()->where('code', 'UR')->firstOrFail();
 
         $this->actingAs($admin)->post(route('admin.reservation-rosters.store'), [
             'department_id' => $department->id,
-            'cadre_id' => $cadre->id,
+            'post_id' => $post->id,
             'name' => 'US-to-DS 100-point',
             'size' => 10,
             'status' => MasterStatus::Active->value,
@@ -80,11 +90,11 @@ class ReservationHierarchyTest extends TestCase
     {
         $admin = $this->admin();
         $department = Department::query()->where('code', 'HE')->firstOrFail();
-        $cadre = Cadre::query()->where('department_id', $department->id)->firstOrFail();
+        $post = DepartmentPost::query()->where('department_id', $department->id)->firstOrFail();
         $category = ReservationCategory::query()->where('code', 'UR')->firstOrFail();
 
         $roster = ReservationRoster::query()->create([
-            'department_id' => $department->id, 'cadre_id' => $cadre->id,
+            'department_id' => $department->id, 'post_id' => $post->id,
             'name' => 'Small', 'size' => 5, 'status' => 'active',
         ]);
 

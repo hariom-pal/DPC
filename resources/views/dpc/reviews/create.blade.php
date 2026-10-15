@@ -1,26 +1,22 @@
 @extends('layouts.app')
 
-@section('title', 'Raise a Review DPC')
+@section('title', __('dpc.reviews.create.raise_a_review_dpc'))
 
 @section('content')
     <div class="row justify-content-center">
         <div class="col-lg-9">
             @include('partials.alerts')
 
-            <h1 class="h4 mb-1">Review DPC — Proposal</h1>
+            <h1 class="h4 mb-1">{{ __('dpc.reviews.create.review_dpc_proposal') }}</h1>
             <p class="text-muted small mb-3">
-                A Review corrects an error found in a DPC that has already been conducted and approved. The
-                original DPC is <strong>never changed</strong> — this creates a new proposal, pre-filled with
-                the original's details, which you then correct.
+{!! __('dpc.reviews.create.lead') !!}
             </p>
 
             @error('review')<div class="alert alert-danger py-2">{{ $message }}</div>@enderror
 
             @if ($originals->isEmpty())
                 <div class="alert alert-secondary">
-                    There is no DPC available to review. A Review can be raised only against a DPC whose
-                    result the Commission has approved, and only against the most recent DPC in a correction
-                    chain.
+                    {{ __('dpc.reviews.create.none_available') }}
                 </div>
             @else
                 <form method="POST" action="{{ route('dpc-proposals.reviews.store') }}">
@@ -30,15 +26,15 @@
                         <div class="card-body">
                             <div class="row g-3">
                                 <div class="col-md-7">
-                                    <label class="form-label">DPC being reviewed</label>
+                                    <label class="form-label">{{ __('dpc.reviews.create.dpc_being_reviewed') }}</label>
                                     <select name="original_dpc_proposal_uuid" class="form-select">
-                                        <option value="">Select a DPC…</option>
+                                        <option value="">{{ __('dpc.reviews.create.select_a_dpc') }}</option>
                                         @foreach ($originals as $original)
                                             <option value="{{ $original->uuid }}"
                                                 @selected(old('original_dpc_proposal_uuid') === $original->uuid)>
                                                 {{ $original->dpc_code }} —
-                                                {{ $original->postFromCadre?->name }} →
-                                                {{ $original->postToCadre?->name }}
+                                                {{ $original->promotionFromPost?->name }} →
+                                                {{ $original->promotionToPost?->name }}
                                                 ({{ $original->proposal_date->format('d/m/Y') }})
                                             </option>
                                         @endforeach
@@ -49,7 +45,7 @@
                                 </div>
 
                                 <div class="col-md-5">
-                                    <label class="form-label">Review proposal date</label>
+                                    <label class="form-label">{{ __('dpc.reviews.create.review_proposal_date') }}</label>
                                     <input type="date" name="proposal_date" class="form-control"
                                            value="{{ old('proposal_date', now()->toDateString()) }}">
                                     @error('proposal_date')<div class="text-danger small">{{ $message }}</div>@enderror
@@ -60,10 +56,9 @@
 
                     <div class="card border-0 shadow-sm mb-3">
                         <div class="card-body">
-                            <h2 class="h6 mb-1">Reason for Review DPC</h2>
+                            <h2 class="h6 mb-1">{{ __('dpc.reviews.create.reason_for_review_dpc') }}</h2>
                             <p class="text-muted small mb-3">
-                                Select every reason that applies. More than one often does — a name left off the
-                                seniority list is frequently also a roster-point error.
+                                {{ __('dpc.reviews.create.select_every_reason_that_applies_more_than_one_o') }}
                             </p>
 
                             @error('reasons')<div class="text-danger small mb-2">{{ $message }}</div>@enderror
@@ -86,7 +81,7 @@
                                     <div class="col-md-7">
                                         <input type="text" name="details[{{ $reason->id }}]"
                                                class="form-control form-control-sm"
-                                               placeholder="Which officer or entry? (optional)"
+                                               placeholder="{{ __('dpc.reviews.create.which_officer_or_entry_optional') }}"
                                                value="{{ old('details.'.$reason->id) }}">
                                     </div>
                                 </div>
@@ -94,8 +89,8 @@
                         </div>
                     </div>
 
-                    <button class="btn btn-primary">Raise Review DPC</button>
-                    <a class="btn btn-link" href="{{ route('dpc-proposals.index') }}">Cancel</a>
+                    <button class="btn btn-primary">{{ __('dpc.reviews.create.raise_review_dpc') }}</button>
+                    <a class="btn btn-link" href="{{ route('dpc-proposals.index') }}">{{ __('ui.cancel') }}</a>
                 </form>
             @endif
         </div>

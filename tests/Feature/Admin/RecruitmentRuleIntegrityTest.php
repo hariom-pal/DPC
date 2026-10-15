@@ -6,23 +6,23 @@ namespace Tests\Feature\Admin;
 
 use App\Domain\Authentication\Models\User;
 use App\Domain\Master\Enums\ExperienceUnit;
-use App\Domain\Master\Models\Cadre;
+use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\Qualification;
 use App\Domain\Master\Models\RecruitmentRule;
-use App\Domain\Master\Models\RecruitmentRuleFeeder;
+use App\Domain\Master\Models\RecruitmentRuleSource;
 use App\Enums\MasterStatus;
 use App\Enums\Role;
 use App\Enums\ServiceClass;
-use Database\Seeders\CadreSeeder;
 use Database\Seeders\DepartmentMasterSeeder;
+use Database\Seeders\DepartmentPostSeeder;
 use Database\Seeders\QualificationSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * Master-data integrity on the Recruitment Rule: the feeder cadre is a reference
- * to the Cadre master and the minimum qualification is a reference to the
+ * Master-data integrity on the Recruitment Rule: the promotion from post is a reference
+ * to the Department Post master and the minimum qualification is a reference to the
  * Qualification master, and neither can be made to hold nonsense.
  *
  * These are validation and referential tests only. Nothing here touches how a
@@ -43,7 +43,7 @@ class RecruitmentRuleIntegrityTest extends TestCase
         $this->seed([
             RolesAndPermissionsSeeder::class,
             DepartmentMasterSeeder::class,
-            CadreSeeder::class,
+            DepartmentPostSeeder::class,
             QualificationSeeder::class,
         ]);
     }
@@ -56,21 +56,21 @@ class RecruitmentRuleIntegrityTest extends TestCase
         return $admin;
     }
 
-    private function target(): Cadre
+    private function target(): DepartmentPost
     {
-        return Cadre::query()->where('name', 'Deputy Secretary')->firstOrFail();
+        return DepartmentPost::query()->where('name', 'Deputy Secretary')->firstOrFail();
     }
 
-    private function feeder(): Cadre
+    private function feeder(): DepartmentPost
     {
-        return Cadre::query()->where('name', 'Under Secretary')->firstOrFail();
+        return DepartmentPost::query()->where('name', 'Under Secretary')->firstOrFail();
     }
 
     /**
      * @param  array<int, array<string, mixed>>  $feeders
      * @return array<string, mixed>
      */
-    private function payload(array $feeders, ?int $cadreId = null, string $promotionPct = '100'): array
+    private function payload(array $feeders, ?int $postId = null, string $promotionPct = '100'): array
     {
         // Default the unit on any row that does not state one, so each test only
         // has to spell out the field it is actually about.
@@ -79,7 +79,7 @@ class RecruitmentRuleIntegrityTest extends TestCase
         }
 
         return [
-            'cadre_id' => $cadreId ?? $this->target()->id,
+            'post_id' => $postId ?? $this->target()->id,
             'government_order_number' => 'GO/2026/1',
             'direct_recruitment_pct' => '0',
             'promotion_recruitment_pct' => $promotionPct,
@@ -99,15 +99,15 @@ class RecruitmentRuleIntegrityTest extends TestCase
         $qualification = Qualification::query()->where('code', 'PG')->firstOrFail();
 
         $this->actingAs($admin)->post(route('admin.recruitment-rules.store'), $this->payload([
-            ['feeder_cadre_id' => $this->feeder()->id, 'promotion_percentage' => '100',
-                'min_experience_years' => '5', 'qualification_id' => (string) $qualification->id],
+            ['promotion_from_post_id' => $this->feeder()->id, 'promotion_percentage' => '100',
+                'min_experience_years' => '5', 'qualification_ids' => [(string) $qualification->id]],
         ]))->assertRedirect(route('admin.recruitment-rules.index'));
 
-        $feeder = RecruitmentRule::query()->where('cadre_id', $this->target()->id)
-            ->firstOrFail()->feeders()->firstOrFail();
+        $feeder = RecruitmentRule::query()->where('post_id', $this->target()->id)
+            ->firstOrFail()->promotionSources()->firstOrFail();
 
-        $this->assertSame($qualification->id, $feeder->qualification_id);
-        $this->assertSame('Post-Graduate', $feeder->qualification->name_en);
+        $this->assertSame([$qualification->id], $feeder->qualifications->pluck('id')->all());
+        $this->assertSame('Post-Graduate', $feeder->qualifications->sole()->name_en);
         // The legacy text column is kept in step so nothing that reads it regresses.
         $this->assertSame('Post-Graduate', $feeder->min_qualification);
         $this->assertSame('Post-Graduate', $feeder->qualificationLabel());
@@ -120,9 +120,9 @@ class RecruitmentRuleIntegrityTest extends TestCase
         $withdrawn->forceFill(['status' => MasterStatus::Inactive->value])->save();
 
         $this->actingAs($admin)->post(route('admin.recruitment-rules.store'), $this->payload([
-            ['feeder_cadre_id' => $this->feeder()->id, 'promotion_percentage' => '100',
-                'min_experience_years' => '5', 'qualification_id' => (string) $withdrawn->id],
-        ]))->assertSessionHasErrors('feeders.0.qualification_id');
+            ['promotion_from_post_id' => $this->feeder()->id, 'promotion_percentage' => '100',
+                'min_experience_years' => '5', 'qualification_ids' => [(string) $withdrawn->id]],
+        ]))->assertSessionHasErrors('feeders.0.qualification_ids.0');
     }
 
     public function test_a_soft_deleted_qualification_cannot_be_attached(): void
@@ -132,17 +132,17 @@ class RecruitmentRuleIntegrityTest extends TestCase
         $qualification->delete();
 
         $this->actingAs($admin)->post(route('admin.recruitment-rules.store'), $this->payload([
-            ['feeder_cadre_id' => $this->feeder()->id, 'promotion_percentage' => '100',
-                'min_experience_years' => '5', 'qualification_id' => (string) $qualification->id],
-        ]))->assertSessionHasErrors('feeders.0.qualification_id');
+            ['promotion_from_post_id' => $this->feeder()->id, 'promotion_percentage' => '100',
+                'min_experience_years' => '5', 'qualification_ids' => [(string) $qualification->id]],
+        ]))->assertSessionHasErrors('feeders.0.qualification_ids.0');
     }
 
     public function test_a_qualification_that_does_not_exist_is_refused(): void
     {
         $this->actingAs($this->admin())->post(route('admin.recruitment-rules.store'), $this->payload([
-            ['feeder_cadre_id' => $this->feeder()->id, 'promotion_percentage' => '100',
-                'min_experience_years' => '5', 'qualification_id' => '99999'],
-        ]))->assertSessionHasErrors('feeders.0.qualification_id');
+            ['promotion_from_post_id' => $this->feeder()->id, 'promotion_percentage' => '100',
+                'min_experience_years' => '5', 'qualification_ids' => ['99999']],
+        ]))->assertSessionHasErrors('feeders.0.qualification_ids.0');
     }
 
     public function test_a_withdrawn_qualification_still_displays_on_the_rules_that_cite_it(): void
@@ -151,51 +151,57 @@ class RecruitmentRuleIntegrityTest extends TestCase
         $qualification = Qualification::query()->where('code', 'PG')->firstOrFail();
 
         $rule = RecruitmentRule::query()->create([
-            'cadre_id' => $this->target()->id, 'version' => 1, 'government_order_number' => 'GO/1',
+            'post_id' => $this->target()->id, 'version' => 1, 'government_order_number' => 'GO/1',
             'direct_recruitment_pct' => 0, 'promotion_recruitment_pct' => 100,
             'effective_from' => '2020-01-01', 'status' => MasterStatus::Active->value,
         ]);
-        $feeder = $rule->feeders()->create([
-            'feeder_cadre_id' => $this->feeder()->id, 'promotion_percentage' => 100,
-            'min_experience_years' => 5, 'qualification_id' => $qualification->id,
+        $feeder = $rule->promotionSources()->create([
+            'promotion_from_post_id' => $this->feeder()->id, 'promotion_percentage' => 100,
+            'min_experience_years' => 5,
+
+            // The legacy text column, which is what carries the record when the
+            // master row is gone. Kept for exactly this case.
+            'min_qualification' => 'Post-Graduate',
         ]);
+        $feeder->qualifications()->attach($qualification->id, ['sort_order' => 0]);
 
         $qualification->delete();
 
         // The record of what the Government Order required does not disappear
-        // because the qualification was later withdrawn from the master.
+        // because the qualification was later withdrawn from the master. The pivot
+        // row goes with the soft delete's global scope, so the legacy text answers.
         $this->assertSame('Post-Graduate', $feeder->fresh()->qualificationLabel());
     }
 
     // ------------------------------------------------------------------
-    // The feeder cadre is a reference, and the set of them is sane
+    // The promotion from post is a reference, and the set of them is sane
     // ------------------------------------------------------------------
 
-    public function test_a_duplicate_feeder_cadre_is_refused(): void
+    public function test_a_duplicate_promotion_from_post_is_refused(): void
     {
         $feeder = $this->feeder();
 
         $this->actingAs($this->admin())->post(route('admin.recruitment-rules.store'), $this->payload([
-            ['feeder_cadre_id' => $feeder->id, 'promotion_percentage' => '50', 'min_experience_years' => '5'],
-            ['feeder_cadre_id' => $feeder->id, 'promotion_percentage' => '50', 'min_experience_years' => '5'],
+            ['promotion_from_post_id' => $feeder->id, 'promotion_percentage' => '50', 'min_experience_years' => '5'],
+            ['promotion_from_post_id' => $feeder->id, 'promotion_percentage' => '50', 'min_experience_years' => '5'],
             // Shares total 100, so this can only fail on the duplicate.
-        ]))->assertSessionHasErrors('feeders.0.feeder_cadre_id');
+        ]))->assertSessionHasErrors('feeders.0.promotion_from_post_id');
     }
 
-    public function test_a_cadre_cannot_be_its_own_feeder(): void
+    public function test_a_post_cannot_be_its_own_feeder(): void
     {
         $target = $this->target();
 
         $this->actingAs($this->admin())->post(route('admin.recruitment-rules.store'), $this->payload([
-            ['feeder_cadre_id' => $target->id, 'promotion_percentage' => '100', 'min_experience_years' => '5'],
-        ]))->assertSessionHasErrors('feeders.0.feeder_cadre_id');
+            ['promotion_from_post_id' => $target->id, 'promotion_percentage' => '100', 'min_experience_years' => '5'],
+        ]))->assertSessionHasErrors('feeders.0.promotion_from_post_id');
     }
 
-    public function test_a_feeder_cadre_that_does_not_exist_is_refused(): void
+    public function test_a_promotion_from_post_that_does_not_exist_is_refused(): void
     {
         $this->actingAs($this->admin())->post(route('admin.recruitment-rules.store'), $this->payload([
-            ['feeder_cadre_id' => 99999, 'promotion_percentage' => '100', 'min_experience_years' => '5'],
-        ]))->assertSessionHasErrors('feeders.0.feeder_cadre_id');
+            ['promotion_from_post_id' => 99999, 'promotion_percentage' => '100', 'min_experience_years' => '5'],
+        ]))->assertSessionHasErrors('feeders.0.promotion_from_post_id');
     }
 
     public function test_a_feeder_from_another_department_is_refused(): void
@@ -203,7 +209,7 @@ class RecruitmentRuleIntegrityTest extends TestCase
         $admin = $this->admin();
         $target = $this->target();
 
-        $foreign = Cadre::query()->create([
+        $foreign = DepartmentPost::query()->create([
             'department_id' => $target->department_id + 1,
             'name' => 'Foreign Department Post',
             'class_level' => ServiceClass::II->value,
@@ -211,8 +217,8 @@ class RecruitmentRuleIntegrityTest extends TestCase
         ]);
 
         $this->actingAs($admin)->post(route('admin.recruitment-rules.store'), $this->payload([
-            ['feeder_cadre_id' => $foreign->id, 'promotion_percentage' => '100', 'min_experience_years' => '5'],
-        ]))->assertSessionHasErrors('feeders.0.feeder_cadre_id');
+            ['promotion_from_post_id' => $foreign->id, 'promotion_percentage' => '100', 'min_experience_years' => '5'],
+        ]))->assertSessionHasErrors('feeders.0.promotion_from_post_id');
     }
 
     public function test_a_promotion_rule_must_name_at_least_one_feeder(): void
@@ -223,8 +229,8 @@ class RecruitmentRuleIntegrityTest extends TestCase
     }
 
     /**
-     * The one deliberate exception to "no empty feeder list": a cadre recruited
-     * entirely by direct recruitment has no feeder post by definition. The
+     * The one deliberate exception to "no empty feeder list": a post recruited
+     * entirely by direct recruitment has no promotion from post by definition. The
      * seeded Teacher rule is exactly this, and forbidding it outright would make
      * an existing, valid record unsaveable.
      */
@@ -235,12 +241,12 @@ class RecruitmentRuleIntegrityTest extends TestCase
             ['direct_recruitment_pct' => '100'] + $this->payload([], promotionPct: '0'),
         )->assertRedirect(route('admin.recruitment-rules.index'));
 
-        $rule = RecruitmentRule::query()->where('cadre_id', $this->target()->id)->firstOrFail();
-        $this->assertSame(0, $rule->feeders()->count());
+        $rule = RecruitmentRule::query()->where('post_id', $this->target()->id)->firstOrFail();
+        $this->assertSame(0, $rule->promotionSources()->count());
     }
 
     /**
-     * A row added with the Add Feeder Cadre button and then abandoned without
+     * A row added with the Add Promotion From Post button and then abandoned without
      * pressing Remove must not be treated as a feeder the user asked for.
      */
     public function test_a_blank_feeder_row_is_discarded(): void
@@ -249,44 +255,56 @@ class RecruitmentRuleIntegrityTest extends TestCase
         $chosen = $this->feeder();
 
         $this->actingAs($admin)->post(route('admin.recruitment-rules.store'), $this->payload([
-            ['feeder_cadre_id' => $chosen->id, 'promotion_percentage' => '100', 'min_experience_years' => '5'],
-            ['feeder_cadre_id' => '', 'promotion_percentage' => '', 'min_experience_years' => ''],
+            ['promotion_from_post_id' => $chosen->id, 'promotion_percentage' => '100', 'min_experience_years' => '5'],
+            ['promotion_from_post_id' => '', 'promotion_percentage' => '', 'min_experience_years' => ''],
         ]))->assertRedirect(route('admin.recruitment-rules.index'));
 
-        $rule = RecruitmentRule::query()->where('cadre_id', $this->target()->id)->firstOrFail();
+        $rule = RecruitmentRule::query()->where('post_id', $this->target()->id)->firstOrFail();
 
-        $this->assertSame(1, $rule->feeders()->count());
-        $this->assertSame($chosen->id, $rule->feeders()->firstOrFail()->feeder_cadre_id);
+        $this->assertSame(1, $rule->promotionSources()->count());
+        $this->assertSame($chosen->id, $rule->promotionSources()->firstOrFail()->promotion_from_post_id);
     }
 
-    public function test_a_new_version_carries_the_qualification_reference(): void
+    public function test_a_new_version_carries_every_qualification(): void
     {
         $admin = $this->admin();
         $qualification = Qualification::query()->where('code', 'PG')->firstOrFail();
 
         $rule = RecruitmentRule::query()->create([
-            'cadre_id' => $this->target()->id, 'version' => 1, 'government_order_number' => 'GO/1',
+            'post_id' => $this->target()->id, 'version' => 1, 'government_order_number' => 'GO/1',
             'direct_recruitment_pct' => 0, 'promotion_recruitment_pct' => 100,
             'effective_from' => '2020-01-01', 'status' => MasterStatus::Active->value,
         ]);
-        $rule->feeders()->create([
-            'feeder_cadre_id' => $this->feeder()->id, 'promotion_percentage' => 100,
-            'min_experience_years' => 5, 'qualification_id' => $qualification->id,
+        $second = Qualification::query()->where('code', '<>', 'PG')->firstOrFail();
+
+        $source = $rule->promotionSources()->create([
+            'promotion_from_post_id' => $this->feeder()->id, 'promotion_percentage' => 100,
+            'min_experience_years' => 5,
+        ]);
+        $source->qualifications()->attach([
+            $qualification->id => ['sort_order' => 0],
+            $second->id => ['sort_order' => 1],
         ]);
 
         $this->actingAs($admin)->post(route('admin.recruitment-rules.version', $rule))->assertRedirect();
 
-        $v2 = RecruitmentRule::query()->where('cadre_id', $this->target()->id)->where('version', 2)->firstOrFail();
+        $v2 = RecruitmentRule::query()->where('post_id', $this->target()->id)->where('version', 2)->firstOrFail();
 
-        $this->assertSame($qualification->id, $v2->feeders()->firstOrFail()->qualification_id);
+        // **Both** of them, in order. A pivot cannot be carried by `replicate()`,
+        // so a new version that lost its qualification list would be a rule that
+        // had quietly stopped requiring a degree.
+        $this->assertSame(
+            [$qualification->id, $second->id],
+            $v2->promotionSources()->firstOrFail()->qualifications->pluck('id')->all(),
+        );
     }
 
     // ------------------------------------------------------------------
-    // DR % + PR % must account for the whole cadre
+    // DR % + PR % must account for the whole post
     //
     // Every sanctioned post is filled either directly or by promotion, so the
-    // two shares describe the whole cadre. Distinct from the Promotion Share
-    // rule below, which divides the promotion quota among feeder cadres.
+    // two shares describe the whole post. Distinct from the Promotion Share
+    // rule below, which divides the promotion quota among promotion from posts.
     // ------------------------------------------------------------------
 
     public function test_dr_and_pr_that_do_not_total_100_are_refused(): void
@@ -296,11 +314,11 @@ class RecruitmentRuleIntegrityTest extends TestCase
         $this->actingAs($admin)->post(
             route('admin.recruitment-rules.store'),
             ['direct_recruitment_pct' => '30'] + $this->payload([
-                ['feeder_cadre_id' => $this->feeder()->id, 'promotion_percentage' => '100', 'min_experience_years' => '5'],
+                ['promotion_from_post_id' => $this->feeder()->id, 'promotion_percentage' => '100', 'min_experience_years' => '5'],
             ], promotionPct: '50'),
         )->assertSessionHasErrors('recruitment_split');
 
-        $this->assertSame(0, RecruitmentRule::query()->where('cadre_id', $this->target()->id)->count());
+        $this->assertSame(0, RecruitmentRule::query()->where('post_id', $this->target()->id)->count());
     }
 
     public function test_the_split_error_names_the_actual_total_and_the_shortfall(): void
@@ -310,7 +328,7 @@ class RecruitmentRuleIntegrityTest extends TestCase
         $this->actingAs($admin)->post(
             route('admin.recruitment-rules.store'),
             ['direct_recruitment_pct' => '30'] + $this->payload([
-                ['feeder_cadre_id' => $this->feeder()->id, 'promotion_percentage' => '100', 'min_experience_years' => '5'],
+                ['promotion_from_post_id' => $this->feeder()->id, 'promotion_percentage' => '100', 'min_experience_years' => '5'],
             ], promotionPct: '50'),
         )->assertSessionHasErrors([
             'recruitment_split' => 'Direct Recruitment % and Promotion % must total exactly 100%. They currently total 80% — 20% of the posts is unaccounted for.',
@@ -324,7 +342,7 @@ class RecruitmentRuleIntegrityTest extends TestCase
         $this->actingAs($admin)->post(
             route('admin.recruitment-rules.store'),
             ['direct_recruitment_pct' => '60'] + $this->payload([
-                ['feeder_cadre_id' => $this->feeder()->id, 'promotion_percentage' => '100', 'min_experience_years' => '5'],
+                ['promotion_from_post_id' => $this->feeder()->id, 'promotion_percentage' => '100', 'min_experience_years' => '5'],
             ], promotionPct: '60'),
         )->assertSessionHasErrors([
             'recruitment_split' => 'Direct Recruitment % and Promotion % must total exactly 100%. They currently total 120% — over-allocated by 20%.',
@@ -342,13 +360,13 @@ class RecruitmentRuleIntegrityTest extends TestCase
         $this->actingAs($admin)->post(
             route('admin.recruitment-rules.store'),
             ['direct_recruitment_pct' => '0'] + $this->payload([
-                ['feeder_cadre_id' => $this->feeder()->id, 'promotion_percentage' => '100', 'min_experience_years' => '5'],
+                ['promotion_from_post_id' => $this->feeder()->id, 'promotion_percentage' => '100', 'min_experience_years' => '5'],
             ], promotionPct: '100'),
         )->assertSessionHasNoErrors();
 
         $this->actingAs($admin)->post(
             route('admin.recruitment-rules.store'),
-            ['direct_recruitment_pct' => '100', 'cadre_id' => $this->feeder()->id]
+            ['direct_recruitment_pct' => '100', 'post_id' => $this->feeder()->id]
                 + $this->payload([], promotionPct: '0'),
         )->assertSessionHasNoErrors();
 
@@ -363,7 +381,7 @@ class RecruitmentRuleIntegrityTest extends TestCase
         $this->actingAs($admin)->post(
             route('admin.recruitment-rules.store'),
             ['direct_recruitment_pct' => '25'] + $this->payload([
-                ['feeder_cadre_id' => $this->feeder()->id, 'promotion_percentage' => '100', 'min_experience_years' => '5'],
+                ['promotion_from_post_id' => $this->feeder()->id, 'promotion_percentage' => '100', 'min_experience_years' => '5'],
             ], promotionPct: '75'),
         )->assertSessionHasNoErrors();
     }
@@ -380,7 +398,7 @@ class RecruitmentRuleIntegrityTest extends TestCase
         $this->actingAs($admin)->post(
             route('admin.recruitment-rules.store'),
             ['direct_recruitment_pct' => '33.33'] + $this->payload([
-                ['feeder_cadre_id' => $this->feeder()->id, 'promotion_percentage' => '100', 'min_experience_years' => '5'],
+                ['promotion_from_post_id' => $this->feeder()->id, 'promotion_percentage' => '100', 'min_experience_years' => '5'],
             ], promotionPct: '66.67'),
         )->assertSessionHasNoErrors();
     }
@@ -397,7 +415,7 @@ class RecruitmentRuleIntegrityTest extends TestCase
         $admin = $this->admin();
 
         $rule = RecruitmentRule::query()->create([
-            'cadre_id' => $this->target()->id, 'version' => 1, 'government_order_number' => 'GO/legacy',
+            'post_id' => $this->target()->id, 'version' => 1, 'government_order_number' => 'GO/legacy',
             'direct_recruitment_pct' => 0, 'promotion_recruitment_pct' => 1,
             'effective_from' => '2020-01-01', 'status' => MasterStatus::Draft->value,
         ]);
@@ -413,7 +431,7 @@ class RecruitmentRuleIntegrityTest extends TestCase
         $this->actingAs($admin)->put(
             route('admin.recruitment-rules.update', $rule),
             ['direct_recruitment_pct' => '0'] + $this->payload([
-                ['feeder_cadre_id' => $this->feeder()->id, 'promotion_percentage' => '100', 'min_experience_years' => '5'],
+                ['promotion_from_post_id' => $this->feeder()->id, 'promotion_percentage' => '100', 'min_experience_years' => '5'],
             ], promotionPct: '1'),
         )->assertSessionHasErrors('recruitment_split');
     }
@@ -425,17 +443,17 @@ class RecruitmentRuleIntegrityTest extends TestCase
     public function test_shares_that_do_not_total_100_are_refused(): void
     {
         $admin = $this->admin();
-        $second = Cadre::query()
+        $second = DepartmentPost::query()
             ->where('department_id', $this->target()->department_id)
             ->whereNotIn('id', [$this->feeder()->id, $this->target()->id])
             ->firstOrFail();
 
         $this->actingAs($admin)->post(route('admin.recruitment-rules.store'), $this->payload([
-            ['feeder_cadre_id' => $this->feeder()->id, 'promotion_percentage' => '40', 'min_experience_years' => '5'],
-            ['feeder_cadre_id' => $second->id, 'promotion_percentage' => '30', 'min_experience_years' => '5'],
+            ['promotion_from_post_id' => $this->feeder()->id, 'promotion_percentage' => '40', 'min_experience_years' => '5'],
+            ['promotion_from_post_id' => $second->id, 'promotion_percentage' => '30', 'min_experience_years' => '5'],
         ]))->assertSessionHasErrors('feeders');
 
-        $this->assertSame(0, RecruitmentRule::query()->where('cadre_id', $this->target()->id)->count());
+        $this->assertSame(0, RecruitmentRule::query()->where('post_id', $this->target()->id)->count());
     }
 
     public function test_the_error_names_the_actual_total_and_the_shortfall(): void
@@ -443,21 +461,21 @@ class RecruitmentRuleIntegrityTest extends TestCase
         $admin = $this->admin();
 
         $this->actingAs($admin)->post(route('admin.recruitment-rules.store'), $this->payload([
-            ['feeder_cadre_id' => $this->feeder()->id, 'promotion_percentage' => '60', 'min_experience_years' => '5'],
-        ]))->assertSessionHasErrors(['feeders' => 'Promotion Share must total exactly 100% across all feeder cadres. It currently totals 60% — 40% is unallocated.']);
+            ['promotion_from_post_id' => $this->feeder()->id, 'promotion_percentage' => '60', 'min_experience_years' => '5'],
+        ]))->assertSessionHasErrors(['feeders' => 'Promotion Share must total exactly 100% across all promotion from posts. It currently totals 60% — 40% is unallocated.']);
     }
 
     public function test_shares_over_100_are_refused(): void
     {
         $admin = $this->admin();
-        $second = Cadre::query()
+        $second = DepartmentPost::query()
             ->where('department_id', $this->target()->department_id)
             ->whereNotIn('id', [$this->feeder()->id, $this->target()->id])
             ->firstOrFail();
 
         $this->actingAs($admin)->post(route('admin.recruitment-rules.store'), $this->payload([
-            ['feeder_cadre_id' => $this->feeder()->id, 'promotion_percentage' => '70', 'min_experience_years' => '5'],
-            ['feeder_cadre_id' => $second->id, 'promotion_percentage' => '70', 'min_experience_years' => '5'],
+            ['promotion_from_post_id' => $this->feeder()->id, 'promotion_percentage' => '70', 'min_experience_years' => '5'],
+            ['promotion_from_post_id' => $second->id, 'promotion_percentage' => '70', 'min_experience_years' => '5'],
         ]))->assertSessionHasErrors('feeders');
     }
 
@@ -465,21 +483,21 @@ class RecruitmentRuleIntegrityTest extends TestCase
     public function test_shares_totalling_100_by_rounding_are_accepted(): void
     {
         $admin = $this->admin();
-        $others = Cadre::query()
+        $others = DepartmentPost::query()
             ->where('department_id', $this->target()->department_id)
             ->whereNotIn('id', [$this->target()->id])
             ->take(3)->get();
 
-        $this->assertCount(3, $others, 'This test needs three feeder-eligible cadres.');
+        $this->assertCount(3, $others, 'This test needs three feeder-eligible posts.');
 
         $this->actingAs($admin)->post(route('admin.recruitment-rules.store'), $this->payload([
-            ['feeder_cadre_id' => $others[0]->id, 'promotion_percentage' => '33.33', 'min_experience_years' => '5'],
-            ['feeder_cadre_id' => $others[1]->id, 'promotion_percentage' => '33.33', 'min_experience_years' => '5'],
-            ['feeder_cadre_id' => $others[2]->id, 'promotion_percentage' => '33.34', 'min_experience_years' => '5'],
+            ['promotion_from_post_id' => $others[0]->id, 'promotion_percentage' => '33.33', 'min_experience_years' => '5'],
+            ['promotion_from_post_id' => $others[1]->id, 'promotion_percentage' => '33.33', 'min_experience_years' => '5'],
+            ['promotion_from_post_id' => $others[2]->id, 'promotion_percentage' => '33.34', 'min_experience_years' => '5'],
         ]))->assertRedirect(route('admin.recruitment-rules.index'));
 
-        $this->assertSame(3, RecruitmentRule::query()->where('cadre_id', $this->target()->id)
-            ->firstOrFail()->feeders()->count());
+        $this->assertSame(3, RecruitmentRule::query()->where('post_id', $this->target()->id)
+            ->firstOrFail()->promotionSources()->count());
     }
 
     /**
@@ -504,12 +522,12 @@ class RecruitmentRuleIntegrityTest extends TestCase
         $admin = $this->admin();
 
         $this->actingAs($admin)->post(route('admin.recruitment-rules.store'), $this->payload([
-            ['feeder_cadre_id' => $this->feeder()->id, 'promotion_percentage' => '100',
+            ['promotion_from_post_id' => $this->feeder()->id, 'promotion_percentage' => '100',
                 'min_experience_years' => '18', 'min_experience_unit' => ExperienceUnit::Months->value],
         ]))->assertRedirect(route('admin.recruitment-rules.index'));
 
-        $feeder = RecruitmentRule::query()->where('cadre_id', $this->target()->id)
-            ->firstOrFail()->feeders()->firstOrFail();
+        $feeder = RecruitmentRule::query()->where('post_id', $this->target()->id)
+            ->firstOrFail()->promotionSources()->firstOrFail();
 
         $this->assertSame(18, $feeder->min_experience_years);
         $this->assertSame(ExperienceUnit::Months, $feeder->min_experience_unit);
@@ -522,7 +540,7 @@ class RecruitmentRuleIntegrityTest extends TestCase
 
         // No unit in the payload — the shape the Pre-DPC projection uses.
         $this->actingAs($admin)->post(route('admin.recruitment-rules.store'), [
-            'cadre_id' => $this->target()->id,
+            'post_id' => $this->target()->id,
             'government_order_number' => 'GO/2026/1',
             'direct_recruitment_pct' => '0',
             'promotion_recruitment_pct' => '100',
@@ -530,13 +548,13 @@ class RecruitmentRuleIntegrityTest extends TestCase
             'status' => MasterStatus::Draft->value,
             'feeders' => [
                 // No min_experience_unit at all — the pre-existing request shape.
-                ['feeder_cadre_id' => $this->feeder()->id, 'promotion_percentage' => '100',
+                ['promotion_from_post_id' => $this->feeder()->id, 'promotion_percentage' => '100',
                     'min_experience_years' => '5'],
             ],
         ])->assertRedirect(route('admin.recruitment-rules.index'));
 
-        $feeder = RecruitmentRule::query()->where('cadre_id', $this->target()->id)
-            ->firstOrFail()->feeders()->firstOrFail();
+        $feeder = RecruitmentRule::query()->where('post_id', $this->target()->id)
+            ->firstOrFail()->promotionSources()->firstOrFail();
 
         $this->assertSame(ExperienceUnit::Years, $feeder->min_experience_unit);
         $this->assertSame('5 Years', $feeder->experienceLabel());
@@ -545,7 +563,7 @@ class RecruitmentRuleIntegrityTest extends TestCase
     public function test_a_negative_experience_is_refused(): void
     {
         $this->actingAs($this->admin())->post(route('admin.recruitment-rules.store'), $this->payload([
-            ['feeder_cadre_id' => $this->feeder()->id, 'promotion_percentage' => '100',
+            ['promotion_from_post_id' => $this->feeder()->id, 'promotion_percentage' => '100',
                 'min_experience_years' => '-1'],
         ]))->assertSessionHasErrors('feeders.0.min_experience_years');
     }
@@ -553,7 +571,7 @@ class RecruitmentRuleIntegrityTest extends TestCase
     public function test_an_unknown_experience_unit_is_refused(): void
     {
         $this->actingAs($this->admin())->post(route('admin.recruitment-rules.store'), $this->payload([
-            ['feeder_cadre_id' => $this->feeder()->id, 'promotion_percentage' => '100',
+            ['promotion_from_post_id' => $this->feeder()->id, 'promotion_percentage' => '100',
                 'min_experience_years' => '5', 'min_experience_unit' => 'fortnights'],
         ]))->assertSessionHasErrors('feeders.0.min_experience_unit');
     }
@@ -563,23 +581,23 @@ class RecruitmentRuleIntegrityTest extends TestCase
         $admin = $this->admin();
 
         $this->actingAs($admin)->post(route('admin.recruitment-rules.store'), $this->payload([
-            ['feeder_cadre_id' => $this->feeder()->id, 'promotion_percentage' => '100',
+            ['promotion_from_post_id' => $this->feeder()->id, 'promotion_percentage' => '100',
                 'min_experience_years' => '0'],
         ]))->assertRedirect(route('admin.recruitment-rules.index'));
 
-        $feeder = RecruitmentRule::query()->where('cadre_id', $this->target()->id)
-            ->firstOrFail()->feeders()->firstOrFail();
+        $feeder = RecruitmentRule::query()->where('post_id', $this->target()->id)
+            ->firstOrFail()->promotionSources()->firstOrFail();
 
         $this->assertNull($feeder->experienceLabel());
     }
 
     public function test_a_single_year_reads_as_singular(): void
     {
-        $this->assertSame('1 Year', (new RecruitmentRuleFeeder([
+        $this->assertSame('1 Year', (new RecruitmentRuleSource([
             'min_experience_years' => 1, 'min_experience_unit' => ExperienceUnit::Years->value,
         ]))->experienceLabel());
 
-        $this->assertSame('1 Month', (new RecruitmentRuleFeeder([
+        $this->assertSame('1 Month', (new RecruitmentRuleSource([
             'min_experience_years' => 1, 'min_experience_unit' => ExperienceUnit::Months->value,
         ]))->experienceLabel());
     }
@@ -589,19 +607,19 @@ class RecruitmentRuleIntegrityTest extends TestCase
         $admin = $this->admin();
 
         $rule = RecruitmentRule::query()->create([
-            'cadre_id' => $this->target()->id, 'version' => 1, 'government_order_number' => 'GO/1',
+            'post_id' => $this->target()->id, 'version' => 1, 'government_order_number' => 'GO/1',
             'direct_recruitment_pct' => 0, 'promotion_recruitment_pct' => 100,
             'effective_from' => '2020-01-01', 'status' => MasterStatus::Active->value,
         ]);
-        $rule->feeders()->create([
-            'feeder_cadre_id' => $this->feeder()->id, 'promotion_percentage' => 100,
+        $rule->promotionSources()->create([
+            'promotion_from_post_id' => $this->feeder()->id, 'promotion_percentage' => 100,
             'min_experience_years' => 30, 'min_experience_unit' => ExperienceUnit::Months->value,
         ]);
 
         $this->actingAs($admin)->post(route('admin.recruitment-rules.version', $rule))->assertRedirect();
 
-        $v2 = RecruitmentRule::query()->where('cadre_id', $this->target()->id)->where('version', 2)->firstOrFail();
+        $v2 = RecruitmentRule::query()->where('post_id', $this->target()->id)->where('version', 2)->firstOrFail();
 
-        $this->assertSame(ExperienceUnit::Months, $v2->feeders()->firstOrFail()->min_experience_unit);
+        $this->assertSame(ExperienceUnit::Months, $v2->promotionSources()->firstOrFail()->min_experience_unit);
     }
 }

@@ -16,7 +16,7 @@ use OwenIt\Auditing\Contracts\Auditable;
 /**
  * @property int $id
  * @property int $department_id
- * @property int $cadre_id
+ * @property int $post_id
  * @property string $name
  * @property int $size
  * @property Carbon|null $effective_from
@@ -32,7 +32,7 @@ class ReservationRoster extends Model implements Auditable
      */
     protected $fillable = [
         'department_id',
-        'cadre_id',
+        'post_id',
         'name',
         'size',
         'effective_from',
@@ -60,11 +60,11 @@ class ReservationRoster extends Model implements Auditable
     }
 
     /**
-     * @return BelongsTo<Cadre, $this>
+     * @return BelongsTo<DepartmentPost, $this>
      */
-    public function cadre(): BelongsTo
+    public function post(): BelongsTo
     {
-        return $this->belongsTo(Cadre::class);
+        return $this->belongsTo(DepartmentPost::class);
     }
 
     /**

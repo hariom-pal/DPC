@@ -7,7 +7,7 @@ namespace Tests\Feature\Notification;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Department\Models\Department;
 use App\Domain\Dpc\Models\DpcProposal;
-use App\Domain\Master\Models\Cadre;
+use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\DpcType;
 use App\Domain\Notification\Models\UserNotification;
 use App\Domain\Shared\Workflow\WorkflowTransition;
@@ -55,17 +55,15 @@ class ReplayDryRunTest extends TestCase
             'code' => 'SE', 'name' => 'School Education', 'status' => 'active',
         ]);
 
-        $this->ao = User::factory()->create(['name' => 'Shri Anil Verma', 'department_id' => $this->department->id]);
-        $this->ao->assignRole(Role::AuthorizedOfficer->value);
+        $this->ao = User::factory()->assignedTo($this->department, Role::AuthorizedOfficer)->create(['name' => 'Shri Anil Verma']);
 
-        $this->ah = User::factory()->create(['name' => 'Smt. Sunita Rathore', 'department_id' => $this->department->id]);
-        $this->ah->assignRole(Role::AdministrativeHead->value);
+        $this->ah = User::factory()->assignedTo($this->department, Role::AdministrativeHead)->create(['name' => 'Smt. Sunita Rathore']);
 
         $this->proposal = DpcProposal::query()->create([
             'department_id' => $this->department->id,
             'dpc_type_id' => DpcType::query()->where('code', 'fresh')->firstOrFail()->id,
-            'post_to_cadre_id' => $this->cadre('Deputy Director')->id,
-            'post_from_cadre_id' => $this->cadre('Under Secretary')->id,
+            'promotion_to_post_id' => $this->departmentPost('Deputy Director')->id,
+            'promotion_from_post_id' => $this->departmentPost('Under Secretary')->id,
             'proposal_date' => '2026-06-25',
             'status' => 'approved',
         ]);
@@ -184,9 +182,9 @@ class ReplayDryRunTest extends TestCase
     // Fixture
     // ------------------------------------------------------------------
 
-    private function cadre(string $name): Cadre
+    private function departmentPost(string $name): DepartmentPost
     {
-        return Cadre::query()->firstOrCreate(
+        return DepartmentPost::query()->firstOrCreate(
             ['department_id' => $this->department->id, 'name' => $name],
             ['class_level' => 'I', 'status' => MasterStatus::Active->value],
         );

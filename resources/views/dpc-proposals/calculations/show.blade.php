@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Calculation Result')
+@section('title', __('dpc.calculations.show.calculation_result'))
 
 @php
     $officerRow = function ($result) use ($proposal, $run) {
@@ -16,19 +16,17 @@
             @include('partials.alerts')
 
             <div class="d-flex justify-content-between align-items-start mb-1 flex-wrap gap-2">
-                <h1 class="h4 mb-0">Calculation Result</h1>
+                <h1 class="h4 mb-0">{{ __('dpc.calculations.show.calculation_result') }}</h1>
                 <span class="badge {{ $run->status->badgeClass() }} fs-6">{{ $run->status->label() }}</span>
             </div>
             <p class="text-muted small mb-3">
-                {{ $proposal->postFromCadre->name }} → {{ $proposal->postToCadre->name }}
+                {{ $proposal->promotionFromPost->name }} → {{ $proposal->promotionToPost->name }}
                 <br><span class="font-monospace" style="font-size:.8rem">{{ $run->uuid }}</span>
             </p>
 
             @if ($run->has_pending_decisions)
                 <div class="alert alert-warning">
-                    <strong>This calculation is provisional.</strong> It met case(s) governed by a rule that is
-                    awaiting a business decision. The printed rules were applied and nothing was assumed — but the
-                    affected officers or categories below could change once the rule is settled.
+                    {!! __('dpc.calculations.show.provisional_explained') !!}
                     <ul class="mb-0 mt-2 small">
                         @foreach ($run->pending_decisions ?? [] as $pending)<li>{{ $pending }}</li>@endforeach
                     </ul>
@@ -38,7 +36,7 @@
             {{-- Provenance: what a challenge would ask for. --}}
             <div class="card border-0 shadow-sm mb-3">
                 <div class="card-body">
-                    <h2 class="h6">How this calculation was produced</h2>
+                    <h2 class="h6">{{ __('dpc.calculations.show.how_this_calculation_was_produced') }}</h2>
                     <ul class="small mb-0">
                         @foreach ($runExplanation as $line)<li>{{ $line }}</li>@endforeach
                     </ul>
@@ -49,25 +47,25 @@
                 <div class="col-md-6">
                     <div class="card border-0 shadow-sm h-100">
                         <div class="card-body">
-                            <h2 class="h6 text-success">Main List (मुख्य सूचि) — {{ $mainList->count() }}</h2>
+                            {!! __('dpc.calculations.show.main_list_heading', ['count' => $mainList->count()]) !!}
                             <div class="table-responsive">
                                 <table class="table table-sm align-middle mb-0">
-                                    <thead><tr><th>#</th><th>Officer</th><th>Cat.</th><th>Score</th><th></th></tr></thead>
+                                    <thead><tr><th>#</th><th>{{ __('ui.officer') }}</th><th>{{ __('ui.cat') }}</th><th>{{ __('ui.score') }}</th><th></th></tr></thead>
                                     <tbody>
                                         @forelse ($mainList as $result)
                                             <tr>
                                                 <td>{{ $result->list_position }}</td>
                                                 <td>
                                                     {{ $result->officer_name }}
-                                                    @if ($result->is_super_seat)<span class="badge text-bg-primary">SS</span>@endif
+                                                    @if ($result->is_super_seat)<span class="badge text-bg-primary">{{ __('ui.ss') }}</span>@endif
                                                     <div class="text-muted" style="font-size:.75rem">S.N. {{ $result->sn }}</div>
                                                 </td>
                                                 <td><span class="badge text-bg-light">{{ $result->remark }}</span></td>
                                                 <td>{{ $result->verdict['achieved_score'] ?? '—' }}</td>
-                                                <td><a href="{{ $officerRow($result)['explainUrl'] }}" class="btn btn-outline-secondary btn-sm">Explain</a></td>
+                                                <td><a href="{{ $officerRow($result)['explainUrl'] }}" class="btn btn-outline-secondary btn-sm">{{ __('dpc.calculations.show.explain') }}</a></td>
                                             </tr>
                                         @empty
-                                            <tr><td colspan="5" class="text-center text-muted py-3">No officer qualified for the main list.</td></tr>
+                                            <tr><td colspan="5" class="text-center text-muted py-3">{{ __('dpc.calculations.show.no_officer_qualified_for_the_main_list') }}</td></tr>
                                         @endforelse
                                     </tbody>
                                 </table>
@@ -79,25 +77,25 @@
                 <div class="col-md-6">
                     <div class="card border-0 shadow-sm h-100">
                         <div class="card-body">
-                            <h2 class="h6 text-secondary">Waiting List (अनुपूरक सूचि) — {{ $waitingList->count() }}</h2>
+                            {!! __('dpc.calculations.show.waiting_list_heading', ['count' => $waitingList->count()]) !!}
                             <div class="table-responsive">
                                 <table class="table table-sm align-middle mb-0">
-                                    <thead><tr><th>#</th><th>Officer</th><th>Cat.</th><th>Score</th><th></th></tr></thead>
+                                    <thead><tr><th>#</th><th>{{ __('ui.officer') }}</th><th>{{ __('ui.cat') }}</th><th>{{ __('ui.score') }}</th><th></th></tr></thead>
                                     <tbody>
                                         @forelse ($waitingList as $result)
                                             <tr>
                                                 <td>{{ $result->list_position }}</td>
                                                 <td>
                                                     {{ $result->officer_name }}
-                                                    @if ($result->is_super_seat)<span class="badge text-bg-primary">SS</span>@endif
+                                                    @if ($result->is_super_seat)<span class="badge text-bg-primary">{{ __('ui.ss') }}</span>@endif
                                                     <div class="text-muted" style="font-size:.75rem">S.N. {{ $result->sn }}</div>
                                                 </td>
                                                 <td><span class="badge text-bg-light">{{ $result->remark }}</span></td>
                                                 <td>{{ $result->verdict['achieved_score'] ?? '—' }}</td>
-                                                <td><a href="{{ $officerRow($result)['explainUrl'] }}" class="btn btn-outline-secondary btn-sm">Explain</a></td>
+                                                <td><a href="{{ $officerRow($result)['explainUrl'] }}" class="btn btn-outline-secondary btn-sm">{{ __('dpc.calculations.show.explain') }}</a></td>
                                             </tr>
                                         @empty
-                                            <tr><td colspan="5" class="text-center text-muted py-3">No officer is on the waiting list.</td></tr>
+                                            <tr><td colspan="5" class="text-center text-muted py-3">{{ __('dpc.calculations.show.no_officer_is_on_the_waiting_list') }}</td></tr>
                                         @endforelse
                                     </tbody>
                                 </table>
@@ -110,15 +108,14 @@
             {{-- Every officer, including those on neither list, so an absent name is explained. --}}
             <div class="card border-0 shadow-sm">
                 <div class="card-body">
-                    <h2 class="h6">All Officers Assessed ({{ $allResults->count() }})</h2>
+                    {!! __('dpc.calculations.show.all_officers_heading', ['count' => $allResults->count()]) !!}
                     <p class="text-muted small">
-                        Every officer on the evaluation chart appears here, including those on neither list —
-                        an absent name is always explained rather than silently missing.
+                        {{ __('dpc.calculations.show.every_officer_on_the_evaluation_chart_appears_he') }}
                     </p>
                     <div class="table-responsive">
                         <table class="table table-sm align-middle mb-0">
                             <thead>
-                                <tr><th>S.N.</th><th>Officer</th><th>Cat.</th><th>Score</th><th>Zone</th><th>Outcome</th><th>Remark</th><th></th></tr>
+                                <tr><th>{{ __('ui.s_n') }}</th><th>{{ __('ui.officer') }}</th><th>{{ __('ui.cat') }}</th><th>{{ __('ui.score') }}</th><th>{{ __('dpc.calculations.show.zone') }}</th><th>{{ __('dpc.calculations.show.outcome') }}</th><th>{{ __('ui.remark') }}</th><th></th></tr>
                             </thead>
                             <tbody>
                                 @foreach ($allResults as $result)
@@ -126,21 +123,31 @@
                                         <td>{{ $result->sn }}</td>
                                         <td>
                                             {{ $result->officer_name }}
-                                            @if ($result->is_super_seat)<span class="badge text-bg-primary">SS</span>@endif
+                                            @if ($result->is_super_seat)<span class="badge text-bg-primary">{{ __('ui.ss') }}</span>@endif
                                         </td>
                                         <td>{{ $result->reservation_category_code }}</td>
                                         <td>{{ $result->verdict['achieved_score'] ?? '—' }} / {{ $result->verdict['required_score'] ?? '—' }}</td>
                                         <td>{{ $result->in_zone ? 'In' : 'Out' }}</td>
+                                        {{-- Item 24 of the change register of 2026-08-27: four
+                                             statuses, not two. This was a boolean until the
+                                             register, which printed "Not Eligible" against a CIR
+                                             candidate — whose promotion is *held pending a
+                                             record*, not refused. --}}
+                                        @php($status = $result->status())
                                         <td>
-                                            @if ($result->is_eligible)
-                                                <span class="badge text-bg-success">Eligible</span>
-                                            @else
-                                                <span class="badge text-bg-danger">Not Eligible</span>
-                                            @endif
+                                            <span class="badge {{ $status->badgeClass() }}">{{ $status->label() }}</span>
                                             <div class="text-muted" style="font-size:.75rem">{{ $result->list_type->label() }}</div>
                                         </td>
-                                        <td><span class="badge text-bg-light">{{ $result->remark }}</span></td>
-                                        <td><a href="{{ $officerRow($result)['explainUrl'] }}" class="btn btn-outline-secondary btn-sm">Explain</a></td>
+                                        <td>
+                                            <span class="badge text-bg-light">{{ $result->remark }}</span>
+                                            {{-- "CIR" alone does not say what is awaited, and the
+                                                 officer is entitled to know which record is
+                                                 holding their promotion (item 19). --}}
+                                            @foreach ($result->gateCitations() as $citation)
+                                                <div class="text-muted" style="font-size:.75rem">{{ $citation }}</div>
+                                            @endforeach
+                                        </td>
+                                        <td><a href="{{ $officerRow($result)['explainUrl'] }}" class="btn btn-outline-secondary btn-sm">{{ __('dpc.calculations.show.explain') }}</a></td>
                                     </tr>
                                 @endforeach
                             </tbody>
@@ -150,8 +157,8 @@
             </div>
 
             <div class="mt-2">
-                <a href="{{ route('dpc-proposals.calculations.index', $proposal) }}" class="btn btn-link">← Calculation history</a>
-                <a href="{{ route('dpc-proposals.show', $proposal) }}" class="btn btn-link">Back to proposal</a>
+                <a href="{{ route('dpc-proposals.calculations.index', $proposal) }}" class="btn btn-link">{{ __('dpc.calculations.show.calculation_history') }}</a>
+                <a href="{{ route('dpc-proposals.show', $proposal) }}" class="btn btn-link">{{ __('dpc.calculations.show.back_to_proposal') }}</a>
             </div>
         </div>
     </div>

@@ -7,19 +7,23 @@ namespace Tests\Feature\Dpc;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Department\Models\Department;
 use App\Domain\Dpc\Models\DpcProposal;
+use App\Domain\Dpc\Models\DpcWorkingOfficer;
 use App\Domain\Dpc\Services\DpcProposalCompletenessService;
 use App\Domain\Dpc\Services\DpcProposalService;
 use App\Domain\Dpc\Services\VacancyCalculationService;
-use App\Domain\Master\Models\Cadre;
-use App\Domain\Master\Models\DpcType;
+use App\Domain\Dpc\Services\VacancyEngine;
+use App\Domain\Master\Models\DepartmentPost;
+use App\Domain\Master\Models\RecruitmentRule;
 use App\Domain\Master\Models\ReservationCategory;
 use App\Domain\Master\Models\VacancyType;
+use App\Enums\MasterStatus;
 use App\Enums\Role;
 use Database\Seeders\LookupMasterSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Testing\TestResponse;
+use Tests\Concerns\RaisesDpcProposals;
 use Tests\TestCase;
 
 /**
@@ -43,6 +47,7 @@ use Tests\TestCase;
  */
 class DpcVacancyCalculationTest extends TestCase
 {
+    use RaisesDpcProposals;
     use RefreshDatabase;
 
     private Department $department;
@@ -60,41 +65,69 @@ class DpcVacancyCalculationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        /*
+         | Manual entry is off by default since 2026-09-07 — the two grids are
+         | upload-only — and the routes are gated on the same setting the screens
+         | are. Switched on for this class, which exercises those routes directly.
+         |
+         | Kept as tests rather than deleted: the instruction was *"hide it, in case
+         | we want it back"*, and a feature nobody tests is not one that can come
+         | back.
+         */
+        config([
+            'dpc.manual_entry.working_officers' => true,
+            'dpc.manual_entry.seniority_list' => true,
+        ]);
         $this->seed(RolesAndPermissionsSeeder::class);
         $this->seed(LookupMasterSeeder::class);
 
         $this->department = Department::query()->create([
             'code' => 'HE', 'name' => 'Higher Education Department', 'status' => 'active',
         ]);
-        $this->ao = User::factory()->create(['department_id' => $this->department->id]);
-        $this->ao->assignRole(Role::AuthorizedOfficer->value);
+        $this->ao = User::factory()->assignedTo($this->department->id, Role::AuthorizedOfficer)->create();
 
         $this->clear = VacancyType::query()->where('code', 'clear')->firstOrFail();
         $this->retirement = VacancyType::query()->where('code', 'from_retirement')->firstOrFail();
         $this->ur = ReservationCategory::query()->where('code', 'UR')->firstOrFail();
 
         $this->proposal = $this->proposalFor('I', 'I');
+
+        /*
+         | Every proposal here gets a 100%-promotion rule.
+         |
+         | The Recruitment Rule became a **required input** with the business
+         | directive of 2026-09-02: the promotion vacancy is now
+         | `promotion chairs − promotion chairs held`, and without a rule there is
+         | no way to say how many of the sanctioned chairs are promotion chairs.
+         | These tests predate that and registered none, which used to be harmless
+         | because the old arithmetic multiplied a finished total.
+         |
+         | 100% is the share that keeps every case below reading as it was written:
+         | with no direct chairs, the promotion vacancy is the whole vacancy, which
+         | is the number each of these tests reasons about. The split itself is
+         | covered by the quota tests above.
+         */
+        $this->ruleFor(100.0);
     }
 
     // ------------------------------------------------------------------ helpers
 
     private function proposalFor(string $fromClass, string $toClass): DpcProposal
     {
-        $from = Cadre::query()->create([
+        $from = DepartmentPost::query()->create([
             'department_id' => $this->department->id, 'name' => 'Feeder '.uniqid(),
             'class_level' => $fromClass, 'status' => 'active',
         ]);
-        $to = Cadre::query()->create([
+        $to = DepartmentPost::query()->create([
             'department_id' => $this->department->id, 'name' => 'Target '.uniqid(),
             'class_level' => $toClass, 'status' => 'active',
         ]);
 
-        $this->actingAs($this->ao)->post(route('dpc-proposals.store'), [
-            'dpc_type_id' => DpcType::query()->where('code', 'fresh')->firstOrFail()->id,
-            'post_to_cadre_id' => $to->id,
-            'post_from_cadre_id' => $from->id,
-            'proposal_date' => '2026-06-25',
-        ]);
+        $this->actingAs($this->ao)->post(
+            route('dpc-proposals.store'),
+            $this->dpcStorePayload($this->sanctioningPreDpc($from->id, $to->id)),
+        );
 
         return DpcProposal::query()->latest('id')->firstOrFail();
     }
@@ -111,25 +144,58 @@ class DpcVacancyCalculationTest extends TestCase
     }
 
     /**
-     * @param  array<string, int>  $split  vacancy-type code => count
+     * A chart of `$working` officers followed by `$vacant` empty chairs.
+     *
+     * **The vacancy is stated here since the business directive of 2026-09-02.**
+     * It used to be a separate `vacancies` array whose counts had to be made to
+     * add up to a total this screen calculated; a vacancy is now a chart row, and
+     * the breakdown is derived from the chart rather than posted beside it.
+     *
      * @return list<array<string, mixed>>
      */
-    private function split(array $split): array
+    private function chart(int $working, int $vacant = 0): array
     {
-        $types = ['clear' => $this->clear->id, 'from_retirement' => $this->retirement->id];
+        // `officers(0)` predates this helper and returns a bogus `sn` 0 row for a
+        // zero count; a chart of nothing but empty chairs is a case it never saw.
+        $rows = $working > 0 ? $this->officers($working) : [];
 
-        return array_values(array_map(fn (string $code): array => [
-            'vacancy_type_id' => $types[$code],
-            'reservation_category_id' => $this->ur->id,
-            'count' => $split[$code],
-        ], array_keys($split)));
+        for ($i = 0; $i < $vacant; $i++) {
+            $rows[] = [
+                'sn' => $working + $i + 1,
+                'status' => DpcWorkingOfficer::STATUS_VACANT,
+                'reservation_category_id' => $this->ur->id,
+            ];
+        }
+
+        return $rows;
     }
 
     /** @param array<string, mixed> $payload */
+    /**
+     * Save the screen, recording any `sanctioned_post_count` on the **master**.
+     *
+     * The change register of 2026-08-27 took that figure out of the form (item 1),
+     * so a payload naming it is now describing the Department Post Mapping rather
+     * than the submission. Translated here rather than at twenty call sites, which
+     * keeps every test below reading as the arithmetic it is about.
+     */
     private function save(array $payload, ?DpcProposal $proposal = null): TestResponse
     {
+        $target = $proposal ?? $this->proposal;
+
+        if (array_key_exists('sanctioned_post_count', $payload)) {
+            $post = $target->promotionToPost;
+
+            if ($post !== null) {
+                $post->forceFill(['sanctioned_strength' => (int) $payload['sanctioned_post_count']])->save();
+            }
+
+            unset($payload['sanctioned_post_count']);
+            $target->refresh();
+        }
+
         return $this->actingAs($this->ao)->put(
-            route('dpc-proposals.working-officers.update', $proposal ?? $this->proposal),
+            route('dpc-proposals.working-officers.update', $target),
             $payload,
         );
     }
@@ -143,11 +209,11 @@ class DpcVacancyCalculationTest extends TestCase
 
     public function test_the_directives_worked_example(): void
     {
-        // Sanctioned 10, imported 7 → Working 7, Total Vacancy 3, Zone 10.
+        // Sanctioned 10, 7 officers in post and 3 chairs empty → Working 7,
+        // Total Vacancy 3, Zone 10.
         $this->save([
             'sanctioned_post_count' => 10,
-            'officers' => $this->officers(7),
-            'vacancies' => $this->split(['clear' => 1, 'from_retirement' => 2]),
+            'officers' => $this->chart(7, 3),
         ])->assertSessionHasNoErrors();
 
         $summary = $this->calculator()->summary($this->proposal->fresh());
@@ -163,13 +229,68 @@ class DpcVacancyCalculationTest extends TestCase
 
     // ------------------------------------------------------- rule 4: the ceiling
 
+    /**
+     * The mandatory verification of 2026-09-06, end to end and in one test:
+     *
+     * create a Department Post through the Admin UI with a Sanctioned Strength →
+     * edit it → confirm the database → run the Vacancy Calculation → confirm the
+     * **updated** figure is the one the engine used. No seeder, no direct SQL.
+     *
+     * This is the assertion that says the Admin UI is now the maintenance source.
+     * Before 2026-09-06 the first step alone was impossible: the form had no field
+     * and the request had no rule, so the post saved with `NULL` and the engine
+     * reported "not recorded" for ever.
+     */
+    public function test_the_admin_ui_is_the_maintenance_source_for_the_vacancy_engine(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(Role::Admin->value);
+
+        // 1–3. Create through the UI with a Sanctioned Strength, and save.
+        $this->actingAs($admin)->post(route('admin.department-posts.store'), [
+            'department_id' => $this->department->id,
+            'name' => 'Establishment Officer',
+            'class_level' => 'I',
+            'promotion_duration_years' => 5,
+            'sanctioned_strength' => 5,
+            'effective_from' => '2026-01-01',
+            'status' => MasterStatus::Active->value,
+        ])->assertSessionHasNoErrors();
+
+        $post = DepartmentPost::query()->where('name', 'Establishment Officer')->sole();
+        $this->assertSame(5, $post->sanctioned_strength, 'Created through the UI, not by a seeder.');
+
+        // 4–5. Edit, update, and confirm the database holds the new value.
+        $this->actingAs($admin)->put(route('admin.department-posts.update', $post), [
+            'department_id' => $this->department->id,
+            'name' => 'Establishment Officer',
+            'class_level' => 'I',
+            'promotion_duration_years' => 5,
+            'sanctioned_strength' => 9,
+            'effective_from' => '2026-01-01',
+            'status' => MasterStatus::Active->value,
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame(9, $post->refresh()->sanctioned_strength);
+        $this->assertDatabaseHas('department_posts', [
+            'id' => $post->id,
+            'sanctioned_strength' => 9,
+        ]);
+
+        // 6. The Vacancy Engine reads the **updated** figure from the mapping.
+        $this->proposal->forceFill(['promotion_to_post_id' => $post->id])->save();
+
+        $breakdown = app(VacancyEngine::class)->calculate($this->proposal->refresh());
+
+        $this->assertSame(9, $breakdown->sanctionedStrength, 'The engine must read the edited value, not the created one.');
+    }
+
     public function test_working_officers_may_not_exceed_the_sanctioned_strength(): void
     {
         $this->save([
             'sanctioned_post_count' => 10,
             'officers' => $this->officers(12),
-            'vacancies' => $this->split(['clear' => 0]),
-        ])->assertSessionHasErrors(['officers' => 'Working Officers cannot exceed the sanctioned strength.']);
+        ])->assertSessionHasErrors('officers');
 
         // Nothing was written: the refusal is not a warning.
         $this->assertSame(0, $this->proposal->fresh()->workingOfficers()->count());
@@ -182,7 +303,6 @@ class DpcVacancyCalculationTest extends TestCase
         $this->save([
             'sanctioned_post_count' => 3,
             'officers' => $this->officers(3),
-            'vacancies' => [],
         ])->assertSessionHasNoErrors();
 
         $summary = $this->calculator()->summary($this->proposal->fresh());
@@ -190,30 +310,307 @@ class DpcVacancyCalculationTest extends TestCase
         $this->assertFalse($summary['exceeds_sanctioned']);
     }
 
-    // --------------------------------------------- rule 6: the classification sum
+    // ------------------------- the quota subtraction (directive of 2026-09-02)
 
-    public function test_the_vacancy_split_must_equal_the_calculated_total(): void
+    /**
+     * The register's own worked example, at both ends of the rule.
+     *
+     * Four sanctioned posts; one officer came by promotion and retires inside the
+     * window, one came on deputation, one came by direct recruitment and stays,
+     * and one chair is empty. Three chairs are therefore free either way — what
+     * changes with the rule is **how many of them are this DPC's**.
+     */
+    public function test_the_promotion_vacancy_is_the_quota_subtraction(): void
     {
-        // The directive's invalid example: calculated 3, split totals 4.
-        $this->save([
-            'sanctioned_post_count' => 10,
-            'officers' => $this->officers(7),
-            'vacancies' => $this->split(['clear' => 2, 'from_retirement' => 2]),
-        ])->assertSessionHasErrors('vacancies');
+        $chart = [
+            ['sn' => 1, 'status' => 'working', 'source' => 'promotion', 'name' => 'DS1', 'dob' => '1966-06-30',
+                'reservation_category_id' => $this->ur->id, 'date_of_retirement' => $this->proposal->dpc_year.'-06-30'],
+            ['sn' => 2, 'status' => 'working', 'source' => 'deputation', 'name' => 'DS2', 'dob' => '1970-08-25',
+                'reservation_category_id' => $this->ur->id],
+            ['sn' => 3, 'status' => 'working', 'source' => 'direct', 'name' => 'DS3', 'dob' => '1971-11-09',
+                'reservation_category_id' => $this->ur->id],
+            ['sn' => 4, 'status' => 'vacant', 'reservation_category_id' => $this->ur->id],
+        ];
 
-        $this->assertStringContainsString(
-            'The sum of all vacancy types must equal the calculated total vacancy.',
-            session('errors')->first('vacancies'),
-        );
+        // 50/50 on four posts: two chairs each. Nobody holds a promotion chair
+        // (the one promotion officer is leaving), so both promotion chairs are
+        // vacant; one direct chair is genuinely held, so one direct chair is not.
+        $this->ruleFor(50.0);
+        $this->save(['sanctioned_post_count' => 4, 'officers' => $chart])->assertSessionHasNoErrors();
+
+        $breakdown = app(VacancyEngine::class)->calculate($this->proposal->refresh());
+
+        $this->assertSame(2, $breakdown->promotionChairs);
+        $this->assertSame(2, $breakdown->directChairs);
+        $this->assertSame(0, $breakdown->promotionChairsHeld);
+        $this->assertSame(1, $breakdown->directChairsHeld);
+        $this->assertSame(1, $breakdown->deputationChairsHeld);
+
+        $this->assertSame(2, $breakdown->promotionVacancy, 'the DPC fills two');
+        $this->assertSame(1, $breakdown->directRecruitmentVacancy, 'and Direct Recruitment one');
+        $this->assertSame(3, $breakdown->totalVacancy);
     }
 
-    public function test_a_split_that_is_short_is_refused_too(): void
+    /**
+     * At 100% promotion every chair is a promotion chair, so every vacancy is the
+     * DPC's — and a `direct` row becomes a contradiction rather than a share.
+     */
+    public function test_a_hundred_percent_promotion_post_has_no_direct_chair(): void
+    {
+        $this->ruleFor(100.0);
+
+        $this->save([
+            'sanctioned_post_count' => 4,
+            'officers' => [
+                ['sn' => 1, 'status' => 'working', 'source' => 'promotion', 'name' => 'DS1', 'dob' => '1971-11-09',
+                    'reservation_category_id' => $this->ur->id],
+                ['sn' => 2, 'status' => 'vacant', 'reservation_category_id' => $this->ur->id],
+                ['sn' => 3, 'status' => 'vacant', 'reservation_category_id' => $this->ur->id],
+                ['sn' => 4, 'status' => 'vacant', 'reservation_category_id' => $this->ur->id],
+            ],
+        ])->assertSessionHasNoErrors();
+
+        $breakdown = app(VacancyEngine::class)->calculate($this->proposal->refresh());
+
+        $this->assertSame(4, $breakdown->promotionChairs);
+        $this->assertSame(0, $breakdown->directChairs);
+        $this->assertSame(3, $breakdown->promotionVacancy);
+        $this->assertSame(0, $breakdown->directRecruitmentVacancy);
+        $this->assertSame(3, $breakdown->totalVacancy);
+        $this->assertFalse($breakdown->quotaOverfilled());
+    }
+
+    /**
+     * A chart that contradicts the rule is reported, not silently absorbed.
+     *
+     * At 100% promotion there are no direct chairs, so an officer recorded as a
+     * direct recruit describes an appointment the rule forbids. It surfaces as a
+     * negative direct vacancy, which the screen states as a data fault.
+     */
+    public function test_a_direct_row_against_a_hundred_percent_promotion_post_is_a_fault(): void
+    {
+        $this->ruleFor(100.0);
+
+        $this->save([
+            'sanctioned_post_count' => 2,
+            'officers' => [
+                ['sn' => 1, 'status' => 'working', 'source' => 'direct', 'name' => 'DS1', 'dob' => '1971-11-09',
+                    'reservation_category_id' => $this->ur->id],
+                ['sn' => 2, 'status' => 'vacant', 'reservation_category_id' => $this->ur->id],
+            ],
+        ])->assertSessionHasNoErrors();
+
+        $summary = $this->calculator()->summary($this->proposal->fresh());
+
+        $this->assertTrue($summary['quota_overfilled']);
+        $this->assertSame(-1, $summary['direct_vacancy']);
+    }
+
+    /**
+     * An officer who came on deputation holds the chair without consuming a
+     * quota, so the chair stays this DPC's to fill.
+     */
+    public function test_a_deputation_officer_consumes_no_quota(): void
+    {
+        $this->ruleFor(100.0);
+
+        $this->save([
+            'sanctioned_post_count' => 2,
+            'officers' => [
+                ['sn' => 1, 'status' => 'working', 'source' => 'deputation', 'name' => 'DS1', 'dob' => '1971-11-09',
+                    'reservation_category_id' => $this->ur->id],
+                ['sn' => 2, 'status' => 'working', 'source' => 'promotion', 'name' => 'DS2', 'dob' => '1972-01-09',
+                    'reservation_category_id' => $this->ur->id],
+            ],
+        ])->assertSessionHasNoErrors();
+
+        $breakdown = app(VacancyEngine::class)->calculate($this->proposal->refresh());
+
+        $this->assertSame(1, $breakdown->deputationChairsHeld);
+        $this->assertSame(1, $breakdown->promotionChairsHeld);
+        $this->assertSame(1, $breakdown->promotionVacancy);
+    }
+
+    /**
+     * Only the promotion quota is stored, because the scoring engine fills seats
+     * from these rows and a Direct Recruitment seat is not this committee's.
+     */
+    public function test_only_the_promotion_quota_is_stored_as_dpc_vacancy(): void
+    {
+        $this->ruleFor(50.0);
+
+        $this->save([
+            'sanctioned_post_count' => 4,
+            'officers' => [
+                ['sn' => 1, 'status' => 'working', 'source' => 'direct', 'name' => 'DS1', 'dob' => '1971-11-09',
+                    'reservation_category_id' => $this->ur->id],
+                ['sn' => 2, 'status' => 'vacant', 'reservation_category_id' => $this->ur->id],
+                ['sn' => 3, 'status' => 'vacant', 'reservation_category_id' => $this->ur->id],
+                ['sn' => 4, 'status' => 'vacant', 'reservation_category_id' => $this->ur->id],
+            ],
+        ])->assertSessionHasNoErrors();
+
+        $breakdown = app(VacancyEngine::class)->calculate($this->proposal->refresh());
+
+        // 2 promotion chairs, none held -> 2 for the DPC. 2 direct chairs, one
+        // held -> 1 for Direct Recruitment. Three chairs free in all.
+        $this->assertSame(2, $breakdown->promotionVacancy);
+        $this->assertSame(1, $breakdown->directRecruitmentVacancy);
+        $this->assertSame(3, $breakdown->totalVacancy);
+
+        $this->assertSame(2, (int) $this->proposal->fresh()->vacancies()->sum('count'));
+        $this->assertTrue($this->calculator()->summary($this->proposal->fresh())['balanced']);
+    }
+
+    /**
+     * The zone is sized on what the DPC fills, not on the whole establishment's
+     * shortfall.
+     */
+    public function test_the_zone_is_sized_on_the_promotion_vacancy(): void
+    {
+        $this->ruleFor(50.0);
+
+        $this->save([
+            'sanctioned_post_count' => 4,
+            'officers' => [
+                ['sn' => 1, 'status' => 'working', 'source' => 'direct', 'name' => 'DS1', 'dob' => '1971-11-09',
+                    'reservation_category_id' => $this->ur->id],
+                ['sn' => 2, 'status' => 'vacant', 'reservation_category_id' => $this->ur->id],
+                ['sn' => 3, 'status' => 'vacant', 'reservation_category_id' => $this->ur->id],
+                ['sn' => 4, 'status' => 'vacant', 'reservation_category_id' => $this->ur->id],
+            ],
+        ])->assertSessionHasNoErrors();
+
+        // Promotion 2, total 3. `2 × 2 + 4 = 8` is the zone for two vacancies;
+        // three would have given 10.
+        $this->assertSame(8, $this->calculator()->requiredSeniorityCount($this->proposal->fresh()));
+    }
+
+    /**
+     * A chart that lists fewer rows than the post is sanctioned for.
+     *
+     * The unlisted chairs still count as vacant — `sanctioned − held` does not
+     * need a row — but nothing can be said about their reservation category, so
+     * the section is reported incomplete rather than quietly classified short.
+     */
+    public function test_a_chart_that_misses_sanctioned_posts_is_incomplete(): void
     {
         $this->save([
             'sanctioned_post_count' => 10,
-            'officers' => $this->officers(7),
-            'vacancies' => $this->split(['clear' => 1]),
-        ])->assertSessionHasErrors('vacancies');
+            'officers' => $this->chart(0, 4),
+        ])->assertSessionHasNoErrors();
+
+        $summary = $this->calculator()->summary($this->proposal->fresh());
+
+        $this->assertTrue($summary['chart_incomplete']);
+        $this->assertSame(10, $summary['total_vacancy'], 'the unlisted chairs are still vacant');
+        $this->assertSame(4, $summary['classified_total'], 'but only the listed ones can be classified');
+
+        $checklist = collect(app(DpcProposalCompletenessService::class)->checklist($this->proposal->fresh()))
+            ->firstWhere('key', 'working_officers');
+
+        $this->assertFalse($checklist['complete']);
+        $this->assertStringContainsString('does not account for every sanctioned post', $checklist['detail']);
+    }
+
+    /**
+     * Register a Recruitment Rule with the given promotion share.
+     */
+    private function ruleFor(float $percentage): void
+    {
+        // `forceDelete`, because the model soft-deletes and the unique
+        // (post_id, version) index counts a trashed row.
+        RecruitmentRule::query()->where('post_id', $this->proposal->promotion_to_post_id)->forceDelete();
+
+        RecruitmentRule::query()->create([
+            'post_id' => $this->proposal->promotion_to_post_id,
+            'version' => 1,
+            'government_order_number' => 'GO/QUOTA/1',
+            'direct_recruitment_pct' => 100 - $percentage,
+            'promotion_recruitment_pct' => $percentage,
+            'effective_from' => '2020-01-01',
+            'status' => MasterStatus::Active->value,
+        ]);
+
+        $this->proposal->forceFill(['recruitment_rule_id' => null])->save();
+    }
+
+    // ------------------------------- rule 6: the classification sum, now derived
+
+    /**
+     * **The invariant survived; the way it is kept changed.**
+     *
+     * The directive's invalid example — calculated 3, split totalling 4 — used to
+     * be a refusal, because the split was typed. Since the business directive of
+     * 2026-09-02 the breakdown is *derived from the chart*, so a disagreeing split
+     * is not something a payload can express. This asserts the stronger property
+     * the derivation buys: whatever the chart says, the two numbers agree.
+     */
+    public function test_the_breakdown_cannot_disagree_with_the_total(): void
+    {
+        // Each pair accounts for all ten sanctioned posts. A chart that lists
+        // fewer is incomplete rather than unbalanced — covered separately below.
+        foreach ([[7, 3], [5, 5], [10, 0], [0, 10]] as [$working, $vacant]) {
+            $this->save([
+                'sanctioned_post_count' => 10,
+                'officers' => $this->chart($working, $vacant),
+            ])->assertSessionHasNoErrors();
+
+            $summary = $this->calculator()->summary($this->proposal->fresh());
+
+            $this->assertSame(
+                $summary['total_vacancy'],
+                $summary['classified_total'],
+                "chart of {$working} working and {$vacant} vacant should balance",
+            );
+            $this->assertTrue($summary['balanced']);
+        }
+    }
+
+    /**
+     * A posted `vacancies` array is ignored rather than trusted.
+     *
+     * The field is gone from the form, so this is about the wire: a crafted
+     * payload must not be able to put a figure into the breakdown that the chart
+     * does not evidence.
+     */
+    public function test_a_crafted_vacancies_payload_is_ignored(): void
+    {
+        $this->save([
+            'sanctioned_post_count' => 10,
+            'officers' => $this->chart(7, 3),
+            'vacancies' => [
+                ['vacancy_type_id' => $this->clear->id, 'reservation_category_id' => $this->ur->id, 'count' => 99],
+            ],
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame(3, (int) $this->proposal->fresh()->vacancies()->sum('count'));
+    }
+
+    /**
+     * The derived rows carry the ground each vacancy arose on, and the category it
+     * falls to — which is what the reserved-category analysis reads.
+     */
+    public function test_the_derived_rows_name_their_ground_and_category(): void
+    {
+        $this->save([
+            'sanctioned_post_count' => 4,
+            'officers' => [
+                ['sn' => 1, 'name' => 'DS1', 'dob' => '1972-03-20', 'reservation_category_id' => $this->ur->id, 'date_of_retirement' => $this->proposal->dpc_year.'-06-30'],
+                ['sn' => 2, 'name' => 'DS2', 'dob' => '1973-03-20', 'reservation_category_id' => $this->ur->id],
+                ['sn' => 3, 'status' => DpcWorkingOfficer::STATUS_VACANT, 'reservation_category_id' => $this->ur->id],
+                ['sn' => 4, 'status' => DpcWorkingOfficer::STATUS_VACANT, 'reservation_category_id' => $this->ur->id],
+            ],
+        ])->assertSessionHasNoErrors();
+
+        $rows = $this->proposal->fresh()->vacancies()->with('vacancyType')->get()
+            ->mapWithKeys(fn ($row): array => [$row->vacancyType->code => $row->count]);
+
+        // The retiring officer came by promotion (the default), so his chair is
+        // freed `from_promotion`; the two empty chairs are `clear`.
+        $this->assertSame(2, $rows['clear']);
+        $this->assertSame(1, $rows['from_promotion']);
+        $this->assertSame(3, $this->calculator()->summary($this->proposal->fresh())['total_vacancy']);
     }
 
     public function test_a_zero_in_one_type_is_fine_as_long_as_the_total_matches(): void
@@ -221,8 +618,7 @@ class DpcVacancyCalculationTest extends TestCase
         // The directive's valid example, with Deputation at 0.
         $this->save([
             'sanctioned_post_count' => 10,
-            'officers' => $this->officers(7),
-            'vacancies' => $this->split(['clear' => 3, 'from_retirement' => 0]),
+            'officers' => $this->chart(7, 3),
         ])->assertSessionHasNoErrors();
 
         $this->assertTrue($this->calculator()->summary($this->proposal->fresh())['balanced']);
@@ -241,8 +637,7 @@ class DpcVacancyCalculationTest extends TestCase
     {
         $this->save([
             'sanctioned_post_count' => 10,
-            'officers' => $this->officers(7),
-            'vacancies' => $this->split(['clear' => 2, 'from_retirement' => 1]),
+            'officers' => $this->chart(7, 3),
         ])->assertSessionHasNoErrors();
 
         $proposal = $this->proposal->fresh();
@@ -319,13 +714,24 @@ class DpcVacancyCalculationTest extends TestCase
         ], range(1, $count));
     }
 
+    /**
+     * Arrange a proposal whose Total Vacancy is exactly `$vacancy`.
+     *
+     * Every sanctioned post is left vacant and no officer is in post, so there are
+     * no retirements or deputations to add — Total Vacancy is the sanctioned
+     * strength, which is what the zone tests below reason about.
+     */
     private function withVacancyOf(int $vacancy): void
     {
-        app(DpcProposalService::class)->saveVacancies(
-            $this->proposal,
-            $vacancy,
-            $this->split(['clear' => $vacancy]),
-        );
+        $post = $this->proposal->promotionToPost;
+
+        if ($post !== null) {
+            $post->forceFill(['sanctioned_strength' => $vacancy])->save();
+        }
+
+        $service = app(DpcProposalService::class);
+        $service->saveWorkingOfficers($this->proposal->refresh(), $this->chart(0, $vacancy));
+        $service->saveVacancies($this->proposal->refresh());
     }
 
     public function test_a_seniority_list_matching_the_zone_is_accepted(): void
@@ -384,14 +790,15 @@ class DpcVacancyCalculationTest extends TestCase
     public function test_an_unbalanced_proposal_cannot_be_submitted(): void
     {
         // Reached by editing sections in an order no single request validates:
-        // save a balanced set, then lower the sanctioned strength on its own.
+        // save a chart that fits, then lower the sanctioned strength on its own.
         $this->save([
             'sanctioned_post_count' => 10,
-            'officers' => $this->officers(7),
-            'vacancies' => $this->split(['clear' => 3]),
+            'officers' => $this->chart(7, 3),
         ])->assertSessionHasNoErrors();
 
-        $this->proposal->forceFill(['sanctioned_post_count' => 5])->saveQuietly();
+        // Supersede the strength *after* the chart was saved: the gate must judge
+        // the mapping, not the snapshot the proposal is carrying.
+        $this->proposal->promotionToPost->forceFill(['sanctioned_strength' => 5])->save();
 
         $missing = app(DpcProposalCompletenessService::class)->missingSections($this->proposal->fresh());
 
@@ -402,12 +809,12 @@ class DpcVacancyCalculationTest extends TestCase
     {
         $this->save([
             'sanctioned_post_count' => 10,
-            'officers' => $this->officers(7),
-            'vacancies' => $this->split(['clear' => 3]),
+            'officers' => $this->chart(7, 3),
         ])->assertSessionHasNoErrors();
 
-        // Sanctioned strength cut below the officer chart by a later edit.
-        $this->proposal->forceFill(['sanctioned_post_count' => 4])->saveQuietly();
+        // Sanctioned strength cut below the officer chart by a later Government
+        // Order. The gate reads the mapping, so it notices.
+        $this->proposal->promotionToPost->forceFill(['sanctioned_strength' => 4])->save();
 
         $checklist = collect(app(DpcProposalCompletenessService::class)->checklist($this->proposal->fresh()))
             ->firstWhere('key', 'working_officers');
@@ -435,11 +842,10 @@ class DpcVacancyCalculationTest extends TestCase
         Config::set('dpc.vacancy.enforce_sanctioned_ceiling', false);
         Config::set('dpc.vacancy.enforce_classification_balance', false);
 
-        // 12 officers against a sanctioned 10, and a split matching neither.
+        // A 12-row chart against a sanctioned 10.
         $this->save([
             'sanctioned_post_count' => 10,
             'officers' => $this->officers(12),
-            'vacancies' => $this->split(['clear' => 1]),
         ])->assertSessionHasNoErrors();
 
         Config::set('dpc.vacancy.enforce_seniority_matches_zone', false);
@@ -456,8 +862,7 @@ class DpcVacancyCalculationTest extends TestCase
     {
         $this->save([
             'sanctioned_post_count' => 10,
-            'officers' => $this->officers(7),
-            'vacancies' => $this->split(['clear' => 3]),
+            'officers' => $this->chart(7, 3),
         ]);
 
         $response = $this->actingAs($this->ao)
@@ -467,14 +872,37 @@ class DpcVacancyCalculationTest extends TestCase
         $response->assertSee('Working Officers');
         $response->assertSee('Total Vacancy');
         $response->assertSee('Zone of Consideration');
-        // Read-only, so the officer cannot type over a derived number.
-        $response->assertSee('id="derived_working"', escape: false);
-        $response->assertSee('id="derived_vacancy"', escape: false);
+
+        /*
+         | Every vacancy figure is *stated*, never editable.
+         |
+         | Stronger than the read-only inputs this used to assert: since the change
+         | register of 2026-08-27 the nine summary figures are table cells rather
+         | than disabled fields, so there is no control to type over and nothing to
+         | post. The zone remains a read-only input beside them.
+         |
+         | Asserting the **absence** of the old input is what pins item 1: a
+         | sanctioned-strength box reappearing on this screen is the regression that
+         | would put the figure back in the officer's hands.
+         */
+        $response->assertSee('id="vacancy-summary"', escape: false);
         $response->assertSee('id="derived_zone"', escape: false);
+        $response->assertDontSee('name="sanctioned_post_count"', escape: false);
+
+        /*
+         | One readonly control, not three.
+         |
+         | This asserted three when Working Officers, Total Vacancy and the Zone were
+         | each a disabled input. Two of them are now table cells — a stronger
+         | guarantee, because a cell cannot be typed over at all and posts nothing —
+         | so the zone is the only readonly field left. Kept as an exact count for
+         | the reason it always was: a fourth readonly control appearing here would
+         | mean a derived figure had been turned back into a form field.
+         */
         $this->assertSame(
-            3,
+            1,
             substr_count((string) $response->getContent(), 'readonly'),
-            'all three derived fields must be readonly, and nothing else on this screen should be',
+            'the zone is the only readonly control; the vacancy figures are stated, not fielded',
         );
     }
 

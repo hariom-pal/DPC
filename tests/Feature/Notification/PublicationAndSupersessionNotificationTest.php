@@ -47,18 +47,16 @@ class PublicationAndSupersessionNotificationTest extends TestCase
             'code' => 'SE', 'name' => 'School Education Department', 'status' => 'active',
         ]);
 
-        $this->ao = User::factory()->create(['department_id' => $this->department->id]);
-        $this->ao->assignRole(Role::AuthorizedOfficer->value);
+        $this->ao = User::factory()->assignedTo($this->department->id, Role::AuthorizedOfficer)->create();
 
-        $this->ah = User::factory()->create(['department_id' => $this->department->id]);
-        $this->ah->assignRole(Role::AdministrativeHead->value);
+        $this->ah = User::factory()->assignedTo($this->department->id, Role::AdministrativeHead)->create();
     }
 
     public function test_publication_notifies_both_departmental_roles(): void
     {
         ProceedingDocumentsPublished::dispatch(
             'proceeding-uuid-1', 'proposal-uuid-1', 'run-uuid-1',
-            ['doc-uuid-1', 'doc-uuid-2'], $this->department->id, 'SE202600001',
+            ['doc-uuid-1', 'doc-uuid-2'], $this->department->id, 'DPC-2026-SE-0001',
         );
 
         $this->assertSame(2, UserNotification::query()->count());
@@ -66,7 +64,7 @@ class PublicationAndSupersessionNotificationTest extends TestCase
         $notification = UserNotification::query()->firstOrFail();
 
         $this->assertSame(
-            'The signed documents for DPC SE202600001 have been released',
+            'The signed documents for DPC DPC-2026-SE-0001 have been released',
             $notification->title,
         );
         $this->assertStringContainsString('2 document(s) published', (string) $notification->body);
@@ -92,10 +90,10 @@ class PublicationAndSupersessionNotificationTest extends TestCase
         $notification = UserNotification::query()->firstOrFail();
 
         $this->assertSame(
-            'DPC SE202600001 has been superseded by Review DPC SE202600002',
+            'DPC DPC-2026-SE-0001 has been superseded by Review DPC DPC-2026-SE-0002',
             $notification->title,
         );
-        $this->assertStringContainsString('SE202600001', (string) $notification->body);
+        $this->assertStringContainsString('DPC-2026-SE-0001', (string) $notification->body);
     }
 
     /**
@@ -135,11 +133,10 @@ class PublicationAndSupersessionNotificationTest extends TestCase
         $other = Department::query()->create([
             'code' => 'HE', 'name' => 'Higher Education', 'status' => 'active',
         ]);
-        $outsider = User::factory()->create(['department_id' => $other->id]);
-        $outsider->assignRole(Role::AuthorizedOfficer->value);
+        $outsider = User::factory()->assignedTo($other->id, Role::AuthorizedOfficer)->create();
 
         ProceedingDocumentsPublished::dispatch(
-            'p-uuid', 'pr-uuid', null, ['d-uuid'], $this->department->id, 'SE202600001',
+            'p-uuid', 'pr-uuid', null, ['d-uuid'], $this->department->id, 'DPC-2026-SE-0001',
         );
         $this->supersede();
 
@@ -153,8 +150,8 @@ class PublicationAndSupersessionNotificationTest extends TestCase
     {
         DpcSupersededByReview::dispatch(
             'chain-uuid-1', 1,
-            'original-proposal-uuid', 'SE202600001',
-            'review-proposal-uuid', 'SE202600002',
+            'original-proposal-uuid', 'DPC-2026-SE-0001',
+            'review-proposal-uuid', 'DPC-2026-SE-0002',
             $this->department->id,
         );
     }

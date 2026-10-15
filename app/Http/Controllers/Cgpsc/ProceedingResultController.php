@@ -53,7 +53,7 @@ class ProceedingResultController extends Controller
     {
         $this->authorize('view', $proceeding);
 
-        $proceeding->load(['proposal.department', 'proposal.postFromCadre', 'proposal.postToCadre']);
+        $proceeding->load(['proposal.department', 'proposal.promotionFromPost', 'proposal.promotionToPost']);
 
         // An approved proceeding always shows the run it attested to, never
         // whatever was calculated afterwards.

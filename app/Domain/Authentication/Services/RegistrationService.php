@@ -7,9 +7,9 @@ namespace App\Domain\Authentication\Services;
 use App\Domain\Authentication\Events\CredentialsIssued;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Department\Models\Department;
+use App\Domain\UserManagement\Services\DepartmentAssignmentService;
 use App\Enums\DepartmentStatus;
 use App\Enums\Role;
-use App\Enums\UserLevel;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -18,14 +18,21 @@ use Illuminate\Support\Str;
  * Department registration (PPT S5–S6).
  *
  * Registers a department and provisions its two-tier accounts — Authorized
- * Officer (Level-1) and Administrative Head (Level-2) — then issues login
- * credentials (queued, via the CredentialsIssued event). Each officer has
- * their own official email and mobile; the department contact email is stored
- * separately on the department. Officers log in with email or mobile and must
- * change the system-issued password on first login.
+ * Officer and Administrative Head — then issues login credentials (queued, via
+ * the CredentialsIssued event). Each officer has their own official email and
+ * mobile; the department contact email is stored separately on the department.
+ * Officers log in with email or mobile and must change the system-issued
+ * password on first login.
+ *
+ * The two tiers used to be recorded twice — as `users.level` (1 and 2) and as a
+ * role — and `level` was dropped on 2026-08-24 because two columns asserting one
+ * fact is how they come to disagree. The role, held on the officer's assignment,
+ * is now the only statement of which tier this is.
  */
 class RegistrationService
 {
+    public function __construct(private readonly DepartmentAssignmentService $assignments) {}
+
     /**
      * Register the department, provision AO + AH accounts, issue credentials.
      * Returns the Authorized Officer (registrant) so the caller can start
@@ -52,23 +59,32 @@ class RegistrationService
                 'designation_id' => $data['ao_designation_id'],
                 'mobile' => $data['ao_mobile'],
                 'email' => $data['ao_email'],
-            ], UserLevel::AuthorizedOfficer, Role::AuthorizedOfficer);
+            ], Role::AuthorizedOfficer);
 
-            $ah = $this->createOfficer($department, [
+            $this->createOfficer($department, [
                 'name' => $data['ah_name'],
                 'designation_id' => $data['ah_designation_id'],
                 'mobile' => $data['ah_mobile'],
                 'email' => $data['ah_email'],
-            ], UserLevel::AdministrativeHead, Role::AdministrativeHead);
+            ], Role::AdministrativeHead);
 
             return $ao;
         });
     }
 
     /**
+     * Provision an officer's account and post them to the department.
+     *
+     * **The posting is an assignment, not a column** (change item 2, 2026-08-24).
+     * The account carries no department of its own, so `assign()` is what makes
+     * this officer an Authorized Officer *of Higher Education*, and it is also
+     * what grants the role — which is why nothing here calls `assignRole()`.
+     * Registration is the officer's first posting; a later transfer is the same
+     * operation through the same service, and that is the point.
+     *
      * @param  array{name:string,designation_id:int,mobile:string,email:string}  $attributes
      */
-    private function createOfficer(Department $department, array $attributes, UserLevel $level, Role $role): User
+    private function createOfficer(Department $department, array $attributes, Role $role): User
     {
         $password = Str::password(12);
 
@@ -77,14 +93,18 @@ class RegistrationService
             'designation_id' => $attributes['designation_id'],
             'mobile' => $attributes['mobile'],
             'email' => $attributes['email'],
-            'level' => $level->value,
             'is_active' => true,
             'must_change_password' => true,
         ]);
         $user->password = Hash::make($password);
-        $user->department()->associate($department);
         $user->save();
-        $user->assignRole($role->value);
+
+        $this->assignments->assign(
+            $user,
+            $department,
+            $role,
+            remarks: 'Provisioned by department registration (S6).',
+        );
 
         CredentialsIssued::dispatch($user, $password);
 

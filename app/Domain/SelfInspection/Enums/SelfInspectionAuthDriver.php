@@ -11,17 +11,22 @@ namespace App\Domain\SelfInspection\Enums;
  * is a configuration change rather than a code change:
  * `dpc.self_inspection.authentication.driver`.
  *
- * Only {@see self::IdentityFactors} is buildable from what exists. The other two
- * need data or a workflow the project does not have, and each returns a
- * structured *Pending Business Decision (BD-19)* rather than a broken screen or
- * an invented mechanism.
+ * **{@see self::Otp} became buildable on 2026-09-07**, when the officer snapshots
+ * gained a mobile number. It had been blocked on exactly one thing — *"none of the
+ * three officer-snapshot tables carries a contact channel"* — and that is no longer
+ * true. It is now the default: an officer proves they hold the number their
+ * department recorded for them, which is a stronger claim than reciting three facts
+ * that circulate on a seniority list.
+ *
+ * {@see self::Account} still needs a workflow neither deck has, and returns a
+ * structured *Pending Business Decision (BD-19)* rather than an invented mechanism.
  */
 enum SelfInspectionAuthDriver: string
 {
-    /** Facts from the department's own snapshot. Default. */
+    /** Facts from the department's own snapshot. */
     case IdentityFactors = 'identity_factors';
 
-    /** OTP to the officer — needs a contact channel no snapshot table carries. */
+    /** A one-time code to the mobile number the department recorded. Default. */
     case Otp = 'otp';
 
     /** A provisioned Individual account — a workflow in neither deck. */
@@ -35,7 +40,16 @@ enum SelfInspectionAuthDriver: string
 
     public function isImplemented(): bool
     {
-        return $this === self::IdentityFactors;
+        return $this === self::IdentityFactors || $this === self::Otp;
+    }
+
+    /**
+     * Whether this driver proves possession of a contact channel rather than
+     * knowledge of facts about the officer.
+     */
+    public function usesOtp(): bool
+    {
+        return $this === self::Otp;
     }
 
     /**
@@ -44,11 +58,7 @@ enum SelfInspectionAuthDriver: string
     public function unavailableBecause(): string
     {
         return match ($this) {
-            self::IdentityFactors => '',
-            self::Otp => 'An OTP needs a mobile number or an email address for the officer. '
-                .'None of the three officer-snapshot tables carries either, deliberately — they are '
-                .'proposal-time snapshots with no link to a live employee record, which is what stops '
-                .'a historical proposal changing when upstream data does.',
+            self::IdentityFactors, self::Otp => '',
             self::Account => 'An Individual account has to be created and issued to the officer by '
                 .'somebody. No screen in either deck does that, and inventing the workflow would decide '
                 .'who owns an officer\'s credentials.',

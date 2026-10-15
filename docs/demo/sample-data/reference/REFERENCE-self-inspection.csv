@@ -1,0 +1,6 @@
+﻿FIELD,VALUE,NOTE
+Mobile,9425020004,"driver = otp (shipped default) - Smt. Kavita Bhaskar, SN 4"
+OTP,123456,DEMO_OTP - local only
+Name,Smt. Kavita Bhaskar,only if the driver is set to identity_factors
+Date of Birth,28-02-1976,only if the driver is set to identity_factors
+Date of Joining Promotion From Post,12-03-2019,only if the driver is set to identity_factors

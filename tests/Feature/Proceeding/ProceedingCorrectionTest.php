@@ -11,7 +11,7 @@ use App\Domain\Department\Models\Department;
 use App\Domain\Dpc\Enums\DpcProposalStatus;
 use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\Dpc\Models\DpcProposal;
-use App\Domain\Master\Models\Cadre;
+use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\DpcType;
 use App\Domain\Master\Models\ReservationCategory;
 use App\Domain\Proceeding\Enums\CorrectableField;
@@ -29,6 +29,7 @@ use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use OwenIt\Auditing\Models\Audit;
+use Tests\Concerns\SeatsDpcCommittees;
 use Tests\TestCase;
 
 /**
@@ -38,6 +39,7 @@ use Tests\TestCase;
 class ProceedingCorrectionTest extends TestCase
 {
     use RefreshDatabase;
+    use SeatsDpcCommittees;
 
     private User $chairman;
 
@@ -59,20 +61,20 @@ class ProceedingCorrectionTest extends TestCase
             'code' => 'HE', 'name' => 'Higher Education Department', 'status' => 'active',
         ]);
 
-        $this->chairman = User::factory()->create(['department_id' => null, 'name' => 'Hon. Chairman']);
+        $this->chairman = User::factory()->create(['name' => 'Hon. Chairman']);
         $this->chairman->assignRole(Role::Chairman->value);
 
-        $this->memberOne = User::factory()->create(['department_id' => null, 'name' => 'Member One']);
+        $this->memberOne = User::factory()->create(['name' => 'Member One']);
         $this->memberOne->assignRole(Role::Member->value);
 
-        $this->memberTwo = User::factory()->create(['department_id' => null, 'name' => 'Member Two']);
+        $this->memberTwo = User::factory()->create(['name' => 'Member Two']);
         $this->memberTwo->assignRole(Role::Member->value);
 
-        $postFrom = Cadre::query()->create([
+        $postFrom = DepartmentPost::query()->create([
             'department_id' => $department->id, 'name' => 'Under Secretary',
             'class_level' => 'I', 'status' => 'active',
         ]);
-        $postTo = Cadre::query()->create([
+        $postTo = DepartmentPost::query()->create([
             'department_id' => $department->id, 'name' => 'Deputy Secretary',
             'class_level' => 'I', 'status' => 'active',
         ]);
@@ -80,17 +82,24 @@ class ProceedingCorrectionTest extends TestCase
         $this->proposal = DpcProposal::query()->create([
             'department_id' => $department->id,
             'dpc_type_id' => DpcType::query()->where('code', 'fresh')->firstOrFail()->id,
-            'post_to_cadre_id' => $postTo->id,
-            'post_from_cadre_id' => $postFrom->id,
+            'promotion_to_post_id' => $postTo->id,
+            'promotion_from_post_id' => $postFrom->id,
             'proposal_date' => '2026-06-25',
             'status' => DpcProposalStatus::Approved->value,
-            'dpc_code' => 'HE202600001',
+            'dpc_code' => 'DPC-2026-HE-0001',
             'forwarded_at' => now(),
         ]);
 
         // US3 from the PPT's own worked example (S33): six CR grades whose
         // five most recent sum to 14, and no tribal-area service recorded.
         $this->seedUs3();
+
+        /*
+         | Seated before allotting: a DPC is allotted to a serving member of its own
+         | committee (business, 2026-09-06), and the qualification is committee
+         | membership rather than a Commission role (correction, 2026-09-07).
+         */
+        $this->seatCommittee($this->proposal);
 
         app(AllotmentService::class)->allot(
             $this->proposal->fresh(), $this->memberOne, $this->chairman, request(), Carbon::parse('2026-07-10'),

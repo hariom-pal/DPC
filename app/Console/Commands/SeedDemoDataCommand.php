@@ -155,7 +155,9 @@ class SeedDemoDataCommand extends Command
 
         $departmentCodes = Department::query()->pluck('code', 'id');
 
-        foreach (User::query()->with('roles')->orderBy('id')->get() as $user) {
+        // `activeAssignment` rather than a `department_id` column since change
+        // item 2 — the department is the officer's live posting.
+        foreach (User::query()->with(['roles', 'activeAssignment'])->orderBy('id')->get() as $user) {
             $role = $user->getRoleNames()->first() ?? '—';
             $department = $departmentCodes[$user->department_id] ?? null;
 
@@ -192,7 +194,7 @@ class SeedDemoDataCommand extends Command
             $label = in_array($proposal->id, $reviewIds, true) ? 'Review DPC' : 'DPC';
 
             $rows[] = [
-                $label.' — '.$proposal->postToCadre->name,
+                $label.' — '.$proposal->promotionToPost->name,
                 (string) $proposal->dpc_code,
             ];
         }

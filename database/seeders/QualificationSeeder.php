@@ -13,7 +13,7 @@ use Illuminate\Database\Seeder;
  * The Qualification master's starting list.
  *
  * Upserts on `code`, so this is safe to re-run and safe to run after the
- * migration that introduced `recruitment_rule_feeders.qualification_id` — that
+ * migration that introduced `recruitment_rule_sources.qualification_id` — that
  * migration seeds the same catalogue itself, because its backfill needs
  * something to match against before seeders have run.
  *

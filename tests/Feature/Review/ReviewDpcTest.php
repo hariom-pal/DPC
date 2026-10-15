@@ -56,10 +56,7 @@ class ReviewDpcTest extends TestCase
         $otherDepartment = Department::query()->create([
             'code' => 'FI', 'name' => 'Finance Department', 'status' => 'active',
         ]);
-        $this->authorizedOfficerTwo = User::factory()->create([
-            'name' => 'Other AO', 'department_id' => $otherDepartment->id,
-        ]);
-        $this->authorizedOfficerTwo->assignRole(Role::AuthorizedOfficer->value);
+        $this->authorizedOfficerTwo = User::factory()->assignedTo($otherDepartment->id, Role::AuthorizedOfficer)->create(['name' => 'Other AO']);
     }
 
     // ----------------------------------------------------------------- helpers
@@ -107,7 +104,7 @@ class ReviewDpcTest extends TestCase
     {
         $review->forceFill([
             'status' => DpcProposalStatus::Approved->value,
-            'dpc_code' => 'HE202600002',
+            'dpc_code' => 'DPC-2026-HE-0002',
             'forwarded_at' => now(),
         ])->saveQuietly();
 
@@ -212,13 +209,40 @@ class ReviewDpcTest extends TestCase
         // vacancy, so the sanctioned strength has to be one above the officer
         // chart — computed rather than hardcoded, so adding an officer to the
         // fixture cannot silently unbalance this test.
-        $sanctioned = $this->proposal->workingOfficers()->count() + 1;
-        $this->proposal->forceFill(['sanctioned_post_count' => $sanctioned])->saveQuietly();
+        /*
+         | The sanctioned strength is the **mapping's** since the change register of
+         | 2026-08-27 (item 1), and the completeness gate reads it there — so setting
+         | the snapshot on the proposal no longer arranges anything. Recorded on the
+         | master, which the review inherits by pointing at the same post.
+         */
+        /*
+         | The chart accounts for every sanctioned post since the business directive
+         | of 2026-09-02, so the strength is the chart's own length — the old
+         | `count + 1` assumed the vacancy was the gap between the two, which is no
+         | longer how it is stated.
+         */
+        $sanctioned = $this->proposal->workingOfficers()->count();
+        $this->proposal->promotionToPost->forceFill(['sanctioned_strength' => $sanctioned])->save();
 
         $this->concludeOriginal();
         $review = $this->raise();
 
-        $this->assertSame($sanctioned, $review->sanctioned_post_count);
+        /*
+         | Two different guarantees, and since 2026-08-27 they have two different
+         | sources.
+         |
+         | The **snapshot** is copied from the original, because that is what the
+         | original ran under and a copy is meant to start from its data. The
+         | **completeness gate** reads the Department Post Mapping, because that is
+         | where the register put the figure — so a review is judged against the
+         | strength in force, not against an inherited number.
+         */
+        $this->assertSame(
+            $this->proposal->fresh()->sanctioned_post_count,
+            $review->sanctioned_post_count,
+            'the review inherits the original\'s snapshot',
+        );
+
         $this->assertNotContains(
             'Working Officers & Vacancies (S16)',
             app(DpcProposalCompletenessService::class)->missingSections($review->fresh()),
@@ -237,8 +261,20 @@ class ReviewDpcTest extends TestCase
      */
     public function test_a_review_inherits_a_balanced_vacancy_and_zone(): void
     {
-        $sanctioned = $this->proposal->workingOfficers()->count() + 1;
-        $this->proposal->forceFill(['sanctioned_post_count' => $sanctioned])->saveQuietly();
+        /*
+         | The sanctioned strength is the **mapping's** since the change register of
+         | 2026-08-27 (item 1), and the completeness gate reads it there — so setting
+         | the snapshot on the proposal no longer arranges anything. Recorded on the
+         | master, which the review inherits by pointing at the same post.
+         */
+        /*
+         | The chart accounts for every sanctioned post since the business directive
+         | of 2026-09-02, so the strength is the chart's own length — the old
+         | `count + 1` assumed the vacancy was the gap between the two, which is no
+         | longer how it is stated.
+         */
+        $sanctioned = $this->proposal->workingOfficers()->count();
+        $this->proposal->promotionToPost->forceFill(['sanctioned_strength' => $sanctioned])->save();
 
         $this->concludeOriginal();
         $review = $this->raise()->fresh();
@@ -254,7 +290,7 @@ class ReviewDpcTest extends TestCase
         $this->assertFalse($copy['exceeds_sanctioned']);
     }
 
-    public function test_the_review_is_a_draft_of_type_review_with_no_dpc_id(): void
+    public function test_the_review_is_a_draft_of_type_review_with_its_own_number(): void
     {
         // A Review inherits data, never decisions.
         $this->concludeOriginal();
@@ -265,7 +301,17 @@ class ReviewDpcTest extends TestCase
             DpcType::query()->where('code', 'review')->firstOrFail()->id,
             $review->dpc_type_id,
         );
-        $this->assertNull($review->dpc_code);
+        /*
+         | Change item 19: a Review is a *new* promotion exercise, so it carries a
+         | new DPC Number of its own from the moment it is raised — not the
+         | original's, and not none. Item 18's "the number never changes" governs
+         | corrections within one exercise; a Review supersedes a concluded DPC and
+         | is therefore a different exercise.
+         */
+        $this->assertNotNull($review->dpc_code);
+        $this->assertNotSame($this->proposal->dpc_code, $review->dpc_code);
+        $this->assertSame(1, $review->revision_number);
+
         $this->assertNull($review->approved_at);
         $this->assertNull($review->signature_id);
         $this->assertSame($this->proposal->id, $review->original_dpc_proposal_id);
@@ -466,7 +512,7 @@ class ReviewDpcTest extends TestCase
         $this->assertSame(1, $p['review_number']);
         $this->assertNotEmpty($p['chain_uuid']);
         $this->assertNotEmpty($p['review_link_uuid']);
-        $this->assertSame('HE202600001', $p['original_dpc_code']);
+        $this->assertSame('DPC-2026-HE-0001', $p['original_dpc_code']);
         $this->assertSame('2026-06-25', $p['original_proposal_date']);
         $this->assertSame('2026-08-20', $p['review_proposal_date']);
         $this->assertEqualsCanonicalizing(['wrong_cr', 'tribal_service'], $p['reasons']);
@@ -540,7 +586,7 @@ class ReviewDpcTest extends TestCase
             ->get(route('dpc-proposals.reviews.create'))
             ->assertOk()
             ->assertSee('Review DPC')
-            ->assertSee('HE202600001')
+            ->assertSee('DPC-2026-HE-0001')
             ->assertSee('Reason for Review DPC')
             // The grounds must be **named**, not coded. This screen asserted
             // only its own headings, so a label reading `name_omitted` passed
@@ -625,7 +671,7 @@ class ReviewDpcTest extends TestCase
             ->get(route('dpc-proposals.reviews.chain', $review))
             ->assertOk()
             ->assertSee('Review Chain')
-            ->assertSee('HE202600001');
+            ->assertSee('DPC-2026-HE-0001');
     }
 
     /**

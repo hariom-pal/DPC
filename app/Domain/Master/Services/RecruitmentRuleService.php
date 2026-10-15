@@ -30,12 +30,12 @@ class RecruitmentRuleService
     public function create(array $data, array $feeders, ?UploadedFile $document): RecruitmentRule
     {
         return DB::transaction(function () use ($data, $feeders, $document): RecruitmentRule {
-            $cadreId = (int) $data['cadre_id'];
+            $postId = (int) $data['post_id'];
             $rule = new RecruitmentRule($data);
-            $rule->version = $this->nextVersion($cadreId);
+            $rule->version = $this->nextVersion($postId);
 
             if ($document !== null) {
-                [$rule->go_document_disk, $rule->go_document_path] = $this->storeDocument($cadreId, $rule->version, $document);
+                [$rule->go_document_disk, $rule->go_document_path] = $this->storeDocument($postId, $rule->version, $document);
             }
 
             $rule->save();
@@ -56,11 +56,11 @@ class RecruitmentRuleService
             $rule->fill($data);
 
             if ($document !== null) {
-                [$rule->go_document_disk, $rule->go_document_path] = $this->storeDocument((int) $rule->cadre_id, $rule->version, $document);
+                [$rule->go_document_disk, $rule->go_document_path] = $this->storeDocument((int) $rule->post_id, $rule->version, $document);
             }
 
             $rule->save();
-            $rule->feeders()->delete();
+            $rule->promotionSources()->delete();
             $this->syncFeeders($rule, $feeders);
             $this->timeline->record('recruitment_rule.updated', $rule, "Recruitment rule v{$rule->version} updated");
 
@@ -75,15 +75,28 @@ class RecruitmentRuleService
     {
         return DB::transaction(function () use ($rule): RecruitmentRule {
             $clone = $rule->replicate(['version', 'status', 'go_document_disk', 'go_document_path']);
-            $clone->version = $this->nextVersion((int) $rule->cadre_id);
+            $clone->version = $this->nextVersion((int) $rule->post_id);
             $clone->status = MasterStatus::Draft;
             $clone->save();
 
-            foreach ($rule->feeders as $feeder) {
-                $clone->feeders()->create($feeder->only([
-                    'feeder_cadre_id', 'promotion_percentage', 'min_experience_years',
-                    'min_experience_unit', 'qualification_id', 'min_qualification', 'sort_order',
+            foreach ($rule->promotionSources as $feeder) {
+                $copy = $clone->promotionSources()->create($feeder->only([
+                    'promotion_from_post_id', 'promotion_percentage', 'min_experience_years',
+                    'min_experience_unit', 'min_qualification', 'sort_order',
                 ]));
+
+                /*
+                 | The accepted qualifications travel with the version (change
+                 | register of 2026-08-26, item 11). They are a pivot rather than a
+                 | column, so `replicate()` and `only()` cannot carry them — a new
+                 | version that silently lost its qualification list would be a rule
+                 | that had quietly stopped requiring a degree.
+                 */
+                $copy->qualifications()->attach(
+                    $feeder->qualifications->mapWithKeys(fn ($qualification, $index): array => [
+                        $qualification->id => ['sort_order' => $index],
+                    ])->all(),
+                );
             }
 
             $this->timeline->record('recruitment_rule.versioned', $clone, "New version v{$clone->version} cloned from v{$rule->version}");
@@ -98,18 +111,18 @@ class RecruitmentRuleService
         $rule->delete();
     }
 
-    private function nextVersion(int $cadreId): int
+    private function nextVersion(int $postId): int
     {
-        return (int) RecruitmentRule::query()->where('cadre_id', $cadreId)->max('version') + 1;
+        return (int) RecruitmentRule::query()->where('post_id', $postId)->max('version') + 1;
     }
 
     /**
      * @return array{0:string,1:string}
      */
-    private function storeDocument(int $cadreId, int $version, UploadedFile $document): array
+    private function storeDocument(int $postId, int $version, UploadedFile $document): array
     {
         $disk = (string) config('dpc.documents.disk');
-        $path = "recruitment-rules/{$cadreId}/{$version}/".Str::uuid().'.'.$document->getClientOriginalExtension();
+        $path = "recruitment-rules/{$postId}/{$version}/".Str::uuid().'.'.$document->getClientOriginalExtension();
         Storage::disk($disk)->put($path, (string) $document->get());
 
         return [$disk, $path];
@@ -124,38 +137,97 @@ class RecruitmentRuleService
 
         $order = 0;
         foreach ($feeders as $feeder) {
-            $qualificationId = isset($feeder['qualification_id']) && $feeder['qualification_id'] !== ''
-                ? (int) $feeder['qualification_id']
-                : null;
+            $qualificationIds = $this->qualificationIds($feeder);
 
-            $rule->feeders()->create([
-                'feeder_cadre_id' => $feeder['feeder_cadre_id'],
+            $source = $rule->promotionSources()->create([
+                'promotion_from_post_id' => $feeder['promotion_from_post_id'],
                 'promotion_percentage' => $feeder['promotion_percentage'] ?? 0,
                 'min_experience_years' => $feeder['min_experience_years'] ?? 0,
                 'min_experience_unit' => $this->experienceUnit($feeder['min_experience_unit'] ?? null),
-                'qualification_id' => $qualificationId,
                 // The legacy text column is kept in step with the master, so a
                 // rule written today reads the same as one written before the
                 // Qualification master existed. Callers that still pass raw text
                 // (the Pre-DPC projection resolves it, but may find no match)
                 // keep their text, which is how an unmapped value stays visible.
-                'min_qualification' => $this->qualificationText($qualificationId, $feeder['min_qualification'] ?? null),
+                'min_qualification' => $this->qualificationText($qualificationIds, $feeder['min_qualification'] ?? null),
                 'sort_order' => $order++,
             ]);
+
+            $source->qualifications()->attach(
+                collect($qualificationIds)
+                    ->mapWithKeys(fn (int $id, int $index): array => [$id => ['sort_order' => $index]])
+                    ->all(),
+            );
         }
     }
 
     /**
-     * The text to store alongside `qualification_id`: the master's own name when
-     * there is one, otherwise whatever text the caller supplied.
+     * The qualifications a posted feeder row accepts (change register item 11).
+     *
+     * Reads `qualification_ids` and tolerates the singular `qualification_id`,
+     * because a rule may be saved by a caller written before the field became
+     * plural — the Pre-DPC projection is one, and refusing its payload would break
+     * the projection rather than telling anybody about it.
+     *
+     * De-duplicated and re-indexed: the same qualification named twice is one
+     * qualification, and `unique(recruitment_rule_source_id, qualification_id)`
+     * would refuse the second copy rather than ignoring it.
+     *
+     * @param  array<string, mixed>  $feeder
+     * @return list<int>
      */
-    private function qualificationText(?int $qualificationId, ?string $fallback): ?string
+    private function qualificationIds(array $feeder): array
     {
-        if ($qualificationId === null) {
+        $raw = $feeder['qualification_ids'] ?? $feeder['qualification_id'] ?? [];
+
+        /** @var list<int> $ids */
+        $ids = array_values(array_unique(array_filter(
+            array_map(static fn (mixed $id): int => (int) $id, (array) $raw),
+            static fn (int $id): bool => $id > 0,
+        )));
+
+        return $ids;
+    }
+
+    /**
+     * The legacy text to store beside the pivot: the masters' own names when there
+     * are any, otherwise whatever text the caller supplied.
+     *
+     * @param  list<int>  $qualificationIds
+     */
+    private function qualificationText(array $qualificationIds, ?string $fallback): ?string
+    {
+        if ($qualificationIds === []) {
             return $fallback;
         }
 
-        return Qualification::query()->whereKey($qualificationId)->value('name_en') ?? $fallback;
+        $names = Qualification::query()
+            ->whereIn('id', $qualificationIds)
+            ->orderByRaw($this->orderByIds($qualificationIds))
+            ->pluck('name_en')
+            ->all();
+
+        return $names === [] ? $fallback : implode(' / ', $names);
+    }
+
+    /**
+     * Keep `whereIn` results in the order the caller listed them.
+     *
+     * The legacy text column mirrors what the screen shows, and the screen shows
+     * the qualifications in entry order — so the text has to follow the same order
+     * rather than whatever the database returns.
+     *
+     * @param  list<int>  $ids
+     */
+    private function orderByIds(array $ids): string
+    {
+        $cases = [];
+
+        foreach ($ids as $position => $id) {
+            $cases[] = sprintf('WHEN id = %d THEN %d', $id, $position);
+        }
+
+        return 'CASE '.implode(' ', $cases).' ELSE '.count($ids).' END';
     }
 
     /**
@@ -179,7 +251,7 @@ class RecruitmentRuleService
      *
      * This exists for the **other** caller: the Pre-DPC projection. The
      * department's Pre-DPC screens record the feeder percentage against all posts
-     * (a 50%-promotion cadre with two equal feeders is captured as 25 and 25),
+     * (a 50%-promotion post with two equal feeders is captured as 25 and 25),
      * and those screens are not being changed. Normalising on the way into the
      * master is the translation between the two representations — it keeps the
      * ratio the department expressed (25:25 stays one-to-one) while satisfying

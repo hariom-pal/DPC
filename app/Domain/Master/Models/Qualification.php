@@ -5,10 +5,11 @@ declare(strict_types=1);
 namespace App\Domain\Master\Models;
 
 use App\Domain\Master\Concerns\IsMaster;
+use App\Domain\PreDpc\Models\PreDpcPromotionSource;
 use App\Enums\MasterStatus;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use OwenIt\Auditing\Contracts\Auditable;
 
 /**
@@ -58,10 +59,37 @@ class Qualification extends Model implements Auditable
     }
 
     /**
-     * @return HasMany<RecruitmentRuleFeeder, $this>
+     * The recruitment-rule promotion sources that accept this qualification.
+     *
+     * **Many-to-many since 2026-08-26** (change register item 11): a promotion
+     * source may prescribe several acceptable qualifications — *BE or BTech or
+     * MCA* — so the single `recruitment_rule_sources.qualification_id` it used to
+     * hang off is gone, and this reads the join table instead.
+     *
+     * @return BelongsToMany<RecruitmentRuleSource, $this>
      */
-    public function recruitmentRuleFeeders(): HasMany
+    public function recruitmentRuleSources(): BelongsToMany
     {
-        return $this->hasMany(RecruitmentRuleFeeder::class);
+        return $this->belongsToMany(
+            RecruitmentRuleSource::class,
+            'rr_source_qualifications',
+            'qualification_id',
+            'recruitment_rule_source_id',
+        );
+    }
+
+    /**
+     * The Pre-DPC promotion sources that accept this qualification.
+     *
+     * @return BelongsToMany<PreDpcPromotionSource, $this>
+     */
+    public function preDpcPromotionSources(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            PreDpcPromotionSource::class,
+            'pre_dpc_source_qualifications',
+            'qualification_id',
+            'pre_dpc_promotion_source_id',
+        );
     }
 }

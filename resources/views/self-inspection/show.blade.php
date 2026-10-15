@@ -8,7 +8,7 @@
 
 @extends('layouts.portal')
 
-@section('title', 'Self-Inspection — My data')
+@section('title', __('selfinspection.show.self_inspection_my_data'))
 
 @section('content')
     <div class="py-4 py-lg-5" style="background:var(--gov-surface)">
@@ -16,19 +16,19 @@
 
             <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-4">
                 <div>
-                    <h1 class="h4 mb-1">My data as recorded for this DPC</h1>
+                    <h1 class="h4 mb-1">{{ __('selfinspection.show.my_data_as_recorded_for_this_dpc') }}</h1>
                     <p class="text-body-secondary small mb-0">
-                        DATA BEING CONSIDERED AS PROVIDED BY YOUR DEPARTMENT FOR ONLINE DPC
+                        {{ __('ui.data_being_considered_as_provided_by_your_depart') }}
                     </p>
                 </div>
                 <div class="d-flex gap-2">
                     <a href="{{ route('self-inspection.print', ['row' => $selected->id]) }}"
                        class="btn btn-outline-primary" target="_blank" rel="noopener">
-                        Print / प्रिंट
+{{ __('selfinspection.show.print') }}
                     </a>
                     <form method="POST" action="{{ route('self-inspection.close') }}">
                         @csrf
-                        <button class="btn btn-outline-secondary">Close / बंद करें</button>
+                        <button class="btn btn-outline-secondary">{{ __('selfinspection.show.close') }}</button>
                     </form>
                 </div>
             </div>
@@ -44,8 +44,7 @@
                 <div class="card border-0 shadow-sm mb-3">
                     <div class="card-body">
                         <p class="small text-body-secondary mb-2">
-                            You appear on {{ $rows->count() }} proposals currently under consideration.
-                            Choose which one to view:
+{{ __('selfinspection.show.choose_proposal', ['count' => $rows->count()]) }}
                         </p>
                         <div class="d-flex flex-wrap gap-2">
                             @foreach ($rows as $option)
@@ -62,10 +61,10 @@
             <div class="card border-0 shadow-sm mb-3">
                 <div class="card-body">
                     <dl class="row mb-0 small">
-                        <dt class="col-sm-3">Department</dt>
+                        <dt class="col-sm-3">{{ __('ui.department') }}</dt>
                         <dd class="col-sm-9">{{ $department->name }}</dd>
 
-                        <dt class="col-sm-3">DPC</dt>
+                        <dt class="col-sm-3">{{ __('ui.dpc') }}</dt>
                         <dd class="col-sm-9">
                             {{ $proposal->dpc_code ?? 'Not yet allotted a DPC ID' }}
                             <span class="text-body-secondary">
@@ -73,14 +72,14 @@
                             </span>
                         </dd>
 
-                        <dt class="col-sm-3">Promotion</dt>
+                        <dt class="col-sm-3">{{ __('ui.promotion') }}</dt>
                         <dd class="col-sm-9">
-                            {{ $proposal->postFromCadre?->name ?? '—' }}
+                            {{ $proposal->promotionFromPost?->name ?? '—' }}
                             &rarr;
-                            {{ $proposal->postToCadre?->name ?? '—' }}
+                            {{ $proposal->promotionToPost?->name ?? '—' }}
                         </dd>
 
-                        <dt class="col-sm-3">Committee sitting</dt>
+                        <dt class="col-sm-3">{{ __('ui.committee_sitting') }}</dt>
                         <dd class="col-sm-9 mb-0">
                             {{ $sitting_date?->format('d-m-Y') ?? 'Not scheduled yet' }}
                         </dd>
@@ -105,9 +104,7 @@
             {{-- Said plainly, because its absence is the question an officer will
                  ask first. --}}
             <p class="small text-body-secondary mt-3 mb-0">
-                This screen shows the data your department supplied. It does not show marks, remarks
-                or any promotion decision — those are made by the Committee, which considers this data
-                at its sitting.
+                {{ __('selfinspection.show.this_screen_shows_the_data_your_department_suppl') }}
             </p>
         </div>
     </div>

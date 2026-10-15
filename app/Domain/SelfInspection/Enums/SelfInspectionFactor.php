@@ -22,8 +22,8 @@ enum SelfInspectionFactor: string
 {
     case Name = 'name';
     case Dob = 'dob';
-    case DateOfPostingOnCurrentPost = 'date_of_posting_on_current_post';
-    case DateOfPostingOnFeederPost = 'date_of_posting_on_feeder_post';
+    case DateOfPostingOnPromotionToPost = 'date_of_posting_on_promotion_to_post';
+    case DateOfPostingOnPromotionFromPost = 'date_of_posting_on_promotion_from_post';
     case DateOfJoiningService = 'date_of_joining_service';
     case EmployeeNumber = 'employee_number';
 
@@ -31,7 +31,7 @@ enum SelfInspectionFactor: string
      * The label the officer sees, in the deck's own words where it has them.
      *
      * S50 labels its two fields *"NAME AS ON AADHAR CARD"* and *"DATE OF
-     * JOINING CURRENT CADRE"*. Aadhaar is gone (Q1), so the first becomes
+     * JOINING PROMOTION TO POST"*. Aadhaar is gone (Q1), so the first becomes
      * simply the name on the department's record — which is what the officer
      * has to match either way.
      */
@@ -40,8 +40,8 @@ enum SelfInspectionFactor: string
         return match ($this) {
             self::Name => 'Name (as recorded by your department)',
             self::Dob => 'Date of Birth',
-            self::DateOfPostingOnCurrentPost => 'Date of Joining Current Cadre',
-            self::DateOfPostingOnFeederPost => 'Date of Joining Feeder Post',
+            self::DateOfPostingOnPromotionToPost => 'Date of Joining Promotion To Post',
+            self::DateOfPostingOnPromotionFromPost => 'Date of Joining Promotion From Post',
             self::DateOfJoiningService => 'Date of Joining Service',
             self::EmployeeNumber => 'Employee Number',
         };
@@ -140,7 +140,7 @@ enum SelfInspectionFactor: string
         }
 
         return $factors === []
-            ? [self::Name, self::DateOfPostingOnCurrentPost, self::Dob]
+            ? [self::Name, self::DateOfPostingOnPromotionToPost, self::Dob]
             : $factors;
     }
 }

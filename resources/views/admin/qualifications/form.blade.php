@@ -1,5 +1,5 @@
 @extends('layouts.admin')
-@section('title', 'Qualification')
+@section('title', __('ui.qualification'))
 @section('content')
     <h1 class="h4 mb-3">{{ $qualification->exists ? 'Edit Qualification' : 'New Qualification' }}</h1>
 
@@ -12,26 +12,26 @@
 
                 <div class="row">
                     <div class="col-md-3 mb-3">
-                        <label class="form-label" for="code">Qualification Code</label>
+                        <label class="form-label" for="code">{{ __('admin.qualifications.form.qualification_code') }}</label>
                         <input type="text" class="form-control @error('code') is-invalid @enderror"
                                id="code" name="code" value="{{ old('code', $qualification->code) }}" required>
                         @error('code')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                        <div class="form-text">Short, stable key — e.g. <code>BED</code>. Used to match legacy free text.</div>
+                        {!! __('admin.qualifications.form.code_hint') !!}
                     </div>
                     <div class="col-md-4 mb-3">
-                        <label class="form-label" for="name_en">Qualification Name (English)</label>
+                        <label class="form-label" for="name_en">{{ __('admin.qualifications.form.qualification_name_english') }}</label>
                         <input type="text" class="form-control @error('name_en') is-invalid @enderror"
                                id="name_en" name="name_en" value="{{ old('name_en', $qualification->name_en) }}" required>
                         @error('name_en')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
                     <div class="col-md-3 mb-3">
-                        <label class="form-label" for="name_hi">अर्हता का नाम (Hindi)</label>
+                        <label class="form-label" for="name_hi">{{ __('admin.qualifications.form.hindi') }}</label>
                         <input type="text" class="form-control @error('name_hi') is-invalid @enderror"
                                id="name_hi" name="name_hi" value="{{ old('name_hi', $qualification->name_hi) }}" required>
                         @error('name_hi')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
                     <div class="col-md-2 mb-3">
-                        <label class="form-label" for="status">Status</label>
+                        <label class="form-label" for="status">{{ __('ui.status') }}</label>
                         <select class="form-select" id="status" name="status" required>
                             @foreach ($statuses as $status)
                                 <option value="{{ $status->value }}"
@@ -40,10 +40,10 @@
                                 </option>
                             @endforeach
                         </select>
-                        <div class="form-text">Only <strong>Active</strong> appears in the Recruitment Rule dropdown.</div>
+                        {!! __('admin.qualifications.form.status_hint') !!}
                     </div>
                     <div class="col-12 mb-3">
-                        <label class="form-label" for="description">Description</label>
+                        <label class="form-label" for="description">{{ __('ui.description') }}</label>
                         <textarea class="form-control @error('description') is-invalid @enderror"
                                   id="description" name="description" rows="2"
                                   maxlength="1000">{{ old('description', $qualification->description) }}</textarea>
@@ -51,8 +51,8 @@
                     </div>
                 </div>
 
-                <button type="submit" class="btn btn-success">Save</button>
-                <a href="{{ route('admin.qualifications.index') }}" class="btn btn-outline-secondary">Cancel</a>
+                <button type="submit" class="btn btn-success">{{ __('ui.save') }}</button>
+                <a href="{{ route('admin.qualifications.index') }}" class="btn btn-outline-secondary">{{ __('ui.cancel') }}</a>
             </form>
         </div>
     </div>

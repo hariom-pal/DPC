@@ -113,7 +113,7 @@ And one that blocks nothing but should be answered **first**:
 | A result says "provisional" and will not publish | The system declining to assert a rule CGPSC has not made. That is the design |
 | A screen says "Pending Business Decision (BD-n)" | The same, with the question named so it can be answered |
 | A circulation cannot proceed because the original allottee has left the Commission | Recorded as TD-28. Only the Member who conducted the original DPC may act, and there is no escape hatch — right for accountability, but it needs a standing rule on absent named actors. **Affects no current case**, and inventing the rule would be inventing service law |
-| A department cannot file its first Pre-DPC | Its Cadre master is empty. The screen says so rather than appearing broken. Who populates it is BD-18 — and the recommendation is the Commission, because Schedule-IV is a published Government Order and not departmental data |
+| A department cannot file its first Pre-DPC | Its Department Post master is empty. The screen says so rather than appearing broken. Who populates it is BD-18 — and since 2026-08-24 the master is the CGPSC Administrator's, because Schedule-IV is a published Government Order and not departmental data |
 | The archived SRS describes features that do not exist | The decks govern (AD-1). Per-member voting, free-text minutes and a separate promotion-order module appear in neither deck and were not built. BD-17 asks what standing the SRS has |
 
 ---

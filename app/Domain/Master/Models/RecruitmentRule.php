@@ -14,7 +14,7 @@ use OwenIt\Auditing\Contracts\Auditable;
 
 /**
  * @property int $id
- * @property int $cadre_id
+ * @property int $post_id
  * @property int $version
  * @property string $government_order_number
  * @property numeric-string $direct_recruitment_pct
@@ -33,7 +33,7 @@ class RecruitmentRule extends Model implements Auditable
      * @var list<string>
      */
     protected $fillable = [
-        'cadre_id',
+        'post_id',
         'version',
         'government_order_number',
         'direct_recruitment_pct',
@@ -64,18 +64,18 @@ class RecruitmentRule extends Model implements Auditable
     }
 
     /**
-     * @return BelongsTo<Cadre, $this>
+     * @return BelongsTo<DepartmentPost, $this>
      */
-    public function cadre(): BelongsTo
+    public function post(): BelongsTo
     {
-        return $this->belongsTo(Cadre::class);
+        return $this->belongsTo(DepartmentPost::class);
     }
 
     /**
-     * @return HasMany<RecruitmentRuleFeeder, $this>
+     * @return HasMany<RecruitmentRuleSource, $this>
      */
-    public function feeders(): HasMany
+    public function promotionSources(): HasMany
     {
-        return $this->hasMany(RecruitmentRuleFeeder::class)->orderBy('sort_order');
+        return $this->hasMany(RecruitmentRuleSource::class)->orderBy('sort_order');
     }
 }

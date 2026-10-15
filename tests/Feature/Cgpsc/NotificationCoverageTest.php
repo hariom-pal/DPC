@@ -9,7 +9,7 @@ use App\Domain\Cgpsc\Services\AllotmentService;
 use App\Domain\Department\Models\Department;
 use App\Domain\Dpc\Enums\DpcProposalStatus;
 use App\Domain\Dpc\Models\DpcProposal;
-use App\Domain\Master\Models\Cadre;
+use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\DpcType;
 use App\Domain\Shared\Events\WorkflowTransitioned;
 use App\Domain\Shared\Listeners\SendWorkflowNotification;
@@ -22,6 +22,7 @@ use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Mail;
+use Tests\Concerns\SeatsDpcCommittees;
 use Tests\Support\RecordingSmsSender;
 use Tests\TestCase;
 
@@ -38,6 +39,7 @@ use Tests\TestCase;
 class NotificationCoverageTest extends TestCase
 {
     use RefreshDatabase;
+    use SeatsDpcCommittees;
 
     private Department $department;
 
@@ -61,32 +63,30 @@ class NotificationCoverageTest extends TestCase
 
         $this->department = Department::query()->create(['code' => 'HE', 'name' => 'Higher Education Department', 'status' => 'active']);
 
-        $this->chairman = User::factory()->create(['department_id' => null, 'name' => 'Hon. Chairman', 'mobile' => '9000000001']);
+        $this->chairman = User::factory()->create(['name' => 'Hon. Chairman', 'mobile' => '9000000001']);
         $this->chairman->assignRole(Role::Chairman->value);
 
-        $this->memberOne = User::factory()->create(['department_id' => null, 'name' => 'Member One', 'mobile' => '9000000002']);
+        $this->memberOne = User::factory()->create(['name' => 'Member One', 'mobile' => '9000000002']);
         $this->memberOne->assignRole(Role::Member->value);
 
-        $this->memberTwo = User::factory()->create(['department_id' => null, 'name' => 'Member Two', 'mobile' => '9000000003']);
+        $this->memberTwo = User::factory()->create(['name' => 'Member Two', 'mobile' => '9000000003']);
         $this->memberTwo->assignRole(Role::Member->value);
 
-        $this->ao = User::factory()->create(['department_id' => $this->department->id, 'name' => 'Officer', 'mobile' => '9000000004']);
-        $this->ao->assignRole(Role::AuthorizedOfficer->value);
+        $this->ao = User::factory()->assignedTo($this->department->id, Role::AuthorizedOfficer)->create(['name' => 'Officer', 'mobile' => '9000000004']);
 
-        $this->ah = User::factory()->create(['department_id' => $this->department->id, 'name' => 'Head', 'mobile' => '9000000005']);
-        $this->ah->assignRole(Role::AdministrativeHead->value);
+        $this->ah = User::factory()->assignedTo($this->department->id, Role::AdministrativeHead)->create(['name' => 'Head', 'mobile' => '9000000005']);
 
-        $postFrom = Cadre::query()->create(['department_id' => $this->department->id, 'name' => 'Under Secretary', 'class_level' => 'I', 'status' => 'active']);
-        $postTo = Cadre::query()->create(['department_id' => $this->department->id, 'name' => 'Deputy Secretary', 'class_level' => 'I', 'status' => 'active']);
+        $postFrom = DepartmentPost::query()->create(['department_id' => $this->department->id, 'name' => 'Under Secretary', 'class_level' => 'I', 'status' => 'active']);
+        $postTo = DepartmentPost::query()->create(['department_id' => $this->department->id, 'name' => 'Deputy Secretary', 'class_level' => 'I', 'status' => 'active']);
 
         $this->proposal = DpcProposal::query()->create([
             'department_id' => $this->department->id,
             'dpc_type_id' => DpcType::query()->where('code', 'fresh')->firstOrFail()->id,
-            'post_to_cadre_id' => $postTo->id,
-            'post_from_cadre_id' => $postFrom->id,
+            'promotion_to_post_id' => $postTo->id,
+            'promotion_from_post_id' => $postFrom->id,
             'proposal_date' => '2026-06-25',
             'status' => DpcProposalStatus::Approved->value,
-            'dpc_code' => 'HE202600001',
+            'dpc_code' => 'DPC-2026-HE-0001',
             'forwarded_at' => now(),
         ]);
 
@@ -96,6 +96,17 @@ class NotificationCoverageTest extends TestCase
         // tests assert delivery rather than only event payloads.
         RecordingSmsSender::reset();
         $this->app->bind(SmsSender::class, RecordingSmsSender::class);
+
+        /*
+         | A DPC is allotted to a serving member of **its own committee** since
+         | 2026-09-06, and business corrected the qualification on 2026-09-07: it is
+         | committee membership, not a CGPSC role. So the accounts these tests allot
+         | to have to be on the committee.
+         |
+         | `seatCommittee()` seats the Commission's accounts on the member seats it
+         | makes, which covers every allottee used here.
+         */
+        $this->seatCommittee($this->proposal);
     }
 
     /**
@@ -184,8 +195,7 @@ class NotificationCoverageTest extends TestCase
     public function test_an_unrelated_department_is_never_notified(): void
     {
         $other = Department::query()->create(['code' => 'PW', 'name' => 'Public Works', 'status' => 'active']);
-        $outsider = User::factory()->create(['department_id' => $other->id, 'mobile' => '9111111111']);
-        $outsider->assignRole(Role::AuthorizedOfficer->value);
+        $outsider = User::factory()->assignedTo($other->id, Role::AuthorizedOfficer)->create(['mobile' => '9111111111']);
 
         $captured = $this->runFullWorkflow();
 

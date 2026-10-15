@@ -1,19 +1,18 @@
 @extends('layouts.app')
 
-@section('title', 'Circulation DPCs')
+@section('title', __('dpc.circulations.index.circulation_dpcs'))
 
 @section('content')
     <div class="container py-4">
         <div class="d-flex justify-content-between align-items-start mb-3">
             <div>
-                <h1 class="h4 mb-1">Circulation DPCs — परिभ्रमण डी.पी.सी.</h1>
+                <h1 class="h4 mb-1">{{ __('ui.circulation_dpcs') }}</h1>
                 <p class="text-body-secondary mb-0">
-                    Promotions the Commission reserved, and the notes asking it to consent now that the
-                    missing record has been supplied.
+                    {{ __('dpc.circulations.index.promotions_the_commission_reserved_and_the_notes') }}
                 </p>
             </div>
             @can('create', App\Domain\Circulation\Models\DpcCirculation::class)
-                <a href="{{ route('dpc-circulations.create') }}" class="btn btn-primary">Raise a circulation</a>
+                <a href="{{ route('dpc-circulations.create') }}" class="btn btn-primary">{{ __('dpc.circulations.index.raise_a_circulation') }}</a>
             @endcan
         </div>
 
@@ -22,17 +21,17 @@
         @endif
 
         @if ($circulations->isEmpty())
-            <div class="alert alert-info mb-0">No circulation has been raised by this department.</div>
+            <div class="alert alert-info mb-0">{{ __('dpc.circulations.index.none_raised') }}</div>
         @else
             <div class="table-responsive">
                 <table class="table align-middle">
                     <thead>
                         <tr>
-                            <th>Circulation</th>
-                            <th>Origin DPC</th>
-                            <th>Proposal date</th>
-                            <th>Officers</th>
-                            <th>Status</th>
+                            <th>{{ __('ui.circulation') }}</th>
+                            <th>{{ __('ui.origin_dpc') }}</th>
+                            <th>{{ __('dpc.circulations.index.proposal_date') }}</th>
+                            <th>{{ __('ui.officers') }}</th>
+                            <th>{{ __('ui.status') }}</th>
                         </tr>
                     </thead>
                     <tbody>

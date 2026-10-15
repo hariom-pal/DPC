@@ -46,11 +46,22 @@ class SelfInspectionConfigurationTest extends TestCase
     // ------------------------------------------------------------------
 
     /**
+     * The drivers that still cannot run.
+     *
+     * **`otp` left this list on 2026-09-07.** It was blocked on one thing — no
+     * officer snapshot carried a contact channel — and the Seniority List now
+     * carries a mobile number, so it is implemented and is the default.
+     * `SelfInspectionOtpTest` covers it.
+     *
+     * `account` remains: it needs somebody to create and issue an Individual
+     * account, which no screen in either deck does, and inventing that workflow
+     * would decide who owns an officer's credentials.
+     *
      * @return list<array{string}>
      */
     public static function unimplementedDrivers(): array
     {
-        return [['otp'], ['account']];
+        return [['account']];
     }
 
     #[DataProvider('unimplementedDrivers')]
@@ -69,7 +80,7 @@ class SelfInspectionConfigurationTest extends TestCase
         $this->get(route('self-inspection.identify'))
             ->assertOk()
             ->assertSee('not available')
-            ->assertDontSee('Date of Joining Current Cadre');
+            ->assertDontSee('Date of Joining Promotion To Post');
     }
 
     #[DataProvider('unimplementedDrivers')]
@@ -101,7 +112,7 @@ class SelfInspectionConfigurationTest extends TestCase
         Config::set('dpc.self_inspection.authentication.factors', []);
 
         $this->post(route('self-inspection.identify.store'), [])
-            ->assertSessionHasErrors(['name', 'date_of_posting_on_current_post', 'dob']);
+            ->assertSessionHasErrors(['name', 'date_of_posting_on_promotion_to_post', 'dob']);
     }
 
     // ------------------------------------------------------------------
@@ -151,9 +162,15 @@ class SelfInspectionConfigurationTest extends TestCase
 
         $this->get(route('self-inspection.show'))
             ->assertOk()
-            ->assertSee('विभाग में स्वयं उपस्थित होकर', escape: false)
+            // The route to a correction is stated whether or not a date can be
+            // derived. Asserted in the screen's own language: this string carried
+            // both languages in one value until the catalogue was split on
+            // 2026-08-25, and asserting the Hindi half on an English screen was
+            // only ever true by accident of that.
+            ->assertSee('by attending your department in person')
             ->assertSee('has not been scheduled yet')
-            ->assertDontSee('या उसके पूर्व', escape: false);
+            // And no invented deadline.
+            ->assertDontSee('on or before');
     }
 
     public function test_the_basis_can_be_switched_off_entirely(): void

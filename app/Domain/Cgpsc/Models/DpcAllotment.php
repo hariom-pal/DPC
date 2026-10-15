@@ -35,7 +35,10 @@ use RuntimeException;
  * @property int|null $allotted_by
  * @property Carbon $allotted_at
  * @property Carbon|null $default_dpc_date
+ * @property Carbon|null $complete_by
  * @property Carbon|null $accepted_at
+ * @property Carbon|null $returned_at
+ * @property string|null $return_reason
  * @property AllotmentStatus $status
  * @property int|null $superseded_by_id
  * @property string|null $reallotment_reason
@@ -54,6 +57,7 @@ class DpcAllotment extends Model implements Auditable
         'allotted_by',
         'allotted_at',
         'default_dpc_date',
+        'complete_by',
         'status',
         'accepted_at',
         'superseded_by_id',
@@ -84,6 +88,8 @@ class DpcAllotment extends Model implements Auditable
             'allotted_at' => 'datetime',
             'accepted_at' => 'datetime',
             'default_dpc_date' => 'date',
+            'complete_by' => 'date',
+            'returned_at' => 'datetime',
             'status' => AllotmentStatus::class,
         ];
     }
@@ -94,10 +100,26 @@ class DpcAllotment extends Model implements Auditable
             // Being superseded is the one permitted change. Everything else
             // about an allotment is history the moment it is written.
             $changed = array_keys($allotment->getDirty());
-            // Lifecycle progression only: acceptance, scheduling, and being
-            // superseded. Who it was allotted to, when, and by whom are
-            // history the moment they are written.
-            $permitted = ['status', 'accepted_at', 'superseded_by_id', 'updated_at'];
+            /*
+             | Lifecycle progression only: acceptance, scheduling, being
+             | superseded, and — since the change register of 2026-08-26 — being
+             | returned because the completion date passed. Who it was allotted to,
+             | when, by whom, and by when it had to be concluded are history the
+             | moment they are written.
+             |
+             | `complete_by` is deliberately **not** here. The deadline is the
+             | Chairman's and is set once: an allotment whose due date could be
+             | moved after the fact could never be shown to have been overdue, and
+             | the return that followed would look arbitrary.
+             */
+            $permitted = [
+                'status',
+                'accepted_at',
+                'superseded_by_id',
+                'returned_at',
+                'return_reason',
+                'updated_at',
+            ];
 
             if (array_diff($changed, $permitted) !== []) {
                 throw new RuntimeException(
@@ -145,11 +167,21 @@ class DpcAllotment extends Model implements Auditable
     }
 
     /**
+     * The allotment that is actually live.
+     *
+     * **`returned_at` has to be excluded as well as `superseded_by_id`**, and
+     * missing it would be a real fault rather than a tidiness point. A returned
+     * allotment has no successor — it lapsed rather than being replaced — so on
+     * `whereNull('superseded_by_id')` alone it still reads as current. The DPC
+     * would then be simultaneously "back with the Chairman" and "already allotted",
+     * and `allot()` would refuse to re-allot the very proposal the return exists to
+     * free up.
+     *
      * @param  Builder<self>  $query
      * @return Builder<self>
      */
     public function scopeCurrent(Builder $query): Builder
     {
-        return $query->whereNull('superseded_by_id');
+        return $query->whereNull('superseded_by_id')->whereNull('returned_at');
     }
 }

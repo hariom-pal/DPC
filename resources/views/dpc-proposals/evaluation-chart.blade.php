@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Evaluation / Tabulation Chart')
+@section('title', __('ui.evaluation_tabulation_chart'))
 
 @php
     /*
@@ -37,11 +37,27 @@
         $years = array_unique(array_merge(array_keys($cr), array_keys($loyalty), array_keys($property)));
         sort($years);
 
+        /*
+         | `tribal_area` rides on the CR entry, not on a fourth array.
+         |
+         | It is a column on `dpc_evaluation_cr_grades`, because item 18 attaches
+         | the benefit to the CR year — so the same `$flag()` reader is used, but
+         | against `$cr` rather than a per-year record of its own.
+         */
+        $tribal = static fn (?array $item): string => match (true) {
+            $item === null,
+            ! array_key_exists('tribal_area', $item),
+            $item['tribal_area'] === null,
+            $item['tribal_area'] === '' => '',
+            default => filter_var($item['tribal_area'], FILTER_VALIDATE_BOOLEAN) ? '1' : '0',
+        };
+
         return array_map(static fn (int $year): array => [
             'year' => $year,
             'grade' => $cr[$year]['grade'] ?? '',
             'loyalty' => $flag($loyalty[$year] ?? null),
             'property' => $flag($property[$year] ?? null),
+            'tribal_area' => $tribal($cr[$year] ?? null),
         ], $years);
     };
 
@@ -61,8 +77,8 @@
     <div class="row justify-content-center">
         <div class="col-lg-11">
             @include('partials.alerts')
-            <h1 class="h4 mb-1">Evaluation / Tabulation Chart</h1>
-            <p class="text-muted small mb-2">मूल्यांकन पत्रक — {{ $proposal->postFromCadre->name }} → {{ $proposal->postToCadre->name }}. A snapshot as of today; it will not change later even if HR records change.</p>
+            <h1 class="h4 mb-1">{{ __('ui.evaluation_tabulation_chart') }}</h1>
+            <p class="text-muted small mb-2">{{ __('dpc.evaluation_chart.subheading', ['from' => $proposal->promotionFromPost->name, 'to' => $proposal->promotionToPost->name]) }}</p>
 
             {{-- Expected against present. The officer set is not the department's
                  to change, so the screen reports the two counts rather than
@@ -71,11 +87,11 @@
                 <div class="card-body py-3">
                     <div class="row g-3 text-center">
                         <div class="col-6">
-                            <div class="text-muted small">Expected Officers <span class="badge text-bg-secondary">from the Seniority List</span></div>
+                            <div class="text-muted small">{{ __('dpc.evaluation_chart.expected_officers') }}</div>
                             <div class="h5 mb-0">{{ $chart['expected'] }}</div>
                         </div>
                         <div class="col-6">
-                            <div class="text-muted small">Imported Officers</div>
+                            <div class="text-muted small">{{ __('dpc.evaluation_chart.imported_officers') }}</div>
                             <div class="h5 mb-0 {{ $chart['matches'] ? '' : 'text-danger fw-semibold' }}">{{ $chart['present'] }}</div>
                         </div>
                     </div>
@@ -83,39 +99,31 @@
                     @if (! $chart['has_candidates'])
                         <hr class="my-3">
                         <p class="mb-0 small">
-                            <strong>Upload the Seniority List first.</strong> This chart is generated from it — the
-                            officers, and everything the portal already knows about them, come from
-                            <a href="{{ route('dpc-proposals.seniority-list', $proposal) }}">Seniority List</a>.
+{!! __('dpc.evaluation_chart.generated_from_seniority_list', [
+                                'link' => '<a href="'.e(route('dpc-proposals.seniority-list', $proposal)).'">'.e(__('ui.seniority_list')).'</a>',
+                            ]) !!}
                         </p>
                     @elseif (! $chart['matches'])
                         <hr class="my-3">
                         <p class="mb-0 small text-danger">
-                            The Evaluation Chart must contain exactly the same officers as the approved Seniority List.
+                            {{ __('dpc.evaluation_chart.the_evaluation_chart_must_contain_exactly_the_sa') }}
                         </p>
                     @endif
                 </div>
             </div>
 
             <div class="alert alert-info py-2 small mb-3">
-                <strong>You enter evaluation data only.</strong> Employee number, name, date of birth,
-                qualification, posts, category and every date come from the approved Seniority List and cannot be
-                changed here — correct them on that screen and this chart follows.
-                <br>
-                Record up to {{ $maxCrYears }} CR years per officer, and <strong>leave a year blank where nothing
-                was recorded</strong>: blank means <em>not recorded</em>, which is a different fact from "no" and is
-                why a Circulation DPC exists. <strong>Mark</strong> and <strong>Remark</strong> are never entered
-                here — the Commission's engine computes them at CALCULATE time.
+{!! __('dpc.evaluation_chart.what_you_enter', ['years' => $maxCrYears]) !!}
             </div>
 
             @if ($chart['has_candidates'])
                 <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
                     <a class="btn btn-outline-primary btn-sm"
                        href="{{ route('dpc-proposals.evaluation-chart.template', $proposal) }}">
-                        Download pre-filled Excel template
+                        {{ __('dpc.evaluation_chart.download_pre_filled_excel_template') }}
                     </a>
                     <span class="text-muted small">
-                        Every officer is already on it. Fill in Loyalty, Immovable Property, CR, Tribal Area
-                        Service and Note, then upload it back below.
+                        {{ __('dpc.evaluation_chart.every_officer_is_already_on_it_fill_in_loyalty_i') }}
                     </span>
                 </div>
 
@@ -133,7 +141,7 @@
                         @php
                             $submitted = $submittedBySn->get((int) $row->sn);
                             $years = $submitted['years'] ?? $mergeYears(
-                                $row->crGrades->map->only(['year', 'grade'])->all(),
+                                $row->crGrades->map->only(['year', 'grade', 'tribal_area'])->all(),
                                 $row->loyaltyFlags->map->only(['year', 'flag'])->all(),
                                 $row->propertyFlags->map->only(['year', 'flag'])->all(),
                             );
@@ -159,55 +167,75 @@
                                             @endif
                                         </h2>
                                         <div class="text-muted small">
-                                            DOB {{ $row->dob->format('d/m/Y') }}
+                                            {{ __('ui.dob_value', ['date' => $row->dob->format('d/m/Y')]) }}
                                             @if ($row->qualification) · {{ $row->qualification }} @endif
                                             @if ($row->reservationCategory) · {{ $row->reservationCategory->code }} @endif
                                         </div>
                                     </div>
-                                    <span class="badge text-bg-light border">From the Seniority List</span>
+                                    <div class="d-flex align-items-center gap-2">
+                                        {{-- Missing mandatory records (change register of
+                                             2026-08-27, items 14 to 19). A link out rather
+                                             than fields here: the reason and the PDF are a
+                                             justification for a year, and a file upload on
+                                             this all-officers form would lose every
+                                             officer's data on one bad file.
+
+                                             Outside the form element it sits in, because a
+                                             link that navigated away mid-edit would discard
+                                             the chart — hence the warning on the title. --}}
+                                        <a class="btn btn-outline-secondary btn-sm"
+                                           href="{{ route('dpc-proposals.record-gaps.index', [$proposal, $row]) }}"
+                                           title="{{ __('dpc.evaluation_chart.missing_records_hint') }}">
+                                            {{ __('dpc.evaluation_chart.missing_records') }}
+                                            @if ($row->recordGaps->isNotEmpty())
+                                                <span class="badge text-bg-warning ms-1">{{ $row->recordGaps->count() }}</span>
+                                            @endif
+                                        </a>
+                                        <span class="badge text-bg-light border">{{ __('dpc.evaluation_chart.from_the_seniority_list_2') }}</span>
+                                    </div>
                                 </div>
 
                                 <dl class="row small text-muted mb-3">
-                                    <dt class="col-sm-3 fw-normal">Current Post</dt>
-                                    <dd class="col-sm-3">{{ $row->current_post ?: '—' }}</dd>
-                                    <dt class="col-sm-3 fw-normal">Feeder Post</dt>
-                                    <dd class="col-sm-3">{{ $row->feeder_post ?: '—' }}</dd>
+                                    <dt class="col-sm-3 fw-normal">{{ __('ui.promotion_to_post') }}</dt>
+                                    <dd class="col-sm-3">{{ $row->promotion_to_post ?: '—' }}</dd>
+                                    <dt class="col-sm-3 fw-normal">{{ __('ui.promotion_from_post') }}</dt>
+                                    <dd class="col-sm-3">{{ $row->promotion_from_post ?: '—' }}</dd>
 
-                                    <dt class="col-sm-3 fw-normal">Joined Service</dt>
+                                    <dt class="col-sm-3 fw-normal">{{ __('dpc.evaluation_chart.joined_service') }}</dt>
                                     <dd class="col-sm-3">{{ $row->date_of_joining_service?->format('d/m/Y') ?: '—' }}</dd>
-                                    <dt class="col-sm-3 fw-normal">On Current Post</dt>
-                                    <dd class="col-sm-3">{{ $row->date_of_posting_on_current_post?->format('d/m/Y') ?: '—' }}</dd>
+                                    <dt class="col-sm-3 fw-normal">{{ __('dpc.evaluation_chart.on_promotion_to_post') }}</dt>
+                                    <dd class="col-sm-3">{{ $row->date_of_posting_on_promotion_to_post?->format('d/m/Y') ?: '—' }}</dd>
 
-                                    <dt class="col-sm-3 fw-normal">On Feeder Post</dt>
-                                    <dd class="col-sm-9">{{ $row->date_of_posting_on_feeder_post?->format('d/m/Y') ?: '—' }}</dd>
+                                    <dt class="col-sm-3 fw-normal">{{ __('dpc.evaluation_chart.on_promotion_from_post') }}</dt>
+                                    <dd class="col-sm-9">{{ $row->date_of_posting_on_promotion_from_post?->format('d/m/Y') ?: '—' }}</dd>
                                 </dl>
 
                                 <div class="row g-2">
                                     <div class="col-md-3">
-                                        <label class="form-label" for="tribal-{{ $index }}">Tribal-area Service (yrs)</label>
+                                        <label class="form-label" for="tribal-{{ $index }}">{{ __('dpc.evaluation_chart.tribal_area_service_yrs') }}</label>
                                         <input type="number" min="0" max="100" id="tribal-{{ $index }}"
                                                class="form-control form-control-sm @error('rows.'.$index.'.tribal_area_service_years') is-invalid @enderror"
                                                name="rows[{{ $index }}][tribal_area_service_years]" value="{{ $tribal }}">
                                         @error('rows.'.$index.'.tribal_area_service_years')<div class="invalid-feedback">{{ $message }}</div>@enderror
                                     </div>
                                     <div class="col-md-4">
-                                        <label class="form-label" for="note-{{ $index }}">Note</label>
+                                        <label class="form-label" for="note-{{ $index }}">{{ __('ui.note') }}</label>
                                         <input type="text" list="note-codes" id="note-{{ $index }}"
                                                class="form-control form-control-sm @error('rows.'.$index.'.note') is-invalid @enderror"
-                                               name="rows[{{ $index }}][note]" value="{{ $note }}" placeholder="e.g. PUNISHMENT">
+                                               name="rows[{{ $index }}][note]" value="{{ $note }}" placeholder="{{ __('dpc.evaluation_chart.e_g_punishment') }}">
                                         @error('rows.'.$index.'.note')<div class="invalid-feedback">{{ $message }}</div>@enderror
                                     </div>
                                 </div>
 
                                 <div class="mt-3">
                                     <div class="d-flex justify-content-between align-items-center">
-                                        <h3 class="h6 mb-0">Year-wise CR, Loyalty &amp; Immovable Property</h3>
-                                        <button type="button" class="btn btn-outline-secondary btn-sm add-year">+ Add Year</button>
+                                        <h3 class="h6 mb-0">{{ __('dpc.evaluation_chart.year_wise_cr_loyalty_amp_immovable_property') }}</h3>
+                                        <button type="button" class="btn btn-outline-secondary btn-sm add-year">{{ __('dpc.evaluation_chart.add_year') }}</button>
                                     </div>
                                     @error('rows.'.$index.'.cr_grades')<div class="alert alert-danger py-2 mt-2 mb-0">{{ $message }}</div>@enderror
                                     <div class="table-responsive mt-1">
                                         <table class="table table-sm align-middle mb-0">
-                                            <thead><tr><th style="width:20%">Year</th><th style="width:25%">CR Grade</th><th style="width:22%">Loyalty</th><th style="width:25%">Immovable Property</th><th></th></tr></thead>
+                                            <thead><tr><th style="width:16%">{{ __('ui.year') }}</th><th style="width:20%">{{ __('dpc.evaluation_chart.cr_grade') }}</th><th style="width:18%">{{ __('ui.loyalty') }}</th><th style="width:20%">{{ __('ui.immovable_property') }}</th><th style="width:18%">{{ __('dpc.evaluation_chart.tribal_area_year') }}</th><th></th></tr></thead>
                                             <tbody class="year-rows">
                                                 @foreach ($years as $y => $year)
                                                     <tr class="year-row">
@@ -219,7 +247,7 @@
                                                         </td>
                                                         <td>
                                                             <select class="form-select form-select-sm" name="rows[{{ $index }}][cr_grades][{{ $y }}][grade]">
-                                                                <option value="">— not recorded —</option>
+                                                                <option value="">{{ __('dpc.evaluation_chart.not_recorded_2') }}</option>
                                                                 @foreach ($crGrades as $grade)
                                                                     <option value="{{ $grade }}" @selected((string) $year['grade'] === (string) $grade)>{{ $grade }}</option>
                                                                 @endforeach
@@ -227,16 +255,28 @@
                                                         </td>
                                                         <td>
                                                             <select class="form-select form-select-sm" name="rows[{{ $index }}][loyalty_flags][{{ $y }}][flag]">
-                                                                <option value="">— not recorded —</option>
+                                                                <option value="">{{ __('dpc.evaluation_chart.not_recorded_2') }}</option>
                                                                 <option value="1" @selected($year['loyalty'] === '1')>Y</option>
                                                                 <option value="0" @selected($year['loyalty'] === '0')>N</option>
                                                             </select>
                                                         </td>
                                                         <td>
                                                             <select class="form-select form-select-sm" name="rows[{{ $index }}][property_flags][{{ $y }}][flag]">
-                                                                <option value="">— not recorded —</option>
+                                                                <option value="">{{ __('dpc.evaluation_chart.not_recorded_2') }}</option>
                                                                 <option value="1" @selected($year['property'] === '1')>Y</option>
                                                                 <option value="0" @selected($year['property'] === '0')>N</option>
+                                                            </select>
+                                                        </td>
+                                                        {{-- Tribal-area service in *this* year (item 18 of the
+                                                             change register of 2026-08-27). Three states, not
+                                                             two: "not recorded" is a different fact from
+                                                             "recorded as no", and a chart filled in before this
+                                                             register has neither. --}}
+                                                        <td>
+                                                            <select class="form-select form-select-sm" name="rows[{{ $index }}][cr_grades][{{ $y }}][tribal_area]">
+                                                                <option value="">{{ __('dpc.evaluation_chart.not_recorded_2') }}</option>
+                                                                <option value="1" @selected($year['tribal_area'] === '1')>Y</option>
+                                                                <option value="0" @selected($year['tribal_area'] === '0')>N</option>
                                                             </select>
                                                         </td>
                                                         <td><button type="button" class="btn btn-outline-danger btn-sm remove-year">×</button></td>
@@ -253,8 +293,8 @@
 
                 @if ($chart['has_candidates'])
                     <div class="mt-3">
-                        <button type="submit" class="btn btn-success">Save Evaluation Chart</button>
-                        <a href="{{ route('dpc-proposals.show', $proposal) }}" class="btn btn-outline-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-success">{{ __('dpc.evaluation_chart.save_evaluation_chart') }}</button>
+                        <a href="{{ route('dpc-proposals.show', $proposal) }}" class="btn btn-outline-secondary">{{ __('ui.cancel') }}</a>
                     </div>
                 @endif
             </form>
@@ -276,20 +316,27 @@
             </td>
             <td>
                 <select class="form-select form-select-sm" name="rows[__R__][cr_grades][__Y__][grade]">
-                    <option value="">— not recorded —</option>
+                    <option value="">{{ __('dpc.evaluation_chart.not_recorded_2') }}</option>
                     @foreach ($crGrades as $grade)<option value="{{ $grade }}">{{ $grade }}</option>@endforeach
                 </select>
             </td>
             <td>
                 <select class="form-select form-select-sm" name="rows[__R__][loyalty_flags][__Y__][flag]">
-                    <option value="">— not recorded —</option>
+                    <option value="">{{ __('dpc.evaluation_chart.not_recorded_2') }}</option>
                     <option value="1">Y</option>
                     <option value="0">N</option>
                 </select>
             </td>
             <td>
                 <select class="form-select form-select-sm" name="rows[__R__][property_flags][__Y__][flag]">
-                    <option value="">— not recorded —</option>
+                    <option value="">{{ __('dpc.evaluation_chart.not_recorded_2') }}</option>
+                    <option value="1">Y</option>
+                    <option value="0">N</option>
+                </select>
+            </td>
+            <td>
+                <select class="form-select form-select-sm" name="rows[__R__][cr_grades][__Y__][tribal_area]">
+                    <option value=""></option>
                     <option value="1">Y</option>
                     <option value="0">N</option>
                 </select>

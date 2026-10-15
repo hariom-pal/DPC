@@ -49,9 +49,23 @@ class NotificationRecipientResolver
             ->where('is_active', true)
             ->where(function (Builder $query) use ($departmentId, $roles, $userIds): void {
                 if ($departmentId !== null && $roles !== []) {
-                    $query->orWhere(fn (Builder $scoped): Builder => $scoped
+                    /*
+                     | "In this department, in one of these roles" is now a
+                     | question about the officer's *live assignment* rather than
+                     | about two columns on the account (change item 2).
+                     |
+                     | It reads the assignment's own `role` rather than the Spatie
+                     | grant it projects, and that is the substantive improvement:
+                     | an officer transferred out of Higher Education this morning
+                     | stops being one of its Authorized Officers immediately,
+                     | because the row that said so is no longer active. Under the
+                     | old columns they stopped only once someone remembered to
+                     | change `department_id`, and until then they were still being
+                     | told about that department's proposals.
+                     */
+                    $query->orWhereHas('activeAssignment', fn (Builder $assignment): Builder => $assignment
                         ->where('department_id', $departmentId)
-                        ->role($roles));
+                        ->whereIn('role', $roles));
                 }
 
                 if ($userIds !== []) {

@@ -12,7 +12,7 @@ use App\Domain\Cgpsc\Services\SchedulingService;
 use App\Domain\Department\Models\Department;
 use App\Domain\Dpc\Enums\DpcProposalStatus;
 use App\Domain\Dpc\Models\DpcProposal;
-use App\Domain\Master\Models\Cadre;
+use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\DpcType;
 use App\Domain\Shared\Events\WorkflowTransitioned;
 use App\Domain\Shared\Models\ActivityTimeline;
@@ -24,6 +24,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Event;
 use RuntimeException;
+use Tests\Concerns\SeatsDpcCommittees;
 use Tests\TestCase;
 
 /**
@@ -33,6 +34,7 @@ use Tests\TestCase;
 class ReschedulingTest extends TestCase
 {
     use RefreshDatabase;
+    use SeatsDpcCommittees;
 
     private Department $department;
 
@@ -52,28 +54,39 @@ class ReschedulingTest extends TestCase
 
         $this->department = Department::query()->create(['code' => 'HE', 'name' => 'Higher Education Department', 'status' => 'active']);
 
-        $this->chairman = User::factory()->create(['department_id' => null, 'name' => 'Hon. Chairman']);
+        $this->chairman = User::factory()->create(['name' => 'Hon. Chairman']);
         $this->chairman->assignRole(Role::Chairman->value);
 
-        $this->memberOne = User::factory()->create(['department_id' => null, 'name' => 'Member One']);
+        $this->memberOne = User::factory()->create(['name' => 'Member One']);
         $this->memberOne->assignRole(Role::Member->value);
 
-        $this->memberTwo = User::factory()->create(['department_id' => null, 'name' => 'Member Two']);
+        $this->memberTwo = User::factory()->create(['name' => 'Member Two']);
         $this->memberTwo->assignRole(Role::Member->value);
 
-        $postFrom = Cadre::query()->create(['department_id' => $this->department->id, 'name' => 'Under Secretary', 'class_level' => 'I', 'status' => 'active']);
-        $postTo = Cadre::query()->create(['department_id' => $this->department->id, 'name' => 'Deputy Secretary', 'class_level' => 'I', 'status' => 'active']);
+        $postFrom = DepartmentPost::query()->create(['department_id' => $this->department->id, 'name' => 'Under Secretary', 'class_level' => 'I', 'status' => 'active']);
+        $postTo = DepartmentPost::query()->create(['department_id' => $this->department->id, 'name' => 'Deputy Secretary', 'class_level' => 'I', 'status' => 'active']);
 
         $this->proposal = DpcProposal::query()->create([
             'department_id' => $this->department->id,
             'dpc_type_id' => DpcType::query()->where('code', 'fresh')->firstOrFail()->id,
-            'post_to_cadre_id' => $postTo->id,
-            'post_from_cadre_id' => $postFrom->id,
+            'promotion_to_post_id' => $postTo->id,
+            'promotion_from_post_id' => $postFrom->id,
             'proposal_date' => '2026-06-25',
             'status' => DpcProposalStatus::Approved->value,
-            'dpc_code' => 'HE202600001',
+            'dpc_code' => 'DPC-2026-HE-0001',
             'forwarded_at' => now(),
         ]);
+
+        /*
+         | A DPC is allotted to a serving member of **its own committee** since
+         | 2026-09-06, and business corrected the qualification on 2026-09-07: it is
+         | committee membership, not a CGPSC role. So the accounts these tests allot
+         | to have to be on the committee.
+         |
+         | `seatCommittee()` seats the Commission's accounts on the member seats it
+         | makes, which covers every allottee used here.
+         */
+        $this->seatCommittee($this->proposal);
     }
 
     private function scheduleIt(): void
@@ -189,6 +202,144 @@ class ReschedulingTest extends TestCase
     }
 
     // ------------------------------------------------- old vs new on screen
+
+    /**
+     * The allottee can actually *reach* rescheduling from the screen.
+     *
+     * **Nineteen tests exercised the reschedule endpoint and none of them looked at
+     * the screen**, so the control could disappear from the page with the whole
+     * suite green — the POST kept working for anybody who knew the URL, which is
+     * nobody. The affordance is the feature here, not the route.
+     */
+    // ------------------------------------------- the allottee who holds no role
+
+    /**
+     * A DPC allotted to a committee member who holds no portal role is still
+     * theirs to accept, schedule and reschedule.
+     *
+     * **This is the case that dead-ended.** Since 2026-09-07 the qualification for
+     * being allotted a DPC is membership of that DPC's committee and explicitly not
+     * a role — *"sitting on one DPC's committee is not an office"* — so the Chairman
+     * may allot to somebody with no role at all. `DpcAllotmentPolicy::viewAny()`
+     * still asked for `Chairman` or `Member`, so the allotment succeeded and the
+     * allottee was then refused the only screen that can move the DPC: no accept, no
+     * decline, no schedule, no reschedule. It did not return to the Chairman either,
+     * because nothing had lapsed. The DPC simply stopped.
+     */
+    public function test_an_allottee_who_holds_no_portal_role_can_reach_the_screen_and_accept(): void
+    {
+        $seated = User::factory()->create(['name' => 'Deputy Secretary, GAD']);
+        $this->seatAccountOnCommittee($this->proposal, $seated);
+
+        $this->assertSame([], $seated->roles->pluck('name')->all(), 'The point of this test is that they hold none.');
+
+        app(AllotmentService::class)->allot(
+            $this->proposal->fresh(), $seated, $this->chairman, request(), Carbon::parse('2026-07-10'),
+        );
+
+        $this->actingAs($seated)->get(route('cgpsc.schedules.index'))
+            ->assertOk()
+            ->assertSee(route('cgpsc.schedules.accept', $this->proposal), escape: false);
+
+        $this->actingAs($seated)->post(route('cgpsc.schedules.accept', $this->proposal))
+            ->assertSessionHasNoErrors();
+
+        $this->actingAs($seated)->post(route('cgpsc.schedules.store', $this->proposal), [
+            'dpc_date' => '2026-07-12', 'dpc_time' => '14:00',
+        ])->assertSessionHasNoErrors();
+
+        $this->actingAs($seated)->get(route('cgpsc.schedules.index'))
+            ->assertOk()
+            ->assertSee(route('cgpsc.schedules.reschedule', $this->proposal), escape: false);
+    }
+
+    public function test_an_allottee_who_holds_no_portal_role_is_offered_the_screen_from_the_dashboard(): void
+    {
+        $seated = User::factory()->create(['name' => 'Deputy Secretary, GAD']);
+        $this->seatAccountOnCommittee($this->proposal, $seated);
+
+        app(AllotmentService::class)->allot(
+            $this->proposal->fresh(), $seated, $this->chairman, request(), Carbon::parse('2026-07-10'),
+        );
+
+        $this->actingAs($seated)->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee(route('cgpsc.schedules.index'), escape: false);
+    }
+
+    /**
+     * And nothing is widened: holding no role and no allotment still opens nothing.
+     */
+    public function test_somebody_with_neither_a_role_nor_an_allotment_cannot_open_the_screen(): void
+    {
+        $stranger = User::factory()->create(['name' => 'Nobody In Particular']);
+
+        $this->actingAs($stranger)->get(route('cgpsc.schedules.index'))->assertForbidden();
+        $this->actingAs($stranger)->get(route('dashboard'))
+            ->assertOk()
+            ->assertDontSee(route('cgpsc.schedules.index'), escape: false);
+    }
+
+    /**
+     * An allottee with no role sees their own DPC and no other.
+     */
+    public function test_a_role_less_allottee_sees_only_their_own_dpc(): void
+    {
+        $seated = User::factory()->create(['name' => 'Deputy Secretary, GAD']);
+        $this->seatAccountOnCommittee($this->proposal, $seated);
+
+        app(AllotmentService::class)->allot(
+            $this->proposal->fresh(), $seated, $this->chairman, request(), Carbon::parse('2026-07-10'),
+        );
+
+        $other = DpcProposal::query()->create([
+            'department_id' => $this->department->id,
+            'dpc_type_id' => DpcType::query()->where('code', 'fresh')->firstOrFail()->id,
+            'promotion_to_post_id' => $this->proposal->promotion_to_post_id,
+            'promotion_from_post_id' => $this->proposal->promotion_from_post_id,
+            'proposal_date' => '2026-06-25',
+            'status' => DpcProposalStatus::Approved->value,
+            'dpc_code' => 'DPC-2026-HE-0002',
+            'forwarded_at' => now(),
+        ]);
+        $this->seatCommittee($other);
+        app(AllotmentService::class)->allot(
+            $other->fresh(), $this->memberOne, $this->chairman, request(), Carbon::parse('2026-07-10'),
+        );
+
+        $this->actingAs($seated)->get(route('cgpsc.schedules.index'))
+            ->assertOk()
+            ->assertSee('DPC-2026-HE-0001')
+            ->assertDontSee('DPC-2026-HE-0002');
+    }
+
+    public function test_the_allottee_sees_the_reschedule_control_on_the_schedule_screen(): void
+    {
+        $this->scheduleIt();
+
+        $this->actingAs($this->memberOne)->get(route('cgpsc.schedules.index'))
+            ->assertOk()
+            ->assertSee(route('cgpsc.schedules.reschedule', $this->proposal), escape: false);
+    }
+
+    public function test_the_reschedule_control_survives_a_reschedule(): void
+    {
+        $this->scheduleIt();
+        $this->reschedule()->assertSessionHasNoErrors();
+
+        $this->actingAs($this->memberOne)->get(route('cgpsc.schedules.index'))
+            ->assertOk()
+            ->assertSee(route('cgpsc.schedules.reschedule', $this->proposal), escape: false);
+    }
+
+    public function test_a_member_who_is_not_the_allottee_sees_no_reschedule_control(): void
+    {
+        $this->scheduleIt();
+
+        $this->actingAs($this->memberTwo)->get(route('cgpsc.schedules.index'))
+            ->assertOk()
+            ->assertDontSee(route('cgpsc.schedules.reschedule', $this->proposal), escape: false);
+    }
 
     public function test_the_schedule_screen_shows_the_previous_slot_beside_the_new(): void
     {

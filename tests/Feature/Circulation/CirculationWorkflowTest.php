@@ -73,7 +73,7 @@ class CirculationWorkflowTest extends TestCase
         // AD-24: a Circulation is not a DPC and must never appear in any
         // record to have been one. The code names the DPC it belongs to and
         // says on its face what it is.
-        $this->assertSame('HE202600001/C1', $approved->circulation_code);
+        $this->assertSame('DPC-2026-HE-0001/C1', $approved->circulation_code);
         $this->assertStringContainsString('/C', $approved->circulation_code);
     }
 
@@ -211,7 +211,7 @@ class CirculationWorkflowTest extends TestCase
         $this->actingAs($this->authorizedOfficer)
             ->get(route('dpc-circulations.create'))
             ->assertOk()
-            ->assertSee('HE202600001');
+            ->assertSee('DPC-2026-HE-0001');
 
         $this->actingAs($this->authorizedOfficer)
             ->get(route('dpc-circulations.show', $this->circulation))

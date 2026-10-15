@@ -2,10 +2,8 @@
             <div class="card border-0 shadow-sm mb-3">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
-                        <h2 class="h6 mb-0">Evaluation / Tabulation Chart</h2>
-                        @if ($proposal->status->isEditable() && $isAO)
-                            <a href="{{ route('dpc-proposals.evaluation-chart', $proposal) }}" class="btn btn-outline-primary btn-sm">Manage</a>
-                        @endif
+                        <h2 class="h6 mb-0">{{ __('ui.evaluation_tabulation_chart') }}</h2>
+                        @include('dpc-proposals.sections._action', ['manageRoute' => 'dpc-proposals.evaluation-chart'])
                     </div>
 
                     @php($chartYears = $proposal->evaluationRows->flatMap(fn ($r) => $r->crGrades->pluck('year')->merge($r->loyaltyFlags->pluck('year'))->merge($r->propertyFlags->pluck('year')))->unique()->sort()->values())
@@ -14,15 +12,15 @@
                         <table class="table table-sm align-middle mb-0">
                             <thead>
                                 <tr>
-                                    <th rowspan="2">S.N.</th><th rowspan="2">Name</th><th rowspan="2">DOB</th><th rowspan="2">Qual.</th><th rowspan="2" title="Date of Posting on Feeder Post">DOP</th><th rowspan="2">Category</th>
+                                    <th rowspan="2">{{ __('ui.s_n') }}</th><th rowspan="2">{{ __('ui.name') }}</th><th rowspan="2">{{ __('ui.dob') }}</th><th rowspan="2">{{ __('ui.qual') }}</th><th rowspan="2" title="{{ __('ui.date_of_posting_on_promotion_from_post') }}">{{ __('ui.dop') }}</th><th rowspan="2">{{ __('ui.category') }}</th>
                                     @foreach ($chartYears as $year)<th colspan="3" class="text-center border-start">{{ $year }}</th>@endforeach
-                                    <th rowspan="2" class="border-start">Note</th>
+                                    <th rowspan="2" class="border-start">{{ __('ui.note') }}</th>
                                 </tr>
                                 <tr>
                                     @foreach ($chartYears as $year)
-                                        <th class="small text-center border-start" title="Year-wise CR">CR</th>
-                                        <th class="small text-center" title="Loyalty">L</th>
-                                        <th class="small text-center" title="Immovable Property Details">P</th>
+                                        <th class="small text-center border-start" title="{{ __('ui.year_wise_cr') }}">{{ __('dpc.sections.evaluation.cr') }}</th>
+                                        <th class="small text-center" title="{{ __('ui.loyalty') }}">L</th>
+                                        <th class="small text-center" title="{{ __('dpc.sections.evaluation.immovable_property_details') }}">P</th>
                                     @endforeach
                                 </tr>
                             </thead>
@@ -33,7 +31,7 @@
                                         <td>{{ $row->name }}</td>
                                         <td>{{ $row->dob->format('d-m-Y') }}</td>
                                         <td>{{ $row->qualification ?? '—' }}</td>
-                                        <td>{{ $row->date_of_posting_on_feeder_post?->format('d-m-Y') ?? '—' }}</td>
+                                        <td>{{ $row->date_of_posting_on_promotion_from_post?->format('d-m-Y') ?? '—' }}</td>
                                         <td>{{ $row->reservationCategory->code }}</td>
                                         @foreach ($chartYears as $year)
                                             @php($loyalty = $row->loyaltyFlags->firstWhere('year', $year)?->flag)
@@ -45,14 +43,14 @@
                                         <td class="border-start">{{ $row->note ?? '—' }}</td>
                                     </tr>
                                 @empty
-                                    <tr><td colspan="{{ 7 + ($chartYears->count() * 3) }}" class="text-center text-muted py-2">No evaluation chart entries yet.</td></tr>
+                                    <tr><td colspan="{{ 7 + ($chartYears->count() * 3) }}" {{ __('dpc.sections.evaluation.no_entries') }}</tr>
                                 @endforelse
                             </tbody>
                         </table>
                     </div>
 
                     <p class="text-muted small mb-0 mt-2">
-                        Mark and Remark are computed by the Commission at CALCULATE time and are not part of this proposal.
+                        {{ __('dpc.sections.evaluation.mark_and_remark_are_computed_by_the_commission_a') }}
                     </p>
                 </div>
             </div>

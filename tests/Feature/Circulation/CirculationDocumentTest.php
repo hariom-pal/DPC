@@ -115,7 +115,7 @@ class CirculationDocumentTest extends TestCase
 
         $this->assertSame($this->circulation->uuid, $document->circulation_uuid);
         $this->assertSame((string) $this->proposal->uuid, $document->origin_proposal_uuid);
-        $this->assertSame('HE202600001', $document->origin_dpc_code);
+        $this->assertSame('DPC-2026-HE-0001', $document->origin_dpc_code);
         $this->assertNotNull($document->generator_version);
     }
 
@@ -195,7 +195,7 @@ class CirculationDocumentTest extends TestCase
         $html = $this->documents()->contents($note);
 
         $this->assertStringContainsString('परिभ्रमण टीप', $html);
-        $this->assertStringContainsString('HE202600001', $html);
+        $this->assertStringContainsString('DPC-2026-HE-0001', $html);
         $this->assertStringContainsString('US8', $html);
         $this->assertStringContainsString('Immovable property return not recorded', $html);
         // AD-23, stated on the face of the document.

@@ -8,18 +8,23 @@ use App\Domain\Master\Models\District;
 use App\Domain\Master\Requests\DistrictRequest;
 use App\Domain\Master\Services\MasterCrudService;
 use App\Enums\MasterStatus;
+use App\Http\Controllers\Admin\Concerns\ListsAMaster;
 use App\Http\Controllers\Controller;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 
 class DistrictController extends Controller
 {
+    use ListsAMaster;
+
     public function __construct(private readonly MasterCrudService $crud) {}
 
-    public function index(): View
+    public function index(Request $request): View
     {
         return view('admin.districts.index', [
-            'districts' => District::query()->orderBy('name_en')->paginate(20),
+            'districts' => $this->searched($request, District::query()->orderBy('name_en'), 'districts')
+                ->paginate(20)->withQueryString(),
         ]);
     }
 

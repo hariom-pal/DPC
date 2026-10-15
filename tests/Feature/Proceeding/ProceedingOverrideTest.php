@@ -9,7 +9,7 @@ use App\Domain\Department\Models\Department;
 use App\Domain\Dpc\Enums\DpcProposalStatus;
 use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\Dpc\Models\DpcProposal;
-use App\Domain\Master\Models\Cadre;
+use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\DpcType;
 use App\Domain\Master\Models\ReservationCategory;
 use App\Domain\Proceeding\Enums\DpcProceedingStatus;
@@ -55,14 +55,14 @@ class ProceedingOverrideTest extends TestCase
             'code' => 'HE', 'name' => 'Higher Education Department', 'status' => 'active',
         ]);
 
-        $this->member = User::factory()->create(['department_id' => null, 'name' => 'Member One']);
+        $this->member = User::factory()->create(['name' => 'Member One']);
         $this->member->assignRole(Role::Member->value);
 
-        $postFrom = Cadre::query()->create([
+        $postFrom = DepartmentPost::query()->create([
             'department_id' => $department->id, 'name' => 'Under Secretary',
             'class_level' => 'I', 'status' => 'active',
         ]);
-        $postTo = Cadre::query()->create([
+        $postTo = DepartmentPost::query()->create([
             'department_id' => $department->id, 'name' => 'Deputy Secretary',
             'class_level' => 'I', 'status' => 'active',
         ]);
@@ -70,11 +70,11 @@ class ProceedingOverrideTest extends TestCase
         $this->proposal = DpcProposal::query()->create([
             'department_id' => $department->id,
             'dpc_type_id' => DpcType::query()->where('code', 'fresh')->firstOrFail()->id,
-            'post_to_cadre_id' => $postTo->id,
-            'post_from_cadre_id' => $postFrom->id,
+            'promotion_to_post_id' => $postTo->id,
+            'promotion_from_post_id' => $postFrom->id,
             'proposal_date' => '2026-06-25',
             'status' => DpcProposalStatus::Approved->value,
-            'dpc_code' => 'HE202600001',
+            'dpc_code' => 'DPC-2026-HE-0001',
             'forwarded_at' => now(),
         ]);
 

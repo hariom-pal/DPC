@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Approve DPC Proposal — Step ' . $step . ' of ' . count($steps))
+@section('title', __('dpc.review.title', ['step' => $step, 'total' => count($steps)]))
 
 @php($isAH = auth()->user()->hasRole(\App\Enums\Role::AdministrativeHead->value))
 @php($current = $steps[$step - 1])
@@ -15,15 +15,20 @@
                  at a time, and approves ONCE at the end — the single-approval model
                  (architect decision): one signature, one transition, one timeline
                  entry, one audit event covering every section. --}}
-            <h1 class="h5 mb-1">Approval by Administrative Head</h1>
+            <h1 class="h5 mb-1">{{ __('dpc.review.approval_by_administrative_head') }}</h1>
             <p class="text-muted small mb-3">
-                {{ $proposal->postFromCadre->name }} → {{ $proposal->postToCadre->name }}
-                · Proposal dated {{ $proposal->proposal_date->format('d-m-Y') }}
-                · Step {{ $step }} of {{ count($steps) }} ({{ $current['screen'] }})
+{{ __('dpc.review.subheading', [
+                    'from' => $proposal->promotionFromPost->name,
+                    'to' => $proposal->promotionToPost->name,
+                    'date' => $proposal->proposal_date->format('d-m-Y'),
+                    'step' => $step,
+                    'total' => count($steps),
+                    'screen' => $current['screen'],
+                ]) }}
             </p>
 
             <div class="progress mb-3" style="height:.5rem" role="progressbar"
-                 aria-label="Review progress" aria-valuenow="{{ $step }}" aria-valuemin="1" aria-valuemax="{{ count($steps) }}">
+                 aria-label="{{ __('dpc.review.review_progress') }}" aria-valuenow="{{ $step }}" aria-valuemin="1" aria-valuemax="{{ count($steps) }}">
                 <div class="progress-bar bg-success" style="width: {{ (int) round($step / count($steps) * 100) }}%"></div>
             </div>
 
@@ -40,19 +45,24 @@
 
             @include('dpc-proposals.sections.' . $current['partial'])
 
+            {{-- Rule 1.1: what the department confirmed, shown before the AH signs. --}}
+            @if ($step === count($steps))
+                @include('dpc-proposals.sections.verification')
+            @endif
+
             <div class="card border-0 shadow-sm mb-3">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                         <div>
                             @if ($step > 1)
-                                <a href="{{ route('dpc-proposals.review', [$proposal, $step - 1]) }}" class="btn btn-outline-secondary btn-sm">← Previous</a>
+                                <a href="{{ route('dpc-proposals.review', [$proposal, $step - 1]) }}" class="btn btn-outline-secondary btn-sm">{{ __('dpc.review.previous') }}</a>
                             @endif
-                            <a href="{{ route('dpc-proposals.show', $proposal) }}" class="btn btn-link btn-sm">View full proposal</a>
+                            <a href="{{ route('dpc-proposals.show', $proposal) }}" class="btn btn-link btn-sm">{{ __('dpc.review.view_full_proposal') }}</a>
                         </div>
 
                         <div>
                             @if ($step < count($steps))
-                                <a href="{{ route('dpc-proposals.review', [$proposal, $step + 1]) }}" class="btn btn-primary btn-sm">Next: {{ $steps[$step]['label'] }} →</a>
+                                <a href="{{ route('dpc-proposals.review', [$proposal, $step + 1]) }}" {{ __('dpc.review.next_step', ['label' => $steps[$step]['label']]) }}
                             @endif
                         </div>
                     </div>
@@ -61,16 +71,14 @@
                         <hr>
                         @if ($isAH && $proposal->status->value === 'submitted')
                             <p class="small mb-2">
-                                You have reviewed all {{ count($steps) }} sections. Approving digitally signs the
-                                <strong>entire</strong> proposal — every section above — and forwards it to the
-                                Chhattisgarh Public Service Commission (S19). This cannot be undone.
+{!! __('dpc.review.final_step_note', ['count' => count($steps)]) !!}
                             </p>
                             @error('workflow')<div class="alert alert-danger py-2">{{ $message }}</div>@enderror
 
                             <div class="d-flex flex-wrap gap-2">
                                 <form method="POST" action="{{ route('dpc-proposals.approve', $proposal) }}"
-                                      data-confirm="Approve, digitally sign, and forward this proposal to CGPSC?">
-                                    @csrf<button class="btn btn-success">Approve, Sign &amp; Forward to CGPSC</button>
+                                      data-confirm="{{ __('ui.approve_digitally_sign_and_forward_this_proposal') }}">
+                                    @csrf<button class="btn btn-success">{{ __('ui.approve_sign_amp_forward_to_cgpsc') }}</button>
                                 </form>
                             </div>
 
@@ -78,14 +86,14 @@
                                 @csrf
                                 <div class="col-md-9">
                                     <input type="text" class="form-control form-control-sm @error('return_remarks') is-invalid @enderror"
-                                           name="return_remarks" placeholder="Remarks (required to return for correction)">
+                                           name="return_remarks" placeholder="{{ __('dpc.review.remarks_required_to_return_for_correction') }}">
                                     @error('return_remarks')<div class="invalid-feedback">{{ $message }}</div>@enderror
                                 </div>
-                                <div class="col-md-3"><button class="btn btn-warning btn-sm w-100">Return for Correction</button></div>
+                                <div class="col-md-3"><button class="btn btn-warning btn-sm w-100">{{ __('ui.return_for_correction') }}</button></div>
                             </form>
                         @else
                             <p class="text-muted small mb-0">
-                                This proposal is {{ $proposal->status->label() }} — no approval action is available.
+{{ __('dpc.review.no_action', ['status' => $proposal->status->label()]) }}
                             </p>
                         @endif
                     @endif

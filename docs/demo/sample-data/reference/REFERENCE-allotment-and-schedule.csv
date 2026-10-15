@@ -1,0 +1,9 @@
+﻿FIELD,VALUE,SCREEN
+Allot to (DPC Allottee),Shri Brijesh Kumar Pandey,CGPSC -> Allotments
+DPC Chairman (presides),Smt. Sunita Rathore,CGPSC -> Allotments
+Default DPC Date (optional),20-09-2026,CGPSC -> Allotments
+Must be concluded by (deadline),31-12-2026,CGPSC -> Allotments
+Meeting Date (refused - after deadline),15-01-2027,CGPSC -> Schedules
+Meeting Date (accepted),22-12-2026,CGPSC -> Schedules
+Meeting Time,11:00,CGPSC -> Schedules
+Promotion as on (year),2026,Proceeding -> APPROVE BY CGPSC

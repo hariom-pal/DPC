@@ -10,14 +10,13 @@
     note that records only "resolved" says nothing a reader can check later.
 --}}
 
-@section('title', 'Raise a Circulation DPC')
+@section('title', __('dpc.circulations.create.raise_a_circulation_dpc'))
 
 @section('content')
     <div class="container py-4">
-        <h1 class="h4 mb-1">Circulation DPC — परिभ्रमण डी.पी.सी.</h1>
+        <h1 class="h4 mb-1">{{ __('dpc.circulations.create.circulation_dpc') }}</h1>
         <p class="text-body-secondary">
-            Ask the Commission to consent to a promotion it reserved, now that the missing record has been supplied.
-            <strong>The DPC itself is not re-run and no marks are recalculated.</strong>
+{!! __('dpc.circulations.create.lead') !!}
         </p>
 
         @if (session('pendingBusinessDecision'))
@@ -38,13 +37,12 @@
 
         @if ($origins->isEmpty())
             <div class="alert alert-info">
-                No DPC of this department currently has a promotion held. A circulation can only be raised
-                against a concluded DPC that reserved at least one officer's promotion.
+                {{ __('dpc.circulations.create.none_available') }}
             </div>
         @else
             <form method="GET" action="{{ route('dpc-circulations.create') }}" class="row g-3 align-items-end mb-4">
                 <div class="col-md-6">
-                    <label for="origin" class="form-label">DPC ID</label>
+                    <label for="origin" class="form-label">{{ __('ui.dpc_id') }}</label>
                     {{-- `data-submit-on-change` rather than an inline handler: see
                          portal.js. The <noscript> button below is the fallback. --}}
                     <select id="origin" name="origin" class="form-select" data-submit-on-change>
@@ -56,27 +54,27 @@
                     </select>
                 </div>
                 <div class="col-md-6">
-                    <noscript><button type="submit" class="btn btn-outline-secondary">Show held officers</button></noscript>
+                    <noscript><button type="submit" class="btn btn-outline-secondary">{{ __('dpc.circulations.create.show_held_officers') }}</button></noscript>
                 </div>
             </form>
 
             @if ($selected)
                 <div class="card mb-4">
-                    <div class="card-header">The DPC being circulated</div>
+                    <div class="card-header">{{ __('dpc.circulations.create.dpc_being_circulated') }}</div>
                     <div class="card-body">
                         <dl class="row mb-0">
-                            <dt class="col-sm-4">DPC ID</dt>
+                            <dt class="col-sm-4">{{ __('ui.dpc_id') }}</dt>
                             <dd class="col-sm-8">{{ $selected->dpc_code ?? '—' }}</dd>
 
                             {{-- S47 labels this "फ्रेश DPC की तिथि". The label is
                                  narrower than the rule — a Review holds officers
                                  too (S44 shows `ST SS CIR`) — so it is worded for
                                  what it is. Category-B difference, recorded. --}}
-                            <dt class="col-sm-4">DPC date</dt>
+                            <dt class="col-sm-4">{{ __('dpc.circulations.create.dpc_date') }}</dt>
                             <dd class="col-sm-8">{{ optional($selected->proposal_date)->format('d-m-Y') ?? '—' }}</dd>
 
-                            <dt class="col-sm-4">Type of DPC</dt>
-                            <dd class="col-sm-8">CIRCULATION</dd>
+                            <dt class="col-sm-4">{{ __('ui.type_of_dpc') }}</dt>
+                            <dd class="col-sm-8">{{ __('dpc.circulations.create.circulation') }}</dd>
                         </dl>
                     </div>
                 </div>
@@ -87,28 +85,28 @@
 
                     <div class="mb-4" style="max-width: 22rem;">
                         <label for="proposal_date" class="form-label">
-                            Circulation proposal date — परिभ्रमण पदोन्नति प्रस्ताव तिथि
+                            {{ __('dpc.circulations.create.circulation_proposal_date') }}
                         </label>
                         <input type="date" id="proposal_date" name="proposal_date" class="form-control"
                                value="{{ old('proposal_date', now()->toDateString()) }}" required>
                     </div>
 
-                    <h2 class="h6">Held promotions on this DPC</h2>
+                    <h2 class="h6">{{ __('dpc.circulations.create.held_promotions_on_this_dpc') }}</h2>
 
                     @if ($holds->isEmpty())
-                        <div class="alert alert-info">No promotion is currently held on this DPC.</div>
+                        <div class="alert alert-info">{{ __('dpc.circulations.create.no_promotion_held') }}</div>
                     @else
                         <div class="table-responsive">
                             <table class="table table-sm align-middle">
                                 <thead>
                                     <tr>
-                                        <th style="width: 3rem;">Include</th>
-                                        <th>SN</th>
-                                        <th>Officer</th>
-                                        <th>Ground</th>
-                                        <th>Resolution received</th>
-                                        <th>What was received</th>
-                                        <th>Reference</th>
+                                        <th style="width: 3rem;">{{ __('dpc.circulations.create.include') }}</th>
+                                        <th>{{ __('ui.sn') }}</th>
+                                        <th>{{ __('ui.officer') }}</th>
+                                        <th>{{ __('dpc.circulations.create.ground') }}</th>
+                                        <th>{{ __('ui.resolution_received') }}</th>
+                                        <th>{{ __('ui.what_was_received') }}</th>
+                                        <th>{{ __('ui.reference') }}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -134,12 +132,12 @@
                                             <td>
                                                 <input type="text" class="form-control form-control-sm"
                                                        name="items[{{ $index }}][resolution_detail]"
-                                                       placeholder="e.g. 2016 immovable property return filed">
+                                                       placeholder="{{ __('dpc.circulations.create.e_g_2016_immovable_property_return_filed') }}">
                                             </td>
                                             <td>
                                                 <input type="text" class="form-control form-control-sm"
                                                        name="items[{{ $index }}][resolution_reference]"
-                                                       placeholder="File / letter no.">
+                                                       placeholder="{{ __('dpc.circulations.create.file_letter_no') }}">
                                             </td>
                                         </tr>
                                     @endforeach
@@ -147,7 +145,7 @@
                             </table>
                         </div>
 
-                        <button type="submit" class="btn btn-primary">Raise circulation</button>
+                        <button type="submit" class="btn btn-primary">{{ __('dpc.circulations.create.raise_circulation') }}</button>
                     @endif
                 </form>
             @endif

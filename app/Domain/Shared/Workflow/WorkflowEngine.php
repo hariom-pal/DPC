@@ -45,22 +45,45 @@ class WorkflowEngine
     public function __construct(private readonly ActivityTimelineService $timeline) {}
 
     /**
-     * @return array{from:list<string>,to:string,role:string,signature:bool,notify:list<string>}
+     * @return array{from:list<string>,to:string,role:string|null,signature:bool,notify:list<string>}
      */
     public function assertAllowed(string $workflow, string $event, string $from, User $actor): array
     {
-        /** @var array{from:list<string>,to:string,role:string,signature:bool,notify:list<string>}|null $def */
-        $def = config("dpc.workflows.{$workflow}.transitions.{$event}");
+        $raw = config("dpc.workflows.{$workflow}.transitions.{$event}");
 
-        if (! is_array($def)) {
+        if (! is_array($raw)) {
             throw new WorkflowException("Unknown transition [{$event}] for workflow [{$workflow}].");
         }
+        /*
+         | **`role` must be stated, and `null` is a way of stating it.**
+         |
+         | A transition whose actor cannot be described by a role has to be able to
+         | say so, and the alternative — omitting the key — would make a forgotten
+         | role indistinguishable from a deliberate one. So the key is required and
+         | `null` means *"this actor is not identified by a role"*.
+         |
+         | It is not a way of leaving a transition open. Every transition that uses
+         | it is bound to a named individual by its own service — the allottee of
+         | *this* DPC, checked before the engine is reached — which is a narrower
+         | test than any role, not a wider one. `array_key_exists` rather than
+         | `isset`, because `isset` is false for null and would let the key go
+         | missing unnoticed.
+         */
+        if (! array_key_exists('role', $raw)) {
+            throw new WorkflowException(
+                "Transition [{$event}] of workflow [{$workflow}] states no `role`. "
+                .'State a role, or `null` if the actor is identified by the service instead.'
+            );
+        }
+
+        /** @var array{from:list<string>,to:string,role:string|null,signature:bool,notify:list<string>} $def */
+        $def = $raw;
 
         if (! in_array($from, $def['from'], true)) {
             throw new WorkflowException("Transition [{$event}] is not allowed from state [{$from}].");
         }
 
-        if (! $actor->hasRole($def['role'])) {
+        if ($def['role'] !== null && ! $actor->hasRole($def['role'])) {
             throw new WorkflowException("You are not permitted to perform [{$event}].");
         }
 

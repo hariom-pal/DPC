@@ -36,11 +36,7 @@ trait BuildsCirculations
     {
         $this->bootProceeding();
 
-        $this->administrativeHead = User::factory()->create([
-            'department_id' => $this->department->id,
-            'name' => 'Administrative Head',
-        ]);
-        $this->administrativeHead->assignRole(Role::AdministrativeHead->value);
+        $this->administrativeHead = User::factory()->assignedTo($this->department->id, Role::AdministrativeHead)->create(['name' => 'Administrative Head']);
 
         // Property ground: five CR years, 2016 property return not recorded.
         $this->officer(8, 'US8', $this->stCategoryId(), [

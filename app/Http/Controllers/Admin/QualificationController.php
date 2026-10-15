@@ -8,21 +8,25 @@ use App\Domain\Master\Models\Qualification;
 use App\Domain\Master\Requests\QualificationRequest;
 use App\Domain\Master\Services\MasterCrudService;
 use App\Enums\MasterStatus;
+use App\Http\Controllers\Admin\Concerns\ListsAMaster;
 use App\Http\Controllers\Controller;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 
 class QualificationController extends Controller
 {
+    use ListsAMaster;
+
     public function __construct(private readonly MasterCrudService $crud) {}
 
-    public function index(): View
+    public function index(Request $request): View
     {
         return view('admin.qualifications.index', [
-            'qualifications' => Qualification::query()
-                ->withCount('recruitmentRuleFeeders')
-                ->orderBy('name_en')
-                ->paginate(20),
+            'qualifications' => $this->searched($request, Qualification::query()
+                ->withCount('recruitmentRuleSources')
+                ->orderBy('name_en'), 'qualifications')
+                ->paginate(20)->withQueryString(),
         ]);
     }
 
@@ -66,7 +70,7 @@ class QualificationController extends Controller
      */
     public function destroy(Qualification $qualification): RedirectResponse
     {
-        $inUse = $qualification->recruitmentRuleFeeders()->count();
+        $inUse = $qualification->recruitmentRuleSources()->count();
 
         if ($inUse > 0) {
             return redirect()->route('admin.qualifications.index')->with(

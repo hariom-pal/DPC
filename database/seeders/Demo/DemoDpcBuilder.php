@@ -7,13 +7,16 @@ namespace Database\Seeders\Demo;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Department\Models\Department;
 use App\Domain\Dpc\Enums\CommitteeCapacity;
+use App\Domain\Dpc\Enums\PreviousDpcBasis;
+use App\Domain\Dpc\Models\DpcCommitteeMember;
 use App\Domain\Dpc\Models\DpcProposal;
+use App\Domain\Dpc\Services\DpcCommitteeService;
 use App\Domain\Dpc\Services\DpcProposalService;
+use App\Domain\Dpc\Services\ProposalVerificationService;
 use App\Domain\Dpc\Services\VacancyCalculationService;
-use App\Domain\Master\Models\Cadre;
+use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\DpcType;
-use App\Domain\Master\Models\ReservationCategory;
-use App\Domain\Master\Models\VacancyType;
+use App\Domain\PreDpc\Models\PreDpcProposal;
 use RuntimeException;
 
 /**
@@ -31,6 +34,7 @@ final class DemoDpcBuilder
 {
     public function __construct(
         private readonly DpcProposalService $proposals,
+        private readonly DpcCommitteeService $committees,
         private readonly DemoChart $chart,
     ) {}
 
@@ -44,28 +48,66 @@ final class DemoDpcBuilder
     public function draft(Department $department, User $ao, array $spec): DpcProposal
     {
         return DemoActor::as($ao, function () use ($department, $ao, $spec): DpcProposal {
-            $proposal = DemoClock::at($spec['drafted_at'], fn (): DpcProposal => $this->proposals->createDraft($department, $ao, [
+            /*
+             | Raised from the approved Pre-DPC that sanctioned this exercise
+             | (change item 11). The demo seeds one Pre-DPC per ladder rung before
+             | it builds any DPC — see `DemoMasterSeeder::approvedPreDpcs()` — so
+             | the order this exercise runs under already exists.
+             |
+             | The post pair, the year, the class, the pay scale and the promotion
+             | duration all come from it now, which is why the payload below is
+             | down to the two facts the order does not carry.
+             */
+            $preDpc = $this->sanctioningPreDpc($department, $spec);
+
+            $proposal = DemoClock::at($spec['drafted_at'], fn (): DpcProposal => $this->proposals->createFromPreDpc($preDpc, $ao, [
                 'dpc_type_id' => DpcType::query()->where('code', $spec['dpc_type'] ?? 'fresh')->firstOrFail()->id,
-                'post_to_cadre_id' => $this->cadre($department, $spec['to'])->id,
-                'post_from_cadre_id' => $this->cadre($department, $spec['from'])->id,
                 'legal_stay' => $spec['legal_stay'] ?? false,
-                'proposal_date' => $spec['proposal_date'],
+
+                // Which of the order's feeders this DPC runs. Named and not inferred:
+                // Lecturer is filled from both Teacher and Head Master, so the
+                // order alone does not say, and the service refuses to guess.
+                'promotion_from_post_id' => $this->departmentPost($department, (string) $spec['from'])->id,
             ]));
 
-            DemoClock::at($spec['drafted_at'], function () use ($proposal, $ao, $spec): void {
-                $this->proposals->saveCommittee($proposal, $this->committee($spec['committee']), $ao);
+            DemoClock::at($spec['drafted_at'], function () use ($proposal, $ao, $spec, $department, $preDpc): void {
+                $this->committees->compose($proposal, $this->committee($spec['committee']), $ao);
 
-                $this->proposals->saveVacancies(
-                    $proposal,
-                    (int) $spec['sanctioned'],
-                    $this->vacancies($spec['vacancies']),
-                );
+                /*
+                 | Sanctioned strength on the master, then the officers, then the
+                 | vacancies — and that order is the change register of 2026-08-27.
+                 |
+                 | Item 1 moved the sanctioned strength onto the Department Post
+                 | Mapping, so it is no longer something a DPC states; item 2 made
+                 | Working Strength read the uploaded Working Officer List, so the
+                 | breakdown cannot be computed before that list exists. Saving the
+                 | vacancies first — as this did — recorded an audit row describing
+                 | the chart that was about to be replaced.
+                 */
+                $toPost = $this->departmentPost($department, (string) $spec['to']);
+                $toPost->forceFill(['sanctioned_strength' => (int) $spec['sanctioned']])->save();
 
                 $this->proposals->saveWorkingOfficers(
                     $proposal,
-                    $this->chart->workingOfficers($spec['working'], $spec['to'], $spec['from']),
+                    $this->chart->workingOfficers(
+                        $spec['working'],
+                        $spec['to'],
+                        $spec['from'],
+                        (int) $spec['sanctioned'],
+
+                        // The order's promotion share decides how many of the
+                        // seated officers hold a promotion chair rather than a
+                        // direct one. Read from the Pre-DPC because that is where
+                        // the Recruitment Rule is projected from.
+                        (int) $preDpc->promotion_recruitment_pct,
+                    ),
                     $ao,
                 );
+
+                // The breakdown is derived from the chart just saved (business
+                // directive, 2026-09-02), so the spec's `vacancies` no longer
+                // travel: the chart decides them.
+                $this->proposals->saveVacancies($proposal->refresh(), $ao);
 
                 // The Seniority List is the source of truth for *who* is
                 // evaluated (business directive, 2026-08-22): saving it projects
@@ -87,10 +129,39 @@ final class DemoDpcBuilder
                     ),
                     $ao,
                 );
+
+                // Rule 1.1, against the figures just saved — the step a
+                // department completes before it may submit.
+                $this->confirmRuleOneOne($proposal->refresh(), $ao);
             });
 
             return $proposal->refresh();
         });
+    }
+
+    /**
+     * Rule 1.1 — the four confirmations the submission gate requires, made just
+     * before submitting, against the figures the sections above produced. The
+     * demonstration departments have no earlier DPC for these posts, which the
+     * remarks state.
+     */
+    private function confirmRuleOneOne(DpcProposal $proposal, User $ao): void
+    {
+        $verification = app(ProposalVerificationService::class);
+
+        foreach ($verification->status($proposal) as $entry) {
+            if ($entry['complete']) {
+                continue;
+            }
+
+            $verification->confirm(
+                $proposal,
+                $entry['item'],
+                $ao,
+                'No earlier DPC has been held for this post.',
+                ['basis' => PreviousDpcBasis::None->value],
+            );
+        }
     }
 
     /**
@@ -101,7 +172,10 @@ final class DemoDpcBuilder
     {
         DemoActor::as($ao, fn () => DemoClock::at(
             $at,
-            fn () => $this->proposals->submit($proposal, $ao, DemoActor::request()),
+            function () use ($proposal, $ao): void {
+                $this->confirmRuleOneOne($proposal->refresh(), $ao);
+                $this->proposals->submit($proposal, $ao, DemoActor::request());
+            },
         ));
 
         return $proposal->refresh();
@@ -147,14 +221,24 @@ final class DemoDpcBuilder
      */
     private function committee(array $members): array
     {
-        return array_map(static fn (array $member): array => [
-            'user_id' => $member['user']?->id,
-            'name' => $member['name'] ?? $member['user']?->name,
-            'designation' => $member['designation'] ?? null,
-            'mobile' => $member['mobile'] ?? null,
-            'email' => $member['email'] ?? null,
-            'capacity' => ($member['capacity'] ?? CommitteeCapacity::Member)->value,
-        ], $members);
+        return array_map(static function (array $member): array {
+            $row = [
+                'user_id' => $member['user']?->id,
+                'name' => $member['name'] ?? $member['user']?->name,
+                'designation' => $member['designation'] ?? null,
+                'mobile' => $member['mobile'] ?? null,
+                'email' => $member['email'] ?? null,
+                'capacity' => ($member['capacity'] ?? CommitteeCapacity::Member)->value,
+            ];
+
+            // The six composition attributes (item 8), defaulting to false so a
+            // spec that names none is still a well-formed row.
+            foreach (DpcCommitteeMember::ATTRIBUTE_COLUMNS as $column) {
+                $row[$column] = (bool) ($member[$column] ?? false);
+            }
+
+            return $row;
+        }, $members);
     }
 
     /**
@@ -250,27 +334,33 @@ final class DemoDpcBuilder
     }
 
     /**
-     * The S16 vacancy breakdown: one row per (vacancy type, reservation
-     * category) pair, never a column per type.
+     * The approved Pre-DPC this demo DPC is raised under.
      *
-     * @param  list<array{0:string, 1:string, 2:int}>  $vacancies
-     * @return list<array<string, mixed>>
+     * Looked up rather than created: `DemoMasterSeeder` has already run one
+     * Pre-DPC per Promotion To Post through the real workflow, and creating a second
+     * here would breach `pre_dpc_active_exercise_unique_v2` — which is item 9
+     * working exactly as intended.
+     *
+     * The feeder is matched with a `whereHas` and not a column comparison, because
+     * one order names every post its promotion may draw on.
+     *
+     * @param  array<string, mixed>  $spec
      */
-    private function vacancies(array $vacancies): array
+    private function sanctioningPreDpc(Department $department, array $spec): PreDpcProposal
     {
-        $types = VacancyType::query()->pluck('id', 'code');
-        $categories = ReservationCategory::query()->pluck('id', 'code');
+        $from = $this->departmentPost($department, (string) $spec['from']);
 
-        return array_map(static fn (array $vacancy): array => [
-            'vacancy_type_id' => $types[$vacancy[0]],
-            'reservation_category_id' => $categories[$vacancy[1]],
-            'count' => $vacancy[2],
-        ], $vacancies);
+        return PreDpcProposal::query()
+            ->activeApproved()
+            ->where('department_id', $department->id)
+            ->whereHas('promotionSources', fn ($query) => $query->where('promotion_from_post_id', $from->id))
+            ->where('promotion_to_post_id', $this->departmentPost($department, (string) $spec['to'])->id)
+            ->firstOrFail();
     }
 
-    private function cadre(Department $department, string $name): Cadre
+    private function departmentPost(Department $department, string $name): DepartmentPost
     {
-        return Cadre::query()
+        return DepartmentPost::query()
             ->where('department_id', $department->id)
             ->where('name', $name)
             ->firstOrFail();

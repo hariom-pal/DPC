@@ -6,11 +6,13 @@ namespace App\Http\Controllers\Admin;
 
 use App\Domain\Authentication\Models\User;
 use App\Domain\Circulation\Models\DpcCirculation;
+use App\Domain\Committee\Models\CgpscChairman;
 use App\Domain\Department\Models\Department;
 use App\Domain\Dpc\Enums\DpcProposalStatus;
 use App\Domain\Dpc\Models\DpcProposal;
-use App\Domain\Master\Models\Cadre;
+use App\Domain\Master\Models\ClassMaster;
 use App\Domain\Master\Models\CommitteeConfiguration;
+use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\Designation;
 use App\Domain\Master\Models\District;
 use App\Domain\Master\Models\RecruitmentRule;
@@ -63,10 +65,12 @@ class AdminDashboardController extends Controller
                 ['label' => 'Departments', 'count' => Department::query()->count(), 'route' => route('admin.departments.index')],
                 ['label' => 'Districts', 'count' => District::query()->count(), 'route' => route('admin.districts.index')],
                 ['label' => 'Designations', 'count' => Designation::query()->count(), 'route' => route('admin.designations.index')],
-                ['label' => 'Cadres', 'count' => Cadre::query()->count(), 'route' => route('admin.cadres.index')],
+                ['label' => 'Department Posts', 'count' => DepartmentPost::query()->count(), 'route' => route('admin.department-posts.index')],
+                ['label' => 'Class Master', 'count' => ClassMaster::query()->count(), 'route' => route('admin.service-classes.index')],
                 ['label' => 'Recruitment Rules', 'count' => RecruitmentRule::query()->count(), 'route' => route('admin.recruitment-rules.index')],
                 ['label' => 'Reservation Policies', 'count' => ReservationPolicy::query()->count(), 'route' => route('admin.reservation-policies.index')],
                 ['label' => 'Reservation Rosters', 'count' => ReservationRoster::query()->count(), 'route' => route('admin.reservation-rosters.index')],
+                ['label' => 'CGPSC Chairman', 'count' => CgpscChairman::query()->serving()->count(), 'route' => route('admin.cgpsc-chairman.index')],
                 ['label' => 'Committee Configurations', 'count' => CommitteeConfiguration::query()->count(), 'route' => route('admin.committee-configurations.index')],
             ],
         ]);

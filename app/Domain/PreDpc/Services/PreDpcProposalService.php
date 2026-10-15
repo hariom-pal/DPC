@@ -6,13 +6,15 @@ namespace App\Domain\PreDpc\Services;
 
 use App\Domain\Authentication\Models\User;
 use App\Domain\Department\Models\Department;
-use App\Domain\Master\Data\QualificationCatalogue;
-use App\Domain\Master\Models\Cadre;
-use App\Domain\Master\Models\Qualification;
+use App\Domain\Master\Enums\ExperienceUnit;
+use App\Domain\Master\Models\DepartmentPost;
+use App\Domain\Master\Services\PostAttributeResolver;
 use App\Domain\Master\Services\RecruitmentRuleService;
 use App\Domain\PreDpc\Enums\PreDpcStatus;
+use App\Domain\PreDpc\Models\PreDpcPromotionSource;
 use App\Domain\PreDpc\Models\PreDpcProposal;
-use App\Domain\PreDpc\Support\FeederCadreResolver;
+use App\Domain\Shared\Services\ActivityTimelineService;
+use App\Domain\Shared\Services\IdentifierSequenceService;
 use App\Domain\Shared\Workflow\WorkflowEngine;
 use App\Domain\Shared\Workflow\WorkflowException;
 use App\Domain\Signature\Services\SignatureService;
@@ -20,29 +22,34 @@ use App\Enums\Feature;
 use App\Enums\MasterStatus;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 
 /**
- * Pre-DPC Proposal workflow (PPT S7–S11). Draft authoring by the AO, approval
- * by the AH via a signature step-up, and — on approval — projection into the
- * Cadre + Recruitment Rule masters (single source of truth, architect Q1).
- * Approved proposals are immutable; amendments create a new version (Q3).
+ * Pre-DPC Proposal workflow (PPT S7–S11) — one promotion exercise, drafted by the
+ * Authorized Officer and approved by the Administrative Head over a signature.
+ *
+ * **Reshaped on 2026-08-24** (change items 8–11). A Pre-DPC is now a single post
+ * pair for a single DPC Year, it carries a Pre-DPC Number from the moment it is
+ * drafted, and approving one *supersedes* the previous approved Pre-DPC for the
+ * same exercise instead of the department's previous one. Approved proposals stay
+ * immutable; an amendment opens a new version.
+ *
+ * **The three things approval does, and why they are one transaction.** It signs
+ * the proposal, it makes this the active Pre-DPC for the exercise (retiring the
+ * incumbent), and it projects the exercise into the Recruitment Rule master. Split
+ * apart, the failure modes are a signed proposal that is not active, an active
+ * proposal the engine has no rule for, or two active proposals for one exercise —
+ * which `pre_dpc_active_exercise_unique` would refuse, aborting a half-finished
+ * approval.
  */
 class PreDpcProposalService
 {
-    /**
-     * Normalised qualification name/code → id, built once per projection so a
-     * nine-post ladder does not re-read the master nine times.
-     *
-     * @var array<string, int>|null
-     */
-    private ?array $qualificationIndex = null;
-
     public function __construct(
         private readonly WorkflowEngine $engine,
         private readonly SignatureService $signatures,
         private readonly RecruitmentRuleService $rules,
-        private readonly FeederCadreResolver $feederCadres,
+        private readonly PostAttributeResolver $postAttributes,
+        private readonly IdentifierSequenceService $identifiers,
+        private readonly ActivityTimelineService $timeline,
     ) {}
 
     /**
@@ -51,19 +58,37 @@ class PreDpcProposalService
     public function createDraft(Department $department, User $actor, array $data): PreDpcProposal
     {
         return DB::transaction(function () use ($department, $actor, $data): PreDpcProposal {
+            $year = (int) $data['dpc_year'];
+
             $proposal = new PreDpcProposal([
                 'department_id' => $department->id,
-                'version' => $this->nextVersion($department->id),
+
+                /*
+                 | The number is issued at draft, not at approval (item 10 read
+                 | with item 18's doctrine for the DPC Number).
+                 |
+                 | An officer who telephones about "PDPC-2026-HED-0007" must be
+                 | talking about something that exists, and a draft that has been
+                 | returned twice is still the same proposal. Issuing at approval
+                 | would leave every unapproved proposal unnameable.
+                 */
+                'pre_dpc_number' => $this->identifiers->next($department, IdentifierSequenceService::SERIES_PRE_DPC, $year),
+
+                'dpc_year' => $year,
+                'version' => $this->nextVersion($department->id, $data),
                 'status' => PreDpcStatus::Draft->value,
-                'is_current' => false,
                 'government_order_number' => $data['government_order_number'] ?? null,
                 'effective_from' => $data['effective_from'] ?? null,
                 'prepared_by' => $actor->id,
             ]);
-            $proposal->save();
-            $this->syncPosts($proposal, $data['posts'] ?? []);
 
-            return $proposal;
+            $this->applyExercise($proposal, $department, $data);
+            $proposal->save();
+
+            // After the save: a source row needs the order's id.
+            $this->applySources($proposal, $department, $data['promotion_sources'] ?? []);
+
+            return $proposal->refresh();
         });
     }
 
@@ -73,21 +98,27 @@ class PreDpcProposalService
     public function updateDraft(PreDpcProposal $proposal, array $data): PreDpcProposal
     {
         return DB::transaction(function () use ($proposal, $data): PreDpcProposal {
+            $department = $proposal->department;
+
             $proposal->fill([
+                'dpc_year' => (int) $data['dpc_year'],
                 'government_order_number' => $data['government_order_number'] ?? null,
                 'effective_from' => $data['effective_from'] ?? null,
-            ])->save();
-            $proposal->posts()->delete();
-            $this->syncPosts($proposal, $data['posts'] ?? []);
+            ]);
 
-            return $proposal;
+            $this->applyExercise($proposal, $department, $data);
+            $proposal->save();
+
+            $this->applySources($proposal, $department, $data['promotion_sources'] ?? []);
+
+            return $proposal->refresh();
         });
     }
 
     public function submit(PreDpcProposal $proposal, User $actor, Request $request): void
     {
-        // Completeness is checked before the transaction because it reads several
-        // relations and refuses with a message about the *form*, not about a race.
+        // Completeness is checked before the transaction because it refuses with a
+        // message about the *form*, not about a race.
         $this->guardComplete($proposal);
 
         DB::transaction(function () use ($proposal, $actor, $request): void {
@@ -112,19 +143,21 @@ class PreDpcProposalService
             $from = $locked->status->value;
             $def = $this->engine->assertAllowed('pre_dpc', 'approve', $from, $actor);
 
-            $signature = $this->signatures->sign($actor, $locked, $this->renderDocument($locked), "pre-dpc-v{$locked->version}.txt");
+            $signature = $this->signatures->sign(
+                $actor,
+                $locked,
+                $this->renderDocument($locked),
+                "pre-dpc-{$locked->pre_dpc_number}-v{$locked->version}.txt",
+            );
 
-            PreDpcProposal::query()
-                ->where('department_id', $locked->department_id)
-                ->where('is_current', true)
-                ->update(['is_current' => false]);
+            $this->supersedeIncumbent($locked);
 
             $locked->forceFill([
                 'status' => PreDpcStatus::Approved->value,
                 'approved_by' => $actor->id,
                 'approved_at' => now(),
                 'signature_id' => $signature->id,
-                'is_current' => true,
+                'active_flag' => 1,
             ])->save();
 
             $this->projectToMasters($locked);
@@ -157,94 +190,323 @@ class PreDpcProposalService
     }
 
     /**
-     * Amend an approved proposal: clone into a fresh Draft version.
+     * Discard a draft (business instruction, 2026-09-06).
+     *
+     * > *Give an option to delete a draft Pre-DPC. However we will always make it a
+     * > soft delete, and only a draft Pre-DPC can be deleted.*
+     *
+     * **Soft, always.** `PreDpcProposal` uses `SoftDeletes`, so the row and its
+     * promotion sources stay in the database with a `deleted_at`. That is not a
+     * technicality: the draft consumed a Pre-DPC Number from the department's
+     * sequence, and a number that had been issued and then vanished without trace
+     * would leave a hole nobody could account for. The row still answers what
+     * `PDPC-2026-HED-0007` was.
+     *
+     * **Refused past draft, by the policy rather than here.** {@see cancel()} is the
+     * ending for a proposal that has been seen — it leaves a cancelled row on the
+     * record, with a status and a transition saying so. This is for one that has
+     * not been seen by anybody.
+     *
+     * The status guard is repeated all the same. A service that trusts its caller
+     * to have asked the policy is one route registration away from not being asked.
+     */
+    public function delete(PreDpcProposal $proposal, User $actor, Request $request): void
+    {
+        DB::transaction(function () use ($proposal, $actor, $request): void {
+            $locked = $this->lock($proposal);
+
+            if ($locked->status !== PreDpcStatus::Draft) {
+                throw new WorkflowException(__('predpc.validation.only_a_draft_can_be_deleted'));
+            }
+
+            /*
+             | Recorded on the timeline and not on the workflow ledger.
+             |
+             | The ledger holds *transitions* — a row per movement between two states
+             | of the `pre_dpc` workflow — and deleting is not one: there is no state
+             | on the far side of it. Writing a transition to a state the workflow
+             | does not define would make the ledger stop being a description of the
+             | workflow.
+             */
+            $this->timeline->record(
+                'pre_dpc.deleted',
+                $locked,
+                sprintf('Draft %s deleted by %s', $locked->pre_dpc_number ?? 'proposal', $actor->name),
+                [
+                    'pre_dpc_number' => $locked->pre_dpc_number,
+                    'uuid' => $locked->uuid,
+                    'ip' => $request->ip(),
+                ],
+                $actor,
+            );
+
+            /*
+             | The proposal alone. `PreDpcPromotionSource` carries no `deleted_at`,
+             | so deleting the rows would be a *hard* delete — the one thing the
+             | instruction rules out — and they are what say which posts the draft
+             | drew on. They stay attached to the soft-deleted parent, which is
+             | enough to hide them: every path to a source runs through the
+             | proposal, and the proposal is gone from every ordinary query.
+             */
+            $locked->delete();
+        });
+    }
+
+    /**
+     * Amend an approved proposal: clone into a fresh Draft version of the same
+     * exercise.
+     *
+     * The clone keeps the exercise (department, from post, to post, year) and the
+     * sanctioned terms, and gets a **new Pre-DPC Number**. That is the deliberate
+     * difference from a DPC revision (item 18): a DPC that is returned for
+     * correction keeps its number because it is the same proposal being fixed,
+     * whereas an amended Pre-DPC is a fresh Government Order superseding an
+     * approved one, and the two orders must be separately citable.
      */
     public function amend(PreDpcProposal $proposal, User $actor): PreDpcProposal
     {
         return DB::transaction(function () use ($proposal, $actor): PreDpcProposal {
-            $proposal->load('posts.feeders');
+            $draft = new PreDpcProposal($proposal->only([
+                'department_id',
+                'dpc_year',
+                'promotion_to_post_id',
+                'pay_scale_id',
+                'direct_recruitment_pct',
+                'promotion_recruitment_pct',
+                'government_order_number',
+                'effective_from',
+            ]));
 
-            $draft = new PreDpcProposal([
-                'department_id' => $proposal->department_id,
-                'version' => $this->nextVersion($proposal->department_id),
+            $draft->fill([
+                'class_level' => $proposal->class_level?->value,
+                'pre_dpc_number' => $this->identifiers->next(
+                    $proposal->department,
+                    IdentifierSequenceService::SERIES_PRE_DPC,
+                    (int) $proposal->dpc_year,
+                ),
+                'version' => $this->nextVersion($proposal->department_id, $proposal->exerciseKey()),
                 'parent_version_id' => $proposal->id,
                 'status' => PreDpcStatus::Draft->value,
-                'is_current' => false,
-                'government_order_number' => $proposal->government_order_number,
-                'effective_from' => $proposal->effective_from,
                 'prepared_by' => $actor->id,
             ]);
+
+            /*
+             | Set outside `fill()` because `active_flag` is not mass-assignable, and
+             | deliberately so: it is the item-9 uniqueness flag, and the one thing
+             | that must never be settable from a request payload is which order is
+             | in force.
+             |
+             | Stated rather than left to the column default. An amendment is a draft
+             | *of an exercise that already has an order in force* — writing the null
+             | explicitly is what says the amendment does not supersede anything until
+             | it is itself approved.
+             */
+            $draft->forceFill(['active_flag' => null]);
+
             $draft->save();
 
-            foreach ($proposal->posts as $post) {
-                // `cadre_id` and `qualification_id` are carried across with
-                // everything else. An amendment starts from what was approved,
-                // and dropping the master references would quietly downgrade a
-                // referenced proposal into a text one — the new draft would
-                // still *look* right, because the names come with it, and would
-                // re-resolve by name at the next projection.
-                $newPost = $draft->posts()->create($post->only([
-                    'post_name', 'cadre_id', 'class_level', 'pay_scale_id', 'direct_recruitment_pct', 'promotion_recruitment_pct', 'sort_order',
+            // Every feeder the approved order named, with its terms as sanctioned.
+            // An amendment starts from what is in force and is edited from there.
+            foreach ($proposal->promotionSources as $source) {
+                $copy = $draft->promotionSources()->create($source->only([
+                    'promotion_from_post_id',
+                    'promotion_percentage',
+                    'min_experience_years',
+                    'experience_unit',
+                    'promotion_duration_years',
+                    'sort_order',
                 ]));
-                foreach ($post->feeders as $feeder) {
-                    $newPost->feeders()->create($feeder->only([
-                        'feeder_name', 'feeder_cadre_id', 'promotion_percentage', 'min_experience_years', 'qualification_id', 'min_qualification', 'sort_order',
-                    ]));
-                }
+
+                /*
+                 | The accepted qualifications are a pivot since 2026-08-26 (change
+                 | register item 11), so `only()` cannot carry them. An amendment
+                 | that silently dropped them would start from an order that
+                 | required no degree, which is not what is in force.
+                 */
+                $copy->qualifications()->attach(
+                    $source->qualifications->mapWithKeys(fn ($qualification, $index): array => [
+                        $qualification->id => ['sort_order' => $index],
+                    ])->all(),
+                );
             }
 
             return $draft;
         });
     }
 
-    private function nextVersion(int $departmentId): int
+    /**
+     * Write the exercise and everything it determines onto the proposal.
+     *
+     * **The three derived values are read from the posts, never from the
+     * request** (item 5). The screen shows them as soon as both posts are chosen
+     * and posts them back for the officer's benefit; trusting that would let a
+     * crafted request sanction a pay scale the Commission never approved. The
+     * resolver is also what refuses a post belonging to another department, which
+     * is why it is asked here rather than only in the Form Request.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function applyExercise(PreDpcProposal $proposal, Department $department, array $data): void
     {
-        return (int) PreDpcProposal::query()->where('department_id', $departmentId)->max('version') + 1;
+        $toPost = $this->postAttributes->resolve(
+            $department->id,
+            isset($data['promotion_to_post_id']) ? (int) $data['promotion_to_post_id'] : null,
+        );
+
+        if ($toPost === null) {
+            throw new WorkflowException(
+                'The Promotion To Post must be a live post of this department. '
+                .'Register it in the Department Post master first.'
+            );
+        }
+
+        $proposal->fill([
+            'promotion_to_post_id' => $toPost->post->id,
+
+            /*
+             | The Pay Scale and Class recorded on the *order* are the To Post's.
+             |
+             | Not a display choice. `class_level` on the order described the
+             | promotion post, and until 2026-08-26 `MemberLevelRule` read it as the
+             | class of the post being promoted into (item 16), and the DPC inherits
+             | both. What a *reader* needs beside each feeder is that feeder's own
+             | scale and class, and those are on the source rows.
+             */
+            'pay_scale_id' => $toPost->payScaleId,
+            'class_level' => $toPost->classLevel->value,
+
+            'direct_recruitment_pct' => $data['direct_recruitment_pct'] ?? 0,
+            'promotion_recruitment_pct' => $data['promotion_recruitment_pct'] ?? 0,
+        ]);
     }
 
     /**
-     * @param  array<int, array<string, mixed>>  $posts
+     * Replace the order's Promotion From Posts with the ones submitted.
+     *
+     * **Replaced wholesale rather than reconciled row by row.** A draft order's
+     * feeder list is small and is edited by adding and removing rows; matching
+     * submitted rows to stored ones by id would buy nothing and would be the place a
+     * removed feeder quietly survived. The order is a draft while this runs — an
+     * approved one is immutable — so there is nothing to preserve.
+     *
+     * @param  list<array<string, mixed>>  $sources
      */
-    private function syncPosts(PreDpcProposal $proposal, array $posts): void
+    private function applySources(PreDpcProposal $proposal, Department $department, array $sources): void
     {
+        $proposal->promotionSources()->delete();
+
+        $seen = [];
         $order = 0;
-        foreach (array_values($posts) as $postData) {
-            $post = $proposal->posts()->create([
-                'post_name' => $postData['post_name'],
-                // The Cadre master reference the screen now chooses. Nullable,
-                // because a caller that posts only `post_name` is still valid
-                // and its cadre is resolved at projection, as it always was.
-                'cadre_id' => $postData['cadre_id'] ?? null,
-                'class_level' => $postData['class_level'],
-                'pay_scale_id' => $postData['pay_scale_id'] ?? null,
-                'direct_recruitment_pct' => $postData['direct_recruitment_pct'] ?? 0,
-                'promotion_recruitment_pct' => $postData['promotion_recruitment_pct'] ?? 0,
+
+        foreach ($sources as $source) {
+            $postId = isset($source['promotion_from_post_id']) ? (int) $source['promotion_from_post_id'] : null;
+
+            $attributes = $this->postAttributes->resolve($department->id, $postId);
+
+            if ($attributes === null) {
+                throw new WorkflowException(
+                    'Every Promotion From Post must be a live post of this department. '
+                    .'Register it in the Department Post master first.'
+                );
+            }
+
+            if ($attributes->post->id === $proposal->promotion_to_post_id) {
+                throw new WorkflowException('A post cannot be promoted into itself.');
+            }
+
+            if (in_array($attributes->post->id, $seen, true)) {
+                throw new WorkflowException(sprintf(
+                    '%s is named twice. A post appears once in an order, with one set of terms.',
+                    $attributes->post->name,
+                ));
+            }
+
+            $seen[] = $attributes->post->id;
+
+            $created = $proposal->promotionSources()->create([
+                'promotion_from_post_id' => $attributes->post->id,
+                'promotion_percentage' => $source['promotion_percentage'] ?? 0,
+                'min_experience_years' => $source['min_experience_years'] ?? 0,
+                'experience_unit' => $source['experience_unit'] ?? ExperienceUnit::Years->value,
+
+                // Copied from the feeder's own mapping, never posted: a signed order
+                // states the qualifying service it sanctioned, and a master edited
+                // later must not change what it said.
+                'promotion_duration_years' => $attributes->promotionDurationYears,
+
                 'sort_order' => $order++,
             ]);
 
-            $feederOrder = 0;
-            foreach (array_values($postData['feeders'] ?? []) as $feederData) {
-                $post->feeders()->create([
-                    'feeder_name' => $feederData['feeder_name'],
-                    'feeder_cadre_id' => $feederData['feeder_cadre_id'] ?? null,
-                    'promotion_percentage' => $feederData['promotion_percentage'] ?? 0,
-                    'min_experience_years' => $feederData['min_experience_years'] ?? 0,
-                    // Chosen from the Qualification master by the screen. When
-                    // only text arrives it stays null here and is resolved at
-                    // projection, which is where it used to be resolved for
-                    // every caller.
-                    'qualification_id' => $feederData['qualification_id'] ?? null,
-                    'min_qualification' => $feederData['min_qualification'] ?? null,
-                    'sort_order' => $feederOrder++,
-                ]);
-            }
+            // Item 11: several acceptable qualifications, in the order entered.
+            $created->qualifications()->attach(
+                collect($this->qualificationIds($source))
+                    ->mapWithKeys(fn (int $id, int $index): array => [$id => ['sort_order' => $index]])
+                    ->all(),
+            );
         }
+
+        if ($seen === []) {
+            throw new WorkflowException(
+                'An order must name at least one Promotion From Post — the post or posts officers are promoted from.'
+            );
+        }
+    }
+
+    /**
+     * Retire the exercise's currently active Pre-DPC (item 9).
+     *
+     * **Deactivated, never deleted** — the register says so in terms, and the
+     * superseded order is what a tribunal reads to see what was sanctioned at the
+     * time. Read under a write lock for the same reason as everything else here:
+     * two approvals for one exercise arriving together would otherwise both pass
+     * and the second would die on the unique index.
+     */
+    private function supersedeIncumbent(PreDpcProposal $proposal): void
+    {
+        $incumbent = PreDpcProposal::query()
+            ->where($proposal->exerciseKey())
+            ->whereNotNull('active_flag')
+            ->whereKeyNot($proposal->id)
+            ->lockForUpdate()
+            ->first();
+
+        $incumbent?->forceFill(['active_flag' => null])->save();
+    }
+
+    /**
+     * The next version *within this exercise*.
+     *
+     * Per exercise rather than per department since 2026-08-24: two exercises in
+     * one department are unrelated, and sharing a counter made "version 5" a
+     * statement about the department's paperwork rather than about this promotion.
+     *
+     * @param  array<string, mixed>  $exercise
+     */
+    private function nextVersion(int $departmentId, array $exercise): int
+    {
+        // The Promotion From Post left the exercise key on 2026-08-25: an order may
+        // name several, so it cannot identify the exercise.
+        return (int) PreDpcProposal::query()
+            ->where('department_id', $departmentId)
+            ->where('promotion_to_post_id', $exercise['promotion_to_post_id'] ?? null)
+            ->where('dpc_year', $exercise['dpc_year'] ?? null)
+            ->max('version') + 1;
     }
 
     private function guardComplete(PreDpcProposal $proposal): void
     {
-        if ($proposal->posts()->count() < 1) {
-            throw new WorkflowException('Add at least one sanctioned post before submitting.');
+        if ($proposal->promotion_to_post_id === null) {
+            throw new WorkflowException('Choose the Promotion To Post before submitting.');
+        }
+
+        if ($proposal->promotionSources()->count() === 0) {
+            throw new WorkflowException(
+                'Name at least one Promotion From Post before submitting — the post or posts officers are promoted from.'
+            );
+        }
+
+        if ($proposal->dpc_year === null) {
+            throw new WorkflowException('The DPC Year is required before submitting.');
         }
 
         if (($proposal->government_order_number === null) || ($proposal->effective_from === null)) {
@@ -270,112 +532,120 @@ class PreDpcProposalService
 
     private function renderDocument(PreDpcProposal $proposal): string
     {
-        $proposal->loadMissing('posts.feeders');
-        $lines = ["PRE-DPC PROPOSAL v{$proposal->version} — Department #{$proposal->department_id}", "GO: {$proposal->government_order_number}"];
-        foreach ($proposal->posts as $post) {
-            $lines[] = "- {$post->post_name} ({$post->class_level->value}) DR {$post->direct_recruitment_pct}% / PR {$post->promotion_recruitment_pct}%";
+        $proposal->loadMissing(
+            'promotionToPost',
+            'payScale',
+            'promotionSources.promotionFromPost.payScale',
+            'promotionSources.qualifications',
+        );
+
+        $lines = [
+            "PRE-DPC PROPOSAL {$proposal->pre_dpc_number} (v{$proposal->version})",
+            "Department #{$proposal->department_id} — DPC Year {$proposal->dpc_year}",
+            "GO: {$proposal->government_order_number}",
+            "Promotion To Post: {$proposal->promotionToPost?->name} (Class {$proposal->class_level?->value})",
+            'Pay Scale: '.($proposal->payScale === null ? '—' : $proposal->payScale->label),
+            "Direct {$proposal->direct_recruitment_pct}% / Promotion {$proposal->promotion_recruitment_pct}%",
+            '',
+            'Promotion From Posts:',
+        ];
+
+        /*
+         | Each feeder on its own line, with **its own** Pay Scale and Class.
+         |
+         | The signed order has to say what an officer of that post is, because that
+         | is what eligibility is judged on — not the scale of the post above, which
+         | is what this document printed until 2026-08-25.
+         */
+        foreach ($proposal->promotionSources as $source) {
+            $post = $source->promotionFromPost;
+
+            $lines[] = sprintf(
+                '  - %s (Class %s, Pay Scale %s) — %s%% share, minimum experience %s %s, qualification %s',
+                $post->name,
+                $post->class_level->value,
+                $post->payScale === null ? '—' : $post->payScale->label,
+                $source->promotion_percentage,
+                $source->min_experience_years,
+                $source->experience_unit->value,
+                $source->qualificationLabel() ?? '—',
+            );
         }
 
         return implode("\n", $lines);
     }
 
     /**
-     * Project the approved proposal into the Cadre + Recruitment Rule masters
-     * (single source of truth). Every approval creates a new recruitment-rule
-     * version per target cadre.
+     * The qualifications a posted promotion-source row accepts (item 11).
+     *
+     * De-duplicated and re-indexed, because
+     * `unique(pre_dpc_promotion_source_id, qualification_id)` refuses a repeat
+     * rather than ignoring it — and an officer ticking the same degree twice on one
+     * feeder means one degree, not an error.
+     *
+     * @param  array<string, mixed>  $source
+     * @return list<int>
+     */
+    private function qualificationIds(array $source): array
+    {
+        return array_values(array_unique(array_filter(
+            array_map(static fn (mixed $id): int => (int) $id, (array) ($source['qualification_ids'] ?? [])),
+            static fn (int $id): bool => $id > 0,
+        )));
+    }
+
+    /**
+     * Project the approved exercise into the Recruitment Rule master.
+     *
+     * **The rule is composed from the order's own Promotion From Posts**, which is
+     * the whole reason a multi-feeder post
+     * survived the reshape. Deputy Director fed from Assistant Director and from
+     * Research Officer is two Pre-DPCs; the rule for Deputy Director names both
+     * feeders, with the share each exercise sanctioned. Projecting only the
+     * proposal just approved would create a rule that promotes from one post and
+     * silently withdraw the other.
+     *
+     * A new rule *version* every time, never an edit: a recruitment rule is
+     * versioned and never overwritten (architect directive), so the rule in force
+     * when a past DPC ran is still readable.
      */
     private function projectToMasters(PreDpcProposal $proposal): void
     {
-        $proposal->load('posts.feeders');
+        /*
+         | The order's own sources, and only those.
+         |
+         | This used to gather sibling orders for the same To Post and compose the
+         | rule from all of them, because one order could name only one feeder and a
+         | multi-feeder rule therefore had to be assembled from several. Now that an
+         | order names every feeder itself — as it did before the change register of
+         | 2026-08-24 — there is one order per post per year and nothing to gather.
+         */
+        $feeders = $proposal->promotionSources
+            ->map(static fn (PreDpcPromotionSource $source): array => [
+                'promotion_from_post_id' => $source->promotion_from_post_id,
+                'promotion_percentage' => $source->promotion_percentage,
+                'min_experience_years' => $source->min_experience_years,
+                'experience_unit' => $source->experience_unit->value,
+                'qualification_ids' => $source->qualifications->pluck('id')->all(),
+                'min_qualification' => $source->qualificationLabel(),
+            ])
+            ->values()
+            ->all();
 
-        foreach ($proposal->posts as $post) {
-            // A post chosen from the Cadre master is already the master row —
-            // the screen picked it. Creating one from its name would, at best,
-            // find the same row again and, at worst, mint a duplicate whenever
-            // the department later renamed the cadre.
-            if ($post->cadre_id !== null) {
-                continue;
-            }
+        // The post is a master row already — the screen chose it from the master,
+        // and `PostAttributeResolver` refused anything that was not a live post of
+        // this department. Nothing is created or matched by name here, which is
+        // what closed TD-25 for good rather than for the common case.
+        $post = DepartmentPost::query()->findOrFail($proposal->promotion_to_post_id);
 
-            $cadre = Cadre::query()->updateOrCreate(
-                ['department_id' => $proposal->department_id, 'name' => $post->post_name],
-                ['class_level' => $post->class_level->value, 'pay_scale_id' => $post->pay_scale_id, 'status' => MasterStatus::Active->value],
-            );
-            $post->forceFill(['cadre_id' => $cadre->id])->save();
-        }
-
-        $proposal->load('posts.feeders');
-
-        foreach ($proposal->posts as $post) {
-            $feeders = [];
-            foreach ($post->feeders as $feeder) {
-                $feederCadre = $this->feederCadres->resolve($feeder, $proposal->department_id);
-
-                if ($feederCadre === null) {
-                    // TD-25, closed 2026-08-19. Reported since earlier that day;
-                    // now refused as well, because a recruitment rule created
-                    // without one of its feeder cadres looks complete and sanctions
-                    // nobody — the worst of the three outcomes available.
-                    //
-                    // Logged before the refusal, not instead of it: the refusal
-                    // tells the Administrative Head, and the log tells whoever has
-                    // to fix the master data.
-                    Log::warning('Pre-DPC feeder matched no cadre', [
-                        'department_id' => $proposal->department_id,
-                        'pre_dpc_proposal_id' => $proposal->id,
-                        'pre_dpc_version' => $proposal->version,
-                        'post_name' => $post->post_name,
-                        'feeder_name' => $feeder->feeder_name,
-                        'refused' => (bool) config('dpc.pre_dpc.refuse_unmatched_feeder', true),
-                        'technical_debt' => 'TD-25',
-                    ]);
-
-                    if ((bool) config('dpc.pre_dpc.refuse_unmatched_feeder', true)) {
-                        // Inside the approval transaction, so the signature, the
-                        // `is_current` flip and the status change all roll back
-                        // with it. An approval that half-happened would be worse
-                        // than either outcome the register described.
-                        throw new WorkflowException(sprintf(
-                            'This proposal cannot be approved: the feeder "%s" listed under "%s" matches no '
-                            .'cadre in your department\'s Cadre master, so the recruitment rule would be '
-                            .'created without it and would sanction nobody from that cadre. Ask the '
-                            .'Commission to register that cadre, then approve again.',
-                            $feeder->feeder_name,
-                            $post->post_name,
-                        ));
-                    }
-
-                    continue;
-                }
-
-                $feeders[] = [
-                    'feeder_cadre_id' => $feederCadre->id,
-                    'promotion_percentage' => $feeder->promotion_percentage,
-                    'min_experience_years' => $feeder->min_experience_years,
-                    // The screen now chooses the qualification from the master,
-                    // so the common case is a straight copy.
-                    //
-                    // Falling back to matching the text keeps two older paths
-                    // working: a proposal drafted before 2026-08-18, and any
-                    // caller that posts only `min_qualification`. Text that
-                    // matches nothing is carried through unresolved rather than
-                    // dropped, so it stays visible and is reported by
-                    // `php artisan qualifications:unmapped`.
-                    'qualification_id' => $feeder->qualification_id
-                        ?? $this->resolveQualificationId($feeder->min_qualification),
-                    'min_qualification' => $feeder->min_qualification,
-                ];
-            }
-
-            $this->rules->create([
-                'cadre_id' => $post->cadre_id,
-                'government_order_number' => (string) $proposal->government_order_number,
-                'direct_recruitment_pct' => $post->direct_recruitment_pct,
-                'promotion_recruitment_pct' => $post->promotion_recruitment_pct,
-                'effective_from' => $proposal->effective_from,
-                'status' => MasterStatus::Active->value,
-            ], $feeders, null);
-        }
+        $this->rules->create([
+            'post_id' => $post->id,
+            'government_order_number' => (string) $proposal->government_order_number,
+            'direct_recruitment_pct' => $proposal->direct_recruitment_pct,
+            'promotion_recruitment_pct' => $proposal->promotion_recruitment_pct,
+            'effective_from' => $proposal->effective_from,
+            'status' => MasterStatus::Active->value,
+        ], $feeders, null);
     }
 
     /**
@@ -386,10 +656,7 @@ class PreDpcProposalService
      * simultaneous submits of the same proposal could therefore both pass
      * `assertAllowed()` against the same `draft`, and both write — producing two
      * transitions out of one state, two ledger rows, and on `approve` **two
-     * signatures on one proposal**. Narrow, because it needs two requests inside
-     * the same few milliseconds, and never observed. M4 onward have taken the lock
-     * since Phase 1; this backports the same pattern, which is what the register
-     * said to do during hardening.
+     * signatures on one proposal**.
      *
      * The lock is taken *first* inside the transaction and the state is read from
      * the locked row — taking it after reading the status would leave the race
@@ -398,41 +665,5 @@ class PreDpcProposalService
     private function lock(PreDpcProposal $proposal): PreDpcProposal
     {
         return PreDpcProposal::query()->whereKey($proposal->id)->lockForUpdate()->firstOrFail();
-    }
-
-    /**
-     * Match a hand-entered qualification against the Qualification master.
-     *
-     * Compares a normalised form (case-folded, punctuation and whitespace
-     * stripped) against both the code and the English name, so "Post-Graduate",
-     * "post graduate" and "PG" all resolve to the same row. Returns null when
-     * nothing matches — an unresolved qualification is a data-quality finding to
-     * be reported, never a reason to reject an approved Pre-DPC.
-     *
-     * Soft-deleted and withdrawn rows are excluded from matching but an already
-     * stored reference is untouched; see Qualification::scopeSelectable().
-     */
-    private function resolveQualificationId(?string $text): ?int
-    {
-        if ($text === null || trim($text) === '') {
-            return null;
-        }
-
-        $this->qualificationIndex ??= Qualification::query()
-            ->selectable()
-            ->get(['id', 'code', 'name_en'])
-            ->reduce(static function (array $index, Qualification $qualification): array {
-                foreach ([$qualification->code, $qualification->name_en] as $candidate) {
-                    $key = QualificationCatalogue::matchKey((string) $candidate);
-
-                    if ($key !== '' && ! isset($index[$key])) {
-                        $index[$key] = $qualification->id;
-                    }
-                }
-
-                return $index;
-            }, []);
-
-        return $this->qualificationIndex[QualificationCatalogue::matchKey($text)] ?? null;
     }
 }

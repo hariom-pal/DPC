@@ -6,7 +6,7 @@ namespace App\Console\Commands;
 
 use App\Domain\Master\Data\QualificationCatalogue;
 use App\Domain\Master\Models\Qualification;
-use App\Domain\Master\Models\RecruitmentRuleFeeder;
+use App\Domain\Master\Models\RecruitmentRuleSource;
 use Illuminate\Console\Command;
 use Illuminate\Database\Eloquent\Collection;
 
@@ -14,10 +14,17 @@ use Illuminate\Database\Eloquent\Collection;
  * Which recruitment-rule feeders still carry a minimum qualification as free
  * text that no Qualification master row matches.
  *
- * The migration that introduced `qualification_id` mapped everything it could
- * and left the rest alone rather than guessing. This is how the remainder is
- * found: it is a data-quality report, not a repair. Adding the missing
- * qualification to the master and re-running `--fix` links them.
+ * The migration that introduced the master link mapped everything it could and
+ * left the rest alone rather than guessing. This is how the remainder is found: it
+ * is a data-quality report, not a repair. Adding the missing qualification to the
+ * master and re-running `--fix` links them.
+ *
+ * **"Unmapped" reads off the pivot since 2026-08-26** (change register item 11).
+ * The link used to be `recruitment_rule_sources.qualification_id`, a single
+ * nullable column; a source may now accept several qualifications, so the question
+ * is whether it has *any* master row attached. `doesntHave('qualifications')` is
+ * that question, and it is the same question the old `whereNull` asked — a source
+ * with free text and no master link at all.
  */
 class ReportUnmappedQualificationsCommand extends Command
 {
@@ -28,9 +35,9 @@ class ReportUnmappedQualificationsCommand extends Command
 
     public function handle(): int
     {
-        $unmapped = RecruitmentRuleFeeder::query()
-            ->with(['recruitmentRule.cadre', 'feederCadre'])
-            ->whereNull('qualification_id')
+        $unmapped = RecruitmentRuleSource::query()
+            ->with(['recruitmentRule.post', 'promotionFromPost'])
+            ->doesntHave('qualifications')
             ->whereNotNull('min_qualification')
             ->where('min_qualification', '<>', '')
             ->get();
@@ -49,13 +56,13 @@ class ReportUnmappedQualificationsCommand extends Command
         $this->newLine();
 
         $this->table(
-            ['Rule', 'Target cadre', 'Feeder cadre', 'Free text'],
-            $unmapped->map(static fn (RecruitmentRuleFeeder $feeder): array => [
+            ['Rule', 'Target post', 'Feeder post', 'Free text'],
+            $unmapped->map(static fn (RecruitmentRuleSource $feeder): array => [
                 // Both foreign keys are non-nullable, so the relations always
                 // resolve — no nullsafe needed.
                 '#'.$feeder->recruitment_rule_id,
-                $feeder->recruitmentRule->cadre->name,
-                $feeder->feederCadre->name,
+                $feeder->recruitmentRule->post->name,
+                $feeder->promotionFromPost->name,
                 (string) $feeder->min_qualification,
             ])->all(),
         );
@@ -68,7 +75,7 @@ class ReportUnmappedQualificationsCommand extends Command
     }
 
     /**
-     * @param  Collection<int, RecruitmentRuleFeeder>  $unmapped
+     * @param  Collection<int, RecruitmentRuleSource>  $unmapped
      */
     private function fix(iterable $unmapped): int
     {
@@ -90,7 +97,11 @@ class ReportUnmappedQualificationsCommand extends Command
             $id = $index[QualificationCatalogue::matchKey((string) $feeder->min_qualification)] ?? null;
 
             if ($id !== null) {
-                $feeder->forceFill(['qualification_id' => $id])->save();
+                // `syncWithoutDetaching` rather than `attach`: this command is
+                // re-run after the master is extended, and attaching a row that is
+                // already there would violate the pivot's unique index rather than
+                // being the no-op the operator expects.
+                $feeder->qualifications()->syncWithoutDetaching([$id => ['sort_order' => 0]]);
                 $linked++;
             }
         }

@@ -36,9 +36,9 @@ interface HrmsProvider
      *
      * Returns null when the employee is unknown. Implementations must return
      * the standard ten-field snapshot shape used by the proposal tables:
-     * employee_number, name, dob, qualification, current_post, feeder_post,
+     * employee_number, name, dob, qualification, promotion_to_post, promotion_from_post,
      * reservation_category_code, date_of_joining_service,
-     * date_of_posting_on_current_post, date_of_posting_on_feeder_post.
+     * date_of_posting_on_promotion_to_post, date_of_posting_on_promotion_from_post.
      *
      * Note the *code* for reservation category, not an id: an external system
      * has no knowledge of this application's primary keys, exactly as the

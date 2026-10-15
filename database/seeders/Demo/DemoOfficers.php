@@ -118,8 +118,21 @@ final class DemoOfficers
             ['sn' => 3, 'name' => 'Shri Dinesh Kumar Baghel', 'category' => 'ST', 'grades' => [], 'roster' => 6],
             ['sn' => 4, 'name' => 'Smt. Sarojini Minj', 'category' => 'ST', 'grades' => [], 'roster' => 9],
             ['sn' => 5, 'name' => 'Shri Alok Kumar Gupta', 'category' => 'UR', 'grades' => [], 'roster' => 11],
-            ['sn' => 6, 'name' => 'Smt. Rajni Patel', 'category' => 'OBC', 'grades' => [], 'roster' => 14],
-            ['sn' => 7, 'name' => 'Shri Chandra Shekhar Sahu', 'category' => 'SC', 'grades' => [], 'roster' => 17],
+            /*
+             | Two of the seven arrived by **direct recruitment**, because Principal
+             | is the one post in the demo ladder that is not 100% promotion: the
+             | Recruitment Rule gives it 75/25, and `floor` rounding turns nine
+             | sanctioned chairs into six promotion and three direct.
+             |
+             | Saying so matters twice. `VacancyEngine` counts chairs held *per
+             | quota*, so seven promotion-sourced officers against six promotion
+             | chairs is an overfilled quota and the proposal is refused; and with
+             | these two named as direct the post shows one promotion vacancy and
+             | one direct vacancy, which is the mixed-quota case the demonstration
+             | is meant to put on screen.
+             */
+            ['sn' => 6, 'name' => 'Smt. Rajni Patel', 'category' => 'OBC', 'grades' => [], 'roster' => 14, 'source' => 'direct'],
+            ['sn' => 7, 'name' => 'Shri Chandra Shekhar Sahu', 'category' => 'SC', 'grades' => [], 'roster' => 17, 'source' => 'direct'],
         ];
     }
 
@@ -129,10 +142,14 @@ final class DemoOfficers
      * complete CR and property record, so these DPCs produce no holds.
      *
      * @param  list<string>  $names
+     * @param  list<string>  $sources  How each officer came into the post, positionally; needed only on a post whose Recruitment Rule is not 100% promotion
      * @return list<array<string, mixed>>
      */
-    public static function generic(array $names, string $qualification = 'M.A., B.Ed.'): array
-    {
+    public static function generic(
+        array $names,
+        string $qualification = 'Post-Graduate with B.Ed.',
+        array $sources = [],
+    ): array {
         $grades = [
             ['क', 'क+', 'क', 'क+', 'क', 'क+'],
             ['क', 'क', 'क', 'क', 'क+', 'क'],
@@ -154,6 +171,17 @@ final class DemoOfficers
                 'qualification' => $qualification,
                 'tribal' => 0,
             ];
+
+            /*
+             | Only where the caller says so. Left out, `DemoChart` fills promotion
+             | chairs first and calls the remainder direct, which is right on a
+             | 100%-promotion post and wrong on a shared one: filling promotion
+             | first there leaves the promotion quota full and the DPC with no
+             | vacancy it is allowed to fill.
+             */
+            if (isset($sources[$index])) {
+                $officers[$index]['source'] = $sources[$index];
+            }
         }
 
         return $officers;

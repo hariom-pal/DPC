@@ -11,8 +11,7 @@ use App\Domain\Dpc\Services\DpcProposalService;
 use App\Domain\Import\Enums\ImportBatchStatus;
 use App\Domain\Import\Enums\ImportTemplate;
 use App\Domain\Import\Models\ImportBatch;
-use App\Domain\Master\Models\Cadre;
-use App\Domain\Master\Models\DpcType;
+use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\ReservationCategory;
 use App\Domain\Shared\Models\ActivityTimeline;
 use App\Enums\Role;
@@ -22,6 +21,8 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Tests\Concerns\CompletesDpcProposals;
+use Tests\Concerns\RaisesDpcProposals;
+use Tests\Concerns\SanctionsVacancies;
 use Tests\TestCase;
 
 /**
@@ -34,7 +35,9 @@ use Tests\TestCase;
 class DpcExcelImportTest extends TestCase
 {
     use CompletesDpcProposals;
+    use RaisesDpcProposals;
     use RefreshDatabase;
+    use SanctionsVacancies;
 
     private Department $department;
 
@@ -45,24 +48,19 @@ class DpcExcelImportTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        Storage::fake('local');
-
         $this->seed(RolesAndPermissionsSeeder::class);
         $this->seed(LookupMasterSeeder::class);
 
         $this->department = Department::query()->create(['code' => 'HE', 'name' => 'Higher Education Department', 'status' => 'active']);
-        $this->ao = User::factory()->create(['department_id' => $this->department->id]);
-        $this->ao->assignRole(Role::AuthorizedOfficer->value);
+        $this->ao = User::factory()->assignedTo($this->department->id, Role::AuthorizedOfficer)->create();
 
-        $postFrom = Cadre::query()->create(['department_id' => $this->department->id, 'name' => 'Under Secretary', 'class_level' => 'I', 'status' => 'active']);
-        $postTo = Cadre::query()->create(['department_id' => $this->department->id, 'name' => 'Deputy Secretary', 'class_level' => 'I', 'status' => 'active']);
+        $postFrom = DepartmentPost::query()->create(['department_id' => $this->department->id, 'name' => 'Under Secretary', 'class_level' => 'I', 'status' => 'active']);
+        $postTo = DepartmentPost::query()->create(['department_id' => $this->department->id, 'name' => 'Deputy Secretary', 'class_level' => 'I', 'status' => 'active']);
 
-        $this->actingAs($this->ao)->post(route('dpc-proposals.store'), [
-            'dpc_type_id' => DpcType::query()->where('code', 'fresh')->firstOrFail()->id,
-            'post_to_cadre_id' => $postTo->id,
-            'post_from_cadre_id' => $postFrom->id,
-            'proposal_date' => '2026-06-25',
-        ]);
+        $this->actingAs($this->ao)->post(
+            route('dpc-proposals.store'),
+            $this->dpcStorePayload($this->sanctioningPreDpc($postFrom->id, $postTo->id)),
+        );
         $this->proposal = DpcProposal::query()->latest('id')->firstOrFail();
     }
 
@@ -104,6 +102,115 @@ class DpcExcelImportTest extends TestCase
         ]);
     }
 
+    // --------------------------------------- the seat's category (2026-09-07)
+
+    /**
+     * `SEAT CATEGORY` is the roster point the officer sits on, and `CAT` stays the
+     * officer's own (business instruction, 2026-09-07).
+     *
+     * > *Suppose his category is SC but he came in on a General seat.*
+     *
+     * The two are asserted **different on the same row**, which is the only shape
+     * that can tell them apart: a fixture where both are `SC` would pass against an
+     * implementation that wrote one column into both.
+     *
+     * Carried into the Evaluation Chart as well, because the chart is projected from
+     * the seniority list — a column recorded on the list and dropped in the
+     * projection would reach the committee's own screen already lost.
+     */
+    public function test_an_officer_may_sit_on_a_seat_of_another_category(): void
+    {
+        $batch = $this->upload(ImportTemplate::FinalSeniorityListUs, $this->csv([
+            ['SN', 'EMPLOYEE NO', 'NAME OF US', 'DOB', 'QUAL', 'CAT', 'SEAT CATEGORY', 'DATE OF JOINING IN SERVICE', 'DATE OF POSTING ON US'],
+            // SC officer selected on merit, sitting on a General point.
+            ['1', 'EMP-1', 'US1', '20-03-1964', '11TH', 'SC', 'UR', '01-04-1985', '01-01-2012'],
+            // Nothing recorded — which is not the same as "a point of their own".
+            ['2', 'EMP-2', 'US2', '12-05-1968', '11TH', 'OBC', '', '13-03-1986', '01-01-2012'],
+        ]));
+
+        $this->actingAs($this->ao)->post(route('dpc-proposals.imports.commit', [$this->proposal, $batch]));
+
+        $entries = $this->proposal->refresh()->seniorityEntries()
+            ->with(['reservationCategory', 'seatReservationCategory'])
+            ->orderBy('seniority_number')
+            ->get();
+
+        $this->assertSame('SC', $entries[0]->reservationCategory?->code);
+        $this->assertSame('UR', $entries[0]->seatReservationCategory?->code);
+
+        $this->assertSame('OBC', $entries[1]->reservationCategory?->code);
+        $this->assertNull($entries[1]->seat_reservation_category_id);
+
+        // The projection carries it through to the chart the committee sits with.
+        $row = $this->proposal->evaluationRows()->with('seatReservationCategory')->orderBy('sn')->first();
+
+        $this->assertSame('UR', $row?->seatReservationCategory?->code);
+    }
+
+    /**
+     * The officer's mobile number, and what it is for (business instruction,
+     * 2026-09-07: *"we should have a mobile number for the candidate — it will help
+     * them log in"*).
+     *
+     * Asserted all the way to the **account**, not merely to the snapshot. Before
+     * this, `PromotionCandidateProvisioner` created an account with no login
+     * identifier at all — an employee number is not one — so an officer handed a
+     * temporary password had nothing to type it against.
+     */
+    public function test_a_candidates_mobile_reaches_the_account_they_sign_in_with(): void
+    {
+        $batch = $this->upload(ImportTemplate::FinalSeniorityListUs, $this->csv([
+            ['SN', 'EMPLOYEE NO', 'NAME OF US', 'MOBILE', 'DOB', 'QUAL', 'CAT', 'DATE OF JOINING IN SERVICE', 'DATE OF POSTING ON US'],
+            ['1', 'EMP-1', 'US1', '9425012345', '20-03-1964', '11TH', 'UR', '01-04-1985', '01-01-2012'],
+            // No number on record, which a department is entitled to.
+            ['2', 'EMP-2', 'US2', '', '12-05-1968', '11TH', 'OBC', '13-03-1986', '01-01-2012'],
+        ]));
+
+        $this->actingAs($this->ao)->post(route('dpc-proposals.imports.commit', [$this->proposal, $batch]));
+
+        $this->assertSame(0, $batch->rejected_count, implode(' | ', $batch->rejectedRows()->get()->flatMap->errorMessages()->all()));
+
+        $entries = $this->proposal->refresh()->seniorityEntries()->orderBy('seniority_number')->get();
+
+        $this->assertCount(2, $entries);
+        $this->assertSame('9425012345', $entries[0]->mobile);
+        $this->assertNull($entries[1]->mobile);
+
+        // The account the officer signs in with carries it.
+        $account = User::query()->where('employee_number', 'EMP-1')->sole();
+        $this->assertSame('9425012345', $account->mobile);
+
+        // And the one with nothing on record is left reachable by nothing, rather
+        // than given an invented number.
+        $this->assertNull(User::query()->where('employee_number', 'EMP-2')->sole()->mobile);
+    }
+
+    public function test_a_malformed_mobile_is_refused(): void
+    {
+        $batch = $this->upload(ImportTemplate::FinalSeniorityListUs, $this->csv([
+            ['SN', 'EMPLOYEE NO', 'NAME OF US', 'MOBILE', 'DOB', 'QUAL', 'CAT', 'DATE OF JOINING IN SERVICE', 'DATE OF POSTING ON US'],
+            ['1', 'EMP-1', 'US1', '12345', '20-03-1964', '11TH', 'UR', '01-04-1985', '01-01-2012'],
+        ]));
+
+        $this->assertSame(1, $batch->rejected_count);
+    }
+
+    public function test_an_unknown_seat_category_is_refused_rather_than_dropped(): void
+    {
+        $batch = $this->upload(ImportTemplate::FinalSeniorityListUs, $this->csv([
+            ['SN', 'EMPLOYEE NO', 'NAME OF US', 'DOB', 'QUAL', 'CAT', 'SEAT CATEGORY', 'DATE OF JOINING IN SERVICE', 'DATE OF POSTING ON US'],
+            ['1', 'EMP-1', 'US1', '20-03-1964', '11TH', 'SC', 'GENERAL', '01-04-1985', '01-01-2012'],
+        ]));
+
+        // Silently dropping it would put the officer on no roster point at all, and
+        // the row would look complete.
+        $this->assertSame(1, $batch->rejected_count);
+        $this->assertStringContainsString(
+            'GENERAL',
+            implode(' ', $batch->rejectedRows()->sole()->errorMessages()),
+        );
+    }
+
     public function test_upload_previews_without_writing_anything_to_the_proposal(): void
     {
         $batch = $this->upload(ImportTemplate::FinalSeniorityListUs, $this->seniorityFile());
@@ -133,7 +240,7 @@ class DpcExcelImportTest extends TestCase
         $this->assertSame('EMP-1', $first->employee_number);
         $this->assertSame('1964-03-20', $first->dob->format('Y-m-d'));
         // "DATE OF POSTING ON US" (S17) is the feeder-post posting date.
-        $this->assertSame('2012-01-01', $first->date_of_posting_on_feeder_post?->format('Y-m-d'));
+        $this->assertSame('2012-01-01', $first->date_of_posting_on_promotion_from_post?->format('Y-m-d'));
 
         $batch->refresh();
         $this->assertSame(ImportBatchStatus::Committed, $batch->status);
@@ -151,7 +258,7 @@ class DpcExcelImportTest extends TestCase
         $this->actingAs($this->ao)->post(route('dpc-proposals.imports.commit', [$this->proposal, $batch]));
 
         $entry = $this->proposal->seniorityEntries()->firstOrFail();
-        $this->assertSame('2012-02-01', $entry->date_of_posting_on_feeder_post?->format('Y-m-d'));
+        $this->assertSame('2012-02-01', $entry->date_of_posting_on_promotion_from_post?->format('Y-m-d'));
     }
 
     public function test_invalid_rows_are_rejected_individually_and_the_valid_ones_still_commit(): void
@@ -239,7 +346,7 @@ class DpcExcelImportTest extends TestCase
 
         // The file's DOP is ignored: the Seniority List seeded above recorded
         // none, so none is what the chart carries.
-        $this->assertNull($row->date_of_posting_on_feeder_post);
+        $this->assertNull($row->date_of_posting_on_promotion_from_post);
 
         $this->assertSame(2, $row->crGrades()->count());
         $this->assertSame('क+', $row->crGrades()->where('year', 2016)->firstOrFail()->grade);
@@ -250,7 +357,7 @@ class DpcExcelImportTest extends TestCase
     public function test_working_officers_template_commits_to_its_own_section(): void
     {
         $batch = $this->upload(ImportTemplate::CurrentlyWorkingUs, $this->csv([
-            ['SN', 'NAME', 'DOB', 'CAT', 'DATE OF POSTING ON POST', 'ROSTER POSITION'],
+            ['SN', 'NAME', 'DOB', 'CAT', 'DATE OF POSTING ON PROMOTION TO POST', 'ROSTER POSITION'],
             ['1', 'DS1', '20-03-1972', 'UR', '15-07-2019', '3'],
         ]));
 
@@ -259,7 +366,7 @@ class DpcExcelImportTest extends TestCase
         $officer = $this->proposal->workingOfficers()->firstOrFail();
         $this->assertSame('DS1', $officer->name);
         $this->assertSame(3, $officer->roster_position);
-        $this->assertSame('2019-07-15', $officer->date_of_posting_on_post?->format('Y-m-d'));
+        $this->assertSame('2019-07-15', $officer->date_of_posting_on_promotion_to_post?->format('Y-m-d'));
     }
 
     public function test_a_batch_cannot_be_committed_twice(): void
@@ -312,8 +419,7 @@ class DpcExcelImportTest extends TestCase
         $batch = $this->upload(ImportTemplate::FinalSeniorityListUs, $this->seniorityFile());
 
         $other = Department::query()->create(['code' => 'PW', 'name' => 'Public Works', 'status' => 'active']);
-        $intruder = User::factory()->create(['department_id' => $other->id]);
-        $intruder->assignRole(Role::AuthorizedOfficer->value);
+        $intruder = User::factory()->assignedTo($other->id, Role::AuthorizedOfficer)->create();
 
         $this->actingAs($intruder)->get(route('dpc-proposals.imports.show', [$this->proposal, $batch]))->assertForbidden();
         $this->actingAs($intruder)->get(route('dpc-proposals.imports.errors', [$this->proposal, $batch]))->assertForbidden();
@@ -324,12 +430,10 @@ class DpcExcelImportTest extends TestCase
     {
         $batch = $this->upload(ImportTemplate::FinalSeniorityListUs, $this->seniorityFile());
 
-        $this->actingAs($this->ao)->post(route('dpc-proposals.store'), [
-            'dpc_type_id' => DpcType::query()->where('code', 'fresh')->firstOrFail()->id,
-            'post_to_cadre_id' => $this->proposal->post_to_cadre_id,
-            'post_from_cadre_id' => $this->proposal->post_from_cadre_id,
-            'proposal_date' => '2026-06-26',
-        ]);
+        $this->actingAs($this->ao)->post(
+            route('dpc-proposals.store'),
+            $this->dpcStorePayload($this->sanctioningPreDpc($this->proposal->promotion_from_post_id, $this->proposal->promotion_to_post_id)),
+        );
         $otherProposal = DpcProposal::query()->latest('id')->firstOrFail();
 
         $this->actingAs($this->ao)
@@ -463,7 +567,7 @@ class DpcExcelImportTest extends TestCase
 
     public function test_an_import_may_not_push_working_officers_past_the_sanctioned_strength(): void
     {
-        app(DpcProposalService::class)->saveVacancies($this->proposal, 2, []);
+        $this->sanctionVacancies($this->proposal, 2);
 
         $batch = $this->upload(ImportTemplate::CurrentlyWorkingUs, $this->csv([
             ['SN', 'NAME', 'DOB', 'CAT'],
@@ -476,15 +580,25 @@ class DpcExcelImportTest extends TestCase
             ->post(route('dpc-proposals.imports.commit', [$this->proposal, $batch]))
             ->assertSessionHasErrors('commit');
 
-        // Refused *before* the write, so the section is untouched rather than
-        // half-replaced — the reason the check sits outside the transaction.
-        $this->assertSame(0, $this->proposal->fresh()->workingOfficers()->count());
+        /*
+         | Refused *before* the write, so the section is untouched rather than
+         | half-replaced — the reason the check sits outside the transaction.
+         |
+         | "Untouched" is the fixture's own chart: since the business directive of
+         | 2026-09-02 `sanctionVacancies()` states the vacancy as two `vacant` rows,
+         | so the chart is two rows before the import and must still be two rows
+         | after it. Asserting zero would have passed for the wrong reason once the
+         | chart stopped starting out empty.
+         */
+        $chart = $this->proposal->fresh()->workingOfficers;
+        $this->assertCount(2, $chart);
+        $this->assertTrue($chart->every(fn ($row): bool => $row->isVacant()));
         $this->assertSame(ImportBatchStatus::Previewed, $batch->fresh()->status);
     }
 
     public function test_an_import_within_the_sanctioned_strength_commits_normally(): void
     {
-        app(DpcProposalService::class)->saveVacancies($this->proposal, 5, []);
+        $this->sanctionVacancies($this->proposal, 5);
 
         $batch = $this->upload(ImportTemplate::CurrentlyWorkingUs, $this->csv([
             ['SN', 'NAME', 'DOB', 'CAT'],
@@ -502,7 +616,7 @@ class DpcExcelImportTest extends TestCase
     {
         // One vacancy sizes the zone at 5 (the deck's single-vacancy rule); the
         // file below carries 2.
-        app(DpcProposalService::class)->saveVacancies($this->proposal, 1, []);
+        $this->sanctionVacancies($this->proposal, 1);
 
         $batch = $this->upload(ImportTemplate::FinalSeniorityListUs, $this->seniorityFile());
 
@@ -515,7 +629,7 @@ class DpcExcelImportTest extends TestCase
 
     public function test_a_seniority_import_matching_the_zone_commits(): void
     {
-        app(DpcProposalService::class)->saveVacancies($this->proposal, 1, []);
+        $this->sanctionVacancies($this->proposal, 1);
 
         $rows = [['SN', 'EMPLOYEE NO', 'NAME OF US', 'DOB', 'QUAL', 'CAT', 'DATE OF JOINING IN SERVICE', 'DATE OF POSTING ON US']];
         for ($sn = 1; $sn <= 5; $sn++) {
@@ -551,7 +665,7 @@ class DpcExcelImportTest extends TestCase
         // must carry the Seniority List's officers — so the list is seeded and
         // the assertion is that the vacancy arithmetic does not additionally
         // refuse it.
-        app(DpcProposalService::class)->saveVacancies($this->proposal, 1, []);
+        $this->sanctionVacancies($this->proposal, 1);
         $this->seniorityFor(2);
 
         $batch = $this->upload(ImportTemplate::EvaluationChartUs, $this->csv([

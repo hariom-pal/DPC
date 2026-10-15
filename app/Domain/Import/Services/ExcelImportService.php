@@ -6,6 +6,7 @@ namespace App\Domain\Import\Services;
 
 use App\Domain\Authentication\Models\User;
 use App\Domain\Dpc\Models\DpcProposal;
+use App\Domain\Dpc\Models\DpcWorkingOfficer;
 use App\Domain\Dpc\Services\DpcProposalService;
 use App\Domain\Dpc\Services\EvaluationCandidateService;
 use App\Domain\Dpc\Services\VacancyCalculationService;
@@ -165,7 +166,18 @@ class ExcelImportService
 
         DB::transaction(function () use ($template, $proposal, $payloads, $actor, $batch): void {
             match ($template) {
-                ImportTemplate::CurrentlyWorkingUs => $this->proposals->saveWorkingOfficers($proposal, $payloads, $actor),
+                /*
+                 | **The breakdown is derived here too** (business directive,
+                 | 2026-09-02). Before it, committing a chart left the vacancy rows
+                 | untouched — so an imported chart passed preview, wrote its
+                 | officers, and still failed the section gate for a breakdown no
+                 | upload had ever filled. Calling the same service method the
+                 | manual screen calls closes that path.
+                 */
+                ImportTemplate::CurrentlyWorkingUs => $this->proposals->saveVacancies(
+                    $this->proposals->saveWorkingOfficers($proposal, $payloads, $actor)->refresh(),
+                    $actor,
+                ),
                 ImportTemplate::FinalSeniorityListUs => $this->proposals->saveSeniorityEntries($proposal, $payloads, $actor),
                 ImportTemplate::EvaluationChartUs => $this->proposals->saveEvaluationRows($proposal, $payloads, $actor),
             };
@@ -350,12 +362,12 @@ class ExcelImportService
             return;
         }
 
-        $sanctioned = $proposal->sanctioned_post_count;
+        $sanctioned = $proposal->promotionToPost->sanctioned_strength ?? $proposal->sanctioned_post_count;
 
         if ($sanctioned !== null && $incoming > $sanctioned) {
             throw new WorkflowException(
                 'Working Officers cannot exceed the sanctioned strength.'
-                ." This file carries {$incoming} officer(s) against a sanctioned strength of {$sanctioned}."
+                ." This file carries {$incoming} row(s) against a sanctioned strength of {$sanctioned}."
             );
         }
     }
@@ -463,7 +475,7 @@ class ExcelImportService
         foreach ($sheet as $rawRow) {
             $lineNumber++;
 
-            if ($this->isBlank($rawRow)) {
+            if ($this->isBlank($rawRow) || $this->isGuidance($rawRow)) {
                 continue;
             }
 
@@ -527,7 +539,16 @@ class ExcelImportService
      */
     private function matchYearColumn(string $normalized): ?array
     {
+        /*
+         | `tribal_area` is matched **before** the CR pattern.
+         |
+         | "TRIBAL AREA 2015" must not fall through to anything else, and putting it
+         | first also documents that it is an attribute *of* the CR year rather than
+         | a fourth per-year record — it is merged onto the CR entry below, not
+         | appended as its own (change register of 2026-08-27, item 18).
+         */
         $patterns = [
+            'cr_tribal' => '/^tribal_?(?:area_?)?(?:service_?)?(\d{4})$/',
             'cr_grades' => '/^(?:year_wise_)?cr_?(\d{4})$/',
             'loyalty_flags' => '/^loyalty_?(\d{4})$/',
             'property_flags' => '/^(?:immovable_)?(?:property|property_details|immovable_property_details)_?(\d{4})$/',
@@ -573,7 +594,62 @@ class ExcelImportService
                 continue;
             }
 
-            if (str_starts_with($field, 'date_') || $field === 'dob' || $field === 'deputation_date') {
+            /*
+             | The seat's category (business instruction, 2026-09-07).
+             |
+             | **Optional where `CAT` is required**, and the asymmetry is deliberate:
+             | every officer has a category, but not every department records which
+             | roster point its officers sit on — and a blank means *"not recorded"*,
+             | which must not be guessed at as "a point of their own category".
+             |
+             | A code that matches nothing is still refused. A silent drop would put
+             | an officer on no roster point at all, and the row would look complete.
+             */
+            if ($field === 'seat_reservation_category') {
+                $code = strtoupper(trim((string) $value));
+
+                if ($code === '') {
+                    continue;
+                }
+
+                if (! isset($categories[$code])) {
+                    $errors['seat_reservation_category_id'] = ["Unknown seat category code \"{$code}\"."];
+
+                    continue;
+                }
+
+                $payload['seat_reservation_category_id'] = $categories[$code];
+
+                continue;
+            }
+
+            /*
+             | A mobile number arrives as a **number**, not as text.
+             |
+             | A spreadsheet stores `9425012345` in a numeric cell, and the reader
+             | hands it back as an integer — so the value reaching validation was not
+             | a string and the row was rejected with *"the mobile field must be a
+             | string"*, which tells a department nothing about what is wrong with
+             | their file.
+             |
+             | Cast rather than relaxed, because the *shape* still has to be checked:
+             | ten digits beginning 6 to 9. Casting also recovers the case a
+             | spreadsheet mangles worst — a number stored numerically loses nothing
+             | here, and the validator then judges the digits it actually has.
+             */
+            if ($field === 'mobile') {
+                $mobile = trim((string) $value);
+
+                if ($mobile === '') {
+                    continue;
+                }
+
+                $payload['mobile'] = $mobile;
+
+                continue;
+            }
+
+            if (str_starts_with($field, 'date_') || $field === 'dob' || str_starts_with($field, 'deputation_')) {
                 if ($value === null || $value === '') {
                     continue;
                 }
@@ -595,10 +671,55 @@ class ExcelImportService
             $payload[$field] = is_string($value) ? trim($value) : $value;
         }
 
+        /*
+         | A chart row with no STATUS column is an officer (business directive,
+         | 2026-09-02) — which is what every file written before the directive is,
+         | and what a department exporting from Excel will keep producing.
+         | Defaulted here rather than relaxing the rule, so an explicitly wrong
+         | value is still reported.
+         */
+        if ($template === ImportTemplate::CurrentlyWorkingUs) {
+            if (($payload['status'] ?? '') === '') {
+                $payload['status'] = DpcWorkingOfficer::STATUS_WORKING;
+            }
+
+            /*
+             | And `promotion` for a working row that names no source. Every chart
+             | written before the directive belongs to a 100%-promotion post, where
+             | it is the only value the Recruitment Rule permits — so this is the
+             | reading that leaves those files meaning what they meant, rather than
+             | refusing them over a column that did not exist when they were made.
+             */
+            if ($payload['status'] === DpcWorkingOfficer::STATUS_WORKING && ($payload['source'] ?? '') === '') {
+                $payload['source'] = DpcWorkingOfficer::SOURCE_PROMOTION;
+            }
+
+            if (isset($payload['source'])) {
+                $payload['source'] = strtolower(trim((string) $payload['source']));
+            }
+        }
+
         if ($template->hasYearColumns()) {
+            /** @var array<int, bool> $tribalByYear */
+            $tribalByYear = [];
+
             foreach ($map['years'] as $index => $meta) {
                 $value = $this->cell($rawRow, $index);
                 if ($value === null || trim((string) $value) === '') {
+                    continue;
+                }
+
+                if ($meta['type'] === 'cr_tribal') {
+                    $flag = $this->parseFlag((string) $value);
+                    if ($flag === null) {
+                        $errors["cr_tribal.{$meta['year']}"] = [
+                            "Tribal Area column for {$meta['year']}: expected Y or N, got \"{$value}\".",
+                        ];
+
+                        continue;
+                    }
+                    $tribalByYear[$meta['year']] = $flag;
+
                     continue;
                 }
 
@@ -618,6 +739,23 @@ class ExcelImportService
 
                 $payload[$meta['type']][] = $entry;
             }
+
+            /*
+             | Merged onto the CR entry for the same year (item 18).
+             |
+             | A tribal flag on a year with **no CR column** is dropped rather than
+             | creating a grade-less CR row: item 18 links the benefit to a CR year,
+             | so a year with no CR has no benefit to attribute, and inventing an
+             | empty CR row there would add a year to the officer's chart that the
+             | department never reported.
+             */
+            if ($tribalByYear !== [] && isset($payload['cr_grades'])) {
+                foreach ($payload['cr_grades'] as $i => $entry) {
+                    if (array_key_exists($entry['year'], $tribalByYear)) {
+                        $payload['cr_grades'][$i]['tribal_area'] = $tribalByYear[$entry['year']];
+                    }
+                }
+            }
         }
 
         return ['row_number' => $lineNumber, 'payload' => $payload, 'errors' => $errors];
@@ -629,6 +767,36 @@ class ExcelImportService
     private function cell(array $row, int $index): mixed
     {
         return $row[$index] ?? null;
+    }
+
+    /**
+     * @param  array<int, mixed>  $row
+     */
+    /**
+     * A guidance line rather than an officer: the first cell starts with `#`.
+     *
+     * **Introduced 2026-09-06** so a template can explain itself. Business asked
+     * what goes in `DATE OF POSTING ON PROMOTION FROM POST`, when, and in what
+     * format — and answered their own question by saying they did not know either.
+     * The place that answer belongs is the file being filled in, beside the column
+     * it describes, not in a manual somebody has to find.
+     *
+     * **A convention rather than a delete-me row.** `ImportTemplateBuilder` writes
+     * the guidance and a worked example as `#` lines, so a department that fills the
+     * file underneath them and forgets to remove them uploads successfully anyway —
+     * which is precisely what a plain sample row cannot promise, and why this
+     * builder refused to emit one until now.
+     *
+     * `#` and not a blank first cell: a real row with a missing serial number is a
+     * data fault worth reporting, and silently skipping it would hide it.
+     *
+     * @param  array<int, mixed>  $row
+     */
+    private function isGuidance(array $row): bool
+    {
+        $first = trim((string) ($row[0] ?? ''));
+
+        return str_starts_with($first, '#');
     }
 
     /**

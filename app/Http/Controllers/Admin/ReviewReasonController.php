@@ -8,18 +8,23 @@ use App\Domain\Master\Models\ReviewReason;
 use App\Domain\Master\Requests\ReviewReasonRequest;
 use App\Domain\Master\Services\MasterCrudService;
 use App\Enums\MasterStatus;
+use App\Http\Controllers\Admin\Concerns\ListsAMaster;
 use App\Http\Controllers\Controller;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 
 class ReviewReasonController extends Controller
 {
+    use ListsAMaster;
+
     public function __construct(private readonly MasterCrudService $crud) {}
 
-    public function index(): View
+    public function index(Request $request): View
     {
         return view('admin.review-reasons.index', [
-            'reasons' => ReviewReason::query()->orderBy('code')->paginate(20),
+            'reasons' => $this->searched($request, ReviewReason::query()->orderBy('code'), 'review-reasons')
+                ->paginate(20)->withQueryString(),
         ]);
     }
 

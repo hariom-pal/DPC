@@ -1,17 +1,15 @@
 @extends('layouts.app')
 
-@section('title', 'Audit Trail')
+@section('title', __('admin.audit_trail.index.audit_trail'))
 
 @section('content')
     <div class="row justify-content-center">
         <div class="col-lg-11">
             @include('partials.alerts')
 
-            <h1 class="h4 mb-1">Audit Trail</h1>
+            <h1 class="h4 mb-1">{{ __('admin.audit_trail.index.audit_trail') }}</h1>
             <p class="text-muted small mb-3">
-                Everything this system records about what happened, from all three of its records.
-                <strong>Read-only</strong> — nothing here can be edited, deleted or purged from the
-                application, and retention is permanent.
+{!! __('admin.audit_trail.index.lead') !!}
             </p>
 
             {{-- The three counts, first. An operator's first question about an
@@ -29,17 +27,17 @@
                                 <p class="small text-muted mb-0">
                                     @switch($key)
                                         @case('workflow')
-                                            The legal ledger — every state change, its actor, remarks, signature and IP.
+{{ __('admin.audit_trail.index.source_workflow') }}
                                             @break
                                         @case('timeline')
-                                            Domain events, with a snapshot of who the actor was at the time.
+{{ __('admin.audit_trail.index.source_timeline') }}
                                             @break
                                         @default
-                                            Model-level changes, old value beside new.
+{{ __('admin.audit_trail.index.source_data') }}
                                     @endswitch
                                 </p>
                                 @if (($counts[$key] ?? 0) === 0)
-                                    <span class="badge text-bg-warning mt-2">No entries</span>
+                                    <span class="badge text-bg-warning mt-2">{{ __('admin.audit_trail.index.no_entries') }}</span>
                                 @endif
                             </div>
                         </div>
@@ -51,28 +49,28 @@
                 <div class="card-body">
                     <form method="GET" action="{{ route('admin.audit-trail.index') }}" class="row g-2 align-items-end">
                         <div class="col-md-2">
-                            <label for="source" class="form-label small mb-1">Record</label>
+                            <label for="source" class="form-label small mb-1">{{ __('ui.record') }}</label>
                             <select id="source" name="source" class="form-select form-select-sm">
-                                <option value="">All three</option>
+                                <option value="">{{ __('admin.audit_trail.index.all_three') }}</option>
                                 @foreach ($sources as $key => $label)
                                     <option value="{{ $key }}" @selected(($filters['source'] ?? '') === $key)>{{ $label }}</option>
                                 @endforeach
                             </select>
                         </div>
                         <div class="col-md-2">
-                            <label for="event" class="form-label small mb-1">Event</label>
+                            <label for="event" class="form-label small mb-1">{{ __('ui.event') }}</label>
                             <input type="text" id="event" name="event" class="form-control form-control-sm"
-                                   value="{{ $filters['event'] ?? '' }}" placeholder="approve, publish…">
+                                   value="{{ $filters['event'] ?? '' }}" placeholder="{{ __('admin.audit_trail.index.approve_publish') }}">
                         </div>
                         <div class="col-md-2">
-                            <label for="actor" class="form-label small mb-1">Actor</label>
+                            <label for="actor" class="form-label small mb-1">{{ __('admin.audit_trail.index.actor') }}</label>
                             <input type="text" id="actor" name="actor" class="form-control form-control-sm"
-                                   value="{{ $filters['actor'] ?? '' }}" placeholder="name">
+                                   value="{{ $filters['actor'] ?? '' }}" placeholder="{{ __('admin.audit_trail.index.name') }}">
                         </div>
                         <div class="col-md-2">
-                            <label for="subject_type" class="form-label small mb-1">Subject</label>
+                            <label for="subject_type" class="form-label small mb-1">{{ __('ui.subject') }}</label>
                             <select id="subject_type" name="subject_type" class="form-select form-select-sm">
-                                <option value="">Any</option>
+                                <option value="">{{ __('admin.audit_trail.index.any') }}</option>
                                 @foreach ($subjectTypes as $type)
                                     <option value="{{ $type }}" @selected(($filters['subject_type'] ?? '') === $type)>
                                         {{ class_basename($type) }}
@@ -81,27 +79,27 @@
                             </select>
                         </div>
                         <div class="col-md-1">
-                            <label for="subject_id" class="form-label small mb-1">ID</label>
+                            <label for="subject_id" class="form-label small mb-1">{{ __('admin.audit_trail.index.id') }}</label>
                             <input type="text" id="subject_id" name="subject_id" class="form-control form-control-sm"
                                    value="{{ $filters['subject_id'] ?? '' }}">
                         </div>
                         <div class="col-md-3 d-flex gap-2">
                             <div class="flex-fill">
-                                <label for="from" class="form-label small mb-1">From</label>
+                                <label for="from" class="form-label small mb-1">{{ __('ui.from') }}</label>
                                 <input type="date" id="from" name="from" class="form-control form-control-sm"
                                        value="{{ $filters['from'] ?? '' }}">
                             </div>
                             <div class="flex-fill">
-                                <label for="to" class="form-label small mb-1">To</label>
+                                <label for="to" class="form-label small mb-1">{{ __('ui.to') }}</label>
                                 <input type="date" id="to" name="to" class="form-control form-control-sm"
                                        value="{{ $filters['to'] ?? '' }}">
                             </div>
                         </div>
                         <div class="col-12 d-flex gap-2 mt-2">
-                            <button class="btn btn-primary btn-sm">Search</button>
-                            <a href="{{ route('admin.audit-trail.index') }}" class="btn btn-outline-secondary btn-sm">Clear</a>
+                            <button class="btn btn-primary btn-sm">{{ __('admin.audit_trail.index.search') }}</button>
+                            <a href="{{ route('admin.audit-trail.index') }}" class="btn btn-outline-secondary btn-sm">{{ __('admin.audit_trail.index.clear') }}</a>
                             <a href="{{ route('admin.audit-trail.export', $filters) }}" class="btn btn-outline-secondary btn-sm ms-auto">
-                                Export CSV
+                                {{ __('admin.audit_trail.index.export_csv') }}
                             </a>
                         </div>
                     </form>
@@ -114,12 +112,12 @@
                         <table class="table table-sm align-middle mb-0">
                             <thead>
                                 <tr>
-                                    <th>When</th>
-                                    <th>Record</th>
-                                    <th>Event</th>
-                                    <th>Detail</th>
-                                    <th>Actor</th>
-                                    <th>Subject</th>
+                                    <th>{{ __('ui.when') }}</th>
+                                    <th>{{ __('ui.record') }}</th>
+                                    <th>{{ __('ui.event') }}</th>
+                                    <th>{{ __('ui.detail') }}</th>
+                                    <th>{{ __('admin.audit_trail.index.actor') }}</th>
+                                    <th>{{ __('ui.subject') }}</th>
                                     <th></th>
                                 </tr>
                             </thead>
@@ -148,13 +146,13 @@
                                         </td>
                                         <td class="text-end">
                                             <a href="{{ route('admin.audit-trail.show', [$entry->source, $entry->source_id]) }}"
-                                               class="btn btn-outline-secondary btn-sm">View</a>
+                                               {{ __('admin.audit_trail.index.view') }}
                                         </td>
                                     </tr>
                                 @empty
                                     <tr>
                                         <td colspan="7" class="text-muted text-center py-4">
-                                            Nothing recorded matches these filters.
+                                            {{ __('admin.audit_trail.index.nothing_recorded_matches_these_filters') }}
                                         </td>
                                     </tr>
                                 @endforelse

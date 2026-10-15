@@ -18,7 +18,7 @@
 
 <div class="alert {{ $deadlinePassed ? 'alert-secondary' : 'alert-warning' }} mb-0" role="note">
     <strong class="d-block mb-2">
-        यदि डाटा में आपत्ति हो / If you have an objection to this data
+        {{ __('selfinspection.partials.notice.if_you_have_an_objection_to_this_data') }}
     </strong>
 
     <p class="mb-2" lang="hi">
@@ -26,31 +26,26 @@
         @if ($deadlineText !== null)
             <strong>दिनांक {{ $deadlineText }} या उसके पूर्व</strong>
         @endif
-        <strong>विभाग में स्वयं उपस्थित होकर</strong> समाधान करवा लेवें.
+        <strong>{{ __('selfinspection.partials.notice.text') }}</strong> समाधान करवा लेवें.
         छत्तीसगढ़ लोक सेवा आयोग द्वारा उक्त सम्बन्ध में किसी भी प्रकार के अभ्यावेदन पर
         विचार नहीं किया जाएगा और ऐसे अभ्यावेदन सीधे नस्तीबद्ध कर दिए जाएँगे.
     </p>
 
     <p class="small mb-0">
-        Raise any objection to this data
+{{ __('selfinspection.partials.notice.raise_objection') }}
         @if ($deadlineText !== null)
-            <strong>on or before {{ $deadlineText }}</strong>,
+{!! __('selfinspection.partials.notice.on_or_before', ['date' => e($deadlineText)]) !!}
         @endif
-        <strong>in person at your department</strong>. The Chhattisgarh Public Service Commission
-        will not consider any representation in this matter; such representations are consigned
-        to file.
+        {!! __('selfinspection.partials.notice.in_person_note') !!}
     </p>
 
     @if ($deadlineText === null)
         <p class="small text-body-secondary mt-2 mb-0">
-            No date is shown because the sitting for this Committee has not been scheduled yet.
-            Raise any correction with your department as soon as you can — once the Committee has
-            sat, the data it considered cannot be changed.
+            {{ __('selfinspection.partials.notice.no_date_is_shown_because_the_sitting_for_this_co') }}
         </p>
     @elseif ($deadlinePassed)
         <p class="small fw-semibold mt-2 mb-0">
-            This date has passed. Raise the matter with your department immediately; a correction
-            may no longer be possible.
+            {{ __('selfinspection.partials.notice.this_date_has_passed_raise_the_matter_with_your') }}
         </p>
     @endif
 </div>

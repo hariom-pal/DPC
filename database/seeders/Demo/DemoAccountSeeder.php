@@ -15,9 +15,9 @@ use App\Enums\Role;
 use Illuminate\Database\Seeder;
 
 /**
- * Demo accounts: the CGPSC side (Admin, two Chairmen, five Members) and the
- * department side (an Authorized Officer and an Administrative Head for each
- * of the three demo departments).
+ * Demo accounts: the CGPSC side (Admin, Chairman, five Members) and the department
+ * side — an Authorized Officer and an Administrative Head for **the one** demo
+ * department. See {@see self::DEPARTMENTS} for why there is only one.
  *
  * The department accounts are created by running the **real registration
  * service** (PPT S5–S6) rather than by inserting rows: the department moves
@@ -134,6 +134,19 @@ class DemoAccountSeeder extends Seeder
             'Joint Director, Education', 'District Education Officer',
             'Principal, Higher Secondary School', 'Block Education Officer',
             'Lecturer', 'Head Master, Middle School', 'Teacher',
+
+            /*
+             | The ranks the demo committee members hold. Added 2026-09-06, when
+             | the committee screen stopped accepting a typed designation: the
+             | dropdown can only offer what the master holds, and the demo script
+             | names these three by name.
+             |
+             | The qualified forms, not the bare "Secretary" the base seeder
+             | already carries — a committee minute has to say *which* Secretary.
+             */
+            'Chairman, Chhattisgarh Public Service Commission',
+            'Secretary, School Education',
+            'Deputy Secretary, GAD',
         ];
 
         foreach ($names as $name) {

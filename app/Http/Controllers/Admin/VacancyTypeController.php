@@ -8,18 +8,23 @@ use App\Domain\Master\Models\VacancyType;
 use App\Domain\Master\Requests\VacancyTypeRequest;
 use App\Domain\Master\Services\MasterCrudService;
 use App\Enums\MasterStatus;
+use App\Http\Controllers\Admin\Concerns\ListsAMaster;
 use App\Http\Controllers\Controller;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 
 class VacancyTypeController extends Controller
 {
+    use ListsAMaster;
+
     public function __construct(private readonly MasterCrudService $crud) {}
 
-    public function index(): View
+    public function index(Request $request): View
     {
         return view('admin.vacancy-types.index', [
-            'vacancyTypes' => VacancyType::query()->orderBy('code')->paginate(20),
+            'vacancyTypes' => $this->searched($request, VacancyType::query()->orderBy('code'), 'vacancy-types')
+                ->paginate(20)->withQueryString(),
         ]);
     }
 

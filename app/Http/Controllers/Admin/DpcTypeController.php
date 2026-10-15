@@ -8,18 +8,23 @@ use App\Domain\Master\Models\DpcType;
 use App\Domain\Master\Requests\DpcTypeRequest;
 use App\Domain\Master\Services\MasterCrudService;
 use App\Enums\MasterStatus;
+use App\Http\Controllers\Admin\Concerns\ListsAMaster;
 use App\Http\Controllers\Controller;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 
 class DpcTypeController extends Controller
 {
+    use ListsAMaster;
+
     public function __construct(private readonly MasterCrudService $crud) {}
 
-    public function index(): View
+    public function index(Request $request): View
     {
         return view('admin.dpc-types.index', [
-            'dpcTypes' => DpcType::query()->orderBy('code')->paginate(20),
+            'dpcTypes' => $this->searched($request, DpcType::query()->orderBy('code'), 'dpc-types')
+                ->paginate(20)->withQueryString(),
         ]);
     }
 

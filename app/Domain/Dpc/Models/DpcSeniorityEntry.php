@@ -19,14 +19,16 @@ use Illuminate\Support\Carbon;
  * @property int $seniority_number
  * @property string|null $employee_number
  * @property string $name
+ * @property string|null $mobile
  * @property Carbon $dob
  * @property string|null $qualification
- * @property string|null $current_post
- * @property string|null $feeder_post
+ * @property string|null $promotion_to_post
+ * @property string|null $promotion_from_post
  * @property int $reservation_category_id
+ * @property int|null $seat_reservation_category_id
  * @property Carbon|null $date_of_joining_service
- * @property Carbon|null $date_of_posting_on_current_post
- * @property Carbon|null $date_of_posting_on_feeder_post
+ * @property Carbon|null $date_of_posting_on_promotion_to_post
+ * @property Carbon|null $date_of_posting_on_promotion_from_post
  */
 class DpcSeniorityEntry extends Model
 {
@@ -38,14 +40,16 @@ class DpcSeniorityEntry extends Model
         'seniority_number',
         'employee_number',
         'name',
+        'mobile',
         'dob',
         'qualification',
-        'current_post',
-        'feeder_post',
+        'promotion_to_post',
+        'promotion_from_post',
         'reservation_category_id',
+        'seat_reservation_category_id',
         'date_of_joining_service',
-        'date_of_posting_on_current_post',
-        'date_of_posting_on_feeder_post',
+        'date_of_posting_on_promotion_to_post',
+        'date_of_posting_on_promotion_from_post',
     ];
 
     /**
@@ -57,8 +61,8 @@ class DpcSeniorityEntry extends Model
             'seniority_number' => 'integer',
             'dob' => 'date',
             'date_of_joining_service' => 'date',
-            'date_of_posting_on_current_post' => 'date',
-            'date_of_posting_on_feeder_post' => 'date',
+            'date_of_posting_on_promotion_to_post' => 'date',
+            'date_of_posting_on_promotion_from_post' => 'date',
         ];
     }
 
@@ -76,5 +80,25 @@ class DpcSeniorityEntry extends Model
     public function reservationCategory(): BelongsTo
     {
         return $this->belongsTo(ReservationCategory::class);
+    }
+
+    /**
+     * The category of the **seat** this officer occupies — the roster point they
+     * were appointed against (business instruction, 2026-09-07).
+     *
+     * **Not the same question as {@see ReservationCategory()}, and the difference is
+     * the whole reason it exists.** An SC officer selected on merit sits on a
+     * General point: their own category is SC, the seat's is UR. `CAT` answers the
+     * first — it is what puts them on the SC waiting list — and this answers the
+     * second, which is what the roster is made of.
+     *
+     * Null where nothing was recorded, which is *not* the same as sitting on a point
+     * of one's own category. A department that keeps no roster leaves it blank.
+     *
+     * @return BelongsTo<ReservationCategory, $this>
+     */
+    public function seatReservationCategory(): BelongsTo
+    {
+        return $this->belongsTo(ReservationCategory::class, 'seat_reservation_category_id');
     }
 }

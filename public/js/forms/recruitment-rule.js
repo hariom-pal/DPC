@@ -1,5 +1,5 @@
 /*
- * Recruitment Rule form — the feeder-cadre grid (M2, Master Data).
+ * Recruitment Rule form — the Promotion From Post grid (M2, Master Data).
  *
  * Extracted from an inline `<script>` block on 2026-08-22 so that
  * `script-src 'self'` can be enforced rather than reported (TD-29). Logic
@@ -13,26 +13,26 @@
  *
  *   - Add / remove rows.
  *   - Keep the running Promotion Share total visible, with a ✓ at 100%.
- *   - Offer only cadres in the target's department, minus the target itself
- *     and minus cadres already chosen on another row — which is what makes
+ *   - Offer only posts in the target's department, minus the target itself
+ *     and minus posts already chosen on another row — which is what makes
  *     a duplicate hard to create rather than merely rejected.
  */
 (function () {
     'use strict';
 
     var form = document.getElementById('rule-form');
-    var tbody = document.querySelector('#feeders-table tbody');
-    var templateEl = document.getElementById('feeder-row-template');
+    var tbody = document.querySelector('#promotion-sources-table tbody');
+    var templateEl = document.getElementById('promotion-source-row-template');
 
     if (!form || !tbody || !templateEl) { return; }
 
     var template = templateEl.innerHTML;
-    var target = document.getElementById('cadre_id');
+    var target = document.getElementById('post_id');
     var promotionPct = document.getElementById('promotion_recruitment_pct');
     var totalEl = document.getElementById('share-total');
     var markEl = document.getElementById('share-total-mark');
     var hintEl = document.getElementById('share-total-hint');
-    var emptyRow = document.getElementById('feeders-empty');
+    var emptyRow = document.getElementById('promotion-sources-empty');
     var directPct = document.getElementById('direct_recruitment_pct');
     var splitEl = document.getElementById('split-total');
     var splitMarkEl = document.getElementById('split-total-mark');
@@ -62,7 +62,7 @@
     }
 
     function rows() {
-        return Array.prototype.slice.call(tbody.querySelectorAll('tr.feeder-row'));
+        return Array.prototype.slice.call(tbody.querySelectorAll('tr.promotion-source-row'));
     }
 
     function refreshTotal() {
@@ -84,8 +84,8 @@
             totalEl.className = 'share-total';
             markEl.textContent = '';
             hintEl.textContent = promotes
-                ? 'A promotion quota above 0% needs at least one feeder cadre.'
-                : 'No feeder cadre needed — this post is filled entirely by direct recruitment.';
+                ? 'A promotion quota above 0% needs at least one Promotion From Post.'
+                : 'No Promotion From Post needed — this post is filled entirely by direct recruitment.';
             return;
         }
 
@@ -98,14 +98,14 @@
                 : 'Must total exactly 100% — over-allocated by ' + (Math.round((rounded - 100) * 100) / 100) + '%.');
     }
 
-    /* Hide cadres that cannot legally be chosen on this row. */
-    function refreshCadreOptions() {
+    /* Hide posts that cannot legally be chosen on this row. */
+    function refreshPostOptions() {
         var department = target.selectedOptions[0] ? target.selectedOptions[0].dataset.department : null;
-        var taken = rows().map(function (r) { return r.querySelector('.cadre-select').value; })
+        var taken = rows().map(function (r) { return r.querySelector('.post-select').value; })
                           .filter(function (v) { return v !== ''; });
 
         rows().forEach(function (row) {
-            var select = row.querySelector('.cadre-select');
+            var select = row.querySelector('.post-select');
             var mine = select.value;
 
             Array.prototype.slice.call(select.options).forEach(function (option) {
@@ -117,7 +117,7 @@
                 option.disabled = option.hidden;
             });
 
-            // A cadre that has become ineligible (the target changed under it)
+            // A post that has become ineligible (the target changed under it)
             // is cleared rather than left showing a value that cannot be saved.
             if (mine !== '' && select.options[select.selectedIndex] && select.options[select.selectedIndex].hidden) {
                 select.value = '';
@@ -128,22 +128,22 @@
     }
 
     function refresh() {
-        refreshCadreOptions();
+        refreshPostOptions();
         refreshTotal();
         refreshSplit();
     }
 
-    document.getElementById('add-feeder').addEventListener('click', function () {
+    document.getElementById('add-promotion-source').addEventListener('click', function () {
         tbody.insertAdjacentHTML('beforeend', template.replaceAll('__INDEX__', index++));
         refresh();
         var added = rows()[rows().length - 1];
-        var input = added.querySelector('.ss-input') || added.querySelector('.cadre-select');
+        var input = added.querySelector('.ss-input') || added.querySelector('.post-select');
         if (input) { input.focus(); }
     });
 
     tbody.addEventListener('click', function (e) {
         if (e.target.closest('.remove-feeder')) {
-            e.target.closest('tr.feeder-row').remove();
+            e.target.closest('tr.promotion-source-row').remove();
             refresh();
         }
     });
@@ -152,7 +152,7 @@
         if (e.target.classList.contains('share-input')) { refreshTotal(); }
     });
     tbody.addEventListener('change', function (e) {
-        if (e.target.classList.contains('cadre-select')) { refresh(); }
+        if (e.target.classList.contains('post-select')) { refresh(); }
     });
 
     target.addEventListener('change', refresh);

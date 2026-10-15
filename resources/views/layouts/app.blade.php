@@ -12,10 +12,10 @@
     @stack('styles')
 </head>
 <body class="d-flex flex-column min-vh-100">
-<a class="skip-link" href="#main">Skip to main content</a>
+<a class="skip-link" href="#main">{{ __('ui.skip_to_main_content') }}</a>
 
 <header class="sticky-header">
-    <nav class="app-shell-header navbar navbar-expand-lg navbar-dark shadow-sm" aria-label="Main navigation">
+    <nav class="app-shell-header navbar navbar-expand-lg navbar-dark shadow-sm" aria-label="{{ __('ui.main_navigation') }}">
         <div class="container">
             <a class="navbar-brand d-flex align-items-center gap-2" href="{{ route('home') }}">
                 @include('partials.logo', [
@@ -23,16 +23,16 @@
                     'style' => 'height:34px', 'alt' => '',
                 ])
                 <span class="d-flex flex-column lh-sm">
-                    <span class="fw-semibold">e-DPC Portal</span>
+                    <span class="fw-semibold">{{ __('ui.layouts.app.e_dpc_portal') }}</span>
                     <span class="small fw-normal" style="font-size:.72rem;opacity:.85">
-                        Chhattisgarh Public Service Commission
+                        {{ __('ui.chhattisgarh_public_service_commission') }}
                     </span>
                 </span>
             </a>
 
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
                     data-bs-target="#appNav" aria-controls="appNav" aria-expanded="false"
-                    aria-label="Toggle navigation">
+                    aria-label="{{ __('ui.toggle_navigation') }}">
                 <span class="navbar-toggler-icon"></span>
             </button>
 
@@ -45,16 +45,56 @@
                         {{-- M11. Reaches every authenticated screen from here,
                              including the frozen ones. --}}
                         @include('partials.notification-bell')
-                        <a class="btn btn-sm btn-outline-light" href="{{ route('dashboard') }}">Dashboard</a>
+                        <a class="btn btn-sm btn-outline-light" href="{{ route('dashboard') }}">{{ __('ui.dashboard_link') }}</a>
+                        {{-- Change item 17: the candidate's own DPC, and the only
+                             departmental screen their role reaches. --}}
+                        @role(\App\Enums\Role::PromotionCandidate->value)
+                            <a class="btn btn-sm btn-outline-light" href="{{ route('my-dpc.index') }}">{{ __('ui.my_promotion') }}</a>
+                        @endrole
                         {{-- M11. Every role has a reports screen; it scopes itself. --}}
-                        <a class="btn btn-sm btn-outline-light d-none d-lg-inline" href="{{ route('reports.index') }}">Reports</a>
+                        <a class="btn btn-sm btn-outline-light d-none d-lg-inline" href="{{ route('reports.index') }}">{{ __('ui.reports') }}</a>
+
+                        {{-- Item 9 (2026-08-26): one account, several roles, and the
+                             one it is acting as gates the session.
+
+                             Shown only when there is a choice to make. An account
+                             with one role has nothing to switch to, and a control
+                             offering its own single option reads as a fault. --}}
+                        @php
+                            $actingAs = auth()->user()->activeRole();
+                            $mayActAs = auth()->user()->grantedRoles();
+                        @endphp
+                        @if (count($mayActAs) > 1)
+                            <div class="dropdown m-0">
+                                <button class="btn btn-sm btn-accent dropdown-toggle" type="button"
+                                        data-bs-toggle="dropdown" aria-expanded="false">
+                                    {{ __('ui.acting_as', ['role' => $actingAs?->label() ?? '—']) }}
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    @foreach ($mayActAs as $option)
+                                        <li>
+                                            <form method="POST" action="{{ route('acting-as') }}" class="m-0" data-no-busy>
+                                                @csrf
+                                                <input type="hidden" name="role" value="{{ $option->value }}">
+                                                <button type="submit"
+                                                        class="dropdown-item {{ $option === $actingAs ? 'active' : '' }}"
+                                                        @disabled($option === $actingAs)>
+                                                    {{ $option->label() }}
+                                                </button>
+                                            </form>
+                                        </li>
+                                    @endforeach
+                                </ul>
+                            </div>
+                        @endif
+
                         <form method="POST" action="{{ route('logout') }}" class="m-0" data-no-busy>
                             @csrf
-                            <button type="submit" class="btn btn-sm btn-outline-light">Logout</button>
+                            <button type="submit" class="btn btn-sm btn-outline-light">{{ __('ui.logout') }}</button>
                         </form>
                     @else
-                        <a class="btn btn-sm btn-outline-light" href="{{ route('login') }}">Login</a>
-                        <a class="btn btn-sm btn-accent" href="{{ route('register') }}">Register</a>
+                        <a class="btn btn-sm btn-outline-light" href="{{ route('login') }}">{{ __('ui.login') }}</a>
+                        <a class="btn btn-sm btn-accent" href="{{ route('register') }}">{{ __('ui.layouts.app.register') }}</a>
                     @endauth
 
                     <span class="vr text-white-50 d-none d-lg-inline mx-1"></span>
@@ -81,8 +121,8 @@
 
 <footer class="gov-footer-bottom py-3 mt-auto">
     <div class="container d-flex flex-wrap justify-content-between gap-2">
-        <span>&copy; {{ now()->year }} Chhattisgarh Public Service Commission · e-DPC Portal</span>
-        <span class="text-white-50">Version {{ config('dpc.application.version', '1.0') }}</span>
+        {!! __('ui.layouts.app.copyright', ['year' => now()->year]) !!}
+        {!! __('ui.layouts.app.version', ['number' => e(config('dpc.application.version', '1.0'))]) !!}
     </div>
 </footer>
 
@@ -90,10 +130,12 @@
 <script src="{{ asset('js/portal.js') }}" defer></script>
 {{-- Searchable dropdowns. Loaded on the department shell as well as the admin
      one from 2026-08-18, when the Pre-DPC screen started selecting posts,
-     feeder cadres and qualifications from the masters. It is a progressive
+     feeder posts and qualifications from the masters. It is a progressive
      enhancement over a native <select>, so a screen that does not use one is
      unaffected by its presence. --}}
 <script src="{{ asset('js/searchable-select.js') }}" defer></script>
+<script src="{{ asset('js/multiselect-dropdown.js') }}" defer></script>
+<script src="{{ asset('js/table-hscroll.js') }}" defer></script>
 @stack('scripts')
 </body>
 </html>
