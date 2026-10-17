@@ -12,13 +12,16 @@
         <div class="table-responsive">
             <table class="table table-striped mb-0 align-middle">
                 <thead>
-                    <tr><th>{{ __('ui.category') }}</th><th>{{ __('admin.reservation_policies.index.percentage') }}</th><th>{{ __('ui.effective_from') }}</th><th>{{ __('ui.effective_to') }}</th><th>{{ __('ui.status') }}</th><th class="text-end">{{ __('ui.actions') }}</th></tr>
+                    <tr><th>{{ __('ui.category') }}</th><th>{{ __('admin.reservation_policies.index.percentage') }}</th><th>{{ __('admin.reservation_policies.form.rounding') }}</th><th>{{ __('ui.effective_from') }}</th><th>{{ __('ui.effective_to') }}</th><th>{{ __('ui.status') }}</th><th class="text-end">{{ __('ui.actions') }}</th></tr>
                 </thead>
                 <tbody>
                     @forelse ($policies as $policy)
                         <tr>
                             <td>{{ $policy->reservationCategory?->code }} — {{ $policy->reservationCategory?->name_en }}</td>
-                            <td>{{ $policy->percentage }}%</td>
+                            <td>{{ rtrim(rtrim((string) $policy->percentage, '0'), '.') }}%</td>
+                            <td class="small">{{ __('admin.reservation_policies.roundings.'.($policy->rounding ?? 'floor')) }}
+                                @if ($policy->path)<div><a href="{{ route('admin.reservation-policies.document', $policy) }}">{{ __('admin.reservation_policies.index.pdf') }}</a></div>@endif
+                            </td>
                             <td>{{ $policy->effective_from?->format('d-m-Y') }}</td>
                             <td>{{ $policy->effective_to?->format('d-m-Y') ?? '—' }}</td>
                             <td><x-status-badge :status="$policy->status" /></td>
@@ -32,7 +35,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="6" class="text-center text-muted py-4">{{ __('admin.reservation_policies.index.no_policies_yet') }}</td></tr>
+                        <tr><td colspan="7" class="text-center text-muted py-4">{{ __('admin.reservation_policies.index.no_policies_yet') }}</td></tr>
                     @endforelse
                 </tbody>
             </table>

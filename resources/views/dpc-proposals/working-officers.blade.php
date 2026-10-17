@@ -291,6 +291,7 @@
                             <option value="{{ $dp->id }}">{{ $dp->name }}</option>
                         @endforeach
                     </select></div>
+                @if (config('dpc.reservation.category_wise'))
                 <div class="col-md-2"><label class="form-label">{{ __('ui.category') }}</label>
                     <select class="form-select form-select-sm" name="officers[__O__][reservation_category_id]" required>
                         @foreach ($reservationCategories as $rc)<option value="{{ $rc->id }}">{{ $rc->code }}</option>@endforeach
@@ -305,6 +306,7 @@
                         <option value="">{{ __('ui.not_recorded') }}</option>
                         @foreach ($reservationCategories as $rc)<option value="{{ $rc->id }}">{{ $rc->code }}</option>@endforeach
                     </select></div>
+                @endif
                 <div class="col-md-2"><label class="form-label">{{ __('dpc.working_officers.roster_position') }}</label>
                     <input type="number" min="1" class="form-control form-control-sm" name="officers[__O__][roster_position]"></div>
                 {{-- Items 3 and 4: the dates the retirement and deputation

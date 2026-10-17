@@ -30,6 +30,8 @@
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
+        <!-- The engine's category-wise lists stay covered; the single-pool default has its own tests. -->
+        <env name="DPC_RESERVATION_CATEGORY_WISE" value="true"/>
         <env name="DPC_OTP_FAKE_CODE" value="123456"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>

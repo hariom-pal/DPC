@@ -7,8 +7,8 @@ namespace App\Domain\Eligibility\Services;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Eligibility\Models\CrScoringScale;
-use App\Domain\Eligibility\Models\PhReservationRule;
 use App\Domain\Eligibility\RuleSet;
+use App\Domain\Master\Services\PhReservationPolicy;
 use App\Domain\Shared\Services\ActivityTimelineService;
 use App\Domain\Shared\Workflow\WorkflowException;
 use Illuminate\Http\UploadedFile;
@@ -16,7 +16,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 /**
- * Which CR scale, qualifying scores and PH reservation govern a DPC.
+ * Which CR scale and qualifying scores govern a DPC. (The PH reservation is a
+ * Reservation Policy: {@see PhReservationPolicy}.)
  *
  * The Administrator records them version by version (rules 2.1, 3.4, 3.5 — "effective
  * as per Master data"), each from a DPC year onwards and on an order with its PDF. A
@@ -156,78 +157,6 @@ final class DpcRuleBook
             ]), ['order_number' => $scale->order_number], $actor);
 
             return $scale;
-        });
-    }
-
-    // ------------------------------------------------------------------ PH
-
-    public function phRuleFor(int $year): ?PhReservationRule
-    {
-        return PhReservationRule::query()
-            ->where('effective_from_year', '<=', $year)
-            ->orderByDesc('effective_from_year')
-            ->orderByDesc('id')
-            ->first();
-    }
-
-    /**
-     * @return array{source: PhReservationRule|null, percentage: string, rounding: string}
-     */
-    public function phTermsFor(int $year): array
-    {
-        $rule = $this->phRuleFor($year);
-
-        return [
-            'source' => $rule,
-            'percentage' => $rule === null
-                ? number_format((float) config('dpc.employee_details.ph_quota_percent', 3), 2, '.', '')
-                : (string) $rule->percentage,
-            'rounding' => $rule === null ? 'floor' : $rule->rounding,
-        ];
-    }
-
-    /**
-     * Posts reserved for PH out of `$vacancies`, in whole numbers.
-     *
-     * Integer arithmetic on hundredths of a percent, so 3% of 100 is 3 and never
-     * 2.9999…, and the rule's "even .9 is disregarded" is exact.
-     */
-    public function phPosts(int $vacancies, string $percentage, string $rounding): int
-    {
-        $hundredths = (int) round(((float) $percentage) * 100);
-        $scaled = $vacancies * $hundredths;     // posts × 10 000
-
-        return match ($rounding) {
-            'ceil' => intdiv($scaled + 9999, 10000),
-            'round' => intdiv($scaled + 5000, 10000),
-            default => intdiv($scaled, 10000),
-        };
-    }
-
-    /**
-     * @param  array<string, mixed>  $data
-     */
-    public function recordPhRule(array $data, UploadedFile $document, User $actor): PhReservationRule
-    {
-        return DB::transaction(function () use ($data, $document, $actor): PhReservationRule {
-            $rule = PhReservationRule::query()->create([
-                'effective_from_year' => (int) $data['effective_from_year'],
-                'percentage' => $data['percentage'],
-                'rounding' => $data['rounding'],
-                'order_number' => $data['order_number'],
-                'order_date' => $data['order_date'],
-                'remarks' => $data['remarks'] ?? null,
-                ...$this->store($document, 'ph-reservation'),
-                'recorded_by' => $actor->id,
-                'recorded_at' => now(),
-            ]);
-
-            $this->timeline->record('dpc_rules.ph_rule_recorded', $rule, __('dpcrules.timeline.ph_rule_recorded', [
-                'percentage' => $rule->percentage,
-                'year' => $rule->effective_from_year,
-            ]), ['order_number' => $rule->order_number], $actor);
-
-            return $rule;
         });
     }
 

@@ -7,7 +7,6 @@ namespace Tests\Feature\Admin;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Eligibility\Models\CrScoringScale;
-use App\Domain\Eligibility\Models\PhReservationRule;
 use App\Domain\Eligibility\Services\DpcRuleBook;
 use App\Enums\Role;
 use Database\Seeders\RolesAndPermissionsSeeder;
@@ -62,22 +61,6 @@ class DpcRulesTest extends TestCase
         ], $overrides));
     }
 
-    /**
-     * @param  array<string, mixed>  $overrides
-     */
-    private function recordPh(array $overrides = []): TestResponse
-    {
-        return $this->actingAs($this->admin)->post(route('admin.dpc-rules.ph-rules.store'), [
-            'effective_from_year' => '2027',
-            'percentage' => '4',
-            'rounding' => 'floor',
-            'order_number' => 'GAD/PH/2027/1',
-            'order_date' => now()->subDay()->toDateString(),
-            'document' => $this->pdf('ph.pdf'),
-            ...$overrides,
-        ]);
-    }
-
     private function proposalOfYear(int $year): DpcProposal
     {
         return (new DpcProposal)->forceFill(['dpc_year' => $year, 'proposal_date' => "{$year}-03-01"]);
@@ -89,7 +72,7 @@ class DpcRulesTest extends TestCase
             ->assertOk()
             ->assertSee(__('dpcrules.built_in'))
             ->assertSee(__('dpcrules.cr.heading', ['year' => 2027]))
-            ->assertSee(__('dpcrules.ph.heading', ['year' => 2027]));
+            ->assertSee(__('dpcrules.ph_pointer'));
 
         $rules = app(DpcRuleBook::class)->ruleSetFor($this->proposalOfYear(2027));
         $this->assertSame(config('dpc.scoring.rule_version'), $rules->version);
@@ -150,56 +133,14 @@ class DpcRulesTest extends TestCase
             ->assertSee('name="grade_marks[क+]"', false)
             ->assertSee('name="qualifying_scores[I-I]"', false)
             ->assertSee('name="document"', false);
-
-        $this->actingAs($this->admin)->get(route('admin.dpc-rules.ph-rules.create', ['year' => 2027]))
-            ->assertOk()
-            ->assertSee('name="percentage"', false)
-            ->assertSee('value="3"', false)
-            ->assertSee(__('dpcrules.ph.roundings.floor'));
-    }
-
-    public function test_the_ph_reservation_follows_the_version_of_the_dpc_year(): void
-    {
-        $book = app(DpcRuleBook::class);
-        $this->assertSame('3.00', $book->phTermsFor(2027)['percentage']);
-
-        $this->recordPh()->assertSessionHasNoErrors();
-        $this->assertSame(1, PhReservationRule::query()->count());
-
-        $this->assertSame('4.00', $book->phTermsFor(2027)['percentage']);
-        $this->assertSame('3.00', $book->phTermsFor(2026)['percentage']);
-    }
-
-    public function test_ph_posts_drop_the_decimal_part_as_rule_two_one_says(): void
-    {
-        $book = app(DpcRuleBook::class);
-
-        $this->assertSame(0, $book->phPosts(33, '3.00', 'floor'));   // 0.99
-        $this->assertSame(2, $book->phPosts(67, '3.00', 'floor'));   // 2.01
-        $this->assertSame(3, $book->phPosts(100, '3.00', 'floor'));  // exactly 3, never 2.999…
-        $this->assertSame(1, $book->phPosts(33, '3.00', 'round'));
-        $this->assertSame(1, $book->phPosts(1, '3.00', 'ceil'));
-        $this->assertSame(2, $book->phPosts(100, '2.50', 'floor'));
-    }
-
-    public function test_a_ph_rule_is_refused_beside_its_field(): void
-    {
-        $this->recordPh(['percentage' => '101'])->assertSessionHasErrors('percentage');
-        $this->recordPh(['rounding' => 'sideways'])->assertSessionHasErrors('rounding');
-        $this->recordPh(['document' => null])->assertSessionHasErrors('document');
-
-        $this->assertSame(0, PhReservationRule::query()->count());
     }
 
     public function test_the_supporting_document_can_be_read_back(): void
     {
         $this->recordScale()->assertSessionHasNoErrors();
-        $this->recordPh()->assertSessionHasNoErrors();
 
         $this->actingAs($this->admin)->get(route('admin.dpc-rules.cr-scales.document', CrScoringScale::query()->sole()))
             ->assertOk()->assertDownload('scale.pdf');
-        $this->actingAs($this->admin)->get(route('admin.dpc-rules.ph-rules.document', PhReservationRule::query()->sole()))
-            ->assertOk()->assertDownload('ph.pdf');
     }
 
     public function test_only_the_administrator_manages_the_rules(): void
@@ -209,6 +150,5 @@ class DpcRulesTest extends TestCase
 
         $this->actingAs($officer)->get(route('admin.dpc-rules.index'))->assertForbidden();
         $this->actingAs($officer)->post(route('admin.dpc-rules.cr-scales.store'), [])->assertForbidden();
-        $this->actingAs($officer)->post(route('admin.dpc-rules.ph-rules.store'), [])->assertForbidden();
     }
 }

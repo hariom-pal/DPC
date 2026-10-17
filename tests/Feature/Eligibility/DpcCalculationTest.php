@@ -238,6 +238,24 @@ class DpcCalculationTest extends TestCase
         $this->assertSame('NE', $run->results()->where('officer_name', 'US3')->firstOrFail()->remark);
     }
 
+    public function test_without_category_wise_reservation_one_list_is_drawn_by_seniority(): void
+    {
+        // Today: no category-wise reservation in promotion (only PH). The same two
+        // seats go to the two most senior eligible officers, whatever their category.
+        config(['dpc.reservation.category_wise' => false]);
+
+        $this->seedProposal([
+            $this->officer(1, 'UR1', [2013 => 'क', 2014 => 'क', 2015 => 'क', 2016 => 'क', 2017 => 'क']),
+            $this->officer(2, 'UR2', [2013 => 'क', 2014 => 'क', 2015 => 'क', 2016 => 'क', 2017 => 'क']),
+            $this->officer(3, 'ST1', [2013 => 'क', 2014 => 'क', 2015 => 'क', 2016 => 'क', 2017 => 'क'], $this->st),
+        ], ['UR' => 1, 'ST' => 1]);
+
+        $run = $this->calculate();
+
+        $this->assertSame(['UR1', 'UR2'], $run->mainList()->get()->pluck('officer_name')->all());
+        $this->assertSame('UR_W', $run->results()->where('officer_name', 'ST1')->firstOrFail()->remark);
+    }
+
     public function test_lists_are_kept_per_reservation_category(): void
     {
         // One UR vacancy and one ST vacancy: each category fills its own seat,

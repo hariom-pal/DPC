@@ -213,7 +213,6 @@ class ResetTransactionalDataCommand extends Command
         'reservation_roster_points',
         'committee_configurations',
         'cr_scoring_scales',
-        'ph_reservation_rules',
 
         /*
          | Who the CGPSC Chairman is, and was (item 9). Administered rather than

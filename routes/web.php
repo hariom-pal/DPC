@@ -703,6 +703,8 @@ Route::middleware('auth')->group(function (): void {
                 Route::resource('reservation-policies', ReservationPolicyController::class)
                     ->parameters(['reservation-policies' => 'reservationPolicy'])
                     ->except(['show']);
+                Route::get('reservation-policies/{reservationPolicy}/document', [ReservationPolicyController::class, 'document'])
+                    ->name('reservation-policies.document');
                 Route::resource('reservation-rosters', ReservationRosterController::class)
                     ->parameters(['reservation-rosters' => 'reservationRoster'])
                     ->except(['show']);
@@ -769,9 +771,6 @@ Route::middleware('auth')->group(function (): void {
                     Route::get('cr-scales/create', [DpcRuleController::class, 'createCrScale'])->name('cr-scales.create');
                     Route::post('cr-scales', [DpcRuleController::class, 'storeCrScale'])->name('cr-scales.store');
                     Route::get('cr-scales/{crScale}/document', [DpcRuleController::class, 'crScaleDocument'])->name('cr-scales.document');
-                    Route::get('ph-rules/create', [DpcRuleController::class, 'createPhRule'])->name('ph-rules.create');
-                    Route::post('ph-rules', [DpcRuleController::class, 'storePhRule'])->name('ph-rules.store');
-                    Route::get('ph-rules/{phRule}/document', [DpcRuleController::class, 'phRuleDocument'])->name('ph-rules.document');
                 });
 
                 Route::resource('users', UserController::class)->only(['index', 'create', 'store', 'edit', 'update']);

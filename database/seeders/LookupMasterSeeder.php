@@ -26,9 +26,19 @@ class LookupMasterSeeder extends Seeder
         ] as [$code, $en, $hi, $reserved]) {
             ReservationCategory::query()->updateOrCreate(
                 ['code' => $code],
-                ['name_en' => $en, 'name_hi' => $hi, 'is_reserved' => $reserved, 'status' => $active],
+                [
+                    'name_en' => $en, 'name_hi' => $hi, 'is_reserved' => $reserved,
+                    // No category-wise reservation in promotion today: kept, inactive.
+                    'status' => (bool) config('dpc.reservation.category_wise', false) ? $active : MasterStatus::Inactive->value,
+                ],
             );
         }
+
+        // PH (rule 2.1) — the only reservation in promotion today, and always active.
+        ReservationCategory::query()->updateOrCreate(
+            ['code' => 'PH'],
+            ['name_en' => 'Persons with Disabilities (PH / PwD)', 'name_hi' => 'दिव्यांगजन (PH)', 'is_reserved' => true, 'status' => $active],
+        );
 
         // Review reasons — PPT S35/S37.
         foreach ([

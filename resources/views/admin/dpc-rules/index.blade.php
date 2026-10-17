@@ -64,21 +64,10 @@
         </div>
     </div>
 
-    {{-- PH reservation --}}
-    <div class="card border-0 shadow-sm mb-3">
-        <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
-            <strong>{{ __('dpcrules.ph.heading', ['year' => $year]) }}</strong>
-            <a class="btn btn-primary btn-sm" href="{{ route('admin.dpc-rules.ph-rules.create', ['year' => $year]) }}">{{ __('dpcrules.ph.record_new') }}</a>
-        </div>
-        <div class="card-body">
-            @include('admin.dpc-rules.source', ['source' => $ph['source'], 'label' => null, 'document' => $ph['source'] ? route('admin.dpc-rules.ph-rules.document', $ph['source']) : null])
-            <p class="mb-1">{{ __('dpcrules.ph.summary', ['percentage' => rtrim(rtrim($ph['percentage'], '0'), '.'), 'rounding' => __('dpcrules.ph.roundings.'.$ph['rounding'])]) }}</p>
-            <p class="small text-muted mb-0">{{ __('dpcrules.ph.fixed_terms') }}</p>
-        </div>
-    </div>
-
     <div class="card border-0 shadow-sm mb-3">
         <div class="card-body small">
+            {{ __('dpcrules.ph_pointer') }}
+            <a href="{{ route('admin.reservation-policies.index') }}">{{ __('ui.layouts.admin.nav.reservation_policies') }}</a>.
             {{ __('dpcrules.committee_pointer') }}
             <a href="{{ route('admin.committee-configurations.index') }}">{{ __('admin.committee_rules.title') }}</a>
         </div>
@@ -111,19 +100,7 @@
                             <td>{{ $scale->recorder?->name ?? '—' }}<div class="text-muted">{{ $scale->recorded_at->format('d-m-Y H:i') }}</div></td>
                         </tr>
                     @endforeach
-                    @foreach ($phRules as $rule)
-                        <tr>
-                            <td>{{ __('dpcrules.ph.kind') }}</td>
-                            <td>{{ $rule->effective_from_year }}</td>
-                            <td>
-                                {{ __('dpcrules.ph.summary', ['percentage' => rtrim(rtrim((string) $rule->percentage, '0'), '.'), 'rounding' => __('dpcrules.ph.roundings.'.$rule->rounding)]) }}
-                                @if ($rule->remarks)<div class="text-muted">{{ $rule->remarks }}</div>@endif
-                            </td>
-                            <td>{{ $rule->order_number }} · {{ $rule->order_date->format('d-m-Y') }} · <a href="{{ route('admin.dpc-rules.ph-rules.document', $rule) }}">{{ $rule->original_name }}</a></td>
-                            <td>{{ $rule->recorder?->name ?? '—' }}<div class="text-muted">{{ $rule->recorded_at->format('d-m-Y H:i') }}</div></td>
-                        </tr>
-                    @endforeach
-                    @if ($crScales->isEmpty() && $phRules->isEmpty())
+                    @if ($crScales->isEmpty())
                         <tr><td colspan="5" class="text-center text-muted py-3">{{ __('dpcrules.no_versions') }}</td></tr>
                     @endif
                 </tbody>

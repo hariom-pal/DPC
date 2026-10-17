@@ -57,8 +57,8 @@
                `[name$="[reservation_category_id]"]` also matches
                `[seat_reservation_category_id]`, so a suffix match would depend on
                which of the two happens to come first in the template. */
-            el.querySelector('[name*="][reservation_category_id"]').value = entry.reservation_category_id || '';
-            el.querySelector('[name$="[seat_reservation_category_id]"]').value = entry.seat_reservation_category_id || '';
+            if (el.querySelector('[name*="][reservation_category_id"]')) { el.querySelector('[name*="][reservation_category_id"]').value = entry.reservation_category_id || ''; }
+            if (el.querySelector('[name$="[seat_reservation_category_id]"]')) { el.querySelector('[name$="[seat_reservation_category_id]"]').value = entry.seat_reservation_category_id || ''; }
             el.querySelector('[name$="[mobile]"]').value = entry.mobile || '';
             el.querySelector('[name$="[date_of_joining_service]"]').value = entry.date_of_joining_service || '';
             el.querySelector('[name$="[date_of_posting_on_promotion_to_post]"]').value = entry.date_of_posting_on_promotion_to_post || '';

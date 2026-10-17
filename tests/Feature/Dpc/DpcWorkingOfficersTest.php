@@ -455,6 +455,29 @@ class DpcWorkingOfficersTest extends TestCase
     /**
      * Items 6 and 7, and the audit item 10 requires.
      */
+    public function test_without_category_wise_reservation_no_category_is_asked_and_rows_join_one_pool(): void
+    {
+        config(['dpc.reservation.category_wise' => false]);
+        $st = ReservationCategory::query()->where('code', 'ST')->firstOrFail();
+
+        $this->actingAs($this->ao)->get(route('dpc-proposals.working-officers', $this->proposal))
+            ->assertOk()
+            ->assertDontSee('[reservation_category_id]', false);
+
+        // Even a category posted by an old form is replaced by the pool.
+        $payload = $this->payload();
+        $payload['officers'][0]['reservation_category_id'] = $st->id;
+        unset($payload['officers'][1]['reservation_category_id']);
+
+        $this->actingAs($this->ao)->put(route('dpc-proposals.working-officers.update', $this->proposal), $payload)
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(
+            [$this->ur->id],
+            $this->proposal->workingOfficers()->pluck('reservation_category_id')->unique()->values()->all(),
+        );
+    }
+
     public function test_the_calculation_is_recorded_with_the_promotion_split(): void
     {
         $this->actingAs($this->ao)->put(

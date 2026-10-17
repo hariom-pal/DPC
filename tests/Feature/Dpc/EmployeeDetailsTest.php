@@ -16,10 +16,10 @@ use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Services\DpcProposalCompletenessService;
 use App\Domain\Dpc\Services\DpcProposalService;
 use App\Domain\Dpc\Services\EmployeeDetailsService;
-use App\Domain\Eligibility\Services\DpcRuleBook;
 use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\RecordReason;
 use App\Domain\Master\Models\ReservationCategory;
+use App\Domain\Master\Models\ReservationPolicy;
 use App\Domain\Master\Models\VacancyType;
 use App\Enums\Role;
 use Database\Seeders\LookupMasterSeeder;
@@ -470,23 +470,28 @@ class EmployeeDetailsTest extends TestCase
         $this->assertSame(2, $quota()['posts']);
     }
 
-    public function test_the_ph_quota_follows_the_dpc_rules_version_of_the_proposal_year(): void
+    private function phCategory(): ReservationCategory
+    {
+        return ReservationCategory::query()->where('code', 'PH')->firstOrFail();
+    }
+
+    public function test_the_ph_quota_follows_the_ph_reservation_policy(): void
     {
         $vacancyType = VacancyType::query()->firstOrFail();
         $category = ReservationCategory::query()->firstOrFail();
-        $book = app(DpcRuleBook::class);
         $quota = fn (): array => app(EmployeeDetailsService::class)->phQuota($this->proposal->refresh());
 
         $this->proposal->vacancies()->create(['vacancy_type_id' => $vacancyType->id, 'reservation_category_id' => $category->id, 'count' => 100]);
         $this->assertSame(3, $quota()['posts']);
 
-        $book->recordPhRule([
-            'effective_from_year' => $book->yearOf($this->proposal),
+        ReservationPolicy::query()->where('reservation_category_id', $this->phCategory()->id)->update(['status' => 'inactive']);
+        ReservationPolicy::query()->create([
+            'reservation_category_id' => $this->phCategory()->id,
             'percentage' => '4.50',
             'rounding' => 'floor',
-            'order_number' => 'GAD/PH/1',
-            'order_date' => now()->toDateString(),
-        ], UploadedFile::fake()->create('ph.pdf', 10, 'application/pdf'), $this->ao);
+            'effective_from' => $this->proposal->proposal_date->copy()->subYear()->toDateString(),
+            'status' => 'active',
+        ]);
 
         // 4.5% of 100 = 4.5 → 4, the decimal dropped.
         $this->assertSame(4, $quota()['posts']);

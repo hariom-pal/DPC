@@ -15,6 +15,8 @@ use App\Domain\Dpc\Models\DpcEvaluationRecordGap;
 use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Eligibility\Services\DpcRuleBook;
+use App\Domain\Master\Services\PhReservationPolicy;
+use App\Domain\Master\Support\ReservationMode;
 use App\Domain\Shared\Services\ActivityTimelineService;
 use App\Domain\Shared\Workflow\WorkflowException;
 use Illuminate\Http\UploadedFile;
@@ -455,20 +457,21 @@ class EmployeeDetailsService
     /**
      * Rule 2.1: a share of the promotion vacancies (3%), whole number only — "the
      * decimal part is disregarded even if it is .9". The percentage and the rounding
-     * are the DPC Rules version in force for the proposal's year. Displayed beside
+     * are the PH Reservation Policy in force on the proposal date. Displayed beside
      * the officers; the engine's list placement is not changed by it.
      *
      * @return array{percent: string, vacancies: int, posts: int, claims: int}
      */
     public function phQuota(DpcProposal $proposal): array
     {
-        $terms = $this->ruleBook->phTermsFor($this->ruleBook->yearOf($proposal));
+        $ph = app(PhReservationPolicy::class);
+        $terms = $ph->termsFor($proposal);
         $vacancies = (int) $proposal->vacancies()->sum('count');
 
         return [
             'percent' => rtrim(rtrim($terms['percentage'], '0'), '.'),
             'vacancies' => $vacancies,
-            'posts' => $this->ruleBook->phPosts($vacancies, $terms['percentage'], $terms['rounding']),
+            'posts' => $ph->posts($vacancies, $terms['percentage'], $terms['rounding']),
             'claims' => $proposal->evaluationRows()
                 ->where('is_ph', true)
                 ->where('ph_previously_availed', false)
@@ -488,7 +491,8 @@ class EmployeeDetailsService
     {
         $missing = [];
 
-        if ((bool) config('dpc.employee_details.require_category', true) && $row->reservation_category_id === null) {
+        if (app(ReservationMode::class)->categoryWise()
+            && (bool) config('dpc.employee_details.require_category', true) && $row->reservation_category_id === null) {
             $missing[] = (string) __('dpc.employee_details.missing.category');
         }
 

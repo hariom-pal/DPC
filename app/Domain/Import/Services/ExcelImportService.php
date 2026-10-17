@@ -17,6 +17,7 @@ use App\Domain\Import\Enums\ImportTemplate;
 use App\Domain\Import\Models\ImportBatch;
 use App\Domain\Import\Support\RawSheetImport;
 use App\Domain\Master\Models\ReservationCategory;
+use App\Domain\Master\Support\ReservationMode;
 use App\Domain\Shared\Services\ActivityTimelineService;
 use App\Domain\Shared\Workflow\WorkflowException;
 use Illuminate\Database\Eloquent\Collection;
@@ -777,9 +778,20 @@ class ExcelImportService
     {
         $payload = [];
         $errors = [];
+        $categoryWise = app(ReservationMode::class)->categoryWise();
+
+        // No category-wise reservation: a category column is ignored, and a row
+        // that needs a category belongs to the one pool.
+        if (! $categoryWise && $template !== ImportTemplate::FinalSeniorityListUs) {
+            $payload['reservation_category_id'] = app(ReservationMode::class)->poolCategoryId();
+        }
 
         foreach ($map['fields'] as $index => $field) {
             $value = $this->cell($rawRow, $index);
+
+            if (! $categoryWise && in_array($field, ['reservation_category', 'seat_reservation_category'], true)) {
+                continue;
+            }
 
             if ($field === 'reservation_category') {
                 $code = strtoupper(trim((string) $value));

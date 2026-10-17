@@ -86,6 +86,7 @@
             </dl>
             <form method="POST" action="{{ route('dpc-proposals.employees.basic', [$proposal, $row]) }}" class="row g-2">
                 @csrf @method('PUT')
+                @if (config('dpc.reservation.category_wise'))
                 <div class="col-md-3">
                     <label class="form-label small" for="reservation_category_id">{{ __('ui.reservation_category') }}</label>
                     <select class="form-select form-select-sm" id="reservation_category_id" name="reservation_category_id" @disabled(! $canEdit)>
@@ -96,6 +97,7 @@
                     </select>
                     <div class="form-text">{{ __('dpc.employee_details.category_help') }}</div>
                 </div>
+                @endif
                 <div class="col-md-3">
                     <label class="form-label small" for="qualification">{{ __('ui.qualification') }}</label>
                     <input class="form-control form-control-sm" id="qualification" name="qualification" value="{{ old('qualification', $row->qualification) }}" @disabled(! $canEdit)>

@@ -54,7 +54,7 @@
 | F14 | Record reasons | Why a CR / loyalty record is missing | `admin.record-reasons.*` | `record_reasons` | `RecordReasonMasterTest` (7) | ✅ |
 | F15 | Vacancy types | Vacancy grounds | `admin.vacancy-types.*` | `vacancy_types` | `LookupMasterTest` | ⚠️ engine matches hard-coded codes (`VacancyEngine.php:332`) |
 | F16 | DPC types | Fresh / Review / Circulation | `admin.dpc-types.*` | `dpc_types` | `LookupMasterTest` | ⚠️ `'fresh'` hard-coded (`SaveDpcProposalRequest.php:99`) |
-| F17 | **DPC Rules** (CR marks, qualifying scores, PH reservation) | Rules 2.1, 3.4, 3.5 as versioned master data: each version from a DPC year, on an order with its PDF; never edited | `admin.dpc-rules.*` (7 routes); `DpcRuleController`, `DpcRuleBook` | `cr_scoring_scales`, `ph_reservation_rules` | `DpcRulesTest` (10), `DpcCalculationTest`, `EmployeeDetailsTest` | ✅ built-in `config/dpc.php` rules apply until a version is recorded. The Committee Type master was removed on 2026-10-17: there is one committee. |
+| F17 | **DPC Rules** (CR marks, qualifying scores, PH reservation) | Rules 2.1, 3.4, 3.5 as versioned master data: each version from a DPC year, on an order with its PDF; never edited | `admin.dpc-rules.*`; `DpcRuleController`, `DpcRuleBook` | `cr_scoring_scales` (PH moved to the PH Reservation Policy on 2026-10-17) | `DpcRulesTest` (10), `DpcCalculationTest`, `EmployeeDetailsTest` | ✅ built-in `config/dpc.php` rules apply until a version is recorded. The Committee Type master was removed on 2026-10-17: there is one committee. |
 | F18 | **DPC Committee Rules** | Members besides the Chairman, attributes the committee must cover (SC, ST, OBC, female, Bhar Sadhak Sachiv, Vibhag Sachiv), one SC/ST/OBC member, effective dates; Chairman mandatory by rule | `admin.committee-configurations.*`, `align-bounds` | `committee_configurations` | `CommitteeMasterTest`, `CommitteeBoundsReconcilerTest`, `DpcCommitteeTest` | ✅ the 9 unread fields were dropped |
 | F19 | CGPSC Chairman | Effective-dated Chairman record | `admin.cgpsc-chairman.*` (no destroy) | `cgpsc_chairmen` | `CgpscChairmanTest` (15) | ✅ |
 | F20 | ~~Recruitment rules~~ — **removed 2026-10-17** | The rule is the approved Pre-DPC's: approval projects an Active version (`PreDpcProposalService::projectToMasters`). The Administrator has no screen for it. Engine readers unchanged. The months-as-years projection bug was fixed at the same time. | — | `recruitment_rules`, `recruitment_rule_sources`, `rr_source_qualifications` (written by Pre-DPC approval) | `PreDpcWorkflowTest` | ✅ |
@@ -285,3 +285,12 @@ migration. Every pre-existing table kept its row count; `record_reasons` gained 
 **Still open (unchanged by this work):** the business decisions D-1…D-9 in `CODER-INSTRUCTIONS-POINTS-1-TO-3.md` §3,
 the Admin defects in §7 above, and the UAT data-cleanup command, which remains a design only (`docs/UAT-DATA-CLEANUP.md`,
 not committed with this work).
+
+## Reservation in promotion (2026-10-17)
+
+There is no category-wise reservation in promotion today, only PH (rule 2.1).
+
+- **Reservation Categories:** PH is active. UR, SC, ST, OBC and EWS are kept, inactive (migration 500001).
+- **The PH Reservation Policy** carries the PH quota, the rounding of a decimal part (`floor` = rule 2.1, or `ceil`), the dates it is in force, and an optional PDF. `PhReservationPolicy` reads it, with the proposal date deciding which policy applies.
+- **`dpc.reservation.category_wise` = false.** The AO screens ask for no category: Working Officers, Seniority List and Employee Details. Every row joins one pool (Unreserved), and the engine draws one Main / Waiting list. Turning the switch on restores category-wise lists. The test suite runs with it on, and the single-pool behaviour has its own tests.
+- **Still open: D-6.** How a PH seat sits on the Main / Waiting list is not decided.

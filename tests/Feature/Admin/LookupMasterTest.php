@@ -33,7 +33,9 @@ class LookupMasterTest extends TestCase
     {
         $this->seed(LookupMasterSeeder::class);
 
-        $this->assertSame(5, ReservationCategory::query()->count());
+        // UR, SC, ST, OBC, EWS and PH — the only one in force in promotion today.
+        $this->assertSame(6, ReservationCategory::query()->count());
+        $this->assertTrue(ReservationCategory::query()->where('code', 'PH')->where('status', 'active')->exists());
         $this->assertSame(6, ReviewReason::query()->count());
         $this->assertSame(4, VacancyType::query()->count());
         $this->assertSame(3, DpcType::query()->count());

@@ -15,6 +15,12 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property int $id
  * @property int $reservation_category_id
  * @property numeric-string $percentage
+ * @property string $rounding
+ * @property string|null $disk
+ * @property string|null $path
+ * @property string|null $original_name
+ * @property int|null $size_bytes
+ * @property string|null $sha256
  * @property Carbon $effective_from
  * @property Carbon|null $effective_to
  * @property MasterStatus $status
@@ -29,6 +35,7 @@ class ReservationPolicy extends Model implements Auditable
     protected $fillable = [
         'reservation_category_id',
         'percentage',
+        'rounding',
         'effective_from',
         'effective_to',
     ];

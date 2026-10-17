@@ -3,9 +3,9 @@
 declare(strict_types=1);
 
 return [
-    'nav' => 'CR Marks & PH Rules',
+    'nav' => 'CR Marks Rules',
     'title' => 'DPC Rules',
-    'intro' => 'The CR marks, qualifying scores and PH reservation every DPC is judged by. Each change is a new version, from a DPC year onwards, on an order with its PDF. Earlier versions stay in the history.',
+    'intro' => 'The CR marks and qualifying scores every DPC is judged by. Each change is a new version, from a DPC year onwards, with its PDF. Earlier versions stay in the history.',
     'show_for_year' => 'Rules in force for DPC year',
     'show' => 'Show',
     'built_in' => 'No version has been recorded for this year, so the portal\'s built-in rules apply.',
@@ -26,6 +26,7 @@ return [
     'document_reselect' => 'Please choose the PDF again — a file cannot be kept after an error.',
     'remarks' => 'Remarks',
     'save_version' => 'Save as a new version',
+    'ph_pointer' => 'The PH reservation (percentage, and floor or ceil for a decimal) is a Reservation Policy:',
     'committee_pointer' => 'Who must sit on the DPC committee is set in',
     'grade_names' => ['Outstanding', 'Very good', 'Good', 'Average', 'Poor'],
 
@@ -58,24 +59,6 @@ return [
         'super_seat_grade' => 'Grade needed in every year to supersede',
     ],
 
-    'ph' => [
-        'heading' => 'PH reservation in promotion — DPC year :year',
-        'kind' => 'PH reservation',
-        'record_new' => 'Record a new PH reservation rule',
-        'form_intro' => 'Rule 2.1: a share of the promotion vacancies is reserved for Persons with Disabilities (PH / PwD).',
-        'terms_heading' => 'Reservation',
-        'percentage' => 'Percentage of promotion vacancies',
-        'rounding' => 'Whole number by',
-        'roundings' => [
-            'floor' => 'dropping the decimal part (even .9) — rule 2.1',
-            'round' => 'rounding to the nearest whole number',
-            'ceil' => 'rounding up',
-        ],
-        'terms_help' => 'Example at 3% with the decimal dropped: 33 vacancies give 0 PH posts, 67 give 2.',
-        'summary' => ':percentage% of the promotion vacancies, as a whole number by :rounding.',
-        'fixed_terms' => 'Fixed by rule 2.1 and not a setting: the benefit is availed only once in service, a PH claim needs the employee\'s undertaking, and earlier PH benefit is checked.',
-    ],
-
     'errors' => [
         'marks_must_fall' => ':grade must carry fewer marks than :better.',
         'qualifying_unreachable' => 'No officer could reach this: the highest possible total is :highest.',
@@ -84,11 +67,9 @@ return [
 
     'flash' => [
         'cr_recorded' => 'The new CR scale is recorded and applies from DPC year :year.',
-        'ph_recorded' => 'The new PH reservation rule is recorded and applies from DPC year :year.',
     ],
 
     'timeline' => [
         'cr_scale_recorded' => 'CR scale ":name" recorded, applying from DPC year :year.',
-        'ph_rule_recorded' => 'PH reservation of :percentage% recorded, applying from DPC year :year.',
     ],
 ];

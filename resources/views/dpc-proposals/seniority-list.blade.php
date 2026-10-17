@@ -201,6 +201,7 @@
                             <option value="{{ $dp->id }}">{{ $dp->name }}</option>
                         @endforeach
                     </select></div>
+                @if (config('dpc.reservation.category_wise'))
                 <div class="col-md-3"><label class="form-label">{{ __('ui.reservation_category') }}</label>
                     <select class="form-select form-select-sm" name="entries[__E__][reservation_category_id]">
                         <option value="">{{ __('ui.select') }}</option>
@@ -216,6 +217,7 @@
                         <option value="">{{ __('ui.not_recorded') }}</option>
                         @foreach ($reservationCategories as $rc)<option value="{{ $rc->id }}">{{ $rc->code }} — {{ $rc->name_en }}</option>@endforeach
                     </select></div>
+                @endif
                 <div class="col-md-3"><label class="form-label">{{ __('dpc.seniority_list.date_of_joining') }}</label>
                     <input type="date" class="form-control form-control-sm" name="entries[__E__][date_of_joining_service]" required></div>
                 <div class="col-md-3"><label class="form-label">{{ __('ui.date_of_posting_on_promotion_to_post') }}</label>

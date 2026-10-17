@@ -274,6 +274,25 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Reservation in promotion
+    |--------------------------------------------------------------------------
+    |
+    | `category_wise` false (today): there is no category-wise reservation in
+    | promotion, only PH (rule 2.1), which is the PH Reservation Policy. Officers
+    | and vacancies are not asked for a category; every vacancy belongs to one
+    | pool (`pool_category`, Unreserved) and one Main / Waiting list is drawn.
+    | Turn it on when category-wise reservation returns.
+    |
+    */
+
+    'reservation' => [
+        'category_wise' => filter_var(env('DPC_RESERVATION_CATEGORY_WISE', false), FILTER_VALIDATE_BOOL),
+        'pool_category' => env('DPC_RESERVATION_POOL_CATEGORY') ?: 'UR',
+        'ph_category' => 'PH',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | UAT data cleanup (`php artisan dpc:uat-cleanup`)
     |--------------------------------------------------------------------------
     |

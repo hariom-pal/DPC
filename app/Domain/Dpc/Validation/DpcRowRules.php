@@ -375,7 +375,11 @@ final class DpcRowRules
 
             'promotion_to_post' => ['nullable', 'string', 'max:255'],
             'promotion_from_post' => ['nullable', 'string', 'max:255'],
-            'reservation_category_id' => ['required', Rule::exists('reservation_categories', 'id')],
+            // Required only while promotion is reserved category-wise.
+            'reservation_category_id' => [
+                (bool) config('dpc.reservation.category_wise', false) ? 'required' : 'nullable',
+                Rule::exists('reservation_categories', 'id'),
+            ],
 
             /*
                  | The seat's category — the roster point the officer was appointed

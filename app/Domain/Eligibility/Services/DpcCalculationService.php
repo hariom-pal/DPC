@@ -12,6 +12,7 @@ use App\Domain\Eligibility\Enums\RemarkCode;
 use App\Domain\Eligibility\Models\DpcCalculationRun;
 use App\Domain\Eligibility\ValueObjects\OfficerRecord;
 use App\Domain\Master\Models\RecruitmentRuleSource;
+use App\Domain\Master\Support\ReservationMode;
 use App\Domain\Shared\Services\ActivityTimelineService;
 use App\Domain\Shared\Workflow\WorkflowException;
 use Illuminate\Support\Carbon;
@@ -43,6 +44,7 @@ class DpcCalculationService
         private readonly SuperSeatService $superSeat,
         private readonly ActivityTimelineService $timeline,
         private readonly DpcRuleBook $ruleBook,
+        private readonly ReservationMode $reservation,
     ) {}
 
     public function calculate(DpcProposal $proposal, ?User $actor = null): DpcCalculationRun
@@ -158,7 +160,9 @@ class DpcCalculationService
         $eligibleByCategory = [];
         foreach ($assessed as $entry) {
             if ($entry['verdict']->eligible) {
-                $code = $entry['record']->reservationCategoryCode ?? 'UNKNOWN';
+                $code = $this->reservation->categoryWise()
+                    ? ($entry['record']->reservationCategoryCode ?? 'UNKNOWN')
+                    : $this->reservation->poolCode();
                 $eligibleByCategory[$code] = ($eligibleByCategory[$code] ?? 0) + 1;
             }
         }
@@ -291,7 +295,8 @@ class DpcCalculationService
         $totals = [];
 
         foreach ($proposal->vacancies as $vacancy) {
-            $code = $vacancy->reservationCategory->code;
+            // No category-wise reservation: every vacancy is the one pool's.
+            $code = $this->reservation->categoryWise() ? $vacancy->reservationCategory->code : $this->reservation->poolCode();
             $totals[$code] = ($totals[$code] ?? 0) + $vacancy->count;
         }
 
@@ -374,7 +379,10 @@ class DpcCalculationService
         $placement = [];
 
         foreach ($ranked as $entry) {
-            $code = $entry['record']->reservationCategoryCode ?? 'UNKNOWN';
+            // No category-wise reservation: one pool, one list.
+            $code = $this->reservation->categoryWise()
+                ? ($entry['record']->reservationCategoryCode ?? 'UNKNOWN')
+                : $this->reservation->poolCode();
             $vacancies = $vacanciesByCategory[$code] ?? 0;
             $used = $filled[$code] ?? 0;
 

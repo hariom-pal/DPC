@@ -10,6 +10,7 @@ use App\Domain\Dpc\Services\SanctionedStrengthSource;
 use App\Domain\Dpc\Services\VacancyEngine;
 use App\Domain\Dpc\Validation\DpcRowRules;
 use App\Domain\Import\Services\ExcelImportService;
+use App\Domain\Master\Support\ReservationMode;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Carbon;
@@ -79,6 +80,7 @@ class SaveWorkingOfficersRequest extends FormRequest
     protected function prepareForValidation(): void
     {
         $officers = (array) $this->input('officers', []);
+        $mode = app(ReservationMode::class);
 
         if ($officers === []) {
             return;
@@ -99,6 +101,13 @@ class SaveWorkingOfficersRequest extends FormRequest
             if ($officers[$index]['status'] === DpcWorkingOfficer::STATUS_WORKING
                 && ($officer['source'] ?? '') === '') {
                 $officers[$index]['source'] = DpcWorkingOfficer::SOURCE_PROMOTION;
+            }
+
+            // No category-wise reservation: the screen asks for none, and every
+            // row belongs to the one pool.
+            if (! $mode->categoryWise()) {
+                $officers[$index]['reservation_category_id'] = $mode->poolCategoryId();
+                $officers[$index]['seat_reservation_category_id'] = null;
             }
         }
 

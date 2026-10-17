@@ -3,11 +3,12 @@
 @section('title', __($policy->exists ? 'admin.reservation_policies.form.title_edit' : 'admin.reservation_policies.form.title_new'))
 
 @section('content')
-    <h1 class="h4 mb-3">{{ $policy->exists ? 'Edit Reservation Policy' : 'New Reservation Policy' }}</h1>
+    <h1 class="h4 mb-1">{{ __($policy->exists ? 'admin.reservation_policies.form.title_edit' : 'admin.reservation_policies.form.title_new') }}</h1>
+    <p class="text-muted small mb-3">{{ __('admin.reservation_policies.form.ph_note') }}</p>
 
     <div class="card border-0 shadow-sm">
         <div class="card-body">
-            <form method="POST" action="{{ $policy->exists ? route('admin.reservation-policies.update', $policy) : route('admin.reservation-policies.store') }}">
+            <form method="POST" enctype="multipart/form-data" action="{{ $policy->exists ? route('admin.reservation-policies.update', $policy) : route('admin.reservation-policies.store') }}">
                 @csrf
                 @if ($policy->exists) @method('PUT') @endif
 
@@ -26,6 +27,16 @@
                         <label class="form-label" for="percentage">{{ __('admin.reservation_policies.form.percentage') }}</label>
                         <input type="number" step="0.01" min="0" max="100" class="form-control @error('percentage') is-invalid @enderror" id="percentage" name="percentage" value="{{ old('percentage', $policy->percentage) }}" required>
                         @error('percentage')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label" for="rounding">{{ __('admin.reservation_policies.form.rounding') }}</label>
+                        <select class="form-select @error('rounding') is-invalid @enderror" id="rounding" name="rounding" required>
+                            @foreach ($roundings as $rounding)
+                                <option value="{{ $rounding }}" @selected(old('rounding', $policy->rounding ?? 'floor') === $rounding)>{{ __('admin.reservation_policies.roundings.'.$rounding) }}</option>
+                            @endforeach
+                        </select>
+                        @error('rounding')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        <div class="form-text">{{ __('admin.reservation_policies.form.rounding_help') }}</div>
                     </div>
                     <div class="col-md-2 mb-3">
                         <label class="form-label" for="status">{{ __('ui.status') }}</label>
@@ -46,6 +57,14 @@
                         <input type="date" class="form-control @error('effective_to') is-invalid @enderror" id="effective_to" name="effective_to"
                                value="{{ old('effective_to', $policy->effective_to?->format('Y-m-d')) }}">
                         @error('effective_to')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label" for="document">{{ __('admin.reservation_policies.form.document') }}</label>
+                        <input type="file" accept="application/pdf" class="form-control @error('document') is-invalid @enderror" id="document" name="document">
+                        @error('document')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        @if ($policy->path)
+                            <div class="form-text"><a href="{{ route('admin.reservation-policies.document', $policy) }}">{{ $policy->original_name }}</a> — {{ __('admin.reservation_policies.form.document_replace') }}</div>
+                        @endif
                     </div>
                 </div>
 

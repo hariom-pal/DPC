@@ -486,12 +486,22 @@ return [
         ],
     ],
     'reservation_policies' => [
+        'roundings' => [
+            'floor' => 'Drop the decimal part (floor) — e.g. 2.9 → 2',
+            'ceil' => 'Round up (ceil) — e.g. 2.1 → 3',
+        ],
         'form' => [
+            'rounding' => 'If the quota has a decimal part',
+            'rounding_help' => 'Example at 3%: 67 vacancies give 2.01 — floor gives 2, ceil gives 3. Rule 2.1 drops the decimal part (floor).',
+            'document' => 'Supporting document (PDF, optional)',
+            'document_replace' => 'upload a new PDF to replace it',
+            'ph_note' => 'Today the only reservation in promotion is PH (Persons with Disabilities, rule 2.1): its percentage of the promotion vacancies, and how a decimal part becomes a whole number.',
             'percentage' => 'Percentage',
             'title_edit' => 'Edit Reservation Policy',
             'title_new' => 'New Reservation Policy',
         ],
         'index' => [
+            'pdf' => 'PDF',
             'delete_this_policy' => 'Withdraw this policy',
             'no_policies_yet' => 'No reservation policies yet.',
             'percentage' => 'Percentage',
