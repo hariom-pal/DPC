@@ -54,7 +54,8 @@
                     @forelse ($rows as $row)
                         @php
                             $b = $row['breakdown'];
-                            $sanctioned = $b !== null ? $b['sanctioned'] : $row['mapping']?->sanctioned_strength;
+                            // Entered for this year in the Vacancy Master — never the Post Mapping's figure.
+                            $sanctioned = $b !== null ? $b['sanctioned'] : null;
                         @endphp
                         <tr>
                             <td>{{ $row['name'] }}</td>

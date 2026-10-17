@@ -16,6 +16,7 @@ use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Models\DpcWorkingOfficer;
 use App\Domain\Dpc\Models\VacancyPosition;
 use App\Domain\Dpc\Models\VacancyPositionEntry;
+use App\Domain\Dpc\Models\VacancyPositionSanctionedStrength;
 use App\Domain\Dpc\Models\VacancyPositionWorkingStrength;
 use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\RecruitmentRule;
@@ -33,8 +34,11 @@ use Illuminate\Support\Facades\Storage;
  *
  * ### What it reuses rather than repeats
  *
- *  - The sanctioned strength is the Department Post Mapping's — the mapping in
- *    force on 1 January of the Vacancy Year, read, never typed.
+ *  - The sanctioned strength is entered by the Administrator for each Vacancy Year
+ *    (1 January – 31 December) with its sanctioning order and PDF. It is NOT read
+ *    from the Department Post Mapping: a sanctioned strength can change from one year
+ *    to the next on its own order. The mapping still identifies the post in force on
+ *    1 January and leads to its Recruitment Rule.
  *  - The Vacancy Year window, the Recruitment Rule lookup, the rounding and the
  *    promotion / direct quota arithmetic are `VacancyEngine`'s
  *    (`periodForYear`, `recruitmentRuleFor`, `quotaPosition`). There is one
@@ -75,7 +79,7 @@ class VacancyMasterService
         $positions = VacancyPosition::query()
             ->where('department_id', $department->id)
             ->where('vacancy_year', $year)
-            ->with('workingStrength', 'entries')
+            ->with('sanctionedStrength', 'workingStrength', 'entries')
             ->get()
             ->groupBy('post_name')
             ->map(fn (Collection $revisions): VacancyPosition => $revisions->sortByDesc('revision')->first());
@@ -198,12 +202,14 @@ class VacancyMasterService
             return $position->breakdown;
         }
 
-        $position->loadMissing('workingStrength', 'entries');
+        $position->loadMissing('sanctionedStrength', 'workingStrength', 'entries');
 
         [$from, $to] = $this->engine->periodForYear($position->vacancy_year);
         $mapping = $this->mappingFor($position);
         $rule = $this->ruleFor($position, $from);
-        $sanctioned = $mapping?->sanctioned_strength;
+        // Entered for this Vacancy Year — never the Post Mapping's figure.
+        $sanctionedRecord = $position->sanctionedStrength;
+        $sanctioned = $sanctionedRecord?->sanctioned_total;
         $percentage = $rule?->promotion_recruitment_pct;
         $working = $position->workingStrength;
 
@@ -239,14 +245,26 @@ class VacancyMasterService
 
         if ($mapping === null) {
             $issues[] = ['key' => 'no_mapping', 'params' => ['date' => $from->format('d-m-Y')]];
-        } elseif ($sanctioned === null) {
-            $issues[] = ['key' => 'no_sanctioned', 'params' => []];
+        }
+
+        if ($sanctionedRecord === null) {
+            $issues[] = ['key' => 'sanctioned_not_entered', 'params' => ['year' => $position->vacancy_year]];
         }
 
         if ($working === null) {
             $issues[] = ['key' => 'working_not_entered', 'params' => []];
         } elseif (! $split) {
             $issues[] = ['key' => 'working_split_missing', 'params' => []];
+        }
+
+        // The sanctioned strength may be entered, or corrected, after the working
+        // strength: a working figure above it must still be confirmed explicitly.
+        if ($working !== null && $sanctioned !== null && $working->working_total > $sanctioned
+            && ! $working->exceeds_sanctioned_acknowledged) {
+            $issues[] = ['key' => 'working_exceeds_sanctioned', 'params' => [
+                'working' => $working->working_total,
+                'sanctioned' => $sanctioned,
+            ]];
         }
 
         if ($rule === null) {
@@ -293,6 +311,11 @@ class VacancyMasterService
             'period_to' => $to->toDateString(),
             'department_post_id' => $mapping?->id,
             'sanctioned' => $sanctioned,
+            'sanctioned_order' => $sanctionedRecord === null ? null : [
+                'order_number' => $sanctionedRecord->order_number,
+                'order_date' => $sanctionedRecord->order_date->toDateString(),
+                'document_sha256' => $sanctionedRecord->sha256,
+            ],
             'recruitment_rule_id' => $rule?->id,
             'recruitment_rule_version' => $rule?->version,
             'promotion_percentage' => $percentage === null ? null : (string) $percentage,
@@ -349,6 +372,10 @@ class VacancyMasterService
 
         if (! $position->isDraft()) {
             return $position->status->value;
+        }
+
+        if ($breakdown !== null && $breakdown['sanctioned'] === null) {
+            return 'sanctioned_not_entered';
         }
 
         if ($breakdown !== null && $breakdown['working'] === null) {
@@ -409,6 +436,71 @@ class VacancyMasterService
     }
 
     /**
+     * Record (or correct) the sanctioned strength for the Vacancy Year.
+     *
+     * Entered year by year with the sanctioning order and its PDF. A second save is a
+     * correction: it needs a reason, and the earlier figure stays in the history.
+     *
+     * @param  array{sanctioned_total: int, order_number: string, order_date: string, remarks?: string|null, correction_reason?: string|null}  $data
+     */
+    public function saveSanctionedStrength(VacancyPosition $position, array $data, ?UploadedFile $document, User $actor): VacancyPositionSanctionedStrength
+    {
+        $this->assertDraft($position);
+
+        if ($document === null) {
+            throw new WorkflowException(__('vacancymaster.errors.document_required'));
+        }
+
+        $total = (int) $data['sanctioned_total'];
+        $previous = $position->sanctionedStrength;
+        $reason = trim((string) ($data['correction_reason'] ?? ''));
+
+        if ($previous !== null && $reason === '') {
+            throw new WorkflowException(__('vacancymaster.errors.correction_reason_required'));
+        }
+
+        return DB::transaction(function () use ($position, $data, $document, $actor, $total, $previous, $reason): VacancyPositionSanctionedStrength {
+            $stored = $this->store($document, $position, 'sanctioned-strength');
+
+            $row = VacancyPositionSanctionedStrength::query()->create([
+                'vacancy_position_id' => $position->id,
+                'sanctioned_total' => $total,
+                'order_number' => trim((string) $data['order_number']),
+                'order_date' => Carbon::parse((string) $data['order_date'])->toDateString(),
+                ...$stored,
+                'remarks' => $this->clean($data['remarks'] ?? null),
+                'correction_reason' => $previous === null ? null : $reason,
+                'recorded_by' => $actor->id,
+                'recorded_at' => now(),
+            ]);
+
+            $position->forceFill(['sanctioned_strength_id' => $row->id])->save();
+            $position->unsetRelation('sanctionedStrength');
+
+            $this->record(
+                $previous === null ? 'vacancy_position.sanctioned_strength_recorded' : 'vacancy_position.sanctioned_strength_corrected',
+                $position,
+                __($previous === null ? 'vacancymaster.timeline.sanctioned_recorded' : 'vacancymaster.timeline.sanctioned_corrected', [
+                    'post' => $position->post_name,
+                    'year' => $position->vacancy_year,
+                    'from' => $previous->sanctioned_total ?? '—',
+                    'to' => $total,
+                ]),
+                [
+                    'previous' => $previous?->only(['sanctioned_total', 'order_number']),
+                    'sanctioned_total' => $total,
+                    'order_number' => $row->order_number,
+                    'document_sha256' => $row->sha256,
+                    'correction_reason' => $row->correction_reason,
+                ],
+                $actor,
+            );
+
+            return $row;
+        });
+    }
+
+    /**
      * Record (or correct) the working strength as on 1 January.
      *
      * @param  array{working_total: int, working_promotion?: int|null, working_direct?: int|null, working_deputation?: int|null, exceeds_sanctioned_acknowledged?: bool, order_number: string, order_date: string, remarks?: string|null, correction_reason?: string|null}  $data
@@ -435,7 +527,7 @@ class VacancyMasterService
             throw new WorkflowException(__('vacancymaster.errors.split_must_sum', ['total' => $total]));
         }
 
-        $sanctioned = $this->mappingFor($position)?->sanctioned_strength;
+        $sanctioned = $position->sanctionedStrength?->sanctioned_total;
         $acknowledged = (bool) ($data['exceeds_sanctioned_acknowledged'] ?? false);
 
         if ($sanctioned !== null && $total > $sanctioned && (! $acknowledged || trim((string) ($data['remarks'] ?? '')) === '')) {
@@ -765,7 +857,7 @@ class VacancyMasterService
         }
 
         return DB::transaction(function () use ($position, $reason, $actor): VacancyPosition {
-            $position->loadMissing('workingStrength', 'entries');
+            $position->loadMissing('sanctionedStrength', 'workingStrength', 'entries');
 
             $draft = VacancyPosition::query()->create([
                 'department_id' => $position->department_id,
@@ -780,6 +872,14 @@ class VacancyMasterService
                 'period_to' => $position->period_to->toDateString(),
                 'created_by' => $actor->id,
             ]);
+
+            if ($position->sanctionedStrength !== null) {
+                $copy = $position->sanctionedStrength->replicate(['uuid']);
+                $copy->vacancy_position_id = $draft->id;
+                $copy->correction_reason = __('vacancymaster.carried_from_revision', ['revision' => $position->revision]);
+                $copy->save();
+                $draft->forceFill(['sanctioned_strength_id' => $copy->id])->save();
+            }
 
             if ($position->workingStrength !== null) {
                 $copy = $position->workingStrength->replicate(['uuid']);

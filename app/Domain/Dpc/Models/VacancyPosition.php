@@ -42,6 +42,7 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property int|null $promotion_vacancy
  * @property int|null $direct_vacancy
  * @property array<string, mixed>|null $breakdown
+ * @property int|null $sanctioned_strength_id
  * @property int|null $created_by
  * @property int|null $finalized_by
  * @property Carbon|null $finalized_at
@@ -61,6 +62,7 @@ class VacancyPosition extends Model implements Auditable
         'supersedes_id',
         'revision_reason',
         'working_strength_id',
+        'sanctioned_strength_id',
         'period_from',
         'period_to',
         'sanctioned_strength',
@@ -139,6 +141,27 @@ class VacancyPosition extends Model implements Auditable
     public function recruitmentRule(): BelongsTo
     {
         return $this->belongsTo(RecruitmentRule::class);
+    }
+
+    /**
+     * The sanctioned strength in force for this revision's Vacancy Year — entered year
+     * by year, not read from the Department Post Mapping.
+     *
+     * @return BelongsTo<VacancyPositionSanctionedStrength, $this>
+     */
+    public function sanctionedStrength(): BelongsTo
+    {
+        return $this->belongsTo(VacancyPositionSanctionedStrength::class, 'sanctioned_strength_id');
+    }
+
+    /**
+     * Every sanctioned strength recorded for this revision, oldest first.
+     *
+     * @return HasMany<VacancyPositionSanctionedStrength, $this>
+     */
+    public function sanctionedStrengthHistory(): HasMany
+    {
+        return $this->hasMany(VacancyPositionSanctionedStrength::class)->orderBy('id');
     }
 
     /**

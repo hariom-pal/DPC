@@ -10,7 +10,9 @@ use App\Domain\Dpc\Enums\VacancyReason;
 use App\Domain\Dpc\Enums\VacancyReconciliation;
 use App\Domain\Dpc\Models\VacancyPosition;
 use App\Domain\Dpc\Models\VacancyPositionEntry;
+use App\Domain\Dpc\Models\VacancyPositionSanctionedStrength;
 use App\Domain\Dpc\Models\VacancyPositionWorkingStrength;
+use App\Domain\Dpc\Requests\SaveSanctionedStrengthRequest;
 use App\Domain\Dpc\Requests\SaveWorkingStrengthRequest;
 use App\Domain\Dpc\Requests\StoreVacancyEntryRequest;
 use App\Domain\Dpc\Requests\VerifyVacancyEntryRequest;
@@ -53,14 +55,26 @@ class VacancyMasterController extends Controller
         ]);
     }
 
-    public function show(Department $department, int $year, DepartmentPost $post): View
+    /**
+     * The four steps of a position, each on its own screen so a user meets one
+     * question at a time: what is sanctioned for the year, who is working on 1 January,
+     * what falls vacant during the year, and the result.
+     */
+    public const SECTIONS = ['sanctioned', 'working', 'vacancies', 'summary'];
+
+    public function show(Request $request, Department $department, int $year, DepartmentPost $post): View
     {
         $this->assertPostInDepartment($department, $post);
 
         $position = $this->vacancies->current($department->id, $post->name, $year);
-        $position?->load('workingStrengthHistory.recorder', 'entries.recorder', 'entries.verifier', 'entries.higherPost', 'entries.higherDpcProposal', 'workingStrength');
+        $position?->load(
+            'sanctionedStrengthHistory.recorder', 'sanctionedStrength',
+            'workingStrengthHistory.recorder', 'workingStrength',
+            'entries.recorder', 'entries.verifier', 'entries.higherPost', 'entries.higherDpcProposal',
+        );
 
         return view('admin.vacancy-master.show', [
+            'section' => $this->section($request, $position),
             'department' => $department,
             'year' => $year,
             'post' => $post,
@@ -89,7 +103,19 @@ class VacancyMasterController extends Controller
             $this->vacancies->openDraft($department, $post, $year, $request->user());
 
             return __('vacancymaster.flash.draft_opened');
-        });
+        }, 'sanctioned', 'sanctioned');
+    }
+
+    public function saveSanctionedStrength(SaveSanctionedStrengthRequest $request, Department $department, int $year, DepartmentPost $post): RedirectResponse
+    {
+        $this->assertAdmin($request);
+        $position = $this->draftFor($department, $year, $post);
+
+        return $this->attempt($department, $year, $post, function () use ($position, $request): string {
+            $this->vacancies->saveSanctionedStrength($position, $request->safe()->except('document'), $request->file('document'), $request->user());
+
+            return __('vacancymaster.flash.sanctioned_saved');
+        }, 'sanctioned', 'working');
     }
 
     public function saveWorkingStrength(SaveWorkingStrengthRequest $request, Department $department, int $year, DepartmentPost $post): RedirectResponse
@@ -104,7 +130,7 @@ class VacancyMasterController extends Controller
             ], $request->file('document'), $request->user());
 
             return __('vacancymaster.flash.working_saved');
-        });
+        }, 'working', 'vacancies');
     }
 
     public function storeEntry(StoreVacancyEntryRequest $request, Department $department, int $year, DepartmentPost $post): RedirectResponse
@@ -116,7 +142,7 @@ class VacancyMasterController extends Controller
             $this->vacancies->addEntry($position, $request->safe()->except('document'), $request->file('document'), $request->user());
 
             return __('vacancymaster.flash.entry_added');
-        });
+        }, 'vacancies', 'vacancies');
     }
 
     public function verifyEntry(VerifyVacancyEntryRequest $request, Department $department, int $year, DepartmentPost $post, VacancyPositionEntry $entry): RedirectResponse
@@ -128,7 +154,7 @@ class VacancyMasterController extends Controller
             $this->vacancies->verifyEntry($entry, $request->validated(), $request->user());
 
             return __('vacancymaster.flash.entry_verified');
-        });
+        }, 'vacancies', 'vacancies');
     }
 
     public function withdrawEntry(Request $request, Department $department, int $year, DepartmentPost $post, VacancyPositionEntry $entry): RedirectResponse
@@ -141,7 +167,7 @@ class VacancyMasterController extends Controller
             $this->vacancies->withdrawEntry($entry, $data['withdrawal_reason'], $request->user());
 
             return __('vacancymaster.flash.entry_withdrawn');
-        });
+        }, 'vacancies', 'vacancies');
     }
 
     public function finalize(Request $request, Department $department, int $year, DepartmentPost $post): RedirectResponse
@@ -153,7 +179,7 @@ class VacancyMasterController extends Controller
             $this->vacancies->finalize($position, $request->user());
 
             return __('vacancymaster.flash.finalized');
-        });
+        }, 'summary', 'summary');
     }
 
     public function revise(Request $request, Department $department, int $year, DepartmentPost $post): RedirectResponse
@@ -168,7 +194,15 @@ class VacancyMasterController extends Controller
             $this->vacancies->revise($position, $data['revision_reason'], $request->user());
 
             return __('vacancymaster.flash.revision_opened');
-        });
+        }, 'summary', 'summary');
+    }
+
+    public function sanctionedStrengthDocument(Department $department, int $year, DepartmentPost $post, VacancyPositionSanctionedStrength $sanctionedStrength): StreamedResponse
+    {
+        $this->assertPostInDepartment($department, $post);
+        $this->assertPositionInPost($department, $year, $post, $sanctionedStrength->position);
+
+        return $this->stream((string) $sanctionedStrength->disk, (string) $sanctionedStrength->path, (string) $sanctionedStrength->original_name);
     }
 
     public function workingStrengthDocument(Department $department, int $year, DepartmentPost $post, VacancyPositionWorkingStrength $workingStrength): StreamedResponse
@@ -188,17 +222,43 @@ class VacancyMasterController extends Controller
 
     // ----------------------------------------------------------------- helpers
 
-    private function attempt(Department $department, int $year, DepartmentPost $post, callable $action): RedirectResponse
+    /**
+     * Run a write, then go to the next step on success or stay on the same step to
+     * show what went wrong.
+     */
+    private function attempt(Department $department, int $year, DepartmentPost $post, callable $action, string $here, string $next): RedirectResponse
     {
-        $target = route('admin.departments.vacancy-master.show', [$department, $year, $post]);
+        $target = fn (string $section): string => route('admin.departments.vacancy-master.show', [$department, $year, $post, 'section' => $section]);
 
         try {
             $message = $action();
         } catch (WorkflowException $e) {
-            return redirect()->to($target)->withErrors(['workflow' => $e->getMessage()])->withInput();
+            return redirect()->to($target($here))->withErrors(['workflow' => $e->getMessage()])->withInput();
         }
 
-        return redirect()->to($target)->with('status', $message);
+        return redirect()->to($target($next))->with('status', $message);
+    }
+
+    /**
+     * The step asked for, or — when none is — the first step that still needs work.
+     */
+    private function section(Request $request, ?VacancyPosition $position): string
+    {
+        $asked = (string) $request->query('section', '');
+
+        if (in_array($asked, self::SECTIONS, true)) {
+            return $asked;
+        }
+
+        if ($position === null || ! $position->isDraft()) {
+            return $position === null ? 'sanctioned' : 'summary';
+        }
+
+        if ($position->sanctionedStrength === null) {
+            return 'sanctioned';
+        }
+
+        return $position->workingStrength === null ? 'working' : 'vacancies';
     }
 
     private function draftFor(Department $department, int $year, DepartmentPost $post): VacancyPosition

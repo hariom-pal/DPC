@@ -111,11 +111,32 @@ class VacancyMasterTest extends TestCase
         return route("admin.departments.vacancy-master.{$name}", [$this->department, self::YEAR, $post ?? $this->principal, ...$extra]);
     }
 
-    private function openDraft(): VacancyPosition
+    /**
+     * Open the draft and, unless told not to, record the year's sanctioned strength
+     * (step 1) — 100, the figure these tests reason from.
+     */
+    private function openDraft(?int $sanctioned = 100): VacancyPosition
     {
         $this->actingAs($this->admin)->post($this->url('open'))->assertSessionHasNoErrors();
 
+        if ($sanctioned !== null) {
+            $this->saveSanctioned(['sanctioned_total' => (string) $sanctioned])->assertSessionHasNoErrors();
+        }
+
         return VacancyPosition::query()->latest('id')->firstOrFail();
+    }
+
+    /**
+     * @param  array<string, mixed>  $overrides
+     */
+    private function saveSanctioned(array $overrides = []): TestResponse
+    {
+        return $this->actingAs($this->admin)->post($this->url('sanctioned-strength'), array_replace([
+            'sanctioned_total' => '100',
+            'order_number' => 'SE/SANC/2026/01',
+            'order_date' => '2026-01-02',
+            'document' => $this->pdf('sanction.pdf'),
+        ], $overrides));
     }
 
     /**
@@ -223,6 +244,154 @@ class VacancyMasterTest extends TestCase
     }
 
     // -------------------------------------------------------- working strength
+
+    // ------------------------------------------- step 1: sanctioned strength
+
+    /**
+     * The sanctioned strength is entered for each Vacancy Year with its order — it can
+     * change from year to year, so it is not read from the Department Post Mapping.
+     */
+    public function test_the_sanctioned_strength_is_entered_for_each_year_not_taken_from_the_post_mapping(): void
+    {
+        // The mapping says 100; the sanctioning order for 2026 says 80.
+        $this->openDraft(80);
+        $this->saveWorking(['working_total' => '75', 'working_promotion' => '40', 'working_direct' => '33', 'working_deputation' => '2'])->assertSessionHasNoErrors();
+
+        $b = $this->breakdown();
+        $this->assertSame(80, $b['sanctioned']);
+        $this->assertSame(5, $b['opening_vacancy'], 'Opening vacancies are reckoned from the year\'s own sanctioned strength.');
+        $this->assertSame('SE/SANC/2026/01', $b['sanctioned_order']['order_number']);
+
+        // A change to the mapping does not reach the year's figure.
+        $this->principal->forceFill(['sanctioned_strength' => 500])->save();
+        $this->assertSame(80, $this->breakdown()['sanctioned']);
+
+        $this->assertDatabaseHas('activity_timelines', ['event' => 'vacancy_position.sanctioned_strength_recorded']);
+    }
+
+    public function test_each_year_needs_its_own_sanctioned_strength(): void
+    {
+        $this->openDraft(100);
+
+        // 2027 starts with nothing, whatever 2026 or the mapping say.
+        $next = app(VacancyMasterService::class)->openDraft($this->department, $this->principal, self::YEAR + 1, $this->admin);
+        $b = app(VacancyMasterService::class)->breakdown($next->fresh());
+
+        $this->assertNull($b['sanctioned']);
+        $this->assertContains('sanctioned_not_entered', array_column($b['issues'], 'key'));
+    }
+
+    public function test_a_missing_sanctioned_strength_is_not_zero_and_blocks_finalization(): void
+    {
+        $position = $this->openDraft(null);
+        $this->saveWorking()->assertSessionHasNoErrors();
+
+        $b = $this->breakdown();
+        $this->assertNull($b['sanctioned']);
+        $this->assertNull($b['opening_vacancy']);
+        $this->assertContains('sanctioned_not_entered', array_column($b['issues'], 'key'));
+
+        $this->actingAs($this->admin)->post($this->url('finalize'))->assertSessionHasErrors('workflow');
+        $this->assertSame(VacancyPositionStatus::Draft, $position->fresh()->status);
+    }
+
+    public function test_a_sanctioned_correction_needs_a_reason_and_keeps_the_history(): void
+    {
+        $position = $this->openDraft(100);
+
+        $this->saveSanctioned(['sanctioned_total' => '110', 'order_number' => 'SE/SANC/2026/02'])->assertSessionHasErrors('workflow');
+        $this->assertSame(100, $position->fresh()->sanctionedStrength->sanctioned_total);
+
+        $this->saveSanctioned(['sanctioned_total' => '110', 'order_number' => 'SE/SANC/2026/02', 'correction_reason' => 'Ten posts created by the March order.'])
+            ->assertSessionHasNoErrors();
+
+        $position->refresh();
+        $this->assertSame(110, $position->sanctionedStrength->sanctioned_total);
+        $this->assertSame([100, 110], $position->sanctionedStrengthHistory->pluck('sanctioned_total')->all());
+        $this->assertDatabaseHas('activity_timelines', ['event' => 'vacancy_position.sanctioned_strength_corrected']);
+    }
+
+    public function test_the_sanctioning_order_is_mandatory_and_downloadable(): void
+    {
+        $this->actingAs($this->admin)->post($this->url('open'))->assertSessionHasNoErrors();
+
+        $this->saveSanctioned(['document' => null])->assertSessionHasErrors('document');
+        $this->saveSanctioned(['document' => UploadedFile::fake()->create('sanction.docx', 10)])->assertSessionHasErrors('document');
+        $this->saveSanctioned()->assertSessionHasNoErrors();
+
+        $record = VacancyPosition::query()->latest('id')->firstOrFail()->sanctionedStrength;
+        Storage::disk($record->disk)->assertExists($record->path);
+        $this->assertSame(64, strlen($record->sha256));
+
+        $this->actingAs($this->admin)
+            ->get($this->url('sanctioned-strength.document', [$record]))
+            ->assertOk();
+    }
+
+    public function test_a_sanctioned_strength_lowered_below_the_working_strength_must_be_confirmed(): void
+    {
+        $this->openDraft(100);
+        $this->saveWorking()->assertSessionHasNoErrors();   // 75 working
+
+        $this->saveSanctioned(['sanctioned_total' => '70', 'correction_reason' => 'Posts surrendered.'])->assertSessionHasNoErrors();
+
+        $this->assertContains('working_exceeds_sanctioned', array_column($this->breakdown()['issues'], 'key'));
+    }
+
+    public function test_a_revision_carries_the_sanctioned_strength_forward(): void
+    {
+        $first = $this->openDraft(100);
+        $this->saveWorking()->assertSessionHasNoErrors();
+        $this->actingAs($this->admin)->post($this->url('finalize'))->assertSessionHasNoErrors();
+
+        $this->actingAs($this->admin)->post($this->url('revise'), ['revision_reason' => 'Order re-read.'])->assertSessionHasNoErrors();
+
+        $draft = VacancyPosition::query()->where('revision', 2)->firstOrFail();
+        $this->assertSame(100, $draft->sanctionedStrength->sanctioned_total);
+        $this->assertNotSame($first->sanctioned_strength_id, $draft->sanctioned_strength_id, 'The copy belongs to the new revision.');
+    }
+
+    // ---------------------------------------------------- the four steps
+
+    public function test_each_step_has_its_own_screen(): void
+    {
+        $this->openDraft(null);
+
+        $screen = fn (string $section) => $this->actingAs($this->admin)->get($this->url('show', ['section' => $section]))->assertOk();
+
+        $screen('sanctioned')->assertSee(__('vacancymaster.sanctioned.heading', ['year' => self::YEAR]))
+            ->assertSee('name="sanctioned_total"', false)
+            ->assertDontSee('name="working_total"', false)
+            ->assertDontSee('name="vacancy_count"', false);
+
+        $screen('working')->assertSee('name="working_total"', false)
+            ->assertDontSee('name="sanctioned_total"', false)
+            ->assertDontSee('name="vacancy_count"', false)
+            ->assertSee(__('vacancymaster.sanctioned.reference_missing', ['year' => self::YEAR]));
+
+        $screen('vacancies')->assertSee('name="vacancy_count"', false)
+            ->assertDontSee('name="working_total"', false);
+
+        $screen('summary')->assertSee(__('vacancymaster.steps.missing_heading'))
+            ->assertSee(__('vacancymaster.issues.sanctioned_not_entered', ['year' => self::YEAR]))
+            ->assertSee(__('vacancymaster.finalize'));
+    }
+
+    public function test_the_screen_opens_on_the_first_step_still_to_do_and_moves_on_after_a_save(): void
+    {
+        $this->openDraft(null);
+
+        $this->actingAs($this->admin)->get($this->url('show'))->assertOk()->assertSee('name="sanctioned_total"', false);
+
+        $this->saveSanctioned()->assertRedirect($this->url('show', ['section' => 'working']));
+        $this->actingAs($this->admin)->get($this->url('show'))->assertOk()->assertSee('name="working_total"', false);
+
+        $this->saveWorking()->assertRedirect($this->url('show', ['section' => 'vacancies']));
+        $this->actingAs($this->admin)->get($this->url('show'))->assertOk()->assertSee('name="vacancy_count"', false);
+
+        // A refused save stays on its own step.
+        $this->saveWorking(['working_total' => '70', 'correction_reason' => ''])->assertRedirect($this->url('show', ['section' => 'working']));
+    }
 
     public function test_missing_working_strength_is_not_treated_as_zero(): void
     {
@@ -593,7 +762,12 @@ class VacancyMasterTest extends TestCase
         // A draft is never authoritative.
         $this->assertNotContains('vacancy_master', $keys());
 
-        $service->saveWorkingStrength($position, [
+        // Step 1: the year's sanctioned strength, entered — the same figure the department states.
+        $service->saveSanctionedStrength($position, [
+            'sanctioned_total' => $sums['sanctioned'], 'order_number' => 'S', 'order_date' => '2026-01-02',
+        ], $this->pdf(), $this->admin);
+
+        $service->saveWorkingStrength($position->fresh(), [
             'working_total' => $sums['working'] + 1, 'working_promotion' => $sums['working'] + 1, 'working_direct' => 0, 'working_deputation' => 0,
             'order_number' => 'O', 'order_date' => '2026-01-02',
         ], $this->pdf(), $this->admin);

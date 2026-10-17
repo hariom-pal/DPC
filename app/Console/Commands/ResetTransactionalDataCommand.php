@@ -78,10 +78,11 @@ class ResetTransactionalDataCommand extends Command
         // The rest of a proposal.
         // Rule 1.1 confirmations, with the offline-minutes evidence they cite.
         'dpc_proposal_verifications',
-        // Vacancy Master: year-wise positions, their working strengths and entries.
-        // Transactional because entries cite DPC proposals, which go too.
+        // Vacancy Master: year-wise positions, their sanctioned and working strengths
+        // and entries. Transactional because entries cite DPC proposals, which go too.
         'vacancy_position_entries',
         'vacancy_position_working_strengths',
+        'vacancy_position_sanctioned_strengths',
         'vacancy_positions',
         'dpc_seniority_entries',
         'dpc_working_officers',
