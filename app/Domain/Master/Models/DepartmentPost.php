@@ -40,7 +40,6 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property ServiceClass $class_level
  * @property int|null $pay_scale_id
  * @property int|null $promotion_duration_years
- * @property int|null $sanctioned_strength
  * @property-read Collection<int, DepartmentPostOrder> $orders
  * @property Carbon|null $effective_from
  * @property Carbon|null $effective_to
@@ -70,7 +69,6 @@ class DepartmentPost extends Model implements Auditable
          | those are kept. Effective-dated for free: a change of strength is a new
          | order and therefore a new mapping row.
          */
-        'sanctioned_strength',
 
         'effective_from',
         'effective_to',
@@ -84,7 +82,6 @@ class DepartmentPost extends Model implements Auditable
         return [
             'class_level' => ServiceClass::class,
             'promotion_duration_years' => 'integer',
-            'sanctioned_strength' => 'integer',
             'effective_from' => 'date',
             'effective_to' => 'date',
         ];

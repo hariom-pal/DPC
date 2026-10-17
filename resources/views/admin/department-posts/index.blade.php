@@ -11,7 +11,7 @@
     <div class="card border-0 shadow-sm">
         @include('admin.partials.master-toolbar', ['master' => 'department-posts'])
 
-        {{-- Five columns, so the list fits without sideways scrolling. The
+        {{-- Four columns, so the list fits without sideways scrolling. The
              Government Orders, effective dates and promotion duration are on the
              detail screen ("View"), where each mapping is shown in full. --}}
         <p class="small text-muted px-3 pt-2 mb-0">{{ __('admin.department_posts.index.details_hint') }}</p>
@@ -21,7 +21,6 @@
                     <tr>
                         <th>{{ __('ui.post') }}</th>
                         <th>{{ __('ui.class') }} · {{ __('ui.pay_scale') }}</th>
-                        <th class="text-end">{{ __('admin.department_posts.form.sanctioned_strength') }}</th>
                         <th>{{ __('ui.status') }}</th>
                         <th class="text-end">{{ __('ui.actions') }}</th>
                     </tr>
@@ -39,15 +38,6 @@
                             <td class="small">
                                 {{ $post->class_level->label() }}
                                 <div class="text-muted">{{ $post->payScale?->label ?? '—' }}</div>
-                            </td>
-                            {{-- A "not recorded" badge, never a blank: a blank reads
-                                 as zero, and the two mean opposite things. --}}
-                            <td class="text-end">
-                                @if ($post->sanctioned_strength === null)
-                                    <span class="badge text-bg-warning">{{ __('admin.department_posts.index.strength_not_recorded') }}</span>
-                                @else
-                                    <strong>{{ $post->sanctioned_strength }}</strong>
-                                @endif
                             </td>
                             <td>
                                 @if ($post->isInForce())
@@ -69,7 +59,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="5" class="text-center text-muted py-4">{{ __('admin.department_posts.index.no_posts_yet') }}</td></tr>
+                        <tr><td colspan="4" class="text-center text-muted py-4">{{ __('admin.department_posts.index.no_posts_yet') }}</td></tr>
                     @endforelse
                 </tbody>
             </table>

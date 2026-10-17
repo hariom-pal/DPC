@@ -74,25 +74,6 @@
                         @error('promotion_duration_years')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         <div class="form-text">{{ __('admin.department_posts.form.hint_promotion_duration') }}</div>
                     </div>
-                    {{-- Sanctioned Strength (correction of 2026-09-06).
-
-                         The figure the Vacancy Engine subtracts the working
-                         strength from. It has been read from this mapping since
-                         the change register of 2026-08-27 moved it off the DPC
-                         vacancy screen — but until now there was nowhere to enter
-                         it, so a post created here carried NULL and every DPC
-                         raised against it stalled at section S16. --}}
-                    <div class="col-md-3 mb-3">
-                        <label class="form-label" for="sanctioned_strength">
-                            {{ __('admin.department_posts.form.sanctioned_strength') }} <span class="text-danger">*</span>
-                        </label>
-                        <input type="number" min="1" max="100000" step="1" required
-                               class="form-control @error('sanctioned_strength') is-invalid @enderror"
-                               id="sanctioned_strength" name="sanctioned_strength"
-                               value="{{ old('sanctioned_strength', $post->sanctioned_strength) }}">
-                        @error('sanctioned_strength')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                        <div class="form-text">{{ __('admin.department_posts.form.hint_sanctioned_strength') }}</div>
-                    </div>
 
                     <div class="col-md-3 mb-3">
                         <label class="form-label" for="status">{{ __('ui.status') }}</label>

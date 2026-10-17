@@ -143,15 +143,15 @@ class VacancyCalculationRecorder
     /**
      * Which master is incomplete, named so the officer knows where to go.
      *
-     * "Vacancy cannot be calculated" is not an actionable message; "the Department
-     * Post Mapping for Deputy Director records no sanctioned strength" is.
+     * "Vacancy cannot be calculated" is not an actionable message; "no sanctioned
+     * strength is recorded in the Vacancy Master for Deputy Director" is.
      */
     private function incompleteReason(VacancyBreakdown $breakdown): string
     {
         if ($breakdown->sanctionedStrength === null) {
-            return 'The Department Post Mapping for the Promotion To Post records no Sanctioned Strength, '
-                .'so the vacancy cannot be calculated. Ask the CGPSC Administrator to record it under '
-                .'Administration → Department Post Mapping.';
+            return 'No Sanctioned Strength is recorded in the Vacancy Master for the Promotion To Post and '
+                .'this DPC year, so the vacancy cannot be calculated. Ask the CGPSC Administrator to record it '
+                .'under Administration → Departments → Vacancy Master.';
         }
 
         return 'No active Recruitment Rule states a promotion percentage for the Promotion To Post, so the '

@@ -10,6 +10,7 @@ use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Models\DpcWorkingOfficer;
 use App\Domain\Dpc\Services\DpcProposalCompletenessService;
 use App\Domain\Dpc\Services\DpcProposalService;
+use App\Domain\Dpc\Services\SanctionedStrengthSource;
 use App\Domain\Dpc\Services\VacancyCalculationService;
 use App\Domain\Dpc\Services\VacancyEngine;
 use App\Domain\Master\Models\DepartmentPost;
@@ -21,9 +22,11 @@ use App\Enums\Role;
 use Database\Seeders\LookupMasterSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Testing\TestResponse;
 use Tests\Concerns\RaisesDpcProposals;
+use Tests\Concerns\RecordsSanctionedStrength;
 use Tests\TestCase;
 
 /**
@@ -48,6 +51,7 @@ use Tests\TestCase;
 class DpcVacancyCalculationTest extends TestCase
 {
     use RaisesDpcProposals;
+    use RecordsSanctionedStrength;
     use RefreshDatabase;
 
     private Department $department;
@@ -184,11 +188,7 @@ class DpcVacancyCalculationTest extends TestCase
         $target = $proposal ?? $this->proposal;
 
         if (array_key_exists('sanctioned_post_count', $payload)) {
-            $post = $target->promotionToPost;
-
-            if ($post !== null) {
-                $post->forceFill(['sanctioned_strength' => (int) $payload['sanctioned_post_count']])->save();
-            }
+            $this->recordSanctionedStrength($target, (int) $payload['sanctioned_post_count']);
 
             unset($payload['sanctioned_post_count']);
             $target->refresh();
@@ -255,48 +255,34 @@ class DpcVacancyCalculationTest extends TestCase
      * and the request had no rule, so the post saved with `NULL` and the engine
      * reported "not recorded" for ever.
      */
-    public function test_the_admin_ui_is_the_maintenance_source_for_the_vacancy_engine(): void
+    public function test_the_vacancy_master_is_the_maintenance_source_for_the_vacancy_engine(): void
     {
         $admin = User::factory()->create();
         $admin->assignRole(Role::Admin->value);
+        $post = $this->proposal->promotionToPost;
+        $year = app(SanctionedStrengthSource::class)->yearOf($this->proposal);
+        $url = fn (string $name): string => route("admin.departments.vacancy-master.{$name}", [$this->department, $year, $post]);
+        $pdf = fn (): UploadedFile => UploadedFile::fake()->create('sanction.pdf', 20, 'application/pdf');
 
-        // 1–3. Create through the UI with a Sanctioned Strength, and save.
-        $this->actingAs($admin)->post(route('admin.department-posts.store'), [
-            'department_id' => $this->department->id,
-            'name' => 'Establishment Officer',
-            'class_level' => 'I',
-            'promotion_duration_years' => 5,
-            'sanctioned_strength' => 5,
-            'effective_from' => '2026-01-01',
-            'status' => MasterStatus::Active->value,
+        // The mapping no longer carries the figure.
+        $this->assertNotContains('sanctioned_strength', $post->getFillable());
+        $this->assertNull(app(VacancyEngine::class)->calculate($this->proposal->refresh())->sanctionedStrength);
+
+        // Recorded for the DPC year in the Vacancy Master, with its order.
+        $this->actingAs($admin)->post($url('open'))->assertSessionHasNoErrors();
+        $this->actingAs($admin)->post($url('sanctioned-strength'), [
+            'sanctioned_total' => '5', 'order_number' => 'SANC/1', 'order_date' => now()->subDay()->toDateString(), 'document' => $pdf(),
         ])->assertSessionHasNoErrors();
 
-        $post = DepartmentPost::query()->where('name', 'Establishment Officer')->sole();
-        $this->assertSame(5, $post->sanctioned_strength, 'Created through the UI, not by a seeder.');
+        $this->assertSame(5, app(VacancyEngine::class)->calculate($this->proposal->refresh())->sanctionedStrength);
 
-        // 4–5. Edit, update, and confirm the database holds the new value.
-        $this->actingAs($admin)->put(route('admin.department-posts.update', $post), [
-            'department_id' => $this->department->id,
-            'name' => 'Establishment Officer',
-            'class_level' => 'I',
-            'promotion_duration_years' => 5,
-            'sanctioned_strength' => 9,
-            'effective_from' => '2026-01-01',
-            'status' => MasterStatus::Active->value,
+        // Corrected there, the engine reads the corrected figure.
+        $this->actingAs($admin)->post($url('sanctioned-strength'), [
+            'sanctioned_total' => '9', 'order_number' => 'SANC/2', 'order_date' => now()->subDay()->toDateString(),
+            'document' => $pdf(), 'correction_reason' => 'Revised establishment order.',
         ])->assertSessionHasNoErrors();
 
-        $this->assertSame(9, $post->refresh()->sanctioned_strength);
-        $this->assertDatabaseHas('department_posts', [
-            'id' => $post->id,
-            'sanctioned_strength' => 9,
-        ]);
-
-        // 6. The Vacancy Engine reads the **updated** figure from the mapping.
-        $this->proposal->forceFill(['promotion_to_post_id' => $post->id])->save();
-
-        $breakdown = app(VacancyEngine::class)->calculate($this->proposal->refresh());
-
-        $this->assertSame(9, $breakdown->sanctionedStrength, 'The engine must read the edited value, not the created one.');
+        $this->assertSame(9, app(VacancyEngine::class)->calculate($this->proposal->refresh())->sanctionedStrength);
     }
 
     public function test_working_officers_may_not_exceed_the_sanctioned_strength(): void
@@ -704,11 +690,7 @@ class DpcVacancyCalculationTest extends TestCase
      */
     private function withVacancyOf(int $vacancy): void
     {
-        $post = $this->proposal->promotionToPost;
-
-        if ($post !== null) {
-            $post->forceFill(['sanctioned_strength' => $vacancy])->save();
-        }
+        $this->recordSanctionedStrength($this->proposal, $vacancy);
 
         $service = app(DpcProposalService::class);
         $service->saveWorkingOfficers($this->proposal->refresh(), $this->chart(0, $vacancy));
@@ -777,9 +759,9 @@ class DpcVacancyCalculationTest extends TestCase
             'officers' => $this->chart(7, 3),
         ])->assertSessionHasNoErrors();
 
-        // Supersede the strength *after* the chart was saved: the gate must judge
-        // the mapping, not the snapshot the proposal is carrying.
-        $this->proposal->promotionToPost->forceFill(['sanctioned_strength' => 5])->save();
+        // Correct the strength *after* the chart was saved: the gate must judge
+        // the Vacancy Master, not the snapshot the proposal is carrying.
+        $this->recordSanctionedStrength($this->proposal, 5);
 
         $missing = app(DpcProposalCompletenessService::class)->missingSections($this->proposal->fresh());
 
@@ -794,8 +776,8 @@ class DpcVacancyCalculationTest extends TestCase
         ])->assertSessionHasNoErrors();
 
         // Sanctioned strength cut below the officer chart by a later Government
-        // Order. The gate reads the mapping, so it notices.
-        $this->proposal->promotionToPost->forceFill(['sanctioned_strength' => 4])->save();
+        // Order. The gate reads the Vacancy Master, so it notices.
+        $this->recordSanctionedStrength($this->proposal, 4);
 
         $checklist = collect(app(DpcProposalCompletenessService::class)->checklist($this->proposal->fresh()))
             ->firstWhere('key', 'working_officers');

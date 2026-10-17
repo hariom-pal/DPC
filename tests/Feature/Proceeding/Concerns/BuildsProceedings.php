@@ -29,6 +29,7 @@ use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Config;
+use Tests\Concerns\RecordsSanctionedStrength;
 use Tests\Concerns\SeatsDpcCommittees;
 use Tests\Concerns\SeedsEvaluationCharts;
 
@@ -42,6 +43,7 @@ use Tests\Concerns\SeedsEvaluationCharts;
  */
 trait BuildsProceedings
 {
+    use RecordsSanctionedStrength;
     use RefreshDatabase;
     use SeatsDpcCommittees;
     use SeedsEvaluationCharts;
@@ -157,7 +159,7 @@ trait BuildsProceedings
          | and the service would rightly refuse to edit it. A fixture is not the
          | application.
          */
-        $this->proposal->promotionToPost?->forceFill(['sanctioned_strength' => 1])->save();
+        $this->recordSanctionedStrength($this->proposal, 1);
 
         /*
          | And a 100%-promotion Recruitment Rule, which became a **required input**

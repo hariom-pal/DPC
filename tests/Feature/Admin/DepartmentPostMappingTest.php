@@ -72,10 +72,6 @@ class DepartmentPostMappingTest extends TestCase
             'pay_scale_id' => $this->level14->id,
             'promotion_duration_years' => 5,
 
-            // Required since 2026-09-06: the Vacancy Engine reads it from the
-            // mapping, and until then there was nowhere to enter it.
-            'sanctioned_strength' => 12,
-
             // Item 10 (2026-08-26): the orders are a repeater, so even one arrives
             // as a row rather than as two fields on the mapping.
             'orders' => [['government_order_number' => 'F-12/2026', 'government_order_date' => '2026-01-01']],
@@ -298,80 +294,38 @@ class DepartmentPostMappingTest extends TestCase
     // Effective dating and supersession
     // ------------------------------------------------------------------
 
-    // ------------------------------------------- sanctioned strength (2026-09-06)
+    // ------------------------------------------- sanctioned strength (2026-10-17)
 
     /**
-     * The correction of 2026-09-06.
-     *
-     * The column has existed since 2026-08-27 and the Vacancy Engine has read it
-     * ever since — but no screen and no rule could set it, so the only writer in
-     * the entire codebase was a seeder. A post created through this form carried
-     * `NULL`, and every DPC raised against it stalled at section S16.
+     * The sanctioned strength left the mapping on 2026-10-17: it can change year by
+     * year on its own order, so the Vacancy Master records it for each Vacancy Year.
+     * The mapping's forms do not ask for it, a posted figure is not stored, and the
+     * detail page says where it is kept.
      */
-    public function test_the_sanctioned_strength_is_saved_from_the_create_form(): void
+    public function test_the_mapping_no_longer_carries_a_sanctioned_strength(): void
     {
+        $this->actingAs($this->admin)->get(route('admin.department-posts.create'))
+            ->assertOk()
+            ->assertDontSee('name="sanctioned_strength"', false);
+
         $this->actingAs($this->admin)
             ->post(route('admin.department-posts.store'), $this->payload(['sanctioned_strength' => 7]))
             ->assertSessionHasNoErrors();
+        $post = DepartmentPost::query()->latest('id')->firstOrFail();
+        $this->assertNull($post->getRawOriginal('sanctioned_strength'));
 
-        $this->assertSame(7, DepartmentPost::query()->latest('id')->firstOrFail()->sanctioned_strength);
-    }
+        $this->actingAs($this->admin)->get(route('admin.department-posts.supersede.form', $post))
+            ->assertOk()
+            ->assertDontSee('name="sanctioned_strength"', false);
 
-    public function test_the_sanctioned_strength_can_be_updated_from_the_edit_form(): void
-    {
-        $post = $this->mapping();
-        $this->assertSame(12, $post->sanctioned_strength);
-
-        $this->actingAs($this->admin)
-            ->put(route('admin.department-posts.update', $post), $this->payload(['sanctioned_strength' => 25]))
-            ->assertSessionHasNoErrors();
-
-        $this->assertSame(25, $post->refresh()->sanctioned_strength);
-    }
-
-    /**
-     * Required, an integer, and at least one.
-     *
-     * `min:1` rather than `min:0`: a mapping sanctioning zero posts sanctions
-     * nothing, and the engine would derive a vacancy of zero from it — which on
-     * screen is indistinguishable from a post that is fully staffed.
-     */
-    public function test_the_sanctioned_strength_is_required_and_at_least_one(): void
-    {
-        foreach ([null, 0, -3, 'many'] as $bad) {
-            $this->actingAs($this->admin)
-                ->post(route('admin.department-posts.store'), $this->payload(['sanctioned_strength' => $bad]))
-                ->assertSessionHasErrors('sanctioned_strength');
-        }
-
-        $this->assertSame(0, DepartmentPost::query()->where('name', 'Joint Director')->count());
-    }
-
-    /**
-     * It is shown wherever an Administrator would look for it, and a mapping that
-     * has none says so rather than showing a blank — a blank reads as zero, and
-     * the two mean opposite things.
-     */
-    public function test_the_sanctioned_strength_appears_on_the_list_and_the_detail_screens(): void
-    {
-        $post = $this->mapping();
+        $this->actingAs($this->admin)->get(route('admin.department-posts.show', $post))
+            ->assertOk()
+            ->assertSee(__('admin.department_posts.show.strength_in_vacancy_master'))
+            ->assertSee(route('admin.departments.vacancy-master.index', $post->department_id), false);
 
         $this->actingAs($this->admin)->get(route('admin.department-posts.index'))
             ->assertOk()
-            ->assertSee(__('admin.department_posts.form.sanctioned_strength'))
-            ->assertSee('12');
-
-        $this->actingAs($this->admin)->get(route('admin.department-posts.show', $post))
-            ->assertOk()
-            ->assertSee(__('admin.department_posts.form.sanctioned_strength'))
-            ->assertSee('12');
-
-        // A pre-2026-08-27 mapping: stated as "not recorded", never as blank.
-        $post->forceFill(['sanctioned_strength' => null])->save();
-
-        $this->actingAs($this->admin)->get(route('admin.department-posts.show', $post))
-            ->assertOk()
-            ->assertSee(__('admin.department_posts.index.strength_not_recorded'));
+            ->assertDontSee(__('admin.department_posts.form.sanctioned_strength'));
     }
 
     public function test_the_list_fits_the_screen_and_leaves_the_detail_to_the_post_page(): void
@@ -384,7 +338,7 @@ class DepartmentPostMappingTest extends TestCase
             ->assertSee(__('admin.department_posts.index.details_hint'))
             ->getContent();
 
-        $this->assertSame(5, preg_match_all('/<th[\s>]/', (string) strstr((string) strstr($html, '<thead>'), '</thead>', true)));
+        $this->assertSame(4, preg_match_all('/<th[\s>]/', (string) strstr((string) strstr($html, '<thead>'), '</thead>', true)));
         $this->assertStringNotContainsString(__('admin.department_posts.form.go_number'), $html);
         $this->assertStringNotContainsString(__('ui.promotion_duration'), $html);
 
@@ -404,7 +358,6 @@ class DepartmentPostMappingTest extends TestCase
             'class_level' => 'I',
             'pay_scale_id' => $this->level13->id,
             'promotion_duration_years' => 6,
-            'sanctioned_strength' => 18,
             'government_order_number' => 'F-45/2026',
             'government_order_date' => '2026-08-01',
             'effective_from' => '2026-09-01',
@@ -416,7 +369,6 @@ class DepartmentPostMappingTest extends TestCase
         $this->assertSame('Joint Director', $replacement->name, 'A new order re-authorises the same post.');
         $this->assertSame($this->level13->id, $replacement->pay_scale_id);
         $this->assertSame(6, $replacement->promotion_duration_years);
-        $this->assertSame(18, $replacement->sanctioned_strength, 'A superseding order may change the establishment.');
         $this->assertSame('F-45/2026', $this->orderNumber($replacement));
         $this->assertTrue($replacement->isInForce());
 
@@ -424,7 +376,6 @@ class DepartmentPostMappingTest extends TestCase
         $old = DepartmentPost::query()->findOrFail($originalId);
         $this->assertSame($this->level14->id, $old->pay_scale_id, 'The superseded mapping must keep its own pay scale.');
         $this->assertSame(5, $old->promotion_duration_years);
-        $this->assertSame(12, $old->sanctioned_strength, 'The superseded mapping keeps its own sanctioned strength.');
         $this->assertSame('F-12/2026', $this->orderNumber($old));
         $this->assertFalse($old->isInForce());
         $this->assertSame(MasterStatus::Inactive, $old->status);
@@ -441,7 +392,6 @@ class DepartmentPostMappingTest extends TestCase
             'class_level' => 'I',
             'pay_scale_id' => $this->level13->id,
             'promotion_duration_years' => 6,
-            'sanctioned_strength' => 18,
             'government_order_number' => 'F-45/2026',
             'government_order_date' => '2026-08-01',
             'effective_from' => '2026-09-01',
@@ -504,7 +454,6 @@ class DepartmentPostMappingTest extends TestCase
 
         $this->actingAs($this->admin)->post(route('admin.department-posts.supersede', $post), [
             'class_level' => 'I',
-            'sanctioned_strength' => 12,
             'government_order_number' => 'F-45/2025',
             'government_order_date' => '2025-12-01',
             'effective_from' => '2025-12-01',

@@ -99,33 +99,10 @@ class DepartmentPostRequest extends FormRequest
             'promotion_duration_years' => ['nullable', 'integer', 'min:0', 'max:40'],
 
             /*
-             | Sanctioned Strength — the number of posts the Government has
-             | sanctioned for this mapping.
-             |
-             | **Required, and this is the correction of 2026-09-06.** The column
-             | has existed since the change register of 2026-08-27, which moved the
-             | figure off the DPC vacancy screen — *"Sanctioned Strength shall come
-             | from Department Post Mapping. The AO should not manually enter
-             | vacancy figures."* The move off was made; the move **on** was never
-             | built, so for a fortnight the figure was maintainable nowhere and
-             | existed only because a seeder wrote it. A post created through this
-             | form carried `NULL`, and every DPC raised against it stalled at
-             | section S16 with no screen able to clear the block.
-             |
-             | `min:1` rather than `min:0`: a mapping sanctioning zero posts
-             | sanctions nothing, and `VacancyEngine` would derive a vacancy of
-             | zero from it — which is indistinguishable, on the screen, from a post
-             | that is fully staffed. A post being abolished is expressed by
-             | superseding the mapping or setting it inactive, not by sanctioning
-             | none of it.
-             |
-             | **The column stays nullable in the schema**, and deliberately: rows
-             | registered before 2026-08-27 have none, and making the database
-             | refuse them would turn a historical gap into a migration failure.
-             | The form requires it from now on; the engine keeps reporting "not
-             | recorded" for the rows that predate it.
+             | No sanctioned strength here (2026-10-17): it can change year by year
+             | on its own order, so the Vacancy Master records it for each Vacancy
+             | Year ({@see \App\Domain\Dpc\Services\SanctionedStrengthSource}).
              */
-            'sanctioned_strength' => ['required', 'integer', 'min:1', 'max:100000'],
 
             'status' => ['required', new Enum(MasterStatus::class)],
 

@@ -44,9 +44,6 @@ class ReservationHierarchyTest extends TestCase
                 'class_level' => ServiceClass::I->value,
                 'status' => MasterStatus::Active->value,
 
-                // Required since 2026-09-06 — the Vacancy Engine reads it here.
-                'sanctioned_strength' => 6,
-
                 // A mapping is effective-dated since 2026-08-25 — it is what a
                 // Government Order authorises from a date.
                 'effective_from' => now()->toDateString(),

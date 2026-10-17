@@ -750,7 +750,7 @@ return [
     'working_officers' => [
         'summary_heading' => 'Vacancy Summary',
         'summary_incomplete' => 'This vacancy cannot be calculated yet.',
-        'no_sanctioned_strength' => 'The Department Post Mapping for this post records no Sanctioned Strength. Ask the CGPSC Administrator to record it.',
+        'no_sanctioned_strength' => 'No Sanctioned Strength is recorded in the Vacancy Master for this post and DPC year. Ask the CGPSC Administrator to record it.',
         'no_promotion_percentage' => 'No active Recruitment Rule states a promotion percentage for this post. Ask the CGPSC Administrator to register one.',
         'exact' => 'exact :value',
         'period_note' => 'Retirement and deputation vacancies are counted over :from to :to.',
@@ -856,8 +856,8 @@ return [
         'col_reference' => 'Previous DPC',
         'col_remarks' => 'Remarks',
         'figures' => [
-            'sanctioned' => 'Sanctioned strength (Department Post Mapping): :value',
-            'sanctioned_missing' => 'No sanctioned strength is recorded on the Department Post Mapping.',
+            'sanctioned' => 'Sanctioned strength (Vacancy Master): :value',
+            'sanctioned_missing' => 'No sanctioned strength is recorded in the Vacancy Master for this DPC year.',
             'rule' => 'Recruitment Rule version :version, Government Order :go',
             'rule_missing' => 'No Recruitment Rule is linked to this proposal.',
             'seniority' => 'Seniority List: :count officer(s)',

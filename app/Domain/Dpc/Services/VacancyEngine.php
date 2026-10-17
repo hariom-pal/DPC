@@ -35,7 +35,7 @@ use Illuminate\Support\Collection;
  *
  * | Figure | Source | Why not typed |
  * |---|---|---|
- * | Sanctioned Strength | `department_posts.sanctioned_strength` | It is what a Government Order says, and the mapping is where this portal keeps that |
+ * | Sanctioned Strength | the Vacancy Master, for the DPC year ({@see SanctionedStrengthSource}) | It is what a Government Order says, it can change year by year, and the Vacancy Master records it with that order |
  * | Working Strength | `dpc_working_officers` row count | The Excel import writes those rows, so any stored total is wrong the moment a file is committed |
  * | Retirement / Deputation | each officer's own dates | Two officers retiring in the window is two vacancies; a typed total cannot be checked against anybody |
  * | Promotion % | `recruitment_rules.promotion_recruitment_pct` | Item 6 says *only* from the Recruitment Rule |
@@ -60,6 +60,8 @@ use Illuminate\Support\Collection;
  */
 class VacancyEngine
 {
+    public function __construct(private readonly SanctionedStrengthSource $sanctionedStrengths) {}
+
     /**
      * Calculate every figure the register's summary names.
      *
@@ -76,7 +78,7 @@ class VacancyEngine
         [$periodFrom, $periodTo] = $this->period($proposal);
 
         $toPost = $proposal->promotionToPost;
-        $sanctioned = $toPost?->sanctioned_strength;
+        $sanctioned = $this->sanctionedStrengths->forProposal($proposal);
 
         /*
          | **The chart lists posts, not only people** (business directive,

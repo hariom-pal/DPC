@@ -45,16 +45,13 @@
                 <dd class="col-sm-9">
                     {{ $post->promotion_duration_years === null ? '—' : __('ui.n_years', ['count' => $post->promotion_duration_years]) }}
                 </dd>
-                {{-- The figure the Vacancy Engine works from. Stated even when
-                     absent, because "not recorded" is the answer to why a DPC on
-                     this post cannot be submitted. --}}
+                {{-- Not a term of the mapping: recorded year by year in the
+                     Vacancy Master, with its sanctioning order. --}}
                 <dt class="col-sm-3 fw-normal">{{ __('admin.department_posts.form.sanctioned_strength') }}</dt>
                 <dd class="col-sm-9">
-                    @if ($post->sanctioned_strength === null)
-                        <span class="badge text-bg-warning">{{ __('admin.department_posts.index.strength_not_recorded') }}</span>
-                        <div class="form-text">{{ __('admin.department_posts.show.strength_missing_explained') }}</div>
-                    @else
-                        <strong>{{ $post->sanctioned_strength }}</strong>
+                    {{ __('admin.department_posts.show.strength_in_vacancy_master') }}
+                    @if ($post->department)
+                        <a href="{{ route('admin.departments.vacancy-master.index', $post->department) }}">{{ __('admin.department_posts.show.open_vacancy_master') }}</a>
                     @endif
                 </dd>
                 <dt class="col-sm-3 fw-normal">{{ __('admin.department_posts.form.effective_from') }}</dt>

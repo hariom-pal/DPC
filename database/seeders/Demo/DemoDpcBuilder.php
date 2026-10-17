@@ -9,13 +9,17 @@ use App\Domain\Department\Models\Department;
 use App\Domain\Dpc\Enums\CommitteeCapacity;
 use App\Domain\Dpc\Enums\EvaluationDocumentKind;
 use App\Domain\Dpc\Enums\PreviousDpcBasis;
+use App\Domain\Dpc\Enums\VacancyPositionStatus;
 use App\Domain\Dpc\Models\DpcCommitteeMember;
 use App\Domain\Dpc\Models\DpcEvaluationDocument;
 use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\Dpc\Models\DpcProposal;
+use App\Domain\Dpc\Models\VacancyPosition;
+use App\Domain\Dpc\Models\VacancyPositionSanctionedStrength;
 use App\Domain\Dpc\Services\DpcCommitteeService;
 use App\Domain\Dpc\Services\DpcProposalService;
 use App\Domain\Dpc\Services\ProposalVerificationService;
+use App\Domain\Dpc\Services\SanctionedStrengthSource;
 use App\Domain\Dpc\Services\VacancyCalculationService;
 use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\DpcType;
@@ -74,22 +78,20 @@ final class DemoDpcBuilder
                 'promotion_from_post_id' => $this->departmentPost($department, (string) $spec['from'])->id,
             ]));
 
-            DemoClock::at($spec['drafted_at'], function () use ($proposal, $ao, $spec, $department, $preDpc): void {
+            DemoClock::at($spec['drafted_at'], function () use ($proposal, $ao, $spec, $preDpc): void {
                 $this->committees->compose($proposal, $this->committee($spec['committee']), $ao);
 
                 /*
-                 | Sanctioned strength on the master, then the officers, then the
-                 | vacancies — and that order is the change register of 2026-08-27.
-                 |
-                 | Item 1 moved the sanctioned strength onto the Department Post
-                 | Mapping, so it is no longer something a DPC states; item 2 made
+                 | Sanctioned strength in the Vacancy Master (for the DPC year, since
+                 | 2026-10-17 — it is no longer on the Department Post Mapping), then
+                 | the officers, then the vacancies. Item 1 of the change register of
+                 | 2026-08-27 took it out of the DPC's hands; item 2 made
                  | Working Strength read the uploaded Working Officer List, so the
                  | breakdown cannot be computed before that list exists. Saving the
                  | vacancies first — as this did — recorded an audit row describing
                  | the chart that was about to be replaced.
                  */
-                $toPost = $this->departmentPost($department, (string) $spec['to']);
-                $toPost->forceFill(['sanctioned_strength' => (int) $spec['sanctioned']])->save();
+                $this->recordSanctionedStrength($proposal->refresh(), (int) $spec['sanctioned'], $ao);
 
                 $this->proposals->saveWorkingOfficers(
                     $proposal,
@@ -148,6 +150,47 @@ final class DemoDpcBuilder
 
             return $proposal->refresh();
         });
+    }
+
+    /**
+     * The year's sanctioned strength of the Promotion To Post, recorded in the
+     * Vacancy Master where the application reads it, with a placeholder order PDF.
+     */
+    private function recordSanctionedStrength(DpcProposal $proposal, int $total, User $ao): void
+    {
+        $post = $proposal->promotionToPost;
+        $year = app(SanctionedStrengthSource::class)->yearOf($proposal);
+        $disk = (string) config('dpc.documents.disk', 'local');
+        $path = 'private/vacancy-master/demo-sanction.pdf';
+        $bytes = "%PDF-1.4\n% Demonstration sanctioning order\n%%EOF\n";
+        Storage::disk($disk)->put($path, $bytes);
+
+        $position = VacancyPosition::query()->firstOrCreate(
+            ['department_id' => $proposal->department_id, 'post_name' => $post->name, 'vacancy_year' => $year, 'revision' => 1],
+            [
+                'department_post_id' => $post->id,
+                'status' => VacancyPositionStatus::Draft->value,
+                'period_from' => "{$year}-01-01",
+                'period_to' => "{$year}-12-31",
+                'created_by' => $ao->id,
+            ],
+        );
+
+        $record = VacancyPositionSanctionedStrength::query()->create([
+            'vacancy_position_id' => $position->id,
+            'sanctioned_total' => $total,
+            'order_number' => 'DEMO/SANCTION/'.$year,
+            'order_date' => "{$year}-01-01",
+            'disk' => $disk,
+            'path' => $path,
+            'original_name' => 'sanctioning-order.pdf',
+            'size_bytes' => strlen($bytes),
+            'sha256' => hash('sha256', $bytes),
+            'recorded_by' => $ao->id,
+            'recorded_at' => now(),
+        ]);
+
+        $position->forceFill(['sanctioned_strength_id' => $record->id])->save();
     }
 
     /**

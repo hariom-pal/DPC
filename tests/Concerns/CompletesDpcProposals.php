@@ -17,6 +17,7 @@ use App\Domain\Dpc\Services\DpcCommitteeService;
 use App\Domain\Dpc\Services\DpcProposalCompletenessService;
 use App\Domain\Dpc\Services\DpcProposalService;
 use App\Domain\Dpc\Services\ProposalVerificationService;
+use App\Domain\Dpc\Services\SanctionedStrengthSource;
 use App\Domain\Dpc\Services\VacancyCalculationService;
 use App\Domain\Master\Models\RecruitmentRule;
 use App\Domain\Master\Models\ReservationCategory;
@@ -45,6 +46,8 @@ use RuntimeException;
  */
 trait CompletesDpcProposals
 {
+    use RecordsSanctionedStrength;
+
     protected function makeProposalSubmittable(DpcProposal $proposal, ?User $actor = null): DpcProposal
     {
         $completeness = app(DpcProposalCompletenessService::class);
@@ -348,7 +351,7 @@ trait CompletesDpcProposals
         $post = $proposal->promotionToPost;
 
         if ($post !== null) {
-            $post->forceFill(['sanctioned_strength' => $plan['sanctioned']])->save();
+            $this->recordSanctionedStrength($proposal, $plan['sanctioned']);
 
             /*
              | The Recruitment Rule became a **required input** with the business
@@ -455,7 +458,7 @@ trait CompletesDpcProposals
             $vacancy = $calculator->breakdown($proposal)->totalVacancy ?? 0;
 
             return [
-                'sanctioned' => $proposal->promotionToPost?->sanctioned_strength ?? $working + $vacancy,
+                'sanctioned' => app(SanctionedStrengthSource::class)->forProposal($proposal) ?? $working + $vacancy,
                 'vacancy' => $vacancy,
                 'seniority' => $calculator->requiredSeniorityCount($proposal, $vacancy) ?? max(1, $existingSeniority),
             ];

@@ -170,15 +170,14 @@ final class MasterRegistry
                     'department' => 'department_id', 'post_name' => 'name',
                     'class_level' => 'class_level', 'pay_scale' => 'pay_scale_id',
                     'promotion_duration_years' => 'promotion_duration_years',
-                    'sanctioned_strength' => 'sanctioned_strength',
                     'effective_from' => 'effective_from', 'status' => 'status',
                 ],
-                required: ['department', 'post_name', 'class_level', 'sanctioned_strength'],
+                required: ['department', 'post_name', 'class_level'],
                 searchable: ['name'],
                 unique: ['department_id', 'name'],
                 lookups: ['department_id' => 'departments.name', 'pay_scale_id' => 'pay_scales.code'],
                 sample: [
-                    ['department' => 'School Education Department', 'post_name' => 'Block Education Officer', 'class_level' => 'II', 'pay_scale' => 'L12', 'promotion_duration_years' => '5', 'sanctioned_strength' => '30', 'effective_from' => '2020-01-01', 'status' => 'active'],
+                    ['department' => 'School Education Department', 'post_name' => 'Block Education Officer', 'class_level' => 'II', 'pay_scale' => 'L12', 'promotion_duration_years' => '5', 'effective_from' => '2020-01-01', 'status' => 'active'],
                 ],
             ),
         ];

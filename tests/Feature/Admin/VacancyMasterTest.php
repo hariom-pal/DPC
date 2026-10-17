@@ -78,11 +78,13 @@ class VacancyMasterTest extends TestCase
             'department_id' => $department->id,
             'name' => $name,
             'class_level' => 'II',
-            'sanctioned_strength' => $sanctioned,
             'effective_from' => $from,
         ]);
         $post->status = MasterStatus::Active;
         $post->active_flag = 1;
+        // The retired mapping column, written directly: these tests prove the
+        // Vacancy Master never reads it.
+        $post->forceFill(['sanctioned_strength' => $sanctioned]);
         $post->save();
 
         return $post;
@@ -836,6 +838,8 @@ class VacancyMasterTest extends TestCase
         // Step 1: the year's sanctioned strength, entered — the same figure the department states.
         $service->saveSanctionedStrength($position, [
             'sanctioned_total' => $sums['sanctioned'], 'order_number' => 'S', 'order_date' => '2026-01-02',
+            // The proposal's fixture recorded the department's figure first.
+            'correction_reason' => 'Confirmed by the Administrator.',
         ], $this->pdf(), $this->admin);
 
         $service->saveWorkingStrength($position->fresh(), [

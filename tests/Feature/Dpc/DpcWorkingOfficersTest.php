@@ -73,13 +73,13 @@ class DpcWorkingOfficersTest extends TestCase
         $postFrom = DepartmentPost::query()->create(['department_id' => $this->department->id, 'name' => 'Under Secretary', 'class_level' => 'I', 'status' => 'active']);
 
         /*
-         | The Sanctioned Strength is the **mapping's** since the change register of
-         | 2026-08-27, item 1 — the AO no longer types it, so a fixture that wants a
-         | vacancy has to record it on the master.
+         | The Sanctioned Strength is recorded in the Vacancy Master for the DPC
+         | year (2026-10-17) — the AO does not type it — so it is recorded below,
+         | once the proposal exists.
          */
         $postTo = DepartmentPost::query()->create([
             'department_id' => $this->department->id, 'name' => 'Deputy Secretary',
-            'class_level' => 'I', 'status' => 'active', 'sanctioned_strength' => 4,
+            'class_level' => 'I', 'status' => 'active',
         ]);
 
         $this->postTo = $postTo;
@@ -114,6 +114,7 @@ class DpcWorkingOfficersTest extends TestCase
             $this->dpcStorePayload($this->sanctioningPreDpc($postFrom->id, $postTo->id)),
         );
         $this->proposal = DpcProposal::query()->latest('id')->firstOrFail();
+        $this->recordSanctionedStrength($this->proposal, 4);
     }
 
     /**

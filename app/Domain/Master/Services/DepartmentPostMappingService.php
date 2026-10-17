@@ -104,7 +104,6 @@ class DepartmentPostMappingService
                  | the alternative — silently dropping it — is what made
                  | superseding a mapping break the DPCs that depended on it.
                  */
-                'sanctioned_strength' => $attributes['sanctioned_strength'] ?? $current->sanctioned_strength,
 
                 'effective_from' => $from,
             ]);

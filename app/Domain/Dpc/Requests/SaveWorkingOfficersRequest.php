@@ -6,6 +6,7 @@ namespace App\Domain\Dpc\Requests;
 
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Models\DpcWorkingOfficer;
+use App\Domain\Dpc\Services\SanctionedStrengthSource;
 use App\Domain\Dpc\Services\VacancyEngine;
 use App\Domain\Dpc\Validation\DpcRowRules;
 use App\Domain\Import\Services\ExcelImportService;
@@ -135,7 +136,7 @@ class SaveWorkingOfficersRequest extends FormRequest
             return;
         }
 
-        $sanctioned = $proposal->promotionToPost?->sanctioned_strength;
+        $sanctioned = app(SanctionedStrengthSource::class)->forProposal($proposal);
 
         if ($sanctioned === null) {
             // A master-data gap, not a validation failure. The screen says which

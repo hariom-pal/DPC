@@ -35,25 +35,6 @@ class SupersedeDepartmentPostRequest extends FormRequest
             'pay_scale_id' => ['nullable', Rule::exists('pay_scales', 'id')],
             'promotion_duration_years' => ['nullable', 'integer', 'min:0', 'max:40'],
 
-            /*
-             | Sanctioned Strength travels with the supersession (correction of
-             | 2026-09-06).
-             |
-             | **A superseding order re-authorises the post on new terms, and the
-             | sanctioned strength is one of those terms** — a Government Order
-             | that changes an establishment is the commonest reason to supersede a
-             | mapping at all. Before this it was absent from the payload *and*
-             | from `DepartmentPostMappingService::supersede()`, so superseding a
-             | mapping silently dropped the figure to `NULL` and broke every DPC
-             | that depended on it. Nothing surfaced that, because the field could
-             | not be set anywhere either.
-             |
-             | The form pre-fills it from the mapping being replaced, so an order
-             | that changes only the pay scale carries the strength through
-             | unchanged rather than requiring it to be retyped from memory.
-             */
-            'sanctioned_strength' => ['required', 'integer', 'min:1', 'max:100000'],
-
             'government_order_number' => ['required', 'string', 'max:120'],
             'government_order_date' => ['required', 'date', 'before_or_equal:today'],
 

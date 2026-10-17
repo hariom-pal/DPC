@@ -110,7 +110,7 @@ class VacancyCalculationService
             return app(VacancyEngine::class)->calculate($proposal)->totalVacancy;
         }
 
-        $sanctioned ??= $proposal->promotionToPost->sanctioned_strength ?? $proposal->sanctioned_post_count;
+        $sanctioned ??= app(SanctionedStrengthSource::class)->forProposal($proposal) ?? $proposal->sanctioned_post_count;
 
         if ($sanctioned === null) {
             return null;

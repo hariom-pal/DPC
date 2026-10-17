@@ -14,6 +14,7 @@ use App\Domain\Dpc\Services\DpcCommitteeService;
 use App\Domain\Dpc\Services\DpcProposalService;
 use App\Domain\Dpc\Services\EmployeeDetailsService;
 use App\Domain\Dpc\Services\RecordGapService;
+use App\Domain\Dpc\Services\SanctionedStrengthSource;
 use App\Domain\Dpc\Services\VacancyCalculationService;
 use App\Domain\Eligibility\Models\DpcCalculationRun;
 use App\Domain\Eligibility\Services\DpcCalculationService;
@@ -265,14 +266,6 @@ class SampleDataTest extends TestCase
         $ade = $this->postOf($department, 'Additional Director, Education');
         $beo = $this->postOf($department, 'Block Education Officer');
 
-        // Ten chairs, from the seeded master rather than forced here — the sample
-        // data does not balance on any other number, so this is an assertion.
-        $this->assertSame(
-            10,
-            $ade->sanctioned_strength,
-            'Additional Director must be a ten-chair post on the Department Post Mapping.',
-        );
-
         /*
          | The order that sanctions this promotion, and it is a **seeded** order.
          |
@@ -302,6 +295,14 @@ class SampleDataTest extends TestCase
             // Which of the order's two feeders this DPC runs. Named, never inferred.
             'promotion_from_post_id' => $beo->id,
         ]);
+
+        // Ten chairs, from the seeded Vacancy Master for this DPC year rather than
+        // forced here — the sample data does not balance on any other number.
+        $this->assertSame(
+            10,
+            app(SanctionedStrengthSource::class)->forProposal($proposal),
+            'Additional Director must be a ten-chair post in the Vacancy Master.',
+        );
 
         /*
          | The order's requirement for *this* feeder, which is what refuses SN 10.

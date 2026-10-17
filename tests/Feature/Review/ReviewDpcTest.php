@@ -24,6 +24,7 @@ use App\Enums\Role;
 use Illuminate\Support\Carbon;
 use OwenIt\Auditing\Models\Audit;
 use RuntimeException;
+use Tests\Concerns\RecordsSanctionedStrength;
 use Tests\Feature\Proceeding\Concerns\BuildsProceedings;
 use Tests\TestCase;
 
@@ -38,6 +39,7 @@ use Tests\TestCase;
 class ReviewDpcTest extends TestCase
 {
     use BuildsProceedings;
+    use RecordsSanctionedStrength;
 
     private User $authorizedOfficerTwo;
 
@@ -222,7 +224,7 @@ class ReviewDpcTest extends TestCase
          | longer how it is stated.
          */
         $sanctioned = $this->proposal->workingOfficers()->count();
-        $this->proposal->promotionToPost->forceFill(['sanctioned_strength' => $sanctioned])->save();
+        $this->recordSanctionedStrength($this->proposal, $sanctioned);
 
         $this->concludeOriginal();
         $review = $this->raise();
@@ -274,7 +276,7 @@ class ReviewDpcTest extends TestCase
          | longer how it is stated.
          */
         $sanctioned = $this->proposal->workingOfficers()->count();
-        $this->proposal->promotionToPost->forceFill(['sanctioned_strength' => $sanctioned])->save();
+        $this->recordSanctionedStrength($this->proposal, $sanctioned);
 
         $this->concludeOriginal();
         $review = $this->raise()->fresh();

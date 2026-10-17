@@ -9,6 +9,7 @@ use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Models\DpcWorkingOfficer;
 use App\Domain\Dpc\Services\DpcProposalService;
 use App\Domain\Dpc\Services\EvaluationCandidateService;
+use App\Domain\Dpc\Services\SanctionedStrengthSource;
 use App\Domain\Dpc\Services\VacancyCalculationService;
 use App\Domain\Dpc\Validation\DpcRowRules;
 use App\Domain\Import\Enums\ImportBatchStatus;
@@ -394,7 +395,7 @@ class ExcelImportService
             return;
         }
 
-        $sanctioned = $proposal->promotionToPost->sanctioned_strength ?? $proposal->sanctioned_post_count;
+        $sanctioned = app(SanctionedStrengthSource::class)->forProposal($proposal) ?? $proposal->sanctioned_post_count;
 
         if ($sanctioned !== null && $incoming > $sanctioned) {
             throw new WorkflowException(

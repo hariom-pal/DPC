@@ -31,6 +31,8 @@ use App\Enums\MasterStatus;
  */
 trait SanctionsVacancies
 {
+    use RecordsSanctionedStrength;
+
     /**
      * Sanction `$sanctioned` posts on the Promotion To Post, then leave enough of
      * them vacant to produce the vacancy the caller asked for.
@@ -61,7 +63,7 @@ trait SanctionsVacancies
         $post = $proposal->promotionToPost;
 
         if ($post !== null) {
-            $post->forceFill(['sanctioned_strength' => $sanctioned])->save();
+            $this->recordSanctionedStrength($proposal, $sanctioned);
 
             // Only if the post has no rule yet: a test that registered its own
             // percentage must keep it.

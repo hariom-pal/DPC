@@ -15,6 +15,7 @@ use App\Domain\Dpc\Models\DpcWorkingOfficer;
 use App\Domain\Dpc\Services\DpcProposalCompletenessService;
 use App\Domain\Dpc\Services\DpcProposalService;
 use App\Domain\Dpc\Services\ProposalVerificationService;
+use App\Domain\Dpc\Services\SanctionedStrengthSource;
 use App\Domain\Dpc\Services\VacancyCalculationService;
 use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Shared\Models\ActivityTimeline;
@@ -397,9 +398,9 @@ class ProposalVerificationTest extends TestCase
         $this->confirmRuleOneOne($this->proposal, $this->ao);
         $this->assertTrue($this->service()->isComplete($this->proposal));
 
-        // The Department Post Mapping changes after the department confirmed it.
-        $post = $this->proposal->promotionToPost;
-        $post->forceFill(['sanctioned_strength' => (int) $post->sanctioned_strength + 1])->save();
+        // The Vacancy Master's figure changes after the department confirmed it.
+        $current = (int) app(SanctionedStrengthSource::class)->forProposal($this->proposal);
+        $this->recordSanctionedStrength($this->proposal, $current + 1);
 
         $status = collect($this->service()->status($this->proposal->refresh()))
             ->firstWhere('item', ProposalVerificationItem::SanctionedStrength);
@@ -434,7 +435,7 @@ class ProposalVerificationTest extends TestCase
 
     public function test_sanctioned_strength_cannot_be_confirmed_when_none_is_recorded(): void
     {
-        $this->proposal->promotionToPost->forceFill(['sanctioned_strength' => null])->save();
+        $this->recordSanctionedStrength($this->proposal, null);
 
         $this->expectException(WorkflowException::class);
         $this->service()->confirm($this->proposal->refresh(), ProposalVerificationItem::SanctionedStrength, $this->ao);
