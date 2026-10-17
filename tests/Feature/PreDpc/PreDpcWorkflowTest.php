@@ -17,6 +17,7 @@ use App\Enums\Role;
 use App\Enums\ServiceClass;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Route;
 use Tests\Concerns\PrescribesQualifications;
 use Tests\TestCase;
 
@@ -464,6 +465,33 @@ class PreDpcWorkflowTest extends TestCase
         $feeder = $rule->promotionSources()->sole();
         $this->assertSame($this->fromPost->id, $feeder->promotion_from_post_id);
         $this->assertSame(5, $feeder->min_experience_years);
+    }
+
+    /**
+     * An order stating experience in months projects months. The projection used to
+     * send a key the rule service never read, so 18 months became 18 years.
+     */
+    public function test_experience_in_months_reaches_the_rule_in_months(): void
+    {
+        $proposal = $this->draft(['promotion_sources' => [[
+            'promotion_from_post_id' => $this->fromPost->id,
+            'promotion_percentage' => 100,
+            'min_experience_years' => 18,
+            'experience_unit' => 'months',
+            'qualification_ids' => $this->qualificationIds(),
+        ]]]);
+        $this->actingAs($this->ao)->post(route('pre-dpc.submit', $proposal));
+        $this->actingAs($this->ah)->post(route('pre-dpc.approve', $proposal))->assertSessionHasNoErrors();
+
+        $feeder = RecruitmentRule::query()->where('post_id', $this->toPost->id)->sole()->promotionSources()->sole();
+        $this->assertSame(18, $feeder->min_experience_years);
+        $this->assertSame('months', $feeder->min_experience_unit->value);
+    }
+
+    public function test_the_administrator_has_no_recruitment_rule_screen(): void
+    {
+        // The rule is the approved Pre-DPC's, projected on approval; nobody keys it twice.
+        $this->assertFalse(Route::has('admin.recruitment-rules.index'));
     }
 
     /**

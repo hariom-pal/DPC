@@ -21,7 +21,7 @@
   - master-data CSV import for departments, department posts and DPC types
   - committee-member replacement — unreachable from the UI
 - **Defects to fix before UAT:**
-  - recruitment rules can be deleted with no guard (a proposal then loses its rule)
+  - ~~recruitment rules can be deleted with no guard~~ — resolved 2026-10-17: the admin screen was removed
   - ~~the DPC Types CSV template can break every Fresh DPC on MySQL~~ — fixed 2026-10-17
   - committee-member replacement cannot be reached
   - deactivating a user does not end their session
@@ -57,7 +57,7 @@
 | F17 | **DPC Rules** (CR marks, qualifying scores, PH reservation) | Rules 2.1, 3.4, 3.5 as versioned master data: each version from a DPC year, on an order with its PDF; never edited | `admin.dpc-rules.*` (7 routes); `DpcRuleController`, `DpcRuleBook` | `cr_scoring_scales`, `ph_reservation_rules` | `DpcRulesTest` (10), `DpcCalculationTest`, `EmployeeDetailsTest` | ✅ built-in `config/dpc.php` rules apply until a version is recorded. The Committee Type master was removed on 2026-10-17: there is one committee. |
 | F18 | **DPC Committee Rules** | Members besides the Chairman, attributes the committee must cover (SC, ST, OBC, female, Bhar Sadhak Sachiv, Vibhag Sachiv), one SC/ST/OBC member, effective dates; Chairman mandatory by rule | `admin.committee-configurations.*`, `align-bounds` | `committee_configurations` | `CommitteeMasterTest`, `CommitteeBoundsReconcilerTest`, `DpcCommitteeTest` | ✅ the 9 unread fields were dropped |
 | F19 | CGPSC Chairman | Effective-dated Chairman record | `admin.cgpsc-chairman.*` (no destroy) | `cgpsc_chairmen` | `CgpscChairmanTest` (15) | ✅ |
-| F20 | Recruitment rules (versions, GO PDF) | Promotion / DR %, feeders, qualification, experience | `admin.recruitment-rules.*`, `.version`, `.download` | `recruitment_rules`, `recruitment_rule_sources`, `rr_source_qualifications` | `RecruitmentRuleTest` (4), `RecruitmentRuleIntegrityTest` (32) | ⚠️ **delete has no status guard**; several Active versions possible; two "current rule" lookups disagree |
+| F20 | ~~Recruitment rules~~ — **removed 2026-10-17** | The rule is the approved Pre-DPC's: approval projects an Active version (`PreDpcProposalService::projectToMasters`). The Administrator has no screen for it. Engine readers unchanged. The months-as-years projection bug was fixed at the same time. | — | `recruitment_rules`, `recruitment_rule_sources`, `rr_source_qualifications` (written by Pre-DPC approval) | `PreDpcWorkflowTest` | ✅ |
 | F21 | Users | Create, edit, activate, reset password | `admin.users.*`; `UserProvisioningService` | `users`, `model_has_roles`, `user_department_assignments` | `UserManagementTest` (6) | ⚠️ **new account's password never shown** to admin; **deactivation keeps live sessions**; no last-admin guard; edit drops extra roles |
 | F22 | User department assignments | Dated postings | `admin.users.assignments.*` | `user_department_assignments` | `UserDepartmentAssignmentTest` (16) | ✅ |
 | F23 | Role switching | Acting-as role | `POST /acting-as` | session | `RoleSwitchTest` (14) | ⚠️ switcher not in the admin layout |
@@ -69,7 +69,7 @@
 | F29 | Sanctioning orders (Pre-DPC links) | Link DPCs to Pre-DPCs | `admin.pre-dpc-links.*` | `dpc_proposals`, `pre_dpc_proposals` | `PreDpcLinkReconcilerTest` (7) | ✅ |
 | F30 | Reports (shared) | Pipeline, outcomes, CSV | `reports.index` | read-only | report tests | ⚠️ reachable only from the admin dashboard |
 
-**Navigation** (`resources/views/layouts/admin.blade.php`, 22 entries): Dashboard, Departments, Districts, Designations, Pay Scales, Department Posts, Class Master, Qualifications, Reservation Policies, Reservation Rosters, CGPSC Chairman, DPC Committee Rules, CR Marks & PH Rules, Recruitment Rules, User Management, Reservation Categories, Vacancy Types, DPC Types, Review Reasons, Record Reasons, Notice Board, Sanctioning orders.
+**Navigation** (`resources/views/layouts/admin.blade.php`, 22 entries): Dashboard, Departments, Districts, Designations, Pay Scales, Department Posts, Class Master, Qualifications, Reservation Policies, Reservation Rosters, CGPSC Chairman, DPC Committee Rules, CR Marks & PH Rules, User Management, Reservation Categories, Vacancy Types, DPC Types, Review Reasons, Record Reasons, Notice Board, Sanctioning orders.
 
 **Reached without a menu entry:**
 - Audit Trail, Integration Status and Reports — dashboard buttons
@@ -175,7 +175,7 @@
 
 Ordered by severity. Items 1–5 re-verified by hand on 2026-10-17.
 
-1. **Recruitment rule delete has no status guard.**
+1. ~~**Recruitment rule delete has no status guard.**~~ Resolved 2026-10-17: the admin screen, and its delete, were removed.
    - Where: `RecruitmentRuleController.php:95-100` → `RecruitmentRuleService.php:108-112`.
    - Effect: an Active rule pinned by a proposal can be soft-deleted. The proposal then resolves its rule to null, because the soft-deleted row is excluded from lookups.
 2. ~~**DPC Types CSV template breaks Fresh DPCs.**~~ **Fixed 2026-10-17.**

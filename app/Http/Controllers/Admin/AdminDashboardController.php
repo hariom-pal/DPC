@@ -15,7 +15,6 @@ use App\Domain\Master\Models\CommitteeConfiguration;
 use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\Designation;
 use App\Domain\Master\Models\District;
-use App\Domain\Master\Models\RecruitmentRule;
 use App\Domain\Master\Models\ReservationPolicy;
 use App\Domain\Master\Models\ReservationRoster;
 use App\Domain\Proceeding\Enums\DpcProceedingStatus;
@@ -67,7 +66,6 @@ class AdminDashboardController extends Controller
                 ['label' => 'Designations', 'count' => Designation::query()->count(), 'route' => route('admin.designations.index')],
                 ['label' => 'Department Posts', 'count' => DepartmentPost::query()->count(), 'route' => route('admin.department-posts.index')],
                 ['label' => 'Class Master', 'count' => ClassMaster::query()->count(), 'route' => route('admin.service-classes.index')],
-                ['label' => 'Recruitment Rules', 'count' => RecruitmentRule::query()->count(), 'route' => route('admin.recruitment-rules.index')],
                 ['label' => 'Reservation Policies', 'count' => ReservationPolicy::query()->count(), 'route' => route('admin.reservation-policies.index')],
                 ['label' => 'Reservation Rosters', 'count' => ReservationRoster::query()->count(), 'route' => route('admin.reservation-rosters.index')],
                 ['label' => 'CGPSC Chairman', 'count' => CgpscChairman::query()->serving()->count(), 'route' => route('admin.cgpsc-chairman.index')],

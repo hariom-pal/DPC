@@ -625,7 +625,9 @@ class PreDpcProposalService
                 'promotion_from_post_id' => $source->promotion_from_post_id,
                 'promotion_percentage' => $source->promotion_percentage,
                 'min_experience_years' => $source->min_experience_years,
-                'experience_unit' => $source->experience_unit->value,
+                // The rule's own key. `experience_unit` here was read by nothing, so
+                // an order in months was projected as years.
+                'min_experience_unit' => $source->experience_unit->value,
                 'qualification_ids' => $source->qualifications->pluck('id')->all(),
                 'min_qualification' => $source->qualificationLabel(),
             ])

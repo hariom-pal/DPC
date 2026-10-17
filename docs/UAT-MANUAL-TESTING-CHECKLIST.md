@@ -46,7 +46,7 @@ department's users are the Authorized Officer and the Administrative Head.
 | A3 | **Admin → Departments → New Department**: Code `UATD`, Name `UAT Test Department`, Active | Saved; listed |
 | A4 | **Admin → Department Posts → New**: Department `UAT Test Department`, Post `Principal`, Class `II`, Sanctioned strength `100`, Effective from `01-01-2020`, Government Order `UAT/GO/1`, date `01-01-2020`, attach a PDF | Saved, "In force" |
 | A5 | Same for Post `Lecturer` (Class III, sanctioned `500`), and Post `Joint Director` (Class I, sanctioned `10`) | Three mapped posts |
-| A6 | **Admin → Recruitment Rules → New**: Post `Principal`, version 1, GO `UAT/RR/1`, Direct `50`, Promotion `50`, Effective from `01-01-2020`, **Status Active** | Saved, Active |
+| A6 | *(Removed 2026-10-17.)* There is no admin Recruitment Rule screen: the rule is created when the Pre-DPC is approved (step C3). | — |
 | A7 | **Admin → CGPSC Chairman**: record the serving Chairman (name, designation, email, mobile, effective from) | Needed before any DPC committee can be saved |
 | A8 | **Admin → Users → New**: one AO and one AH (assign both to `UAT Test Department`), one user with role Chairman, two users with role Member | The temporary password is shown once on screen, and also written to the log (`grep -h "Temporary password" <APP_DIR>/storage/logs/laravel*.log \| tail`) |
 

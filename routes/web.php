@@ -21,7 +21,6 @@ use App\Http\Controllers\Admin\PortalNoticeController;
 use App\Http\Controllers\Admin\PreDpcLinkController;
 use App\Http\Controllers\Admin\QualificationController;
 use App\Http\Controllers\Admin\RecordReasonController;
-use App\Http\Controllers\Admin\RecruitmentRuleController;
 use App\Http\Controllers\Admin\ReservationCategoryController;
 use App\Http\Controllers\Admin\ReservationPolicyController;
 use App\Http\Controllers\Admin\ReservationRosterController;
@@ -774,13 +773,6 @@ Route::middleware('auth')->group(function (): void {
                     Route::post('ph-rules', [DpcRuleController::class, 'storePhRule'])->name('ph-rules.store');
                     Route::get('ph-rules/{phRule}/document', [DpcRuleController::class, 'phRuleDocument'])->name('ph-rules.document');
                 });
-                Route::resource('recruitment-rules', RecruitmentRuleController::class)
-                    ->parameters(['recruitment-rules' => 'recruitmentRule'])
-                    ->except(['show']);
-                Route::post('recruitment-rules/{recruitmentRule}/version', [RecruitmentRuleController::class, 'newVersion'])
-                    ->name('recruitment-rules.version');
-                Route::get('recruitment-rules/{recruitmentRule}/download', [RecruitmentRuleController::class, 'download'])
-                    ->name('recruitment-rules.download');
 
                 Route::resource('users', UserController::class)->only(['index', 'create', 'store', 'edit', 'update']);
                 Route::post('users/{user}/toggle-active', [UserController::class, 'toggleActive'])->name('users.toggle-active');
