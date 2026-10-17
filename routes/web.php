@@ -50,6 +50,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Dpc\CirculationController;
 use App\Http\Controllers\Dpc\DpcCalculationController;
 use App\Http\Controllers\Dpc\DpcCommitteeMemberController;
+use App\Http\Controllers\Dpc\DpcEmployeeDetailsController;
 use App\Http\Controllers\Dpc\DpcImportController;
 use App\Http\Controllers\Dpc\DpcProposalController;
 use App\Http\Controllers\Dpc\DpcProposalVerificationController;
@@ -364,6 +365,26 @@ Route::middleware('auth')->group(function (): void {
                         '/{dpcProposal}/officers/{evaluationRow:sn}/missing-records/{recordGap}',
                         [DpcRecordGapController::class, 'destroy'],
                     )->name('record-gaps.destroy');
+                });
+                /*
+                 | Employee-wise details — "Complete Details" for each officer on the
+                 | Seniority List (Coder Instructions, points 2 and 3, rule 4.1).
+                 | Inside the proposal, addressed like the missing-records screen by
+                 | the officer's seniority number, and scoped so one proposal's URL
+                 | cannot reach another's officer. Writes are gated on `update`.
+                 */
+                Route::get('/{dpcProposal}/employees', [DpcEmployeeDetailsController::class, 'index'])
+                    ->name('employees.index');
+                Route::scopeBindings()->prefix('/{dpcProposal}/employees/{evaluationRow:sn}')->name('employees.')->group(function (): void {
+                    Route::get('/', [DpcEmployeeDetailsController::class, 'show'])->name('show');
+                    Route::put('/basic', [DpcEmployeeDetailsController::class, 'updateBasic'])->name('basic');
+                    Route::post('/cr', [DpcEmployeeDetailsController::class, 'saveCrYear'])->name('cr.save');
+                    Route::delete('/cr/{year}', [DpcEmployeeDetailsController::class, 'removeCrYear'])->whereNumber('year')->name('cr.remove');
+                    Route::post('/property', [DpcEmployeeDetailsController::class, 'savePropertyYear'])->name('property.save');
+                    Route::delete('/property/{year}', [DpcEmployeeDetailsController::class, 'removePropertyYear'])->whereNumber('year')->name('property.remove');
+                    Route::put('/ph', [DpcEmployeeDetailsController::class, 'savePh'])->name('ph');
+                    Route::post('/documents', [DpcEmployeeDetailsController::class, 'uploadDocument'])->name('documents.store');
+                    Route::get('/documents/{document}', [DpcEmployeeDetailsController::class, 'download'])->name('documents.download');
                 });
                 /*
                  | Rule 1.1 — the department's pre-submission confirmations. A step of

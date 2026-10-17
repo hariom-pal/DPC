@@ -69,6 +69,10 @@ class ResetTransactionalDataCommand extends Command
          */
         'dpc_evaluation_record_gaps',
 
+        // Employee-wise documents (CR, IPR, PH undertaking …). Before the rows and
+        // the proposals they reference.
+        'dpc_evaluation_documents',
+
         'dpc_evaluation_rows',
 
         // The rest of a proposal.
@@ -247,6 +251,7 @@ class ResetTransactionalDataCommand extends Command
         // The supporting documents behind a missing record (item 19). Uploaded as
         // part of a DPC, so they go when the DPC's data goes.
         'private/record-gaps',
+        'private/employee-documents',
 
         // Rule 1.1 previous-DPC minutes, and Vacancy Master orders.
         'private/proposal-verifications',

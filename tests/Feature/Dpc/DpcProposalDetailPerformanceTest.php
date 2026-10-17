@@ -93,8 +93,10 @@ class DpcProposalDetailPerformanceTest extends TestCase
             ];
             $entries[] = [
                 'seniority_number' => $n,
+                'employee_number' => "EMP-{$n}",
                 'name' => "Officer {$n}",
                 'dob' => '1964-03-20',
+                'date_of_joining_service' => '1988-07-01',
                 'reservation_category_id' => $this->ur->id,
             ];
             $rows[] = [
@@ -117,7 +119,10 @@ class DpcProposalDetailPerformanceTest extends TestCase
             ]],
             'officers' => $officers,
         ]);
-        $this->actingAs($this->ao)->put(route('dpc-proposals.seniority-list.update', $proposal), ['entries' => $entries]);
+        $this->actingAs($this->ao)->put(route('dpc-proposals.seniority-list.update', $proposal), [
+            'seniority_list_as_on' => $proposal->seniorityReferenceDate()->toDateString(),
+            'entries' => $entries,
+        ]);
         $this->actingAs($this->ao)->put(route('dpc-proposals.evaluation-chart.update', $proposal), ['rows' => $rows]);
 
         return $proposal;

@@ -93,6 +93,27 @@
                 </div>
             </div>
 
+            {{-- Rule 1.6: the list's "as on" date, derived from the DPC year. --}}
+            <div class="alert {{ $proposal->seniority_list_as_on?->isSameDay($proposal->seniorityReferenceDate()) ? 'alert-success' : 'alert-info' }} py-2 small" id="seniority-as-on">
+                <div>{{ __('dpc.seniority_list.as_on_required', ['date' => $proposal->seniorityReferenceDate()->format('d-m-Y')]) }}</div>
+                @if ($proposal->seniority_list_as_on === null)
+                    @if ($proposal->seniorityEntries->isNotEmpty())
+                        <div>{{ __('dpc.seniority_list.as_on_not_recorded', ['date' => $proposal->seniorityReferenceDate()->format('d-m-Y')]) }}</div>
+                    @endif
+                @elseif ($proposal->seniority_list_as_on->isSameDay($proposal->seniorityReferenceDate()))
+                    <div>{{ __('dpc.seniority_list.as_on_recorded', ['date' => $proposal->seniority_list_as_on->format('d-m-Y')]) }}</div>
+                @else
+                    <div>{{ __('dpc.seniority_list.as_on_stale', [
+                        'stated' => $proposal->seniority_list_as_on->format('d-m-Y'),
+                        'year' => $proposal->dpc_year ?: $proposal->proposal_date->year,
+                        'date' => $proposal->seniorityReferenceDate()->format('d-m-Y'),
+                    ]) }}</div>
+                @endif
+                @if ($proposal->seniorityEntries->isNotEmpty())
+                    <div class="mt-1"><a href="{{ route('dpc-proposals.employees.index', $proposal) }}">{{ __('dpc.employee_details.open_list') }}</a></div>
+                @endif
+            </div>
+
             @include('dpc-proposals.imports._upload', ['template' => \App\Domain\Import\Enums\ImportTemplate::from('final_seniority_list_us')])
 
             <form method="POST" action="{{ route('dpc-proposals.seniority-list.update', $proposal) }}">
@@ -100,6 +121,15 @@
                 @method('PUT')
 
                 @error('entries')<div class="alert alert-danger py-2">{{ $message }}</div>@enderror
+                @error('seniority_list_as_on')<div class="alert alert-danger py-2">{{ $message }}</div>@enderror
+
+                @if (config('dpc.manual_entry.seniority_list'))
+                    <div class="mb-2" style="max-width:18rem">
+                        <label class="form-label small" for="manual-list-as-on">{{ __('dpc.seniority_list.as_on_label') }}</label>
+                        <input type="date" class="form-control form-control-sm" id="manual-list-as-on" name="seniority_list_as_on" required
+                               value="{{ old('seniority_list_as_on', $proposal->seniority_list_as_on?->format('Y-m-d')) }}">
+                    </div>
+                @endif
 
                 {{-- Typing the list in is off by default since 2026-09-07: it comes
                      from the upload. Hidden by `dpc.manual_entry.seniority_list`
@@ -132,7 +162,7 @@
                 <div class="col-md-1"><label class="form-label">{{ __('ui.s_n') }}</label>
                     <input type="number" min="1" class="form-control form-control-sm" name="entries[__E__][seniority_number]" required></div>
                 <div class="col-md-2"><label class="form-label">{{ __('ui.employee_no') }}</label>
-                    <input type="text" class="form-control form-control-sm" name="entries[__E__][employee_number]"></div>
+                    <input type="text" class="form-control form-control-sm" name="entries[__E__][employee_number]" required></div>
                 <div class="col-md-3"><label class="form-label">{{ __('ui.name') }}</label>
                     <input type="text" class="form-control form-control-sm" name="entries[__E__][name]" required></div>
 
@@ -172,7 +202,8 @@
                         @endforeach
                     </select></div>
                 <div class="col-md-3"><label class="form-label">{{ __('ui.reservation_category') }}</label>
-                    <select class="form-select form-select-sm" name="entries[__E__][reservation_category_id]" required>
+                    <select class="form-select form-select-sm" name="entries[__E__][reservation_category_id]">
+                        <option value="">{{ __('ui.select') }}</option>
                         @foreach ($reservationCategories as $rc)<option value="{{ $rc->id }}">{{ $rc->code }} — {{ $rc->name_en }}</option>@endforeach
                     </select></div>
                 {{-- The **seat's** category, beside the officer's own (business
@@ -186,7 +217,7 @@
                         @foreach ($reservationCategories as $rc)<option value="{{ $rc->id }}">{{ $rc->code }} — {{ $rc->name_en }}</option>@endforeach
                     </select></div>
                 <div class="col-md-3"><label class="form-label">{{ __('dpc.seniority_list.date_of_joining') }}</label>
-                    <input type="date" class="form-control form-control-sm" name="entries[__E__][date_of_joining_service]"></div>
+                    <input type="date" class="form-control form-control-sm" name="entries[__E__][date_of_joining_service]" required></div>
                 <div class="col-md-3"><label class="form-label">{{ __('ui.date_of_posting_on_promotion_to_post') }}</label>
                     <input type="date" class="form-control form-control-sm" name="entries[__E__][date_of_posting_on_promotion_to_post]"></div>
                 <div class="col-md-3"><label class="form-label">{{ __('ui.date_of_posting_on_promotion_from_post') }}</label>

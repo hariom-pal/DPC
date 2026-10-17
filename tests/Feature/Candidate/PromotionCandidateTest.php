@@ -9,6 +9,7 @@ use App\Domain\Department\Models\Department;
 use App\Domain\Dpc\Enums\CommitteeCapacity;
 use App\Domain\Dpc\Models\DpcCommitteeMember;
 use App\Domain\Dpc\Models\DpcProposal;
+use App\Domain\Dpc\Services\DpcProposalService;
 use App\Domain\Eligibility\Enums\ListType;
 use App\Domain\Eligibility\Models\DpcCalculationResult;
 use App\Domain\Eligibility\Models\DpcCalculationRun;
@@ -106,7 +107,7 @@ class PromotionCandidateTest extends TestCase
         // make every assertion below fail for the wrong reason.
         $this->actingAs($this->ao)->put(
             route('dpc-proposals.seniority-list.update', $this->proposal),
-            ['entries' => $entries],
+            ['seniority_list_as_on' => $this->proposal->seniorityReferenceDate()->toDateString(), 'entries' => $entries],
         )->assertSessionHasNoErrors()->assertRedirect();
     }
 
@@ -120,6 +121,7 @@ class PromotionCandidateTest extends TestCase
             'name' => $name,
             'employee_number' => $employeeNumber,
             'dob' => '1975-04-01',
+            'date_of_joining_service' => '1999-07-01',
             'reservation_category_id' => ReservationCategory::query()->firstOrFail()->id,
             'promotion_from_post' => 'Under Secretary',
             'promotion_to_post' => 'Deputy Secretary',
@@ -179,7 +181,7 @@ class PromotionCandidateTest extends TestCase
 
         $this->actingAs($forestAo)->put(
             route('dpc-proposals.seniority-list.update', $forestProposal),
-            ['entries' => [$this->entry(1, 'Hariom Pal', 'EMP-777')]],
+            ['seniority_list_as_on' => $forestProposal->seniorityReferenceDate()->toDateString(), 'entries' => [$this->entry(1, 'Hariom Pal', 'EMP-777')]],
         )->assertSessionHasNoErrors()->assertRedirect();
 
         // The register's instruction in both item 2 and item 17: never create
@@ -219,11 +221,12 @@ class PromotionCandidateTest extends TestCase
 
         $this->actingAs($forestAo)->put(
             route('dpc-proposals.seniority-list.update', $forestProposal),
-            ['entries' => [[
+            ['seniority_list_as_on' => $forestProposal->seniorityReferenceDate()->toDateString(), 'entries' => [[
                 'seniority_number' => 1,
                 'name' => 'Smt. Kavita Rao',
                 'employee_number' => '1024',
                 'dob' => '1975-04-01',
+                'date_of_joining_service' => '1999-07-01',
                 'reservation_category_id' => ReservationCategory::query()->firstOrFail()->id,
                 'promotion_from_post' => 'Ranger',
                 'promotion_to_post' => 'Deputy Conservator',
@@ -261,11 +264,12 @@ class PromotionCandidateTest extends TestCase
 
         $this->actingAs($forestAo)->put(
             route('dpc-proposals.seniority-list.update', $forestProposal),
-            ['entries' => [[
+            ['seniority_list_as_on' => $forestProposal->seniorityReferenceDate()->toDateString(), 'entries' => [[
                 'seniority_number' => 1,
                 'name' => 'Smt. Kavita Rao',
                 'employee_number' => '1024',
                 'dob' => '1975-04-01',
+                'date_of_joining_service' => '1999-07-01',
                 'reservation_category_id' => ReservationCategory::query()->firstOrFail()->id,
                 'promotion_from_post' => 'Ranger',
                 'promotion_to_post' => 'Deputy Conservator',
@@ -286,7 +290,7 @@ class PromotionCandidateTest extends TestCase
     {
         $this->actingAs($this->ao)->put(
             route('dpc-proposals.seniority-list.update', $this->proposal),
-            ['entries' => [$this->entry(1, 'Shri A. Officer', 'EMP-001')]],
+            ['seniority_list_as_on' => $this->proposal->seniorityReferenceDate()->toDateString(), 'entries' => [$this->entry(1, 'Shri A. Officer', 'EMP-001')]],
         )->assertSessionHas('candidateAccounts', function (array $accounts): bool {
             return array_keys($accounts['created']) === ['EMP-001']
                 && $accounts['created']['EMP-001'] !== '';
@@ -308,10 +312,13 @@ class PromotionCandidateTest extends TestCase
 
     public function test_an_officer_with_no_employee_number_is_reported_rather_than_guessed_at(): void
     {
-        $this->saveSeniorityList([
+        // Since 2026-10-17 the list's screens require an Employee ID, so a row
+        // without one reaches provisioning only from a list saved before then —
+        // written here through the service, as such a list was.
+        app(DpcProposalService::class)->saveSeniorityEntries($this->proposal, [
             $this->entry(1, 'Shri A. Officer', 'EMP-001'),
             $this->entry(2, 'Shri No Number', null),
-        ]);
+        ], $this->ao);
 
         $this->assertSame(1, User::query()->whereNotNull('employee_number')->count());
 

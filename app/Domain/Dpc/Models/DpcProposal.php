@@ -49,6 +49,7 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property int $department_id
  * @property int|null $pre_dpc_proposal_id
  * @property int|null $dpc_year
+ * @property Carbon|null $seniority_list_as_on
  * @property int $dpc_type_id
  * @property int|null $original_dpc_proposal_id
  * @property int|null $review_reason_id
@@ -172,6 +173,7 @@ class DpcProposal extends Model implements Auditable
         'returned_at',
         'return_remarks',
         'cancelled_at',
+        'seniority_list_as_on',
     ];
 
     /**
@@ -193,6 +195,7 @@ class DpcProposal extends Model implements Auditable
             'approved_at' => 'datetime',
             'returned_at' => 'datetime',
             'cancelled_at' => 'datetime',
+            'seniority_list_as_on' => 'date',
         ];
     }
 
@@ -409,8 +412,10 @@ class DpcProposal extends Model implements Auditable
 
     /**
      * Rule 1.6: the final seniority list is drawn up as on 1 April of the year
-     * preceding the DPC year. Derived for display; the list itself carries no
-     * date to check it against.
+     * preceding the DPC year. Derived from the DPC year alone — never from the
+     * current date, the upload date or a meeting date. The department states the
+     * date its list was drawn up as on (`seniority_list_as_on`) when it saves the
+     * list, and the statement is refused unless it is this date.
      */
     public function seniorityReferenceDate(): Carbon
     {

@@ -96,7 +96,8 @@ class SaveDpcProposalRequest extends FormRequest
 
         $type = DpcType::query()->find($typeId);
 
-        if ($type !== null && $type->code !== 'fresh') {
+        // Case-insensitive: a master code typed as `FRESH` names the same type.
+        if ($type !== null && strtolower((string) $type->code) !== 'fresh') {
             $validator->errors()->add(
                 'dpc_type_id',
                 'A Review DPC is raised from the Review DPC screen and a Circulation DPC from the Circulation '

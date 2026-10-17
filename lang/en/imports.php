@@ -49,6 +49,11 @@ return [
         'loyalty_year' => 'Loyalty certificate given for that year? Y or N.',
         'property_year' => 'Property return filed for that year? Y or N.',
         'tribal_year' => 'Served in a tribal area that year? Y or N.',
+        'seniority_no' => 'Seniority number of the officer in the final seniority list. 1 is the most senior. Each number once only. Lines starting with # are help text and are ignored.',
+        'employee_id' => 'Employee ID / employee code, as your department records it. Required, and each officer once only — it is how the officer is recognised when the list is uploaded again.',
+        'date_of_appointment' => 'Date of appointment to government service. Write it as DD-MM-YYYY.',
+        'current_post' => 'The post the officer holds now — the post they are being considered for promotion FROM. It must be the post named on the help line.',
+        'posting_on_current_post' => 'Optional. The day the officer took charge of the current post. The recruitment-rule experience check counts from this date; if you leave it blank, fill it later on the employee\'s details. Write it as DD-MM-YYYY.',
         'example_row' => 'EXAMPLE — this line is ignored, keep it or delete it',
 
         /*

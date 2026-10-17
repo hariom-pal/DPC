@@ -24,7 +24,8 @@ use Illuminate\Support\Carbon;
  * @property string|null $qualification
  * @property string|null $promotion_to_post
  * @property string|null $promotion_from_post
- * @property int $reservation_category_id
+ * @property int|null $reservation_category_id
+ * @property-read ReservationCategory|null $reservationCategory
  * @property int|null $seat_reservation_category_id
  * @property Carbon|null $date_of_joining_service
  * @property Carbon|null $date_of_posting_on_promotion_to_post

@@ -474,6 +474,9 @@ class ReviewDpcService
             // the original already carried, which is exactly the copy drift
             // design risk R3 warns about.
             'sanctioned_post_count' => $original->sanctioned_post_count,
+            // The Seniority List is copied below, so the date the department stated
+            // it was drawn up as on (rule 1.6) comes with it.
+            'seniority_list_as_on' => $original->seniority_list_as_on?->toDateString(),
             'proposal_date' => $proposalDate->toDateString(),
             'status' => DpcProposalStatus::Draft->value,
             'prepared_by' => $actor->id,
@@ -544,6 +547,16 @@ class ReviewDpcService
             foreach ($row->propertyFlags as $flag) {
                 $copy->propertyFlags()->create($this->attributesOf($flag, ['dpc_evaluation_row_id']));
             }
+
+            // The employee-wise documents in force (2026-10-17) — the same stored
+            // files, now also cited by the review. Superseded versions stay with
+            // the original as its history.
+            foreach ($row->currentDocuments as $document) {
+                $copy->documents()->create(
+                    ['dpc_proposal_id' => $review->id]
+                    + $this->attributesOf($document, ['dpc_evaluation_row_id', 'superseded_at', 'superseded_by_id']),
+                );
+            }
         }
 
         return $review->fresh();
@@ -568,8 +581,16 @@ class ReviewDpcService
             $alsoExcept,
         );
 
+        /*
+         | Raw attributes hold a JSON column as its encoded string; handing that
+         | back to `create()` would encode it a second time through the cast. Such
+         | columns are decoded first, so the copy stores what the original holds.
+         */
         return collect($model->getAttributes())
             ->except($except)
+            ->map(fn (mixed $value, string $key): mixed => is_string($value) && $model->hasCast($key, ['array', 'json', 'object', 'collection'])
+                ? json_decode($value, true)
+                : $value)
             ->all();
     }
 

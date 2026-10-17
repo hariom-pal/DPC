@@ -82,8 +82,26 @@
                 </div>
             @endif
 
+            @if ($seniorityChanges !== null)
+                {{-- Who keeps their recorded employee details, and whose are detached. --}}
+                <div class="alert {{ $seniorityChanges['removed_with_details'] !== [] ? 'alert-danger' : 'alert-info' }} py-2 small" id="seniority-changes">
+                    <div>{{ __('dpc.seniority_list.changes_summary', [
+                        'kept' => $seniorityChanges['kept'],
+                        'added' => count($seniorityChanges['added']),
+                        'removed' => count($seniorityChanges['removed']),
+                    ]) }}</div>
+                    @if ($seniorityChanges['removed_with_details'] !== [])
+                        <div class="mt-1">{{ __('dpc.seniority_list.changes_removed_with_details', ['officers' => implode('; ', $seniorityChanges['removed_with_details'])]) }}</div>
+                    @endif
+                    @if ($batch->rejected_count > 0)
+                        <div class="mt-1 fw-semibold">{{ __('dpc.seniority_list.import_has_rejections', ['count' => $batch->rejected_count]) }}</div>
+                    @endif
+                </div>
+            @endif
+
             <div class="d-flex flex-wrap gap-2 mb-3">
-                @if ($batch->status->isCommittable() && $batch->rejected_count < $batch->total_rows)
+                @if ($batch->status->isCommittable() && $batch->rejected_count < $batch->total_rows
+                    && ! ($batch->template === \App\Domain\Import\Enums\ImportTemplate::FinalSeniorityListUs && $batch->rejected_count > 0))
                     <form method="POST" action="{{ route('dpc-proposals.imports.commit', [$proposal, $batch]) }}"
                           data-confirm="Replace the {{ $batch->template->label() }} section with the valid rows from this file?">
                         @csrf{!! __('dpc.imports.preview.commit_rows', ['count' => $batch->total_rows - $batch->rejected_count]) !!}
@@ -147,6 +165,13 @@
                                         <td class="small text-muted">
                                             @if (! empty($row->payload['cr_grades']))
                                                 {{ __('dpc.imports.preview.cr_years', ['years' => collect($row->payload['cr_grades'])->pluck('year')->implode(', ')]) }}
+                                            @elseif (isset($row->payload['seniority_number']))
+                                                {{ __('dpc.seniority_list.preview_row', [
+                                                    'number' => $row->payload['seniority_number'],
+                                                    'employee' => $row->payload['employee_number'] ?? '—',
+                                                    'post' => $row->payload['promotion_from_post'] ?? '—',
+                                                    'appointed' => $row->payload['date_of_joining_service'] ?? '—',
+                                                ]) }}
                                             @else
                                                 —
                                             @endif

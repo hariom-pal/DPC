@@ -56,6 +56,7 @@ class DpcProposalCompletenessService
         private readonly CommitteeComplianceService $committee,
         private readonly ProposalVerificationService $verification,
         private readonly VacancyMasterService $vacancyMaster,
+        private readonly EmployeeDetailsService $employeeDetails,
     ) {}
 
     /**
@@ -227,11 +228,13 @@ class DpcProposalCompletenessService
                 'label' => 'Seniority List',
                 'screen' => 'S17',
                 'route' => 'dpc-proposals.seniority-list',
-                'complete' => $proposal->seniority_entries_count > 0 && $this->seniorityMatchesZone($sums),
+                'complete' => $proposal->seniority_entries_count > 0 && $this->seniorityMatchesZone($sums)
+                    && $this->seniorityAsOnProblem($proposal) === null,
                 'detail' => match (true) {
                     $proposal->seniority_entries_count < 1 => 'No seniority entries yet.',
                     ! $this->seniorityMatchesZone($sums) => $this->vacancies->seniorityCountMessage((int) $sums['required_seniority'])
                         ." The list currently carries {$sums['seniority_entered']}.",
+                    $this->seniorityAsOnProblem($proposal) !== null => (string) $this->seniorityAsOnProblem($proposal),
                     $sums['required_seniority'] !== null => $proposal->seniority_entries_count
                         .' officer(s), matching the Zone of Consideration of '.$sums['required_seniority'],
                     default => $proposal->seniority_entries_count.' officer(s) in the feeder seniority list',
@@ -257,6 +260,16 @@ class DpcProposalCompletenessService
                 },
             ],
         ];
+
+        /*
+         | Employee-wise details (Coder Instructions, points 2 and 3, rule 4.1):
+         | every officer's CR, Property Return, PH questionnaire and documents.
+         | Part of this list, so `submit()` refuses through the gate it already
+         | applies; its own switch stands it down at submission too.
+         */
+        if ((bool) config('dpc.employee_details.required_for_submission', true)) {
+            $sections[] = $this->employeeDetailsSection($proposal);
+        }
 
         /*
          | The Vacancy Master — the CGPSC Administrator's finalized year-wise
@@ -349,6 +362,64 @@ class DpcProposalCompletenessService
             'detail' => $problems === []
                 ? __('vacancymaster.proposal.matches', ['revision' => $position->revision, 'promotion' => $position->promotion_vacancy])
                 : implode(' ', $problems),
+        ];
+    }
+
+    /**
+     * Rule 1.6 at the submission gate: the list must have been stated as drawn up on
+     * 1 April of the year before the proposal's *current* DPC year — a list saved
+     * before the DPC year was edited is reported, not accepted.
+     */
+    private function seniorityAsOnProblem(DpcProposal $proposal): ?string
+    {
+        if (! (bool) config('dpc.seniority.require_as_on_date', true)) {
+            return null;
+        }
+
+        $required = $proposal->seniorityReferenceDate();
+
+        if ($proposal->seniority_list_as_on === null) {
+            return (string) __('dpc.seniority_list.as_on_not_recorded', ['date' => $required->format('d-m-Y')]);
+        }
+
+        if (! $proposal->seniority_list_as_on->isSameDay($required)) {
+            return (string) __('dpc.seniority_list.as_on_stale', [
+                'stated' => $proposal->seniority_list_as_on->format('d-m-Y'),
+                'year' => $proposal->dpc_year ?: $proposal->proposal_date->year,
+                'date' => $required->format('d-m-Y'),
+            ]);
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{key: string, label: string, screen: string, route: string, complete: bool, detail: string}
+     */
+    private function employeeDetailsSection(DpcProposal $proposal): array
+    {
+        $statuses = $this->employeeDetails->statuses($proposal);
+        $pending = $statuses->reject(fn (array $entry): bool => $entry['status']['complete']);
+
+        $detail = match (true) {
+            $statuses->isEmpty() => __('dpc.employee_details.completeness.no_officers'),
+            $pending->isEmpty() => __('dpc.employee_details.completeness.all_complete', ['count' => $statuses->count()]),
+            default => __('dpc.employee_details.completeness.incomplete', [
+                'pending' => $pending->count(),
+                'count' => $statuses->count(),
+                'officers' => $pending->take(5)
+                    ->map(fn (array $entry): string => "{$entry['row']->sn}. {$entry['row']->name} ({$entry['status']['summary']})")
+                    ->implode('; ').($pending->count() > 5 ? ' …' : ''),
+            ]),
+        };
+
+        return [
+            'key' => 'employee_details',
+            'label' => (string) __('dpc.employee_details.completeness.label'),
+            'screen' => (string) __('dpc.employee_details.completeness.screen'),
+            'route' => 'dpc-proposals.employees.index',
+            'complete' => $statuses->isNotEmpty() && $pending->isEmpty(),
+            'detail' => (string) $detail,
         ];
     }
 

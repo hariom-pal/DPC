@@ -20,6 +20,7 @@ use App\Enums\Role;
 use Database\Seeders\LookupMasterSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\CompletesDpcProposals;
 use Tests\Concerns\RaisesDpcProposals;
 use Tests\Concerns\SanctionsVacancies;
 use Tests\Concerns\SeedsEvaluationCharts;
@@ -31,6 +32,7 @@ use Tests\TestCase;
  */
 class CalculationUiTest extends TestCase
 {
+    use CompletesDpcProposals;
     use RaisesDpcProposals;
     use RefreshDatabase;
     use SanctionsVacancies;
@@ -199,7 +201,11 @@ class CalculationUiTest extends TestCase
                 'reservation_category_id' => $this->ur->id,
             ],
             range(1, 5),
-        ), $this->ao);
+        ), $this->ao, $this->proposal->seniorityReferenceDate());
+
+        // Each officer's CR, Property Return and PH details (Coder Instructions
+        // points 2 and 3), which the gate also requires.
+        $this->completeEmployeeDetails($this->proposal->refresh(), $this->ao);
 
         // Rule 1.1: the department's four confirmations, required by the gate.
         $verification = app(ProposalVerificationService::class);

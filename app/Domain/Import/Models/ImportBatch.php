@@ -44,6 +44,7 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property Carbon|null $previewed_at
  * @property Carbon|null $committed_at
  * @property Carbon|null $cancelled_at
+ * @property Carbon|null $list_as_on
  */
 class ImportBatch extends Model implements Auditable
 {
@@ -68,6 +69,7 @@ class ImportBatch extends Model implements Auditable
         'previewed_at',
         'committed_at',
         'cancelled_at',
+        'list_as_on',
     ];
 
     /**
@@ -84,6 +86,7 @@ class ImportBatch extends Model implements Auditable
             'previewed_at' => 'datetime',
             'committed_at' => 'datetime',
             'cancelled_at' => 'datetime',
+            'list_as_on' => 'date',
         ];
     }
 

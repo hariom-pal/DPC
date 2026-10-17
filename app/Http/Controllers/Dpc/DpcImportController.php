@@ -16,6 +16,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Carbon;
 
 /**
  * Excel import for the three PPT upload templates (S16–S18) — M4 Phase 6.
@@ -43,6 +44,9 @@ class DpcImportController extends Controller
                 $template,
                 $request->file('file'),
                 $request->user(),
+                $request->filled('seniority_list_as_on')
+                    ? Carbon::parse((string) $request->validated('seniority_list_as_on'))
+                    : null,
             );
         } catch (WorkflowException $e) {
             return redirect()
@@ -70,6 +74,12 @@ class DpcImportController extends Controller
             'categoryCodes' => ReservationCategory::query()->pluck('code', 'id'),
             'duplicates' => $this->imports->duplicatesOf($importBatch),
             'fileIntact' => $this->imports->verifyStoredFileIntegrity($importBatch),
+            // Whose recorded details a Seniority List commit keeps, and whose it
+            // detaches — shown before the officer confirms.
+            'seniorityChanges' => $importBatch->template === ImportTemplate::FinalSeniorityListUs
+                && $importBatch->status->isCommittable()
+                    ? $this->imports->seniorityChanges($importBatch)
+                    : null,
         ]);
     }
 

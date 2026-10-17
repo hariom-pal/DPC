@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace App\Domain\Dpc\Services;
 
+use App\Domain\Dpc\Models\DpcEvaluationDocument;
 use App\Domain\Dpc\Models\DpcEvaluationRow;
+use App\Domain\Dpc\Models\DpcEvaluationYearFlag;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Models\DpcSeniorityEntry;
 use App\Domain\Shared\Workflow\WorkflowException;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -36,13 +39,34 @@ use Illuminate\Support\Facades\DB;
  * design exists to provide, and requiring a schema change to get there. Copying
  * keeps the evidence immutable and needs no migration.
  *
- * **What re-importing a seniority list does.** The candidate set is rebuilt.
- * Evaluation data already entered is carried over for officers who are still
- * there and discarded for those who are not — see {@see keyOf()} for how an
+ * **What re-importing a seniority list does.** The candidate set is reconciled
+ * in place. Officers still there keep their rows and everything recorded against
+ * them; officers who are not lose their rows — see {@see keyOf()} for how an
  * officer is recognised across the two lists, which is the part worth reading.
  */
 class EvaluationCandidateService
 {
+    /**
+     * Temporary offset used while renumbering, so moving officers between seniority
+     * numbers can never collide on `unique(dpc_proposal_id, sn)`. Seniority numbers
+     * are validated to stay below it.
+     */
+    private const RENUMBER_OFFSET = 32768;
+
+    /**
+     * Identity fields a re-import may leave blank without erasing what the
+     * Authorized Officer recorded on the employee's details: the simplified
+     * Seniority List does not carry them.
+     */
+    private const KEPT_WHEN_LIST_IS_BLANK = [
+        'reservation_category_id',
+        'seat_reservation_category_id',
+        'qualification',
+        'mobile',
+        'date_of_posting_on_promotion_to_post',
+        'date_of_posting_on_promotion_from_post',
+    ];
+
     /**
      * Rebuild the evaluation candidate list from the seniority list.
      *
@@ -51,29 +75,74 @@ class EvaluationCandidateService
      * {@see DpcProposalService::saveSeniorityEntries()} calls it on every save,
      * and an officer's CR grades must not evaporate because somebody corrected a
      * spelling on the seniority list.
+     *
+     * **Reconciled in place** (2026-10-17). An officer still on the list keeps
+     * their row — and with it everything recorded against it: CR years and their
+     * questionnaire, Property Returns, the PH questionnaire, missing-record
+     * justifications and uploaded documents. Only the identity fields are
+     * refreshed from the list. Before this the rows were deleted and recreated,
+     * which cascaded away every missing-record justification on each save.
+     *
+     * An officer no longer on the list loses their row. Their documents are kept
+     * (the link is nulled, not the record) and re-attach by Employee ID if the list
+     * is corrected back.
      */
     public function project(DpcProposal $proposal): void
     {
         DB::transaction(function () use ($proposal): void {
-            $entries = $proposal->seniorityEntries()->orderBy('seniority_number')->get();
-            $preserved = $this->existingEvaluationData($proposal);
+            $entries = $proposal->seniorityEntries()->orderBy('seniority_number')->get()->values();
+            $existing = $proposal->evaluationRows()->get();
 
-            $proposal->evaluationRows()->delete();
+            /** @var array<string, DpcEvaluationRow> $byKey */
+            $byKey = [];
 
-            foreach ($entries as $entry) {
-                $row = $proposal->evaluationRows()->create($this->identityFrom($entry));
+            foreach ($existing as $row) {
+                $byKey[$this->keyOf($row->employee_number, (int) $row->sn, (string) $row->name)] ??= $row;
+            }
 
-                $carried = $preserved[$this->keyOf(
-                    $entry->employee_number,
-                    (int) $entry->seniority_number,
-                    (string) $entry->name,
-                )] ?? null;
+            /** @var array<int, DpcEvaluationRow> $matched entry index => surviving row */
+            $matched = [];
 
-                if ($carried === null) {
+            foreach ($entries as $index => $entry) {
+                $key = $this->keyOf($entry->employee_number, (int) $entry->seniority_number, (string) $entry->name);
+
+                if (isset($byKey[$key])) {
+                    $matched[$index] = $byKey[$key];
+                    unset($byKey[$key]);
+                }
+            }
+
+            $keptIds = array_map(static fn (DpcEvaluationRow $row): int => $row->id, $matched);
+
+            foreach ($existing as $row) {
+                if (! in_array($row->id, $keptIds, true)) {
+                    $row->delete();
+                }
+            }
+
+            // Out of the way first, so no renumbering can collide.
+            foreach ($matched as $row) {
+                $row->forceFill(['sn' => $row->sn + self::RENUMBER_OFFSET])->save();
+            }
+
+            foreach ($entries as $index => $entry) {
+                $identity = $this->identityFrom($entry);
+                $row = $matched[$index] ?? null;
+
+                if ($row === null) {
+                    $created = $proposal->evaluationRows()->create($identity);
+                    $this->reattachDocuments($created);
+
                     continue;
                 }
 
-                $this->writeEvaluationData($row, $carried);
+                foreach (self::KEPT_WHEN_LIST_IS_BLANK as $field) {
+                    if ($identity[$field] === null) {
+                        unset($identity[$field]);
+                    }
+                }
+
+                $row->forceFill($identity)->save();
             }
         });
     }
@@ -84,6 +153,11 @@ class EvaluationCandidateService
      * The officer set is asserted first, so a payload that adds, drops or renames
      * an officer is refused before anything is written rather than silently
      * reconciled.
+     *
+     * Per-year values are synchronised by year rather than deleted and recreated,
+     * so the details recorded on the employee's screen for a year the chart keeps
+     * (the CR questionnaire, the IPR dates) survive a chart save. A year the chart
+     * no longer carries is removed, as before.
      *
      * @param  array<int, array<string, mixed>>  $rows
      */
@@ -106,15 +180,9 @@ class EvaluationCandidateService
                     'note' => $incoming['note'] ?? null,
                 ])->save();
 
-                $row->crGrades()->delete();
-                $row->loyaltyFlags()->delete();
-                $row->propertyFlags()->delete();
-
-                $this->writeEvaluationData($row, [
-                    'cr_grades' => $incoming['cr_grades'] ?? [],
-                    'loyalty_flags' => $incoming['loyalty_flags'] ?? [],
-                    'property_flags' => $incoming['property_flags'] ?? [],
-                ]);
+                $this->syncCrGrades($row, $incoming['cr_grades'] ?? []);
+                $this->syncFlags($row->loyaltyFlags(), $incoming['loyalty_flags'] ?? []);
+                $this->syncFlags($row->propertyFlags(), $incoming['property_flags'] ?? []);
             }
         });
     }
@@ -290,44 +358,6 @@ class EvaluationCandidateService
     }
 
     /**
-     * Evaluation data already on the chart, keyed so it can be matched back to a
-     * re-imported seniority list.
-     *
-     * @return array<string, array<string, mixed>>
-     */
-    private function existingEvaluationData(DpcProposal $proposal): array
-    {
-        $carried = [];
-
-        $rows = $proposal->evaluationRows()
-            ->with(['crGrades', 'loyaltyFlags', 'propertyFlags'])
-            ->get();
-
-        foreach ($rows as $row) {
-            $carried[$this->keyOf($row->employee_number, (int) $row->sn, (string) $row->name)] = [
-                'tribal_area_service_years' => $row->tribal_area_service_years,
-                'note' => $row->note,
-                // `tribal_area` is carried too (item 18). Re-projecting a chart
-                // deletes and rewrites the per-year rows, so a field left out here
-                // is a field silently erased the next time the Seniority List is
-                // saved — and nobody would see it go.
-                'cr_grades' => $row->crGrades
-                    ->map(fn ($g): array => [
-                        'year' => $g->year,
-                        'grade' => $g->grade,
-                        'tribal_area' => $g->tribal_area,
-                    ])->all(),
-                'loyalty_flags' => $row->loyaltyFlags
-                    ->map(fn ($f): array => ['year' => $f->year, 'flag' => $f->flag])->all(),
-                'property_flags' => $row->propertyFlags
-                    ->map(fn ($f): array => ['year' => $f->year, 'flag' => $f->flag])->all(),
-            ];
-        }
-
-        return $carried;
-    }
-
-    /**
      * How an officer is recognised across two versions of the seniority list.
      *
      * **Employee number first, and the serial number only as a fallback.** A
@@ -353,46 +383,83 @@ class EvaluationCandidateService
     }
 
     /**
-     * @param  array<string, mixed>  $data
+     * The chart's CR grades for one officer, synchronised by year.
+     *
+     * A year whose grade the chart changes loses its CR questionnaire (put up,
+     * grading, reports): those answers described the old grade, and the employee's
+     * details screen then shows the year as needing to be answered again.
+     *
+     * @param  array<int, array<string, mixed>>  $grades
      */
-    private function writeEvaluationData(DpcEvaluationRow $row, array $data): void
+    private function syncCrGrades(DpcEvaluationRow $row, array $grades): void
     {
-        if (array_key_exists('tribal_area_service_years', $data) || array_key_exists('note', $data)) {
-            $row->forceFill([
-                'tribal_area_service_years' => $data['tribal_area_service_years'] ?? null,
-                'note' => $data['note'] ?? null,
-            ])->save();
+        $existing = $row->crGrades()->get()->keyBy('year');
+        $years = [];
+
+        foreach ($grades as $grade) {
+            $year = (int) $grade['year'];
+            $years[] = $year;
+            $value = $grade['grade'] ?? null;
+
+            // Item 18 of the change register of 2026-08-27: the tribal-area benefit
+            // is attributed to the CR year it was served in, and never carried
+            // forward. Null stays null — see DpcRowRules.
+            $tribal = array_key_exists('tribal_area', $grade) ? $grade['tribal_area'] : null;
+
+            $current = $existing->get($year);
+
+            if ($current === null) {
+                $row->crGrades()->create(['year' => $year, 'grade' => $value, 'tribal_area' => $tribal]);
+
+                continue;
+            }
+
+            $attributes = ['grade' => $value, 'tribal_area' => $tribal];
+
+            if ($current->grade !== $value) {
+                $attributes += ['put_up' => null, 'has_grading' => null, 'reports' => null];
+            }
+
+            $current->forceFill($attributes)->save();
         }
 
-        /** @var array<int, array<string, mixed>> $crGrades */
-        $crGrades = $data['cr_grades'] ?? [];
+        $row->crGrades()->whereNotIn('year', $years)->delete();
+    }
 
-        foreach ($crGrades as $grade) {
-            $row->crGrades()->create([
-                'year' => $grade['year'],
-                'grade' => $grade['grade'] ?? null,
+    /**
+     * @param  HasMany<covariant DpcEvaluationYearFlag, DpcEvaluationRow>  $relation
+     * @param  array<int, array<string, mixed>>  $flags
+     */
+    private function syncFlags(HasMany $relation, array $flags): void
+    {
+        $years = [];
 
-                // Item 18 of the change register of 2026-08-27: the tribal-area
-                // benefit is attributed to the CR year it was served in, and never
-                // carried forward. Null stays null — see DpcRowRules.
-                'tribal_area' => array_key_exists('tribal_area', $grade)
-                    ? $grade['tribal_area']
-                    : null,
-            ]);
+        foreach ($flags as $flag) {
+            $years[] = (int) $flag['year'];
+
+            $relation->getQuery()->clone()->updateOrCreate(
+                ['dpc_evaluation_row_id' => $relation->getParentKey(), 'year' => (int) $flag['year']],
+                ['flag' => $flag['flag'] ?? null],
+            );
         }
 
-        /** @var array<int, array<string, mixed>> $loyalty */
-        $loyalty = $data['loyalty_flags'] ?? [];
+        $relation->getQuery()->clone()->whereNotIn('year', $years)->delete();
+    }
 
-        foreach ($loyalty as $flag) {
-            $row->loyaltyFlags()->create(['year' => $flag['year'], 'flag' => $flag['flag'] ?? null]);
+    /**
+     * Documents kept from an earlier version of the list find their officer again
+     * by Employee ID.
+     */
+    private function reattachDocuments(DpcEvaluationRow $row): void
+    {
+        if ($row->employee_number === null || $row->employee_number === '') {
+            return;
         }
 
-        /** @var array<int, array<string, mixed>> $property */
-        $property = $data['property_flags'] ?? [];
-
-        foreach ($property as $flag) {
-            $row->propertyFlags()->create(['year' => $flag['year'], 'flag' => $flag['flag'] ?? null]);
-        }
+        DpcEvaluationDocument::query()
+            ->where('dpc_proposal_id', $row->dpc_proposal_id)
+            ->whereNull('dpc_evaluation_row_id')
+            ->where('employee_number', $row->employee_number)
+            ->update(['dpc_evaluation_row_id' => $row->id]);
     }
 }

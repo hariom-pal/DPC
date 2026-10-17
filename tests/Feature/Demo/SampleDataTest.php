@@ -12,6 +12,7 @@ use App\Domain\Dpc\Models\DpcEvaluationRecordGap;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Services\DpcCommitteeService;
 use App\Domain\Dpc\Services\DpcProposalService;
+use App\Domain\Dpc\Services\EmployeeDetailsService;
 use App\Domain\Dpc\Services\RecordGapService;
 use App\Domain\Dpc\Services\VacancyCalculationService;
 use App\Domain\Eligibility\Models\DpcCalculationRun;
@@ -21,6 +22,7 @@ use App\Domain\Import\Services\ExcelImportService;
 use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\DpcType;
 use App\Domain\Master\Models\RecordReason;
+use App\Domain\Master\Models\ReservationCategory;
 use App\Domain\PreDpc\Models\PreDpcProposal;
 use App\Enums\Role;
 use Database\Seeders\DemoSeeder;
@@ -199,6 +201,22 @@ class SampleDataTest extends TestCase
         $this->assertTrue(true);
     }
 
+    /**
+     * The categories the demonstration's officers hold, by seniority number — what
+     * the list carried until it was simplified on 2026-10-17.
+     */
+    private function recordCategories(DpcProposal $proposal, User $actor): void
+    {
+        $codes = [1 => 'UR', 2 => 'OBC', 3 => 'ST', 4 => 'SC', 5 => 'OBC', 6 => 'ST', 7 => 'UR', 8 => 'OBC', 9 => 'SC', 10 => 'UR'];
+
+        foreach ($proposal->evaluationRows()->get() as $row) {
+            app(EmployeeDetailsService::class)->saveBasic($row, [
+                'reservation_category_id' => ReservationCategory::query()->where('code', $codes[$row->sn])->value('id'),
+                'date_of_posting_on_promotion_from_post' => $row->date_of_posting_on_promotion_from_post?->toDateString(),
+            ], $actor);
+        }
+    }
+
     private function import(DpcProposal $proposal, ImportTemplate $template, string $file, User $actor): void
     {
         $this->actingAs($actor);
@@ -207,7 +225,13 @@ class SampleDataTest extends TestCase
         $path = base_path(self::SAMPLES.$file);
         $upload = new UploadedFile($path, $file, 'text/csv', null, true);
 
-        $batch = $service->preview($proposal->refresh(), $template, $upload, $actor);
+        $batch = $service->preview(
+            $proposal->refresh(),
+            $template,
+            $upload,
+            $actor,
+            $template === ImportTemplate::FinalSeniorityListUs ? $proposal->seniorityReferenceDate() : null,
+        );
 
         $this->assertSame(
             0,
@@ -218,6 +242,12 @@ class SampleDataTest extends TestCase
         $this->assertSame(10, $batch->total_rows, "[{$file}] is a ten-row file.");
 
         $service->commit($batch, $actor);
+
+        // The simplified Seniority List carries no category; the Authorized Officer
+        // records each officer's on the Employee Details screen, as here.
+        if ($template === ImportTemplate::FinalSeniorityListUs) {
+            $this->recordCategories($proposal->refresh(), $actor);
+        }
     }
 
     /**

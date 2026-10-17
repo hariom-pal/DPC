@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Dpc\Models;
 
+use App\Domain\Dpc\Enums\PhReservationOutcome;
 use App\Domain\Master\Models\ReservationCategory;
 use App\Domain\Proceeding\Models\DpcCandidateCall;
 use Illuminate\Database\Eloquent\Model;
@@ -32,13 +33,24 @@ use Illuminate\Support\Carbon;
  * @property string|null $qualification
  * @property string|null $promotion_to_post
  * @property string|null $promotion_from_post
- * @property int $reservation_category_id
+ * @property int|null $reservation_category_id
+ * @property-read ReservationCategory|null $reservationCategory
  * @property int|null $seat_reservation_category_id
  * @property Carbon|null $date_of_joining_service
  * @property Carbon|null $date_of_posting_on_promotion_to_post
  * @property Carbon|null $date_of_posting_on_promotion_from_post
  * @property int|null $tribal_area_service_years
  * @property string|null $note
+ * @property bool|null $is_ph
+ * @property bool|null $ph_previously_availed
+ * @property bool|null $ph_claims_reservation
+ * @property string|null $ph_ineligibility_reason
+ * @property string|null $ph_verification_status
+ * @property string|null $ph_final_decision
+ * @property int|null $ph_recorded_by
+ * @property Carbon|null $ph_recorded_at
+ * @property int|null $cr_channel_undertaking_by
+ * @property Carbon|null $cr_channel_undertaking_at
  */
 class DpcEvaluationRow extends Model
 {
@@ -62,6 +74,20 @@ class DpcEvaluationRow extends Model
         'date_of_posting_on_promotion_from_post',
         'tribal_area_service_years',
         'note',
+
+        // Rule 2.1 — the PH questionnaire. See PhReservationOutcome.
+        'is_ph',
+        'ph_previously_availed',
+        'ph_claims_reservation',
+        'ph_ineligibility_reason',
+        'ph_verification_status',
+        'ph_final_decision',
+        'ph_recorded_by',
+        'ph_recorded_at',
+
+        // Page 3 — the undertaking that the officer's CRs are signed as per channel.
+        'cr_channel_undertaking_by',
+        'cr_channel_undertaking_at',
     ];
 
     /**
@@ -76,6 +102,11 @@ class DpcEvaluationRow extends Model
             'date_of_posting_on_promotion_to_post' => 'date',
             'date_of_posting_on_promotion_from_post' => 'date',
             'tribal_area_service_years' => 'integer',
+            'is_ph' => 'boolean',
+            'ph_previously_availed' => 'boolean',
+            'ph_claims_reservation' => 'boolean',
+            'ph_recorded_at' => 'datetime',
+            'cr_channel_undertaking_at' => 'datetime',
         ];
     }
 
@@ -169,5 +200,30 @@ class DpcEvaluationRow extends Model
     public function propertyFlags(): HasMany
     {
         return $this->hasMany(DpcEvaluationPropertyFlag::class)->orderBy('year');
+    }
+
+    /**
+     * Every employee-wise document uploaded for this officer, current and superseded.
+     *
+     * @return HasMany<DpcEvaluationDocument, $this>
+     */
+    public function documents(): HasMany
+    {
+        return $this->hasMany(DpcEvaluationDocument::class, 'dpc_evaluation_row_id')->orderBy('id');
+    }
+
+    /**
+     * Only the documents in force — a superseded upload is history, not evidence.
+     *
+     * @return HasMany<DpcEvaluationDocument, $this>
+     */
+    public function currentDocuments(): HasMany
+    {
+        return $this->documents()->whereNull('superseded_at');
+    }
+
+    public function phOutcome(): PhReservationOutcome
+    {
+        return PhReservationOutcome::from3($this->is_ph, $this->ph_previously_availed, $this->ph_claims_reservation);
     }
 }

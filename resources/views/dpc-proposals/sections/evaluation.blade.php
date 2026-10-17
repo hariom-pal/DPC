@@ -32,7 +32,7 @@
                                         <td>{{ $row->dob->format('d-m-Y') }}</td>
                                         <td>{{ $row->qualification ?? '—' }}</td>
                                         <td>{{ $row->date_of_posting_on_promotion_from_post?->format('d-m-Y') ?? '—' }}</td>
-                                        <td>{{ $row->reservationCategory->code }}</td>
+                                        <td>{{ $row->reservationCategory?->code ?? "—" }}</td>
                                         @foreach ($chartYears as $year)
                                             @php($loyalty = $row->loyaltyFlags->firstWhere('year', $year)?->flag)
                                             @php($property = $row->propertyFlags->firstWhere('year', $year)?->flag)

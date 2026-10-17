@@ -297,17 +297,23 @@ class ImportTemplateTest extends TestCase
     {
         config(['dpc.imports.legacy_headers_until' => null]);
 
-        $map = ImportTemplate::FinalSeniorityListUs->columnMap();
+        $map = ImportTemplate::CurrentlyWorkingUs->columnMap();
 
         $this->assertSame('promotion_to_post', $map['current_post']);
         $this->assertSame('promotion_from_post', $map['feeder_post']);
+
+        // The simplified Seniority List (2026-10-17) names its own CURRENT POST: the
+        // post the officer holds now, which is the promotion-FROM post.
+        $seniority = ImportTemplate::FinalSeniorityListUs->columnMap();
+        $this->assertSame('promotion_from_post', $seniority['current_post']);
+        $this->assertSame('date_of_posting_on_promotion_from_post', $seniority['date_of_posting_on_current_post']);
     }
 
     public function test_a_cutoff_in_the_past_stops_accepting_them(): void
     {
         config(['dpc.imports.legacy_headers_until' => now()->subDay()->toDateString()]);
 
-        $map = ImportTemplate::FinalSeniorityListUs->columnMap();
+        $map = ImportTemplate::CurrentlyWorkingUs->columnMap();
 
         $this->assertArrayNotHasKey('current_post', $map);
         $this->assertArrayNotHasKey('feeder_post', $map);

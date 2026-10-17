@@ -13,11 +13,21 @@
         </p>
 
         @error('file')<div class="alert alert-danger py-2 mb-2">{{ $message }}</div>@enderror
+        @error('seniority_list_as_on')<div class="alert alert-danger py-2 mb-2">{{ $message }}</div>@enderror
 
         <form method="POST" action="{{ route('dpc-proposals.imports.store', $proposal) }}" enctype="multipart/form-data" class="row g-2 align-items-end">
             @csrf
             <input type="hidden" name="template" value="{{ $template->value }}">
-            <div class="col-md-7">
+            @if ($template === \App\Domain\Import\Enums\ImportTemplate::FinalSeniorityListUs)
+                {{-- Rule 1.6: proposal-level metadata, stated once for the whole list. --}}
+                <div class="col-md-4">
+                    <label class="form-label small" for="import-list-as-on">{{ __('dpc.seniority_list.as_on_label') }}</label>
+                    <input type="date" class="form-control form-control-sm" id="import-list-as-on" name="seniority_list_as_on" required
+                           value="{{ old('seniority_list_as_on') }}">
+                    <div class="form-text">{{ __('dpc.seniority_list.as_on_required', ['date' => $proposal->seniorityReferenceDate()->format('d-m-Y')]) }}</div>
+                </div>
+            @endif
+            <div class="col-md-{{ $template === \App\Domain\Import\Enums\ImportTemplate::FinalSeniorityListUs ? 5 : 7 }}">
                 <label class="form-label small">{{ __('dpc.imports.upload.spreadsheet_file') }}</label>
                 <input type="file" class="form-control form-control-sm" name="file" required
                        accept=".xlsx,.xls,.csv,.txt">

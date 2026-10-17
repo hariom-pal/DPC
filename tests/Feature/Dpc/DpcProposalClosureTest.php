@@ -86,6 +86,7 @@ class DpcProposalClosureTest extends TestCase
             'Working Officers & Vacancies (S16)',
             'Seniority List (S17)',
             'Evaluation / Tabulation Chart (S18)',
+            'Employee Details (Employees)',
             'Pre-submission Verification (Rule 1.1)',
         ], $missing);
     }

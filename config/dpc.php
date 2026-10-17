@@ -203,6 +203,60 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Seniority List "as on" date (Coder Instructions, rule 1.6)
+    |--------------------------------------------------------------------------
+    |
+    | The final seniority list is drawn up as on 1 April of the year before the
+    | DPC year. When `require_as_on_date` is on, saving or uploading a list
+    | requires the department to state that date, and the submission gate asks
+    | for it to match the proposal's current DPC year.
+    |
+    */
+
+    'seniority' => [
+        'require_as_on_date' => (bool) env('DPC_SENIORITY_REQUIRE_AS_ON_DATE', true),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Employee-wise details (Coder Instructions, points 2 and 3, rule 4.1)
+    |--------------------------------------------------------------------------
+    |
+    | What the Authorized Officer records for each officer on the Seniority List:
+    | CR, Property Return, PH questionnaire and documents.
+    |
+    | `required_for_submission`: whether every officer's details must be complete
+    | before the proposal can be submitted. One switch for the section, like the
+    | other gates, so standing it down stands it down at submission too.
+    |
+    | `require_cr_documents` / `require_property_documents`: whether each graded
+    | CR year and each filed IPR needs its uploaded copy (pages 3–5: "every IPR
+    | should be uploaded", "at each CR upload…"). Separate switches because the
+    | upload burden is operational and may be phased in.
+    |
+    | `require_category`: whether each officer's reservation category is still
+    | needed. The engine places officers on the Main and Waiting lists category
+    | by category, so an officer without one cannot be placed. Rule 1.4 says
+    | reservation in promotion ended in 2019 — turning this off is a business
+    | decision that must go with a change to that placement.
+    |
+    | `ph_quota_percent`: rule 2.1 — 3% of the promotion quota, whole number
+    | only (never rounded up). Displayed beside the officers; it does not change
+    | the engine's list placement.
+    |
+    */
+
+    'employee_details' => [
+        'required_for_submission' => (bool) env('DPC_EMPLOYEE_DETAILS_REQUIRED', true),
+        'require_cr_documents' => (bool) env('DPC_EMPLOYEE_DETAILS_REQUIRE_CR_DOCUMENTS', true),
+        'require_property_documents' => (bool) env('DPC_EMPLOYEE_DETAILS_REQUIRE_PROPERTY_DOCUMENTS', true),
+        'require_category' => (bool) env('DPC_EMPLOYEE_DETAILS_REQUIRE_CATEGORY', true),
+        'ph_quota_percent' => (int) env('DPC_PH_QUOTA_PERCENT', 3),
+        'max_crs_per_year' => 4,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Seeded CGPSC Admin
     |--------------------------------------------------------------------------
     |

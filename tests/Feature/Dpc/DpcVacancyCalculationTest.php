@@ -708,8 +708,10 @@ class DpcVacancyCalculationTest extends TestCase
     {
         return array_map(fn (int $sn): array => [
             'seniority_number' => $sn,
+            'employee_number' => 'EMP-'.$sn,
             'name' => 'US'.$sn,
             'dob' => '1964-03-20',
+            'date_of_joining_service' => '1988-07-01',
             'reservation_category_id' => $this->ur->id,
         ], range(1, $count));
     }
@@ -740,7 +742,7 @@ class DpcVacancyCalculationTest extends TestCase
 
         $this->actingAs($this->ao)->put(
             route('dpc-proposals.seniority-list.update', $this->proposal),
-            ['entries' => $this->seniority(10)],
+            ['seniority_list_as_on' => $this->proposal->seniorityReferenceDate()->toDateString(), 'entries' => $this->seniority(10)],
         )->assertSessionHasNoErrors();
 
         $this->assertSame(10, $this->proposal->fresh()->seniorityEntries()->count());
@@ -753,7 +755,7 @@ class DpcVacancyCalculationTest extends TestCase
 
         $this->actingAs($this->ao)->put(
             route('dpc-proposals.seniority-list.update', $this->proposal),
-            ['entries' => $this->seniority(10)],
+            ['seniority_list_as_on' => $this->proposal->seniorityReferenceDate()->toDateString(), 'entries' => $this->seniority(10)],
         )->assertSessionHasErrors([
             'entries' => 'The uploaded Seniority List must contain exactly 8 officers based on the calculated Zone of Consideration.',
         ]);
@@ -768,7 +770,7 @@ class DpcVacancyCalculationTest extends TestCase
 
         $this->actingAs($this->ao)->put(
             route('dpc-proposals.seniority-list.update', $this->proposal),
-            ['entries' => $this->seniority(9)],
+            ['seniority_list_as_on' => $this->proposal->seniorityReferenceDate()->toDateString(), 'entries' => $this->seniority(9)],
         )->assertSessionHasErrors([
             'entries' => 'The uploaded Seniority List must contain exactly 12 officers based on the calculated Zone of Consideration.',
         ]);
@@ -781,7 +783,7 @@ class DpcVacancyCalculationTest extends TestCase
         // but one — which the S14→S18 flow does not require.
         $this->actingAs($this->ao)->put(
             route('dpc-proposals.seniority-list.update', $this->proposal),
-            ['entries' => $this->seniority(3)],
+            ['seniority_list_as_on' => $this->proposal->seniorityReferenceDate()->toDateString(), 'entries' => $this->seniority(3)],
         )->assertSessionHasNoErrors();
     }
 
@@ -852,7 +854,7 @@ class DpcVacancyCalculationTest extends TestCase
 
         $this->actingAs($this->ao)->put(
             route('dpc-proposals.seniority-list.update', $this->proposal),
-            ['entries' => $this->seniority(2)],
+            ['seniority_list_as_on' => $this->proposal->seniorityReferenceDate()->toDateString(), 'entries' => $this->seniority(2)],
         )->assertSessionHasNoErrors();
     }
 

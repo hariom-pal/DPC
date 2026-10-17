@@ -109,9 +109,9 @@ class DpcSeniorityListReuploadTest extends TestCase
     private function seniorityFile(string $suffix): UploadedFile
     {
         return $this->csv([
-            ['SN', 'EMPLOYEE NO', 'NAME OF US', 'DOB', 'QUAL', 'CAT', 'DATE OF JOINING IN SERVICE', 'DATE OF POSTING ON US'],
-            ['1', "EMP-{$suffix}-1", "US1-{$suffix}", '20-03-1964', '11TH', 'UR', '01-04-1985', '01-01-2012'],
-            ['2', "EMP-{$suffix}-2", "US2-{$suffix}", '12-05-1968', '11TH', 'OBC', '13-03-1986', '01-01-2012'],
+            ['SENIORITY NO', 'EMPLOYEE ID', 'EMPLOYEE NAME', 'DATE OF BIRTH', 'DATE OF APPOINTMENT', 'CURRENT POST', 'DATE OF POSTING ON CURRENT POST'],
+            ['1', "EMP-{$suffix}-1", "US1-{$suffix}", '20-03-1964', '01-04-1985', 'Under Secretary', '01-01-2012'],
+            ['2', "EMP-{$suffix}-2", "US2-{$suffix}", '12-05-1968', '13-03-1986', 'Under Secretary', '01-01-2012'],
         ], "seniority-{$suffix}.csv");
     }
 
@@ -120,6 +120,7 @@ class DpcSeniorityListReuploadTest extends TestCase
         $this->actingAs($this->ao)->post(route('dpc-proposals.imports.store', $this->proposal), [
             'template' => ImportTemplate::FinalSeniorityListUs->value,
             'file' => $this->seniorityFile($suffix),
+            'seniority_list_as_on' => $this->proposal->seniorityReferenceDate()->toDateString(),
         ]);
 
         return ImportBatch::query()->latest('id')->firstOrFail();
@@ -179,12 +180,14 @@ class DpcSeniorityListReuploadTest extends TestCase
         $this->commit($this->uploadSeniority('a'));
 
         $this->actingAs($this->ao)->put(route('dpc-proposals.seniority-list.update', $this->proposal), [
+            'seniority_list_as_on' => $this->proposal->seniorityReferenceDate()->toDateString(),
             'entries' => [
                 [
                     'seniority_number' => 1,
                     'employee_number' => 'EMP-MANUAL-1',
                     'name' => 'Manual Officer',
                     'dob' => '1970-01-01',
+                    'date_of_joining_service' => '1995-01-01',
                     'reservation_category_id' => $this->proposal->seniorityEntries()->value('reservation_category_id'),
                 ],
             ],

@@ -45,8 +45,14 @@ final class MasterRegistry
                 ['code' => 'BED', 'name_en' => 'B.Ed.', 'name_hi' => 'बी.एड.', 'status' => 'active'],
                 ['code' => 'PGBED', 'name_en' => 'Post-Graduate with B.Ed.', 'name_hi' => 'स्नातकोत्तर सह बी.एड.', 'status' => 'active'],
             ]),
+            /*
+             | The sample is the **seeded** code, lowercase. An uppercase `FRESH`
+             | here matched the seeded `fresh` on MySQL's case-insensitive collation,
+             | and importing the sample then rewrote the stored code to `FRESH` —
+             | which the Fresh DPC screen, comparing against `fresh`, refused.
+             */
             self::bilingual('dpc-types', 'DPC Types', DpcType::class, [
-                ['code' => 'FRESH', 'name_en' => 'Fresh DPC', 'name_hi' => 'नवीन डीपीसी', 'status' => 'active'],
+                ['code' => 'fresh', 'name_en' => 'Fresh DPC', 'name_hi' => 'फ्रेश डी.पी.सी.', 'status' => 'active'],
             ]),
             self::bilingual('vacancy-types', 'Vacancy Types', VacancyType::class, [
                 ['code' => 'DIRECT', 'name_en' => 'Direct Vacancy', 'name_hi' => 'सीधी रिक्ति', 'status' => 'active'],

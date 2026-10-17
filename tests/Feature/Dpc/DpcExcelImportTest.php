@@ -88,14 +88,52 @@ class DpcExcelImportTest extends TestCase
         $this->actingAs($this->ao)->post(route('dpc-proposals.imports.store', $this->proposal), [
             'template' => $template->value,
             'file' => $file,
+            // Rule 1.6 — stated with every Seniority List upload.
+            'seniority_list_as_on' => $template === ImportTemplate::FinalSeniorityListUs
+                ? $this->proposal->seniorityReferenceDate()->toDateString()
+                : null,
         ]);
 
         return ImportBatch::query()->latest('id')->firstOrFail();
     }
 
+    /**
+     * A Seniority List written in the columns these tests were first written with,
+     * completed with the columns the simplified list requires (2026-10-17):
+     * Employee ID, Date of Appointment and Current Post. Columns a test sets itself
+     * are left as they are.
+     *
+     * @param  list<list<string>>  $rows
+     */
+    private function seniorityCsv(array $rows): UploadedFile
+    {
+        $header = array_map('strtoupper', $rows[0]);
+        $add = [];
+
+        if (! in_array('EMPLOYEE NO', $header, true) && ! in_array('EMPLOYEE ID', $header, true)) {
+            $add['EMPLOYEE NO'] = static fn (array $row): string => 'EMP-'.$row[0];
+        }
+
+        if (! in_array('DATE OF JOINING IN SERVICE', $header, true) && ! in_array('DATE OF APPOINTMENT', $header, true)) {
+            $add['DATE OF APPOINTMENT'] = static fn (): string => '01-04-1985';
+        }
+
+        if (! in_array('CURRENT POST', $header, true) && ! in_array('PROMOTION FROM POST', $header, true)) {
+            $add['CURRENT POST'] = static fn (): string => 'Under Secretary';
+        }
+
+        foreach ($rows as $index => $row) {
+            foreach ($add as $column => $value) {
+                $rows[$index][] = $index === 0 ? $column : $value($row);
+            }
+        }
+
+        return $this->csv($rows);
+    }
+
     private function seniorityFile(): UploadedFile
     {
-        return $this->csv([
+        return $this->seniorityCsv([
             ['SN', 'EMPLOYEE NO', 'NAME OF US', 'DOB', 'QUAL', 'CAT', 'DATE OF JOINING IN SERVICE', 'DATE OF POSTING ON US'],
             ['1', 'EMP-1', 'US1', '20-03-1964', '11TH', 'UR', '01-04-1985', '01-01-2012'],
             ['2', 'EMP-2', 'US2', '12-05-1968', '11TH', 'OBC', '13-03-1986', '01-01-2012'],
@@ -120,7 +158,7 @@ class DpcExcelImportTest extends TestCase
      */
     public function test_an_officer_may_sit_on_a_seat_of_another_category(): void
     {
-        $batch = $this->upload(ImportTemplate::FinalSeniorityListUs, $this->csv([
+        $batch = $this->upload(ImportTemplate::FinalSeniorityListUs, $this->seniorityCsv([
             ['SN', 'EMPLOYEE NO', 'NAME OF US', 'DOB', 'QUAL', 'CAT', 'SEAT CATEGORY', 'DATE OF JOINING IN SERVICE', 'DATE OF POSTING ON US'],
             // SC officer selected on merit, sitting on a General point.
             ['1', 'EMP-1', 'US1', '20-03-1964', '11TH', 'SC', 'UR', '01-04-1985', '01-01-2012'],
@@ -159,7 +197,7 @@ class DpcExcelImportTest extends TestCase
      */
     public function test_a_candidates_mobile_reaches_the_account_they_sign_in_with(): void
     {
-        $batch = $this->upload(ImportTemplate::FinalSeniorityListUs, $this->csv([
+        $batch = $this->upload(ImportTemplate::FinalSeniorityListUs, $this->seniorityCsv([
             ['SN', 'EMPLOYEE NO', 'NAME OF US', 'MOBILE', 'DOB', 'QUAL', 'CAT', 'DATE OF JOINING IN SERVICE', 'DATE OF POSTING ON US'],
             ['1', 'EMP-1', 'US1', '9425012345', '20-03-1964', '11TH', 'UR', '01-04-1985', '01-01-2012'],
             // No number on record, which a department is entitled to.
@@ -187,7 +225,7 @@ class DpcExcelImportTest extends TestCase
 
     public function test_a_malformed_mobile_is_refused(): void
     {
-        $batch = $this->upload(ImportTemplate::FinalSeniorityListUs, $this->csv([
+        $batch = $this->upload(ImportTemplate::FinalSeniorityListUs, $this->seniorityCsv([
             ['SN', 'EMPLOYEE NO', 'NAME OF US', 'MOBILE', 'DOB', 'QUAL', 'CAT', 'DATE OF JOINING IN SERVICE', 'DATE OF POSTING ON US'],
             ['1', 'EMP-1', 'US1', '12345', '20-03-1964', '11TH', 'UR', '01-04-1985', '01-01-2012'],
         ]));
@@ -197,7 +235,7 @@ class DpcExcelImportTest extends TestCase
 
     public function test_an_unknown_seat_category_is_refused_rather_than_dropped(): void
     {
-        $batch = $this->upload(ImportTemplate::FinalSeniorityListUs, $this->csv([
+        $batch = $this->upload(ImportTemplate::FinalSeniorityListUs, $this->seniorityCsv([
             ['SN', 'EMPLOYEE NO', 'NAME OF US', 'DOB', 'QUAL', 'CAT', 'SEAT CATEGORY', 'DATE OF JOINING IN SERVICE', 'DATE OF POSTING ON US'],
             ['1', 'EMP-1', 'US1', '20-03-1964', '11TH', 'SC', 'GENERAL', '01-04-1985', '01-01-2012'],
         ]));
@@ -250,7 +288,7 @@ class DpcExcelImportTest extends TestCase
     public function test_dates_are_read_as_day_first_matching_the_ppt_templates(): void
     {
         // "01-02-2012" must be 1 February, not 2 January.
-        $batch = $this->upload(ImportTemplate::FinalSeniorityListUs, $this->csv([
+        $batch = $this->upload(ImportTemplate::FinalSeniorityListUs, $this->seniorityCsv([
             ['SN', 'NAME', 'DOB', 'CAT', 'DATE OF POSTING ON US'],
             ['1', 'US1', '20-03-1964', 'UR', '01-02-2012'],
         ]));
@@ -261,9 +299,15 @@ class DpcExcelImportTest extends TestCase
         $this->assertSame('2012-02-01', $entry->date_of_posting_on_promotion_from_post?->format('Y-m-d'));
     }
 
-    public function test_invalid_rows_are_rejected_individually_and_the_valid_ones_still_commit(): void
+    /**
+     * Rows are still judged one by one — but since 2026-10-17 a Seniority List with
+     * any rejected row is not committed at all. It replaces the whole list, so
+     * committing only the valid rows would silently drop officers, and every CR,
+     * Property Return and PH detail recorded against them.
+     */
+    public function test_invalid_rows_are_rejected_individually_and_a_partial_seniority_list_is_not_committed(): void
     {
-        $batch = $this->upload(ImportTemplate::FinalSeniorityListUs, $this->csv([
+        $batch = $this->upload(ImportTemplate::FinalSeniorityListUs, $this->seniorityCsv([
             ['SN', 'NAME', 'DOB', 'CAT'],
             ['1', 'US1', '20-03-1964', 'UR'],
             ['2', '', '12-05-1968', 'OBC'],          // missing name
@@ -278,15 +322,17 @@ class DpcExcelImportTest extends TestCase
         $this->assertStringContainsString('BOGUS', implode(' ', $rejected->firstWhere('row_number', 4)->errorMessages()));
         $this->assertStringContainsString('date', strtolower(implode(' ', $rejected->firstWhere('row_number', 5)->errorMessages())));
 
-        $this->actingAs($this->ao)->post(route('dpc-proposals.imports.commit', [$this->proposal, $batch]));
+        $this->actingAs($this->ao)
+            ->post(route('dpc-proposals.imports.commit', [$this->proposal, $batch]))
+            ->assertSessionHasErrors('commit');
 
-        $this->assertSame(1, $this->proposal->seniorityEntries()->count());
-        $this->assertSame(1, $batch->refresh()->imported_count);
+        $this->assertSame(0, $this->proposal->seniorityEntries()->count());
+        $this->assertSame(ImportBatchStatus::Previewed, $batch->refresh()->status);
     }
 
     public function test_error_report_downloads_as_csv_and_neutralises_formula_injection(): void
     {
-        $batch = $this->upload(ImportTemplate::FinalSeniorityListUs, $this->csv([
+        $batch = $this->upload(ImportTemplate::FinalSeniorityListUs, $this->seniorityCsv([
             ['SN', 'NAME', 'DOB', 'CAT'],
             ['1', '=cmd|/c calc!A1', '20-03-1964', 'BOGUS'],
         ]));
@@ -445,6 +491,7 @@ class DpcExcelImportTest extends TestCase
     {
         $this->actingAs($this->ao)->post(route('dpc-proposals.imports.store', $this->proposal), [
             'template' => ImportTemplate::FinalSeniorityListUs->value,
+            'seniority_list_as_on' => $this->proposal->seniorityReferenceDate()->toDateString(),
             'file' => $this->csv([['alpha', 'beta'], ['1', '2']]),
         ])->assertSessionHasErrors('file');
 
@@ -479,7 +526,7 @@ class DpcExcelImportTest extends TestCase
     {
         // Architect directives: preserve the original upload, the CSV error
         // report, and the import log permanently; hash every uploaded file.
-        $batch = $this->upload(ImportTemplate::FinalSeniorityListUs, $this->csv([
+        $batch = $this->upload(ImportTemplate::FinalSeniorityListUs, $this->seniorityCsv([
             ['SN', 'NAME', 'DOB', 'CAT'],
             ['1', 'US1', '20-03-1964', 'UR'],
             ['2', 'US2', '12-05-1968', 'BOGUS'],
@@ -532,7 +579,7 @@ class DpcExcelImportTest extends TestCase
 
     public function test_downloaded_error_report_is_the_retained_artefact(): void
     {
-        $batch = $this->upload(ImportTemplate::FinalSeniorityListUs, $this->csv([
+        $batch = $this->upload(ImportTemplate::FinalSeniorityListUs, $this->seniorityCsv([
             ['SN', 'NAME', 'DOB', 'CAT'],
             ['1', 'US1', '20-03-1964', 'BOGUS'],
         ]));
@@ -636,7 +683,7 @@ class DpcExcelImportTest extends TestCase
             $rows[] = [(string) $sn, 'EMP-'.$sn, 'US'.$sn, '20-03-1964', '11TH', 'UR', '01-04-1985', '01-01-2012'];
         }
 
-        $batch = $this->upload(ImportTemplate::FinalSeniorityListUs, $this->csv($rows));
+        $batch = $this->upload(ImportTemplate::FinalSeniorityListUs, $this->seniorityCsv($rows));
 
         $this->actingAs($this->ao)
             ->post(route('dpc-proposals.imports.commit', [$this->proposal, $batch]))

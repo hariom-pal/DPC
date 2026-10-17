@@ -194,9 +194,35 @@ final class DpcRowRules
     public static function seniorityEntry(): array
     {
         return array_merge(
-            ['seniority_number' => ['required', 'integer', 'min:1']],
+            // 32767: the projection renumbers rows through a temporary offset of
+            // that size, and the column is a small integer.
+            ['seniority_number' => ['required', 'integer', 'min:1', 'max:32767']],
             self::employeeSnapshot(),
-            ['date_of_posting_on_promotion_to_post' => ['nullable', 'date']],
+            [
+                'date_of_posting_on_promotion_to_post' => ['nullable', 'date'],
+
+                /*
+                 | The simplified Seniority List (Coder Instructions, rule 1.6;
+                 | business decision of 2026-10-17).
+                 |
+                 | **Employee ID is required** because it is how an officer is
+                 | recognised across two uploads of the list: the CR, Property Return,
+                 | PH and document details the Authorized Officer records afterwards
+                 | are kept with the officer by it. A list without it would carry
+                 | those details by position, which is how one officer's record ends
+                 | up on another's row.
+                 |
+                 | **Date of appointment is required** — one of the six fields the
+                 | decision names.
+                 |
+                 | **The category is no longer required here.** The Authorized Officer
+                 | records it on the employee's details, where the submission gate
+                 | still asks for it while the engine places officers category-wise.
+                 */
+                'employee_number' => ['required', 'string', 'max:255'],
+                'date_of_joining_service' => ['required', 'date', 'before:today'],
+                'reservation_category_id' => ['nullable', Rule::exists('reservation_categories', 'id')],
+            ],
         );
     }
 

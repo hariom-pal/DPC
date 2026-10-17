@@ -231,7 +231,23 @@ enum ImportTemplate: string
                 'deputation_to' => 'deputation_to',
             ],
 
-            self::FinalSeniorityListUs => $shared + [
+            /*
+             | `array_merge`, not `+`, for this one: the simplified list's own
+             | headers must win over the shared and legacy aliases. "CURRENT POST" is
+             | the clearest case — the legacy alias reads it as the promotion-TO post
+             | (its meaning before 2026-08-24), while on the simplified Seniority List
+             | it is the post the officer holds now, the promotion-FROM post.
+             */
+            self::FinalSeniorityListUs => array_merge($shared, [
+                'seniority_no' => 'seniority_number',
+                'employee_id' => 'employee_number',
+                'employee_code' => 'employee_number',
+                'emp_id' => 'employee_number',
+                'employee_name' => 'name',
+                'date_of_appointment' => 'date_of_joining_service',
+                'appointment_date' => 'date_of_joining_service',
+                'current_post' => 'promotion_from_post',
+                'date_of_posting_on_current_post' => 'date_of_posting_on_promotion_from_post',
                 'sn' => 'seniority_number',
                 's_n' => 'seniority_number',
                 'serial_no' => 'seniority_number',
@@ -242,7 +258,7 @@ enum ImportTemplate: string
                 'date_of_posting_on_us' => 'date_of_posting_on_promotion_from_post',
                 'date_of_posting' => 'date_of_posting_on_promotion_from_post',
                 'dop' => 'date_of_posting_on_promotion_from_post',
-            ],
+            ]),
 
             self::EvaluationChartUs => $shared + [
                 'sn' => 'sn',
@@ -280,7 +296,7 @@ enum ImportTemplate: string
     {
         return match ($this) {
             self::CurrentlyWorkingUs => ['SN', 'STATUS', 'SOURCE', 'EMPLOYEE NO', 'NAME', 'MOBILE', 'DOB', 'QUAL', 'PROMOTION TO POST', 'PROMOTION FROM POST', 'CAT', 'SEAT CATEGORY', 'DATE OF JOINING IN SERVICE', 'DATE OF POSTING ON PROMOTION TO POST', 'DATE OF POSTING ON PROMOTION FROM POST', 'ROSTER POSITION', 'DEPUTATION DATE', 'DEPUTATION TO', 'DATE OF RETIREMENT'],
-            self::FinalSeniorityListUs => ['SN', 'EMPLOYEE NO', 'NAME OF US', 'MOBILE', 'DOB', 'QUAL', 'PROMOTION TO POST', 'PROMOTION FROM POST', 'CAT', 'SEAT CATEGORY', 'DATE OF JOINING IN SERVICE', 'DATE OF POSTING ON PROMOTION TO POST', 'DATE OF POSTING ON US'],
+            self::FinalSeniorityListUs => ['SENIORITY NO', 'EMPLOYEE ID', 'EMPLOYEE NAME', 'DATE OF BIRTH', 'DATE OF APPOINTMENT', 'CURRENT POST', 'DATE OF POSTING ON CURRENT POST'],
             self::EvaluationChartUs => ['SN', 'EMPLOYEE NO', 'NAME OF US', 'MOBILE', 'DOB', 'QUAL', 'DOP', 'CAT', 'LOYALTY 2013 …', 'PROPERTY 2013 …', 'CR 2012 …', 'TRIBAL AREA 2012 …', 'TRIBAL AREA SERVICE YEARS', 'NOTE'],
         };
     }

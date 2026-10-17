@@ -7,8 +7,11 @@ namespace Database\Seeders\Demo;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Department\Models\Department;
 use App\Domain\Dpc\Enums\CommitteeCapacity;
+use App\Domain\Dpc\Enums\EvaluationDocumentKind;
 use App\Domain\Dpc\Enums\PreviousDpcBasis;
 use App\Domain\Dpc\Models\DpcCommitteeMember;
+use App\Domain\Dpc\Models\DpcEvaluationDocument;
+use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Services\DpcCommitteeService;
 use App\Domain\Dpc\Services\DpcProposalService;
@@ -17,6 +20,7 @@ use App\Domain\Dpc\Services\VacancyCalculationService;
 use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\DpcType;
 use App\Domain\PreDpc\Models\PreDpcProposal;
+use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 
 /**
@@ -118,6 +122,9 @@ final class DemoDpcBuilder
                     $proposal,
                     $this->chart->seniorityEntries($officers, $spec['from'], $spec['from']),
                     $ao,
+                    // Rule 1.6 — the list is stated as on 1 April of the year
+                    // before the DPC year.
+                    $proposal->seniorityReferenceDate(),
                 );
 
                 // Evaluation data only, for exactly the officers the projection
@@ -130,6 +137,10 @@ final class DemoDpcBuilder
                     $ao,
                 );
 
+                // Coder Instructions points 2 and 3 — each officer's CR, Property
+                // Return, PH questionnaire and documents.
+                $this->completeEmployeeDetails($proposal->refresh(), $ao);
+
                 // Rule 1.1, against the figures just saved — the step a
                 // department completes before it may submit.
                 $this->confirmRuleOneOne($proposal->refresh(), $ao);
@@ -137,6 +148,91 @@ final class DemoDpcBuilder
 
             return $proposal->refresh();
         });
+    }
+
+    /**
+     * The employee-wise details an Authorized Officer completes for each officer:
+     * every CR year answered as one fully remarked report, the CR copies and the
+     * channel undertaking, each filed IPR with its dates and copy, and "not PH".
+     * The demonstration documents are one small placeholder PDF.
+     */
+    public function completeEmployeeDetails(DpcProposal $proposal, User $ao): void
+    {
+        $disk = (string) config('dpc.documents.disk', 'local');
+        $path = 'private/employee-documents/demo-placeholder.pdf';
+        $bytes = "%PDF-1.4\n% Demonstration placeholder document\n%%EOF\n";
+        Storage::disk($disk)->put($path, $bytes);
+
+        $document = function (DpcEvaluationRow $row, EvaluationDocumentKind $kind, ?int $year) use ($ao, $disk, $path, $bytes): void {
+            DpcEvaluationDocument::query()->create([
+                'dpc_proposal_id' => $row->dpc_proposal_id,
+                'dpc_evaluation_row_id' => $row->id,
+                'employee_number' => $row->employee_number,
+                'kind' => $kind->value,
+                'year' => $year,
+                'undertaking_confirmed_at' => now(),
+                'disk' => $disk,
+                'path' => $path,
+                'original_name' => $kind->value.($year === null ? '' : '-'.$year).'.pdf',
+                'size_bytes' => strlen($bytes),
+                'sha256' => hash('sha256', $bytes),
+                'uploaded_by' => $ao->id,
+                'uploaded_at' => now(),
+            ]);
+        };
+
+        foreach ($proposal->evaluationRows()->with(['crGrades', 'propertyFlags'])->get() as $row) {
+            foreach ($row->crGrades as $cr) {
+                if ($cr->grade === null || $cr->put_up !== null) {
+                    continue;
+                }
+
+                $cr->forceFill([
+                    'put_up' => true,
+                    'has_grading' => true,
+                    'reports' => [[
+                        'reporter_designation' => 'Reporting Officer', 'reporter_grade' => $cr->grade,
+                        'reviewer_designation' => 'Reviewing Officer', 'reviewer_grade' => $cr->grade,
+                        'accepting_designation' => 'Accepting Officer', 'accepting_grade' => $cr->grade,
+                    ]],
+                ])->save();
+
+                $document($row, EvaluationDocumentKind::CrReport, $cr->year);
+            }
+
+            if ($row->crGrades->isNotEmpty() && $row->cr_channel_undertaking_at === null) {
+                $row->forceFill(['cr_channel_undertaking_by' => $ao->id, 'cr_channel_undertaking_at' => now()])->save();
+                $document($row, EvaluationDocumentKind::CrChannel, null);
+            }
+
+            foreach ($row->propertyFlags as $property) {
+                // A year the chart left blank is a return that was not submitted —
+                // the engine reads the two the same, and the officer answers it.
+                if ($property->flag === null && $property->submitted_on === null) {
+                    $property->forceFill(['flag' => false])->save();
+
+                    continue;
+                }
+
+                if ($property->flag !== true || $property->submitted_on !== null) {
+                    continue;
+                }
+
+                $property->forceFill([
+                    'submitted_on' => sprintf('%d-01-15', $property->year + 1),
+                    'next_increment_date' => sprintf('%d-07-01', $property->year + 1),
+                ])->save();
+
+                $document($row, EvaluationDocumentKind::PropertyReturn, $property->year);
+            }
+
+            $row->forceFill([
+                'is_ph' => false,
+                'ph_final_decision' => 'no_benefit',
+                'ph_recorded_by' => $ao->id,
+                'ph_recorded_at' => now(),
+            ])->save();
+        }
     }
 
     /**

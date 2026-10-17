@@ -53,15 +53,27 @@ class ExcelImportService
         private readonly ActivityTimelineService $timeline,
         private readonly VacancyCalculationService $vacancies,
         private readonly EvaluationCandidateService $candidates,
+        private readonly ImportTemplateBuilder $templates,
     ) {}
 
     /**
      * Stage 1–3: parse the upload, validate every row, and stage the result
      * for review. Nothing reaches the proposal here.
      */
-    public function preview(DpcProposal $proposal, ImportTemplate $template, UploadedFile $file, User $actor): ImportBatch
-    {
+    public function preview(
+        DpcProposal $proposal,
+        ImportTemplate $template,
+        UploadedFile $file,
+        User $actor,
+        ?Carbon $listAsOn = null,
+    ): ImportBatch {
         $this->assertProposalEditable($proposal);
+
+        // Rule 1.6: refused before anything is stored, so a list drawn up on the
+        // wrong date never reaches a preview the officer might commit.
+        if ($template === ImportTemplate::FinalSeniorityListUs) {
+            $this->assertListAsOn($proposal, $listAsOn);
+        }
 
         // Hashed before storing: the digest identifies exactly the bytes the
         // department uploaded (architect directive — duplicate detection,
@@ -78,6 +90,7 @@ class ExcelImportService
             'stored_path' => (string) $path,
             'file_hash' => $hash === false ? null : $hash,
             'uploaded_by' => $actor->id,
+            'list_as_on' => $template === ImportTemplate::FinalSeniorityListUs ? $listAsOn?->toDateString() : null,
         ]);
 
         try {
@@ -89,6 +102,10 @@ class ExcelImportService
             ])->save();
 
             throw new WorkflowException('The file could not be read as a spreadsheet: '.$e->getMessage());
+        }
+
+        if ($template === ImportTemplate::FinalSeniorityListUs) {
+            $parsed = $this->checkSeniorityRows($proposal, $parsed);
         }
 
         $valid = 0;
@@ -162,6 +179,21 @@ class ExcelImportService
 
         $template = $batch->template;
 
+        if ($template === ImportTemplate::FinalSeniorityListUs) {
+            /*
+             | A Seniority List replaces the whole list, so it is committed whole or
+             | not at all. Committing only the valid rows of a file with rejected ones
+             | would silently drop those officers from the proposal — and every CR,
+             | Property Return and PH detail recorded against them with it.
+             */
+            if ($batch->rejected_count > 0) {
+                throw new WorkflowException(__('dpc.seniority_list.import_has_rejections', ['count' => $batch->rejected_count]));
+            }
+
+            // The DPC year may have been edited since the preview.
+            $this->assertListAsOn($proposal, $batch->list_as_on);
+        }
+
         $this->assertSectionInvariants($template, $proposal, $payloads);
 
         DB::transaction(function () use ($template, $proposal, $payloads, $actor, $batch): void {
@@ -178,7 +210,7 @@ class ExcelImportService
                     $this->proposals->saveWorkingOfficers($proposal, $payloads, $actor)->refresh(),
                     $actor,
                 ),
-                ImportTemplate::FinalSeniorityListUs => $this->proposals->saveSeniorityEntries($proposal, $payloads, $actor),
+                ImportTemplate::FinalSeniorityListUs => $this->proposals->saveSeniorityEntries($proposal, $payloads, $actor, $batch->list_as_on),
                 ImportTemplate::EvaluationChartUs => $this->proposals->saveEvaluationRows($proposal, $payloads, $actor),
             };
 
@@ -388,6 +420,177 @@ class ExcelImportService
         }
     }
 
+    /**
+     * Rule 1.6: the list must be drawn up as on 1 April of the year before the DPC
+     * year. The date is derived from the proposal's DPC year alone, and the date the
+     * officer states for the list must be exactly it.
+     */
+    public function assertListAsOn(DpcProposal $proposal, ?Carbon $listAsOn): void
+    {
+        if (! (bool) config('dpc.seniority.require_as_on_date', true)) {
+            return;
+        }
+
+        $required = $proposal->seniorityReferenceDate();
+
+        if ($listAsOn === null) {
+            throw new WorkflowException(__('dpc.seniority_list.as_on_missing', ['date' => $required->format('d-m-Y')]));
+        }
+
+        if (! $listAsOn->isSameDay($required)) {
+            throw new WorkflowException(__('dpc.seniority_list.as_on_mismatch', [
+                'date' => $required->format('d-m-Y'),
+                'year' => $proposal->dpc_year ?: $proposal->proposal_date->year,
+                'stated' => $listAsOn->format('d-m-Y'),
+            ]));
+        }
+    }
+
+    /**
+     * What committing this Seniority List would change, by officer.
+     *
+     * Officers are matched on Employee ID — the same key the projection keeps their
+     * details by — so the preview says exactly whose recorded CR, Property Return,
+     * PH and document details are kept, and whose would be detached because they are
+     * no longer on the list.
+     *
+     * @return array{kept: int, added: list<string>, removed: list<string>, removed_with_details: list<string>}
+     */
+    public function seniorityChanges(ImportBatch $batch): array
+    {
+        $proposal = $batch->proposal()->firstOrFail();
+
+        $incoming = $batch->validRows()->get()
+            ->map(fn ($row): string => mb_strtolower(trim((string) (($row->payload ?? [])['employee_number'] ?? ''))))
+            ->filter()
+            ->all();
+
+        $existing = $proposal->evaluationRows()
+            ->withCount(['documents', 'crGrades', 'propertyFlags', 'recordGaps'])
+            ->get();
+
+        $kept = 0;
+        $removed = [];
+        $removedWithDetails = [];
+        $known = [];
+
+        foreach ($existing as $row) {
+            $key = mb_strtolower(trim((string) $row->employee_number));
+            $known[] = $key;
+
+            if ($key !== '' && in_array($key, $incoming, true)) {
+                $kept++;
+
+                continue;
+            }
+
+            $label = trim(($row->employee_number ?? '').' '.$row->name);
+            $removed[] = $label;
+
+            $hasDetails = $row->documents_count + $row->cr_grades_count + $row->property_flags_count + $row->record_gaps_count > 0
+                || $row->is_ph !== null;
+
+            if ($hasDetails) {
+                $removedWithDetails[] = $label;
+            }
+        }
+
+        $added = array_values(array_diff($incoming, $known));
+
+        return [
+            'kept' => $kept,
+            'added' => $added,
+            'removed' => $removed,
+            'removed_with_details' => $removedWithDetails,
+        ];
+    }
+
+    /**
+     * The checks a Seniority List row cannot make on its own (business decision of
+     * 2026-10-17): duplicate seniority numbers and duplicate Employee IDs within the
+     * file, and the Current Post against this proposal.
+     *
+     * Reported on every row involved, so the error report names each line to fix.
+     * The Promotion To Post, constant for the whole DPC, is filled from the
+     * proposal rather than asked for.
+     *
+     * @param  list<array{row_number: int, payload: array<string, mixed>, errors: array<string, list<string>>}>  $parsed
+     * @return list<array{row_number: int, payload: array<string, mixed>, errors: array<string, list<string>>}>
+     */
+    private function checkSeniorityRows(DpcProposal $proposal, array $parsed): array
+    {
+        $bySeniority = [];
+        $byEmployee = [];
+
+        foreach ($parsed as $index => $row) {
+            $number = $row['payload']['seniority_number'] ?? null;
+
+            if (is_numeric($number)) {
+                $bySeniority[(int) $number][] = $index;
+            }
+
+            $employee = mb_strtolower(trim((string) ($row['payload']['employee_number'] ?? '')));
+
+            if ($employee !== '') {
+                $byEmployee[$employee][] = $index;
+            }
+        }
+
+        foreach ($bySeniority as $number => $indexes) {
+            if (count($indexes) < 2) {
+                continue;
+            }
+
+            $lines = implode(', ', array_map(fn (int $i): int => $parsed[$i]['row_number'], $indexes));
+
+            foreach ($indexes as $i) {
+                $parsed[$i]['errors']['seniority_number'][] = __('dpc.seniority_list.duplicate_seniority_number', ['number' => $number, 'rows' => $lines]);
+            }
+        }
+
+        foreach ($byEmployee as $indexes) {
+            if (count($indexes) < 2) {
+                continue;
+            }
+
+            $lines = implode(', ', array_map(fn (int $i): int => $parsed[$i]['row_number'], $indexes));
+            $shown = (string) $parsed[$indexes[0]]['payload']['employee_number'];
+
+            foreach ($indexes as $i) {
+                $parsed[$i]['errors']['employee_number'][] = __('dpc.seniority_list.duplicate_employee', ['employee' => $shown, 'rows' => $lines]);
+            }
+        }
+
+        $allowed = $this->templates->currentPostNames($proposal);
+        $normalise = static fn (string $name): string => mb_strtolower((string) preg_replace('/\s+/u', ' ', trim($name)));
+        $canonical = [];
+
+        foreach ($allowed as $name) {
+            $canonical[$normalise($name)] = $name;
+        }
+
+        foreach ($parsed as $index => $row) {
+            $post = trim((string) ($row['payload']['promotion_from_post'] ?? ''));
+
+            if ($post === '') {
+                $parsed[$index]['errors']['promotion_from_post'][] = __('dpc.seniority_list.current_post_required');
+            } elseif ($canonical !== [] && ! isset($canonical[$normalise($post)])) {
+                $parsed[$index]['errors']['promotion_from_post'][] = __('dpc.seniority_list.current_post_mismatch', [
+                    'post' => $post,
+                    'allowed' => implode(' | ', $allowed),
+                ]);
+            } elseif ($canonical !== []) {
+                $parsed[$index]['payload']['promotion_from_post'] = $canonical[$normalise($post)];
+            }
+
+            if (trim((string) ($row['payload']['promotion_to_post'] ?? '')) === '' && $proposal->promotionToPost !== null) {
+                $parsed[$index]['payload']['promotion_to_post'] = $proposal->promotionToPost->name;
+            }
+        }
+
+        return $parsed;
+    }
+
     private function assertProposalEditable(DpcProposal $proposal): void
     {
         if (! $proposal->status->isEditable()) {
@@ -580,7 +783,11 @@ class ExcelImportService
             if ($field === 'reservation_category') {
                 $code = strtoupper(trim((string) $value));
                 if ($code === '') {
-                    $errors['reservation_category_id'] = ['The Category column is required.'];
+                    // Optional on the simplified Seniority List: the category is
+                    // recorded on each employee's details instead.
+                    if ($template !== ImportTemplate::FinalSeniorityListUs) {
+                        $errors['reservation_category_id'] = ['The Category column is required.'];
+                    }
 
                     continue;
                 }

@@ -49,7 +49,12 @@ class RecordReasonMasterTest extends TestCase
     {
         $this->seed(LookupMasterSeeder::class);
 
-        $this->assertSame(7, RecordReason::query()->count());
+        // Seven from the register, and the three grounds rule 3.2 of the Coder
+        // Instructions names for an unavailable CR (2026-10-17).
+        $this->assertSame(10, RecordReason::query()->count());
+        foreach (['nrc_issued', 'long_leave', 'suspended'] as $code) {
+            $this->assertTrue(RecordReason::query()->where('code', $code)->exists(), $code);
+        }
         $this->assertSame(
             ['other'],
             RecordReason::query()->where('requires_remarks', true)->pluck('code')->all(),

@@ -9,6 +9,8 @@ use App\Domain\Dpc\Services\VacancyCalculationService;
 use App\Domain\Dpc\Validation\DpcRowRules;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Carbon;
+use Illuminate\Validation\Rule;
 
 /**
  * Seniority List (PPT S17) — M4 Phase 4. `reservation_category_id` must
@@ -29,6 +31,12 @@ class SaveSeniorityEntriesRequest extends FormRequest
     {
         return array_merge(
             ['entries' => ['array', 'max:'.(int) config('dpc.limits.seniority_entries')]],
+            // Rule 1.6 — compared with the proposal's DPC year below.
+            ['seniority_list_as_on' => [
+                Rule::requiredIf((bool) config('dpc.seniority.require_as_on_date', true)),
+                'nullable',
+                'date',
+            ]],
             DpcRowRules::prefix('entries.*.', DpcRowRules::seniorityEntry()),
         );
     }
@@ -54,6 +62,16 @@ class SaveSeniorityEntriesRequest extends FormRequest
                 $validator->errors()->add('entries', 'Each Seniority Number must be unique within the list.');
             }
 
+            $employees = array_filter(array_map(
+                static fn (mixed $number): string => mb_strtolower(trim((string) $number)),
+                array_column($entries, 'employee_number'),
+            ));
+            if (count($employees) !== count(array_unique($employees))) {
+                $validator->errors()->add('entries', __('dpc.seniority_list.duplicate_employee_manual'));
+            }
+
+            $this->assertListAsOn($validator);
+
             $this->assertZoneOfConsideration($validator, count($entries));
         });
     }
@@ -75,6 +93,26 @@ class SaveSeniorityEntriesRequest extends FormRequest
      * Refusing the save in any of those cases would be inventing a rule the
      * deck does not state, which is the one thing this codebase does not do.
      */
+    private function assertListAsOn(Validator $validator): void
+    {
+        $proposal = $this->route('dpcProposal');
+        $stated = $this->input('seniority_list_as_on');
+
+        if (! $proposal instanceof DpcProposal || ! is_string($stated) || $stated === '' || strtotime($stated) === false) {
+            return;
+        }
+
+        $required = $proposal->seniorityReferenceDate();
+
+        if (! Carbon::parse($stated)->isSameDay($required)) {
+            $validator->errors()->add('seniority_list_as_on', __('dpc.seniority_list.as_on_mismatch', [
+                'date' => $required->format('d-m-Y'),
+                'year' => $proposal->dpc_year ?: $proposal->proposal_date->year,
+                'stated' => Carbon::parse($stated)->format('d-m-Y'),
+            ]));
+        }
+    }
+
     private function assertZoneOfConsideration(Validator $validator, int $submitted): void
     {
         if (! (bool) config('dpc.vacancy.enforce_seniority_matches_zone', true)) {

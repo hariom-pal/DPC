@@ -241,6 +241,9 @@ class DemoJourneySeeder extends Seeder
             $ao,
         )));
 
+        // The two corrected CR years are answered again on the officers' details.
+        DemoActor::as($ao, fn () => DemoClock::at('2026-06-12 14:40', fn () => $this->builder->completeEmployeeDetails($review->fresh(), $ao)));
+
         $this->builder->submit($review, $ao, '2026-06-15 11:05');
         $this->builder->approve($review, $ah, '2026-06-18 10:40');
 

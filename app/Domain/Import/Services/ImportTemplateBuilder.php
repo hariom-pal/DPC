@@ -73,9 +73,24 @@ class ImportTemplateBuilder
                 'DEPUTATION DATE', 'DEPUTATION TO', 'DATE OF RETIREMENT',
             ],
 
+            /*
+             | The simplified Seniority List (Coder Instructions, rule 1.6; business
+             | decision of 2026-10-17): only what identifies an officer and fixes their
+             | place in the list. CR, Property Return, PH and every document are
+             | recorded by the Authorized Officer on each employee's details screen
+             | after the import, and the category is no longer asked for here.
+             |
+             | `DATE OF POSTING ON CURRENT POST` is the one column beyond the six the
+             | decision proposed, and it is optional. It is the date the recruitment
+             | rule's experience and promotion-duration gate counts from; without it
+             | that gate cannot run. It can also be filled on the employee's details.
+             |
+             | The list's "as on" date is proposal-level metadata, stated once when
+             | the file is uploaded — never a column repeated on every row.
+             */
             ImportTemplate::FinalSeniorityListUs => [
-                'SN', 'EMPLOYEE NO', 'NAME OF US', 'MOBILE', 'DOB', 'QUAL', 'PROMOTION TO POST', 'PROMOTION FROM POST', 'CAT', 'SEAT CATEGORY',
-                'DATE OF JOINING IN SERVICE', 'DATE OF POSTING ON PROMOTION TO POST', 'DATE OF POSTING ON US',
+                'SENIORITY NO', 'EMPLOYEE ID', 'EMPLOYEE NAME', 'DATE OF BIRTH', 'DATE OF APPOINTMENT',
+                'CURRENT POST', 'DATE OF POSTING ON CURRENT POST',
             ],
 
             ImportTemplate::EvaluationChartUs => [
@@ -171,6 +186,15 @@ class ImportTemplateBuilder
             'DATE OF RETIREMENT' => (string) __('imports.guide.date_of_retirement'),
             'DOP' => (string) __('imports.guide.dop'),
             'TRIBAL AREA SERVICE YEARS' => (string) __('imports.guide.tribal_years'),
+
+            // The simplified Seniority List.
+            'SENIORITY NO' => (string) __('imports.guide.seniority_no'),
+            'EMPLOYEE ID' => (string) __('imports.guide.employee_id'),
+            'EMPLOYEE NAME' => (string) __('imports.guide.name'),
+            'DATE OF BIRTH' => (string) __('imports.guide.dob'),
+            'DATE OF APPOINTMENT' => (string) __('imports.guide.date_of_appointment'),
+            'CURRENT POST' => (string) __('imports.guide.current_post'),
+            'DATE OF POSTING ON CURRENT POST' => (string) __('imports.guide.posting_on_current_post'),
             'NOTE' => (string) __('imports.guide.note'),
         ];
     }
@@ -324,6 +348,7 @@ class ImportTemplateBuilder
         $values = match ($header) {
             'PROMOTION TO POST' => [$proposal->promotionToPost->name],
             'PROMOTION FROM POST' => $this->feederPostNames($proposal),
+            'CURRENT POST' => $this->currentPostNames($proposal),
             'QUAL' => Qualification::query()
                 ->where('status', MasterStatus::Active)
                 ->orderBy('name_en')
@@ -346,6 +371,23 @@ class ImportTemplateBuilder
         return ' '.(count($values) === 1 && $header === 'PROMOTION TO POST'
             ? (string) __('imports.guide.fixed_value', ['value' => $values[0]])
             : (string) __('imports.guide.allowed', ['values' => implode(' | ', $values)]));
+    }
+
+    /**
+     * The post every officer on this DPC's Seniority List must hold now.
+     *
+     * The proposal's own Promotion From Post when it names one — each feeder cadre
+     * is considered separately (page 5: "each cadre is vertical"), so an officer of
+     * another feeder post belongs on another proposal. Otherwise the feeder posts
+     * the Recruitment Rule allows.
+     *
+     * @return list<string>
+     */
+    public function currentPostNames(DpcProposal $proposal): array
+    {
+        $name = $proposal->promotionFromPost?->name;
+
+        return $name !== null ? [$name] : $this->feederPostNames($proposal);
     }
 
     /**
@@ -372,7 +414,9 @@ class ImportTemplateBuilder
             ->values()
             ->all();
 
-        return $names !== [] ? $names : [$proposal->promotionFromPost->name];
+        $own = $proposal->promotionFromPost?->name;
+
+        return $names !== [] ? $names : ($own === null ? [] : [$own]);
     }
 
     /**
@@ -422,6 +466,13 @@ class ImportTemplateBuilder
             'DATE OF POSTING ON PROMOTION TO POST' => $template === ImportTemplate::CurrentlyWorkingUs ? '15-06-2018' : '',
             'DATE OF POSTING ON PROMOTION FROM POST' => '15-06-2018',
             'DATE OF POSTING ON US' => '15-06-2018',
+            'SENIORITY NO' => '1',
+            'EMPLOYEE ID' => 'EMP/2011/0042',
+            'EMPLOYEE NAME' => 'Shri Ram Kumar Sahu',
+            'DATE OF BIRTH' => '14-03-1974',
+            'DATE OF APPOINTMENT' => '02-08-1999',
+            'CURRENT POST' => $proposal === null ? 'Under Secretary' : ($this->currentPostNames($proposal)[0] ?? ''),
+            'DATE OF POSTING ON CURRENT POST' => '15-06-2018',
             'ROSTER POSITION' => '7',
             'DEPUTATION DATE' => '',
             // A date — the day the deputation ends — despite the column's name.

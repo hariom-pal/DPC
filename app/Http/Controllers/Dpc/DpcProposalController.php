@@ -346,7 +346,12 @@ class DpcProposalController extends Controller
         // the flag is checked on the route and not only on the screen.
         abort_unless(config('dpc.manual_entry.seniority_list'), 403, __('dpc.seniority_list.manual_entry_off'));
 
-        $this->service->saveSeniorityEntries($dpcProposal, $request->validated('entries') ?? [], $request->user());
+        $this->service->saveSeniorityEntries(
+            $dpcProposal,
+            $request->validated('entries') ?? [],
+            $request->user(),
+            $request->filled('seniority_list_as_on') ? Carbon::parse((string) $request->validated('seniority_list_as_on')) : null,
+        );
 
         /*
          | Flashed, not shown inline: saving redirects, and the temporary passwords

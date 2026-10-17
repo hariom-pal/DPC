@@ -7,7 +7,10 @@ namespace Tests\Concerns;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Committee\Enums\MemberCategory;
 use App\Domain\Committee\Services\CommitteeRuleResolver;
+use App\Domain\Dpc\Enums\EvaluationDocumentKind;
 use App\Domain\Dpc\Enums\PreviousDpcBasis;
+use App\Domain\Dpc\Models\DpcEvaluationDocument;
+use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Models\DpcWorkingOfficer;
 use App\Domain\Dpc\Services\DpcCommitteeService;
@@ -153,15 +156,7 @@ trait CompletesDpcProposals
                  | miss the zone. Asking the calculator after the fact cannot fall
                  | out of step with it the way a planned number can.
                  */
-                'seniority_list' => $service->saveSeniorityEntries(
-                    $proposal,
-                    $this->seniorityRows(
-                        app(VacancyCalculationService::class)->requiredSeniorityCount($proposal->refresh())
-                            ?? $plan['seniority'],
-                        $category->id,
-                    ),
-                    $actor,
-                ),
+                'seniority_list' => $this->completeSeniorityList($proposal, $plan, $category->id, $actor),
 
                 // Since the directive of 2026-08-22 the chart's officers are
                 // *projected* from the Seniority List, so the fixture can no
@@ -182,6 +177,10 @@ trait CompletesDpcProposals
                  */
                 'rule_1_1_verification' => $this->confirmRuleOneOne($proposal, $actor),
 
+                // Coder Instructions points 2 and 3: every officer's CR, Property
+                // Return and PH details, with document rows standing in for files.
+                'employee_details' => $this->completeEmployeeDetails($proposal, $actor),
+
                 default => null,
             };
         }
@@ -193,6 +192,127 @@ trait CompletesDpcProposals
      * The working strength is reconciled as "no previous DPC" — the fixture has
      * none — with the remarks that basis requires.
      */
+    /**
+     * The Seniority List section: the list, and the rule 1.6 "as on" date.
+     *
+     * A list a test already saved is kept — only the missing date is stated — so a
+     * test's own officers are never replaced by the fixture's.
+     *
+     * @param  array{sanctioned: int, vacancy: int, seniority: int}  $plan
+     */
+    private function completeSeniorityList(DpcProposal $proposal, array $plan, int $categoryId, User $actor): void
+    {
+        $proposal->refresh();
+
+        // State the date first: if that was all the section lacked, the list a
+        // test saved stands.
+        $proposal->forceFill(['seniority_list_as_on' => $proposal->seniorityReferenceDate()->toDateString()])->save();
+
+        if ($proposal->seniorityEntries()->exists()
+            && app(DpcProposalCompletenessService::class)->sectionIsComplete($proposal->refresh(), 'seniority_list')) {
+            return;
+        }
+
+        $required = app(VacancyCalculationService::class)->requiredSeniorityCount($proposal) ?? $plan['seniority'];
+
+        app(DpcProposalService::class)->saveSeniorityEntries(
+            $proposal,
+            $this->seniorityRows($required, $categoryId),
+            $actor,
+            $proposal->seniorityReferenceDate(),
+        );
+    }
+
+    /**
+     * Every officer's employee details, completed the way an Authorized Officer would:
+     * a category, each CR year answered with a fully remarked report, the CR and
+     * channel documents, each filed IPR with its dates and copy, and "not PH".
+     *
+     * Document rows are written directly, without files — the gate reads the rows.
+     */
+    protected function completeEmployeeDetails(DpcProposal $proposal, User $actor): void
+    {
+        $categoryId = ReservationCategory::query()->orderBy('id')->value('id');
+
+        foreach ($proposal->evaluationRows()->get() as $row) {
+            // A chart a test saved without per-year data still needs some.
+            foreach ($row->crGrades()->exists() ? [] : $this->mandatoryRecordYears() as $year) {
+                $row->crGrades()->create(['year' => $year, 'grade' => 'क']);
+            }
+
+            foreach ($row->propertyFlags()->exists() ? [] : $this->mandatoryRecordYears() as $year) {
+                $row->propertyFlags()->create(['year' => $year, 'flag' => true]);
+            }
+
+            $row->load(['crGrades', 'propertyFlags']);
+
+            if ($row->reservation_category_id === null) {
+                $row->forceFill(['reservation_category_id' => $categoryId])->save();
+            }
+
+            foreach ($row->crGrades as $cr) {
+                if ($cr->put_up !== null) {
+                    continue;
+                }
+
+                $grade = $cr->grade ?? 'क';
+                $cr->forceFill([
+                    'put_up' => true,
+                    'has_grading' => true,
+                    'reports' => [[
+                        'reporter_designation' => 'Reporting Officer', 'reporter_grade' => $grade,
+                        'reviewer_designation' => 'Reviewing Officer', 'reviewer_grade' => $grade,
+                        'accepting_designation' => 'Accepting Officer', 'accepting_grade' => $grade,
+                    ]],
+                    'grade' => $grade,
+                ])->save();
+
+                $this->fixtureDocument($row, EvaluationDocumentKind::CrReport, $cr->year, $actor);
+            }
+
+            if ($row->crGrades->isNotEmpty() && $row->cr_channel_undertaking_at === null) {
+                $row->forceFill(['cr_channel_undertaking_by' => $actor->id, 'cr_channel_undertaking_at' => now()])->save();
+                $this->fixtureDocument($row, EvaluationDocumentKind::CrChannel, null, $actor);
+            }
+
+            foreach ($row->propertyFlags as $property) {
+                if ($property->flag !== true || $property->submitted_on !== null) {
+                    continue;
+                }
+
+                $property->forceFill([
+                    'submitted_on' => sprintf('%d-01-15', $property->year + 1),
+                    'next_increment_date' => sprintf('%d-07-01', $property->year + 1),
+                ])->save();
+
+                $this->fixtureDocument($row, EvaluationDocumentKind::PropertyReturn, $property->year, $actor);
+            }
+
+            if ($row->is_ph === null) {
+                $row->forceFill(['is_ph' => false, 'ph_final_decision' => 'no_benefit', 'ph_recorded_by' => $actor->id, 'ph_recorded_at' => now()])->save();
+            }
+        }
+    }
+
+    private function fixtureDocument(DpcEvaluationRow $row, EvaluationDocumentKind $kind, ?int $year, User $actor): void
+    {
+        DpcEvaluationDocument::query()->create([
+            'dpc_proposal_id' => $row->dpc_proposal_id,
+            'dpc_evaluation_row_id' => $row->id,
+            'employee_number' => $row->employee_number,
+            'kind' => $kind->value,
+            'year' => $year,
+            'undertaking_confirmed_at' => $kind->requiresUndertaking() || $kind === EvaluationDocumentKind::CrChannel ? now() : null,
+            'disk' => 'local',
+            'path' => 'fixtures/employee-documents/'.$kind->value.'-'.$row->id.'-'.($year ?? 'x').'.pdf',
+            'original_name' => $kind->value.'.pdf',
+            'size_bytes' => 1,
+            'sha256' => hash('sha256', $kind->value.$row->id.($year ?? '')),
+            'uploaded_by' => $actor->id,
+            'uploaded_at' => now(),
+        ]);
+    }
+
     protected function confirmRuleOneOne(DpcProposal $proposal, User $actor): void
     {
         $verification = app(ProposalVerificationService::class);

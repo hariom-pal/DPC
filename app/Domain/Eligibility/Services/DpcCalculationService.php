@@ -504,7 +504,7 @@ class DpcCalculationService
             'sn' => $row->sn,
             'name' => $row->name,
             'dob' => $row->dob->toDateString(),
-            'category' => $row->reservationCategory->code,
+            'category' => $row->reservationCategory?->code,
             'tribal_years' => $row->tribal_area_service_years,
             'cr' => $row->crGrades->mapWithKeys(fn ($g): array => [$g->year => $g->grade])->sortKeys()->all(),
         ])->sortBy('sn')->values()->all();

@@ -72,7 +72,11 @@ class DpcSeniorityListTest extends TestCase
      */
     private function payload(array $entries): array
     {
-        return ['entries' => $entries];
+        return [
+            'entries' => $entries,
+            // Rule 1.6 — the list is stated as on 1 April of the year before the DPC year.
+            'seniority_list_as_on' => $this->proposal->seniorityReferenceDate()->toDateString(),
+        ];
     }
 
     private function entry(int $sn, array $overrides = []): array

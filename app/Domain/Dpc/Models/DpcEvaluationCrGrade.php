@@ -19,6 +19,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $dpc_evaluation_row_id
  * @property int $year
  * @property string|null $grade
+ * @property bool|null $tribal_area
+ * @property bool|null $put_up
+ * @property bool|null $has_grading
+ * @property list<array<string, string|null>>|null $reports
  */
 class DpcEvaluationCrGrade extends Model
 {
@@ -40,6 +44,16 @@ class DpcEvaluationCrGrade extends Model
          | 21 forbids modifying that formula. BD-36.
          */
         'tribal_area',
+
+        /*
+         | The CR questionnaire of the Coder Instructions, page 3: was a CR put up for
+         | the year, does it carry a grading, and the reports written in it (at most
+         | four, each with the reporting, reviewing and accepting officers'
+         | designations and grades). `grade` stays the one value the engine reads.
+         */
+        'put_up',
+        'has_grading',
+        'reports',
     ];
 
     /**
@@ -50,6 +64,9 @@ class DpcEvaluationCrGrade extends Model
         return [
             'year' => 'integer',
             'tribal_area' => 'boolean',
+            'put_up' => 'boolean',
+            'has_grading' => 'boolean',
+            'reports' => 'array',
         ];
     }
 

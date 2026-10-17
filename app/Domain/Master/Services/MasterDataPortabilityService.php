@@ -213,19 +213,36 @@ class MasterDataPortabilityService
             $model = new $definition->model;
 
             foreach ($prepared as $attributes) {
-                $identity = [];
+                $query = $model->newQuery();
 
+                /*
+                 | Matched case-insensitively, on every database. MySQL's collation
+                 | already compares `FRESH` and `fresh` as equal and SQLite does not,
+                 | so the same file used to update a row on one and duplicate it on
+                 | the other.
+                 */
                 foreach ($definition->unique as $key) {
-                    $identity[$key] = $attributes[$key] ?? null;
+                    $value = $attributes[$key] ?? null;
+
+                    $value === null
+                        ? $query->whereNull($key)
+                        : $query->whereRaw('LOWER('.$model->getConnection()->getQueryGrammar()->wrap($key).') = ?', [Str::lower((string) $value)]);
                 }
 
-                $existing = $model->newQuery()->where($identity)->first();
+                $existing = $query->first();
 
                 if ($existing === null) {
                     $model->newQuery()->create($attributes);
                     $created++;
 
                     continue;
+                }
+
+                // The identifying columns keep their stored spelling: an upload that
+                // matched `fresh` by `FRESH` must not rewrite the code other screens
+                // and seeded references compare against.
+                foreach ($definition->unique as $key) {
+                    unset($attributes[$key]);
                 }
 
                 $existing->fill($attributes)->save();

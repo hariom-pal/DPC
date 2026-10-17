@@ -20,6 +20,7 @@ use App\Domain\Signature\Services\SignatureService;
 use App\Domain\UserManagement\Services\PromotionCandidateProvisioner;
 use App\Enums\Feature;
 use App\Enums\MasterStatus;
+use Carbon\CarbonInterface;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -418,11 +419,22 @@ class DpcProposalService
      *
      * @param  array<int, array<string, mixed>>  $entries
      */
-    public function saveSeniorityEntries(DpcProposal $proposal, array $entries, ?User $actor = null): DpcProposal
-    {
+    public function saveSeniorityEntries(
+        DpcProposal $proposal,
+        array $entries,
+        ?User $actor = null,
+        ?CarbonInterface $listAsOn = null,
+    ): DpcProposal {
         $this->assertEditable($proposal);
 
-        DB::transaction(function () use ($proposal, $entries): void {
+        DB::transaction(function () use ($proposal, $entries, $listAsOn): void {
+            // Rule 1.6 — the date the department stated the list was drawn up as on.
+            // Validated by the caller against the DPC year; recorded with the list
+            // so the submission gate can tell a list saved for another DPC year.
+            if ($listAsOn !== null) {
+                $proposal->forceFill(['seniority_list_as_on' => $listAsOn->toDateString()])->save();
+            }
+
             $proposal->seniorityEntries()->delete();
 
             foreach ($entries as $entry) {
@@ -434,7 +446,8 @@ class DpcProposalService
                     'qualification' => $entry['qualification'] ?? null,
                     'promotion_to_post' => $this->postName($entry, 'to'),
                     'promotion_from_post' => $this->postName($entry, 'from'),
-                    'reservation_category_id' => $entry['reservation_category_id'],
+                    // Optional on the simplified Seniority List (2026-10-17).
+                    'reservation_category_id' => $entry['reservation_category_id'] ?? null,
                     'seat_reservation_category_id' => $entry['seat_reservation_category_id'] ?? null,
                     'mobile' => $entry['mobile'] ?? null,
                     'date_of_joining_service' => $entry['date_of_joining_service'] ?? null,
@@ -790,7 +803,7 @@ class DpcProposalService
                 $entry->qualification ?? '—',
                 $date($entry->date_of_joining_service),
                 $date($entry->date_of_posting_on_promotion_from_post),
-                $entry->reservationCategory->code,
+                $entry->reservationCategory->code ?? '—',
             );
         }
         $lines[] = '';
@@ -802,7 +815,7 @@ class DpcProposalService
             $loyalty = $row->loyaltyFlags->map(fn ($flag): string => $flag->year.':'.($flag->flag === null ? '—' : ($flag->flag ? 'Y' : 'N')))->implode(' ');
             $property = $row->propertyFlags->map(fn ($flag): string => $flag->year.':'.($flag->flag === null ? '—' : ($flag->flag ? 'Y' : 'N')))->implode(' ');
 
-            $lines[] = sprintf('   %d. %s | DOB %s | %s | DOP %s', $row->sn, $row->name, $date($row->dob), $row->reservationCategory->code, $date($row->date_of_posting_on_promotion_from_post));
+            $lines[] = sprintf('   %d. %s | DOB %s | %s | DOP %s', $row->sn, $row->name, $date($row->dob), $row->reservationCategory->code ?? '—', $date($row->date_of_posting_on_promotion_from_post));
             $lines[] = "      CR: {$cr}";
             $lines[] = "      Loyalty: {$loyalty}";
             $lines[] = "      Immovable Property: {$property}";
