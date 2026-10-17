@@ -11,10 +11,20 @@
     <div class="card border-0 shadow-sm">
         @include('admin.partials.master-toolbar', ['master' => 'department-posts'])
 
+        {{-- Five columns, so the list fits without sideways scrolling. The
+             Government Orders, effective dates and promotion duration are on the
+             detail screen ("View"), where each mapping is shown in full. --}}
+        <p class="small text-muted px-3 pt-2 mb-0">{{ __('admin.department_posts.index.details_hint') }}</p>
         <div class="table-responsive">
             <table class="table table-striped mb-0 align-middle">
                 <thead>
-                    <tr><th>{{ __('ui.post') }}</th><th>{{ __('ui.department') }}</th><th>{{ __('ui.class') }}</th><th>{{ __('ui.pay_scale') }}</th><th>{{ __('ui.promotion_duration') }}</th><th class="text-end">{{ __('admin.department_posts.form.sanctioned_strength') }}</th><th>{{ __('admin.department_posts.form.go_number') }}</th><th>{{ __('admin.department_posts.form.effective_from') }}</th><th>{{ __('ui.status') }}</th><th class="text-end">{{ __('ui.actions') }}</th></tr>
+                    <tr>
+                        <th>{{ __('ui.post') }}</th>
+                        <th>{{ __('ui.class') }} · {{ __('ui.pay_scale') }}</th>
+                        <th class="text-end">{{ __('admin.department_posts.form.sanctioned_strength') }}</th>
+                        <th>{{ __('ui.status') }}</th>
+                        <th class="text-end">{{ __('ui.actions') }}</th>
+                    </tr>
                 </thead>
                 <tbody>
                     @forelse ($posts as $post)
@@ -23,19 +33,15 @@
                              on the screen — just visibly behind the one in force. --}}
                         <tr @class(['table-light text-body-secondary' => ! $post->isInForce()])>
                             <td>
-                                {{ $post->name }}
-                                @unless ($post->isInForce())
-                                    <span class="badge text-bg-secondary">{{ __('admin.department_posts.show.superseded') }}</span>
-                                @endunless
+                                <a href="{{ route('admin.department-posts.show', $post) }}" class="fw-semibold text-decoration-none">{{ $post->name }}</a>
+                                <div class="small text-muted">{{ $post->department?->name }}</div>
                             </td>
-                            <td>{{ $post->department?->name }}</td>
-                            <td>{{ $post->class_level->label() }}</td>
-                            <td>{{ $post->payScale?->label ?? '—' }}</td>
-                            <td>{{ $post->promotion_duration_years === null ? '—' : __('ui.n_years', ['count' => $post->promotion_duration_years]) }}</td>
-                            {{-- A dash here is not cosmetic: a mapping with no
-                                 sanctioned strength cannot have a DPC raised
-                                 against it, so the column is where an
-                                 Administrator sees which posts are unusable. --}}
+                            <td class="small">
+                                {{ $post->class_level->label() }}
+                                <div class="text-muted">{{ $post->payScale?->label ?? '—' }}</div>
+                            </td>
+                            {{-- A "not recorded" badge, never a blank: a blank reads
+                                 as zero, and the two mean opposite things. --}}
                             <td class="text-end">
                                 @if ($post->sanctioned_strength === null)
                                     <span class="badge text-bg-warning">{{ __('admin.department_posts.index.strength_not_recorded') }}</span>
@@ -43,27 +49,17 @@
                                     <strong>{{ $post->sanctioned_strength }}</strong>
                                 @endif
                             </td>
-                            <td class="small">
-                                {{ $post->governmentOrderLabel() }}
-                                {{-- Item 10: a mapping may hold several orders, and
-                                     each may or may not have its scan on file. The
-                                     badge counts the ones that do. --}}
-                                @php $withPdf = $post->orders->filter->hasDocument()->count(); @endphp
-                                @if ($withPdf > 0)
-                                    <span class="badge text-bg-light">{{ __('admin.department_posts.index.pdf_on_file') }} ({{ $withPdf }})</span>
+                            <td>
+                                @if ($post->isInForce())
+                                    <x-status-badge :status="$post->status" />
+                                @else
+                                    <span class="badge text-bg-secondary">{{ __('admin.department_posts.show.superseded') }}</span>
                                 @endif
                             </td>
-                            <td class="small">
-                                {{ $post->effective_from?->format('d-m-Y') ?? '—' }}
-                                — {{ $post->effective_to?->format('d-m-Y') ?? __('admin.department_posts.show.until_further_orders') }}
-                            </td>
-                            <td><x-status-badge :status="$post->status" /></td>
                             <td class="text-end text-nowrap">
                                 <a href="{{ route('admin.department-posts.show', $post) }}" class="btn btn-outline-secondary btn-sm">{{ __('ui.view') }}</a>
                                 @if ($post->isInForce())
                                     <a href="{{ route('admin.department-posts.edit', $post) }}" class="btn btn-outline-primary btn-sm">{{ __('ui.edit') }}</a>
-                                @endif
-                                @if ($post->isInForce())
                                     <form method="POST" action="{{ route('admin.department-posts.destroy', $post) }}" class="d-inline"
                                           data-confirm="{{ __('admin.department_posts.index.delete_this_post') }}">
                                         @csrf @method('DELETE')
@@ -73,7 +69,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="10" class="text-center text-muted py-4">{{ __('admin.department_posts.index.no_posts_yet') }}</td></tr>
+                        <tr><td colspan="5" class="text-center text-muted py-4">{{ __('admin.department_posts.index.no_posts_yet') }}</td></tr>
                     @endforelse
                 </tbody>
             </table>

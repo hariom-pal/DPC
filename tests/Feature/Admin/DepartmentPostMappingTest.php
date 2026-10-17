@@ -374,6 +374,27 @@ class DepartmentPostMappingTest extends TestCase
             ->assertSee(__('admin.department_posts.index.strength_not_recorded'));
     }
 
+    public function test_the_list_fits_the_screen_and_leaves_the_detail_to_the_post_page(): void
+    {
+        $post = $this->mapping();
+
+        $html = $this->actingAs($this->admin)->get(route('admin.department-posts.index'))
+            ->assertOk()
+            ->assertSee(route('admin.department-posts.show', $post), false)
+            ->assertSee(__('admin.department_posts.index.details_hint'))
+            ->getContent();
+
+        $this->assertSame(5, preg_match_all('/<th[\s>]/', (string) strstr((string) strstr($html, '<thead>'), '</thead>', true)));
+        $this->assertStringNotContainsString(__('admin.department_posts.form.go_number'), $html);
+        $this->assertStringNotContainsString(__('ui.promotion_duration'), $html);
+
+        // Still there, one click away.
+        $this->actingAs($this->admin)->get(route('admin.department-posts.show', $post))
+            ->assertOk()
+            ->assertSee(__('ui.promotion_duration'))
+            ->assertSee(__('admin.department_posts.form.effective_from'));
+    }
+
     public function test_a_new_order_supersedes_the_mapping_without_changing_it(): void
     {
         $post = $this->mapping();

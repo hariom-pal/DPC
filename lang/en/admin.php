@@ -204,6 +204,7 @@ return [
             'title_new' => 'New Department Post Mapping',
         ],
         'index' => [
+            'details_hint' => 'Government Orders, effective dates and promotion duration are on each post\'s detail page — open "View".',
             'delete_this_post' => 'Withdraw this post',
             'department_posts' => 'Department Post Mapping',
             'new_department_post' => '+ New Department Post',
