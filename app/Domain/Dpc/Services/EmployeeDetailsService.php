@@ -14,6 +14,7 @@ use App\Domain\Dpc\Models\DpcEvaluationPropertyFlag;
 use App\Domain\Dpc\Models\DpcEvaluationRecordGap;
 use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\Dpc\Models\DpcProposal;
+use App\Domain\Eligibility\Services\DpcRuleBook;
 use App\Domain\Shared\Services\ActivityTimelineService;
 use App\Domain\Shared\Workflow\WorkflowException;
 use Illuminate\Http\UploadedFile;
@@ -44,7 +45,10 @@ use Illuminate\Support\Facades\Storage;
  */
 class EmployeeDetailsService
 {
-    public function __construct(private readonly ActivityTimelineService $timeline) {}
+    public function __construct(
+        private readonly ActivityTimelineService $timeline,
+        private readonly DpcRuleBook $ruleBook,
+    ) {}
 
     // ------------------------------------------------------------------
     // A. Basic information
@@ -101,7 +105,7 @@ class EmployeeDetailsService
             throw new WorkflowException(__('dpc.employee_details.cr.reports_required'));
         }
 
-        $grade = $reports === null ? null : $this->yearGrade($reports);
+        $grade = $reports === null ? null : $this->yearGrade($reports, $this->ruleBook->gradeMarksFor($row->proposal));
 
         /** @var DpcEvaluationCrGrade $record */
         $record = $row->crGrades()->firstOrNew(['year' => $year]);
@@ -155,11 +159,11 @@ class EmployeeDetailsService
      * The grade a year's reports come to (rule 3.1).
      *
      * @param  list<array<string, string|null>>  $reports
+     * @param  array<string, int>|null  $marks  the scale of the proposal's year; configuration when null
      */
-    public function yearGrade(array $reports): string
+    public function yearGrade(array $reports, ?array $marks = null): string
     {
-        /** @var array<string, int> $marks */
-        $marks = (array) config('dpc.scoring.cr_grade_marks');
+        $marks ??= array_map('intval', (array) config('dpc.scoring.cr_grade_marks'));
         $finals = array_map(fn (array $report): string => (string) $this->finalGrade($report), $reports);
 
         if (count($finals) === 1) {
@@ -449,21 +453,22 @@ class EmployeeDetailsService
     }
 
     /**
-     * Rule 2.1: 3% of the promotion vacancies, whole number only — "the decimal part
-     * is disregarded even if it is .9". Displayed beside the officers; the engine's
-     * list placement is not changed by it.
+     * Rule 2.1: a share of the promotion vacancies (3%), whole number only — "the
+     * decimal part is disregarded even if it is .9". The percentage and the rounding
+     * are the DPC Rules version in force for the proposal's year. Displayed beside
+     * the officers; the engine's list placement is not changed by it.
      *
-     * @return array{percent: int, vacancies: int, posts: int, claims: int}
+     * @return array{percent: string, vacancies: int, posts: int, claims: int}
      */
     public function phQuota(DpcProposal $proposal): array
     {
-        $percent = (int) config('dpc.employee_details.ph_quota_percent', 3);
+        $terms = $this->ruleBook->phTermsFor($this->ruleBook->yearOf($proposal));
         $vacancies = (int) $proposal->vacancies()->sum('count');
 
         return [
-            'percent' => $percent,
+            'percent' => rtrim(rtrim($terms['percentage'], '0'), '.'),
             'vacancies' => $vacancies,
-            'posts' => intdiv($vacancies * $percent, 100),
+            'posts' => $this->ruleBook->phPosts($vacancies, $terms['percentage'], $terms['rounding']),
             'claims' => $proposal->evaluationRows()
                 ->where('is_ph', true)
                 ->where('ph_previously_availed', false)

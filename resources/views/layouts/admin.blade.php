@@ -64,6 +64,8 @@
                        href="{{ route('admin.cgpsc-chairman.index') }}">{{ __('ui.layouts.admin.nav.cgpsc_chairman') }}</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.committee-configurations.*') ? 'active' : '' }}"
                        href="{{ route('admin.committee-configurations.index') }}">{{ __('ui.layouts.admin.nav.committee_configurations') }}</a>
+                    <a class="list-group-item list-group-item-action fw-semibold {{ request()->routeIs('admin.dpc-rules.*') ? 'active' : '' }}"
+                       href="{{ route('admin.dpc-rules.index') }}">{{ __('dpcrules.nav') }}</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.recruitment-rules.*') ? 'active' : '' }}"
                        href="{{ route('admin.recruitment-rules.index') }}">{{ __('ui.layouts.admin.nav.recruitment_rules') }}</a>
                     <a class="list-group-item list-group-item-action fw-semibold {{ request()->routeIs('admin.users.*') ? 'active' : '' }}"

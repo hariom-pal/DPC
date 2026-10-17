@@ -12,6 +12,7 @@ use App\Http\Controllers\Admin\DepartmentController;
 use App\Http\Controllers\Admin\DepartmentPostController;
 use App\Http\Controllers\Admin\DesignationController;
 use App\Http\Controllers\Admin\DistrictController;
+use App\Http\Controllers\Admin\DpcRuleController;
 use App\Http\Controllers\Admin\DpcTypeController;
 use App\Http\Controllers\Admin\IntegrationStatusController;
 use App\Http\Controllers\Admin\MasterDataController;
@@ -758,6 +759,21 @@ Route::middleware('auth')->group(function (): void {
                 Route::resource('committee-configurations', CommitteeConfigurationController::class)
                     ->parameters(['committee-configurations' => 'committeeConfiguration'])
                     ->except(['show']);
+
+                /*
+                 | DPC Rules (rules 2.1, 3.4, 3.5): the CR marks and qualifying scores
+                 | and the PH reservation, version by version. Recorded and read only —
+                 | a change is a new version, never an edit.
+                 */
+                Route::prefix('dpc-rules')->name('dpc-rules.')->group(function (): void {
+                    Route::get('/', [DpcRuleController::class, 'index'])->name('index');
+                    Route::get('cr-scales/create', [DpcRuleController::class, 'createCrScale'])->name('cr-scales.create');
+                    Route::post('cr-scales', [DpcRuleController::class, 'storeCrScale'])->name('cr-scales.store');
+                    Route::get('cr-scales/{crScale}/document', [DpcRuleController::class, 'crScaleDocument'])->name('cr-scales.document');
+                    Route::get('ph-rules/create', [DpcRuleController::class, 'createPhRule'])->name('ph-rules.create');
+                    Route::post('ph-rules', [DpcRuleController::class, 'storePhRule'])->name('ph-rules.store');
+                    Route::get('ph-rules/{phRule}/document', [DpcRuleController::class, 'phRuleDocument'])->name('ph-rules.document');
+                });
                 Route::resource('recruitment-rules', RecruitmentRuleController::class)
                     ->parameters(['recruitment-rules' => 'recruitmentRule'])
                     ->except(['show']);

@@ -54,8 +54,8 @@
 | F14 | Record reasons | Why a CR / loyalty record is missing | `admin.record-reasons.*` | `record_reasons` | `RecordReasonMasterTest` (7) | ✅ |
 | F15 | Vacancy types | Vacancy grounds | `admin.vacancy-types.*` | `vacancy_types` | `LookupMasterTest` | ⚠️ engine matches hard-coded codes (`VacancyEngine.php:332`) |
 | F16 | DPC types | Fresh / Review / Circulation | `admin.dpc-types.*` | `dpc_types` | `LookupMasterTest` | ⚠️ `'fresh'` hard-coded (`SaveDpcProposalRequest.php:99`) |
-| F17 | Committee types | Committee kinds | `admin.committee-types.*` | `committee_types` | `CommitteeMasterTest` | ⚠️ resolver keyed on code `dpc_committee` |
-| F18 | Committee configurations | Committee size and rules | `admin.committee-configurations.*`, `align-bounds` | `committee_configurations` | `CommitteeMasterTest`, `CommitteeBoundsReconcilerTest` | ⚠️ only min/max members used; 9 other fields captured but read by nothing |
+| F17 | **DPC Rules** (CR marks, qualifying scores, PH reservation) | Rules 2.1, 3.4, 3.5 as versioned master data: each version from a DPC year, on an order with its PDF; never edited | `admin.dpc-rules.*` (7 routes); `DpcRuleController`, `DpcRuleBook` | `cr_scoring_scales`, `ph_reservation_rules` | `DpcRulesTest` (10), `DpcCalculationTest`, `EmployeeDetailsTest` | ✅ built-in `config/dpc.php` rules apply until a version is recorded. The Committee Type master was removed on 2026-10-17: there is one committee. |
+| F18 | **DPC Committee Rules** | Members besides the Chairman, attributes the committee must cover (SC, ST, OBC, female, Bhar Sadhak Sachiv, Vibhag Sachiv), one SC/ST/OBC member, effective dates; Chairman mandatory by rule | `admin.committee-configurations.*`, `align-bounds` | `committee_configurations` | `CommitteeMasterTest`, `CommitteeBoundsReconcilerTest`, `DpcCommitteeTest` | ✅ the 9 unread fields were dropped |
 | F19 | CGPSC Chairman | Effective-dated Chairman record | `admin.cgpsc-chairman.*` (no destroy) | `cgpsc_chairmen` | `CgpscChairmanTest` (15) | ✅ |
 | F20 | Recruitment rules (versions, GO PDF) | Promotion / DR %, feeders, qualification, experience | `admin.recruitment-rules.*`, `.version`, `.download` | `recruitment_rules`, `recruitment_rule_sources`, `rr_source_qualifications` | `RecruitmentRuleTest` (4), `RecruitmentRuleIntegrityTest` (32) | ⚠️ **delete has no status guard**; several Active versions possible; two "current rule" lookups disagree |
 | F21 | Users | Create, edit, activate, reset password | `admin.users.*`; `UserProvisioningService` | `users`, `model_has_roles`, `user_department_assignments` | `UserManagementTest` (6) | ⚠️ **new account's password never shown** to admin; **deactivation keeps live sessions**; no last-admin guard; edit drops extra roles |
@@ -69,7 +69,7 @@
 | F29 | Sanctioning orders (Pre-DPC links) | Link DPCs to Pre-DPCs | `admin.pre-dpc-links.*` | `dpc_proposals`, `pre_dpc_proposals` | `PreDpcLinkReconcilerTest` (7) | ✅ |
 | F30 | Reports (shared) | Pipeline, outcomes, CSV | `reports.index` | read-only | report tests | ⚠️ reachable only from the admin dashboard |
 
-**Navigation** (`resources/views/layouts/admin.blade.php`, 22 entries): Dashboard, Departments, Districts, Designations, Pay Scales, Department Posts, Class Master, Qualifications, Reservation Policies, Reservation Rosters, CGPSC Chairman, Committee Types, Committee Configurations, Recruitment Rules, User Management, Reservation Categories, Vacancy Types, DPC Types, Review Reasons, Record Reasons, Notice Board, Sanctioning orders.
+**Navigation** (`resources/views/layouts/admin.blade.php`, 22 entries): Dashboard, Departments, Districts, Designations, Pay Scales, Department Posts, Class Master, Qualifications, Reservation Policies, Reservation Rosters, CGPSC Chairman, DPC Committee Rules, CR Marks & PH Rules, Recruitment Rules, User Management, Reservation Categories, Vacancy Types, DPC Types, Review Reasons, Record Reasons, Notice Board, Sanctioning orders.
 
 **Reached without a menu entry:**
 - Audit Trail, Integration Status and Reports — dashboard buttons
@@ -103,7 +103,7 @@
 | CI-09 | Proposal effective from the first day of the year (1.5) | DEPT | N | `proposal_date = today` | — | effective date | Implement after confirmation |
 | CI-10 | Vacancies reckoned to 31 December (1.5) | ENGINE | C | `dpc.vacancy.period` 1-1 → 12-31; `VacancyEngine::periodForYear` | `VacancyMasterTest::test_the_vacancy_year_is…`; `DpcWorkingOfficersTest::…outside_the_period…` | — | UAT |
 | CI-11 | Final seniority list as on 1 April of the preceding year (1.6) | DEPT | C | cutoff from the DPC year only (`DpcProposal::seniorityReferenceDate`); "as on" date stated on upload/save, refused unless equal, stored (`dpc_proposals.seniority_list_as_on`), checked again at the submission gate | `SimplifiedSeniorityListTest` | — | UAT (2026-10-17, see `CODER-INSTRUCTIONS-POINTS-1-TO-3.md`) |
-| CI-12 | PH 3 % of the promotion quota (2.1) | ADMIN | P | quota computed with the floor and shown on Employee Details (`EmployeeDetailsService::phQuota`) | `EmployeeDetailsTest::test_the_ph_quota_is_three_percent…` | how a PH seat is placed on the Main/Waiting lists | Decide D-6 |
+| CI-12 | PH 3 % of the promotion quota (2.1) | ADMIN | P | percentage and rounding are a DPC Rules version from a DPC year (Admin → CR Marks & PH Rules); quota computed and shown on Employee Details (`EmployeeDetailsService::phQuota`). Category policies and rosters are inactive: PH is the only reservation in force | `EmployeeDetailsTest::test_the_ph_quota_is_three_percent…` | how a PH seat is placed on the Main/Waiting lists | Decide D-6 |
 | CI-13 | PH availed once; separate record; check previous benefit (2.1) | DEPT | P | AO questionnaire Q1→Q2→Q3; separate PH / previous benefit / choice / undertaking / verification / decision; earlier PH records of the same Employee ID shown | `EmployeeDetailsTest` cases 1–4 | who verifies and decides | Decide D-5 |
 | CI-14 | PH computed with floor (2.1) | ENGINE | C | integer floor in `phQuota` | quota test (33 → 0, 67 → 2) | display only (D-6) | — |
 | CI-15 | Sealed cover / DE / chargesheet / SCN / suspension rules (2.2) | COMM | N | free-text note only (BD-45/48) | — | whole feature | Decide sealed-cover process |
@@ -114,8 +114,8 @@
 | CI-20 | Reporter / Reviewer / Accepting designation + remark; fallback; NRC if any missing (3.1) | DEPT | C | `finalGrade`, `reportNeedsNrc`, NRC upload required | `EmployeeDetailsTest` | — | UAT |
 | CI-21 | CR channel undertaking + channel document (3.1) | DEPT | C | `confirmChannel` (undertaking + document together) | `EmployeeDetailsTest` | — | UAT |
 | CI-22 | Missing CR: NRC / long leave / suspension, each with its own document (3.2) | ADMIN | P | the three reasons added to `record_reasons`; reason + PDF required per not-put-up year | `EmployeeDetailsTest`, `RecordReasonMasterTest`, `DpcRecordGapTest` | "out of 4" names three; document type not tied to the reason | Decide D-4 |
-| CI-23 | CR marks 9/7/5/3/1, configurable via Master data (3.4) | ADMIN | B | fixed 4/3/2/1/0 in `config/dpc.php` (PPT §5.1) | — | conflicts with items 21–23 (formula not to be modified) | Decide D-3 |
-| CI-24 | Old grading intervals via Master data (3.5) | ADMIN | P | env-configurable thresholds | eligibility golden tests | not master data | as CI-23 |
+| CI-23 | CR marks 9/7/5/3/1, configurable via Master data (3.4) | ADMIN | C | any scale is recorded as a DPC Rules version from a DPC year, with its order and PDF; the calculation and the multi-CR average use the version of the proposal's year (`DpcRuleBook`) | `DpcRulesTest`, `DpcCalculationTest::test_the_cr_scale_in_force…` | open: on 9/7/5/3/1 an average such as 8 is no grade's mark (D-3) | Decide D-3 averaging |
+| CI-24 | Old grading intervals via Master data (3.5) | ADMIN | C | qualifying score per class pair (and "other promotions") in the same DPC Rules version | `DpcRulesTest`, eligibility golden tests | — | — |
 | CI-25 | Every IPR uploaded (4.1) | DEPT | C | IPR document required for each submitted year | `EmployeeDetailsTest` | — | UAT |
 | CI-26 | Late IPR accepted only with an uploaded department decision (4.1) | DEPT | C | after 31 Jan of the next year: decision required; accepted needs reason + document; rejected does not count | `EmployeeDetailsTest` | — | UAT |
 | CI-27 | Next increment date captured; duplicate IPR check (4.1) | DEPT | C | date required; same date or same file on two years refused | `EmployeeDetailsTest` | — | UAT |
@@ -142,8 +142,10 @@
 
 ## 4. Completed features
 
-**Admin panel features — Ready (9):**
+**Admin panel features — Ready (11):**
 - F3 Vacancy Master
+- F17 DPC Rules (CR marks, qualifying scores, PH reservation)
+- F18 DPC Committee Rules
 - F5 Class master
 - F14 Record reasons
 - F19 CGPSC Chairman
@@ -153,13 +155,13 @@
 - F27 Integration status
 - F29 Sanctioning orders
 
-**Coder Instructions — Completed (14):** CI-01, CI-02, CI-07, CI-10, CI-11, CI-14, CI-18, CI-20, CI-21, CI-25, CI-26, CI-27, CI-36, CI-42.
+**Coder Instructions — Completed (16):** CI-01, CI-02, CI-07, CI-10, CI-11, CI-14, CI-18, CI-20, CI-21, CI-23, CI-24, CI-25, CI-26, CI-27, CI-36, CI-42.
 
 ## 5. Partially implemented
 
-**Admin panel features — Ready with limitations (17):** F1, F2, F4, F6, F7, F8, F9, F10, F13, F15, F16, F17, F18, F20, F21, F23, F30.
+**Admin panel features — Ready with limitations (15):** F1, F2, F4, F6, F7, F8, F9, F10, F13, F15, F16, F20, F21, F23, F30.
 
-**Coder Instructions — Partial (12):** CI-05, CI-06, CI-12, CI-13, CI-16, CI-19, CI-22, CI-24, CI-28, CI-32, CI-38, CI-41.
+**Coder Instructions — Partial (11):** CI-05, CI-06, CI-12, CI-13, CI-16, CI-19, CI-22, CI-28, CI-32, CI-38, CI-41.
 
 ## 6. Pending
 
@@ -167,7 +169,7 @@
 
 **Coder Instructions — Not started (14):** CI-03, 09, 15, 17, 29, 30, 33, 34, 35, 37, 39, 43, 44, 45.
 
-**Coder Instructions — Blocked (4):** CI-04, CI-08, CI-23, CI-40. **Not verifiable (1):** CI-31.
+**Coder Instructions — Blocked (3):** CI-04, CI-08, CI-40. **Not verifiable (1):** CI-31.
 
 ## 7. Known bugs and technical risks
 
@@ -240,7 +242,7 @@ Ordered by severity. Items 1–5 re-verified by hand on 2026-10-17.
 | Not verifiable | 1 | 0 |
 | **Completion % (completed only)** | **31.1 %** (was 11.1 %) | **16.7 %** |
 
-Points 1–3 only (CI-01 … CI-24): 9 completed of 24 (**37.5 %**, was 16.7 %). Directly related CR / Property / Seniority items outside them (CI-25, 26, 27, 33, 36): 4 of 5 (**80 %**). See [`CODER-INSTRUCTIONS-POINTS-1-TO-3.md`](CODER-INSTRUCTIONS-POINTS-1-TO-3.md) §6.
+Points 1–3 only (CI-01 … CI-24): 11 completed of 24 (**45.8 %**, was 16.7 %). Directly related CR / Property / Seniority items outside them (CI-25, 26, 27, 33, 36): 4 of 5 (**80 %**). See [`CODER-INSTRUCTIONS-POINTS-1-TO-3.md`](CODER-INSTRUCTIONS-POINTS-1-TO-3.md) §6.
 
 | Admin panel features | Count |
 |---|---|

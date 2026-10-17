@@ -10,7 +10,6 @@ use App\Domain\Eligibility\Enums\CalculationStatus;
 use App\Domain\Eligibility\Enums\ListType;
 use App\Domain\Eligibility\Enums\RemarkCode;
 use App\Domain\Eligibility\Models\DpcCalculationRun;
-use App\Domain\Eligibility\RuleSet;
 use App\Domain\Eligibility\ValueObjects\OfficerRecord;
 use App\Domain\Master\Models\RecruitmentRuleSource;
 use App\Domain\Shared\Services\ActivityTimelineService;
@@ -43,6 +42,7 @@ class DpcCalculationService
         private readonly ZoneOfConsiderationService $zoneService,
         private readonly SuperSeatService $superSeat,
         private readonly ActivityTimelineService $timeline,
+        private readonly DpcRuleBook $ruleBook,
     ) {}
 
     public function calculate(DpcProposal $proposal, ?User $actor = null): DpcCalculationRun
@@ -62,7 +62,8 @@ class DpcCalculationService
             throw new WorkflowException('This proposal has no evaluation chart entries, so there is nothing to calculate.');
         }
 
-        $rules = RuleSet::fromConfig();
+        // The CR scale and qualifying scores in force for this DPC's year (DPC Rules).
+        $rules = $this->ruleBook->ruleSetFor($proposal);
         $fromClass = $proposal->promotionFromPost->class_level;
         $toClass = $proposal->promotionToPost->class_level;
 

@@ -143,6 +143,10 @@ class DemoMasterSeeder extends Seeder
      * Effective-dated reservation percentages (architect Q8) — the policy layer
      * the roster is built from. Unreserved is included with a zero percentage
      * so the master lists every category rather than implying UR is absent.
+     *
+     * **Seeded inactive** (2026-10-17): the only reservation in promotion today is
+     * PH (rule 2.1), which is a DPC Rule rather than a category policy. These rows
+     * stay so the screens can be demonstrated, but none of them is in force.
      */
     private function reservationPolicies(): void
     {
@@ -158,7 +162,7 @@ class DemoMasterSeeder extends Seeder
                 [
                     'percentage' => $percentage,
                     'effective_to' => null,
-                    'status' => MasterStatus::Active->value,
+                    'status' => MasterStatus::Inactive->value,
                 ],
             );
         }
@@ -433,7 +437,8 @@ class DemoMasterSeeder extends Seeder
                 'size' => 100,
                 'effective_from' => '2026-01-01',
                 'effective_to' => null,
-                'status' => MasterStatus::Active->value,
+                // Only PH reservation is in force; see reservationPolicies().
+                'status' => MasterStatus::Inactive->value,
             ],
         );
 
