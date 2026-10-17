@@ -28,11 +28,12 @@
                     @forelse ($classes as $class)
                         <tr>
                             <td><code>{{ $class->code }}</code></td>
-                            <td>{{ $class->name_en }}</td>
+                            <td><a href="{{ route('admin.service-classes.promotion-rules.index', $class) }}" class="fw-semibold">{{ $class->name_en }}</a></td>
                             <td>{{ $class->name_hi ?? '—' }}</td>
                             <td>{{ $class->sort_order }}</td>
                             <td><x-status-badge :status="$class->status" /></td>
                             <td class="text-end">
+                                <a href="{{ route('admin.service-classes.promotion-rules.index', $class) }}" class="btn btn-outline-success btn-sm">{{ __('admin.promotion_rules.button') }}</a>
                                 <a href="{{ route('admin.service-classes.edit', $class) }}" class="btn btn-outline-primary btn-sm">{{ __('ui.edit') }}</a>
                                 <form method="POST" action="{{ route('admin.service-classes.destroy', $class) }}" class="d-inline"
                                       data-confirm="{{ __('admin.service_classes.index.withdraw_this_class_from_the_master_proposals_th') }}">

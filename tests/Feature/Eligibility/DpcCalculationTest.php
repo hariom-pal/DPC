@@ -13,7 +13,6 @@ use App\Domain\Eligibility\Enums\ListType;
 use App\Domain\Eligibility\Models\DpcCalculationResult;
 use App\Domain\Eligibility\Models\DpcCalculationRun;
 use App\Domain\Eligibility\Services\DpcCalculationService;
-use App\Domain\Eligibility\Services\DpcRuleBook;
 use App\Domain\Eligibility\Services\ExplainCalculationService;
 use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\ReservationCategory;
@@ -24,7 +23,6 @@ use App\Enums\Role;
 use Database\Seeders\LookupMasterSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Http\UploadedFile;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Tests\Concerns\RaisesDpcProposals;
@@ -347,55 +345,6 @@ class DpcCalculationTest extends TestCase
             $this->proposal->promotionToPost->class_level,
         ));
         $this->assertNotSame('2027.9', $reloaded->rule_version);
-    }
-
-    public function test_the_cr_scale_in_force_for_the_dpc_year_judges_the_officers(): void
-    {
-        // Rule 3.4's new scale with a qualifying score of 36 for Class I to I:
-        // US1, US2 and US6 total 35 on it, US3 33, US4 45 — so only US4 qualifies.
-        $this->standardChart();
-        $year = app(DpcRuleBook::class)->yearOf($this->proposal->fresh());
-
-        $scale = app(DpcRuleBook::class)->recordCrScale([
-            'name' => 'New online scale',
-            'effective_from_year' => $year,
-            'grade_marks' => ['क+' => 9, 'क' => 7, 'ख' => 5, 'ग' => 3, 'घ' => 1],
-            'scoring_years' => 5,
-            'tribal_area_bonus' => 1,
-            'disqualifying_grade' => 'घ',
-            'last_year_forbidden_grades' => ['I-I' => 'ग'],
-            'super_seat_grade' => 'क+',
-            'qualifying_scores' => ['I-I' => 36, 'II-I' => 30, 'II-II' => 27, 'default' => 25],
-            'order_number' => 'GAD/1',
-            'order_date' => now()->toDateString(),
-        ], UploadedFile::fake()->create('scale.pdf', 10, 'application/pdf'), $this->ao);
-
-        $run = $this->calculate();
-
-        $this->assertSame(1, $run->eligible_count);
-        $this->assertStringContainsString('+cr-scale:'.$scale->uuid, $run->rule_version);
-        $this->assertSame(9, $run->ruleSet()->crGradeMarks['क+']);
-    }
-
-    public function test_a_scale_for_a_later_year_leaves_this_dpc_on_its_own_rules(): void
-    {
-        $this->standardChart();
-        $year = app(DpcRuleBook::class)->yearOf($this->proposal->fresh());
-
-        app(DpcRuleBook::class)->recordCrScale([
-            'name' => 'Next year',
-            'effective_from_year' => $year + 1,
-            'grade_marks' => ['क+' => 9, 'क' => 7, 'ख' => 5, 'ग' => 3, 'घ' => 1],
-            'scoring_years' => 5, 'tribal_area_bonus' => 1, 'disqualifying_grade' => 'घ',
-            'last_year_forbidden_grades' => [], 'super_seat_grade' => 'क+',
-            'qualifying_scores' => ['I-I' => 40, 'default' => 40],
-            'order_number' => 'GAD/2', 'order_date' => now()->toDateString(),
-        ], UploadedFile::fake()->create('scale.pdf', 10, 'application/pdf'), $this->ao);
-
-        $run = $this->calculate();
-
-        $this->assertSame(4, $run->eligible_count);
-        $this->assertSame(config('dpc.scoring.rule_version'), $run->rule_version);
     }
 
     public function test_the_proposal_fingerprint_changes_only_when_the_data_does(): void

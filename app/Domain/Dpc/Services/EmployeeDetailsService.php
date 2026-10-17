@@ -14,7 +14,6 @@ use App\Domain\Dpc\Models\DpcEvaluationPropertyFlag;
 use App\Domain\Dpc\Models\DpcEvaluationRecordGap;
 use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\Dpc\Models\DpcProposal;
-use App\Domain\Eligibility\Services\DpcRuleBook;
 use App\Domain\Master\Services\PhReservationPolicy;
 use App\Domain\Master\Support\ReservationMode;
 use App\Domain\Shared\Services\ActivityTimelineService;
@@ -49,7 +48,6 @@ class EmployeeDetailsService
 {
     public function __construct(
         private readonly ActivityTimelineService $timeline,
-        private readonly DpcRuleBook $ruleBook,
     ) {}
 
     // ------------------------------------------------------------------
@@ -107,7 +105,7 @@ class EmployeeDetailsService
             throw new WorkflowException(__('dpc.employee_details.cr.reports_required'));
         }
 
-        $grade = $reports === null ? null : $this->yearGrade($reports, $this->ruleBook->gradeMarksFor($row->proposal));
+        $grade = $reports === null ? null : $this->yearGrade($reports);
 
         /** @var DpcEvaluationCrGrade $record */
         $record = $row->crGrades()->firstOrNew(['year' => $year]);

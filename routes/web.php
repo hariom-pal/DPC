@@ -8,17 +8,18 @@ use App\Http\Controllers\Admin\AuditTrailController;
 use App\Http\Controllers\Admin\CgpscChairmanController;
 use App\Http\Controllers\Admin\ClassMasterController;
 use App\Http\Controllers\Admin\CommitteeConfigurationController;
+use App\Http\Controllers\Admin\CrGradeValueController;
 use App\Http\Controllers\Admin\DepartmentController;
 use App\Http\Controllers\Admin\DepartmentPostController;
 use App\Http\Controllers\Admin\DesignationController;
 use App\Http\Controllers\Admin\DistrictController;
-use App\Http\Controllers\Admin\DpcRuleController;
 use App\Http\Controllers\Admin\DpcTypeController;
 use App\Http\Controllers\Admin\IntegrationStatusController;
 use App\Http\Controllers\Admin\MasterDataController;
 use App\Http\Controllers\Admin\PayScaleController;
 use App\Http\Controllers\Admin\PortalNoticeController;
 use App\Http\Controllers\Admin\PreDpcLinkController;
+use App\Http\Controllers\Admin\PromotionCrRuleController;
 use App\Http\Controllers\Admin\QualificationController;
 use App\Http\Controllers\Admin\RecordReasonController;
 use App\Http\Controllers\Admin\ReservationCategoryController;
@@ -647,6 +648,17 @@ Route::middleware('auth')->group(function (): void {
                 Route::resource('service-classes', ClassMasterController::class)
                     ->parameters(['service-classes' => 'classMaster'])
                     ->except(['show']);
+                // A class's promotion rules (CR, Loyalty, Property Declaration).
+                Route::get('service-classes/{classMaster}/promotion-rules', [PromotionCrRuleController::class, 'index'])
+                    ->name('service-classes.promotion-rules.index');
+                Route::get('service-classes/{classMaster}/promotion-rules/create', [PromotionCrRuleController::class, 'create'])
+                    ->name('service-classes.promotion-rules.create');
+                Route::post('service-classes/{classMaster}/promotion-rules', [PromotionCrRuleController::class, 'store'])
+                    ->name('service-classes.promotion-rules.store');
+                // Eligible CR Grades — the numeric values a CR may carry.
+                Route::get('cr-grades', [CrGradeValueController::class, 'index'])->name('cr-grades.index');
+                Route::post('cr-grades', [CrGradeValueController::class, 'store'])->name('cr-grades.store');
+                Route::delete('cr-grades/{crGrade}', [CrGradeValueController::class, 'destroy'])->name('cr-grades.destroy');
                 Route::resource('pay-scales', PayScaleController::class)
                     ->parameters(['pay-scales' => 'payScale'])
                     ->except(['show']);
@@ -760,18 +772,6 @@ Route::middleware('auth')->group(function (): void {
                 Route::resource('committee-configurations', CommitteeConfigurationController::class)
                     ->parameters(['committee-configurations' => 'committeeConfiguration'])
                     ->except(['show']);
-
-                /*
-                 | DPC Rules (rules 2.1, 3.4, 3.5): the CR marks and qualifying scores
-                 | and the PH reservation, version by version. Recorded and read only —
-                 | a change is a new version, never an edit.
-                 */
-                Route::prefix('dpc-rules')->name('dpc-rules.')->group(function (): void {
-                    Route::get('/', [DpcRuleController::class, 'index'])->name('index');
-                    Route::get('cr-scales/create', [DpcRuleController::class, 'createCrScale'])->name('cr-scales.create');
-                    Route::post('cr-scales', [DpcRuleController::class, 'storeCrScale'])->name('cr-scales.store');
-                    Route::get('cr-scales/{crScale}/document', [DpcRuleController::class, 'crScaleDocument'])->name('cr-scales.document');
-                });
 
                 Route::resource('users', UserController::class)->only(['index', 'create', 'store', 'edit', 'update']);
                 Route::post('users/{user}/toggle-active', [UserController::class, 'toggleActive'])->name('users.toggle-active');

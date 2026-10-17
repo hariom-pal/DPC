@@ -6,7 +6,7 @@ namespace App\Domain\Dpc\Services;
 
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\ValueObjects\VacancyBreakdown;
-use App\Domain\Eligibility\Services\DpcRuleBook;
+use App\Domain\Eligibility\RuleSet;
 use App\Domain\Eligibility\Services\ZoneOfConsiderationService;
 use App\Domain\Eligibility\ValueObjects\ZoneOfConsideration;
 use App\Enums\ServiceClass;
@@ -65,7 +65,6 @@ class VacancyCalculationService
 {
     public function __construct(
         private readonly ZoneOfConsiderationService $zones,
-        private readonly DpcRuleBook $ruleBook,
     ) {}
 
     /**
@@ -174,7 +173,7 @@ class VacancyCalculationService
             toClass: $this->classOf($proposal, 'promotionToPost'),
             vacancies: max(0, $vacancy),
             availableOfficers: $proposal->seniorityEntries()->count(),
-            rules: $this->ruleBook->ruleSetFor($proposal),
+            rules: RuleSet::fromConfig(),
         );
     }
 

@@ -125,7 +125,9 @@ final class UatCleanupPlan
         'reservation_rosters' => 'Reservation roster master',
         'reservation_roster_points' => 'Reservation roster points',
         'committee_configurations' => 'Committee configuration',
-        'cr_scoring_scales' => 'DPC Rules: CR marks and qualifying scores (and their orders)',
+        'cr_grade_values' => 'Eligible CR Grades',
+        'promotion_cr_rules' => 'Promotion rules (CR, Loyalty, Property) per class',
+        'promotion_cr_rule_years' => 'Year-wise requirements of the promotion rules',
         'cgpsc_chairmen' => 'CGPSC Chairman record (required to compose any committee)',
         'recruitment_rules' => 'Recruitment rules',
         'recruitment_rule_sources' => 'Recruitment rule feeder posts',
@@ -157,7 +159,6 @@ final class UatCleanupPlan
         'import_batches' => [['config:dpc.imports.disk', 'stored_path'], ['config:dpc.imports.disk', 'error_report_path']],
         'department_post_orders' => [['disk', 'path']],
         'recruitment_rules' => [['go_document_disk', 'go_document_path']],
-        'cr_scoring_scales' => [['disk', 'path']],
     ];
 
     /**
