@@ -52,6 +52,9 @@
                        href="{{ route('admin.pay-scales.index') }}">{{ __('ui.layouts.admin.nav.pay_scales') }}</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.department-posts.*') ? 'active' : '' }}"
                        href="{{ route('admin.department-posts.index') }}">{{ __('ui.layouts.admin.nav.department_posts') }}</a>
+
+                    <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.vacancy-management.*', 'admin.departments.vacancy-master.*') ? 'active' : '' }}"
+                       href="{{ route('admin.vacancy-management.index') }}">{{ __('vacancymaster.title') }}</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.service-classes.*') ? 'active' : '' }}"
                        href="{{ route('admin.service-classes.index') }}">{{ __('ui.layouts.admin.nav.class_master') }}</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.qualifications.*') ? 'active' : '' }}"
@@ -70,8 +73,6 @@
                        href="{{ route('admin.users.index') }}">{{ __('ui.layouts.admin.nav.user_management') }}</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.reservation-categories.*') ? 'active' : '' }}"
                        href="{{ route('admin.reservation-categories.index') }}">{{ __('ui.layouts.admin.nav.reservation_categories') }}</a>
-                    <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.vacancy-types.*') ? 'active' : '' }}"
-                       href="{{ route('admin.vacancy-types.index') }}">{{ __('ui.layouts.admin.nav.vacancy_types') }}</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.dpc-types.*') ? 'active' : '' }}"
                        href="{{ route('admin.dpc-types.index') }}">{{ __('ui.layouts.admin.nav.dpc_types') }}</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.review-reasons.*') ? 'active' : '' }}"

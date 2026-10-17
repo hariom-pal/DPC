@@ -41,6 +41,10 @@ class DemoSeeder extends Seeder
         // is off by default.
         config(['queue.default' => 'sync']);
 
+        // The demonstration's proposals carry their own Working Officers charts,
+        // so they are raised on the chart source, whatever new proposals default to.
+        config(['dpc.vacancy_master.source_for_new_proposals' => 'chart']);
+
         $this->call([
             RolesAndPermissionsSeeder::class,
             DistrictSeeder::class,

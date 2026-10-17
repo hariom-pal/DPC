@@ -9,6 +9,7 @@ use App\Domain\Dpc\Models\DpcWorkingOfficer;
 use App\Domain\Dpc\ValueObjects\VacancyBreakdown;
 use App\Domain\Master\Models\RecruitmentRule;
 use App\Domain\Master\Models\VacancyType;
+use App\Domain\Master\Support\ReservationMode;
 use App\Enums\MasterStatus;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -60,7 +61,11 @@ use Illuminate\Support\Collection;
  */
 class VacancyEngine
 {
-    public function __construct(private readonly SanctionedStrengthSource $sanctionedStrengths) {}
+    public function __construct(
+        private readonly SanctionedStrengthSource $sanctionedStrengths,
+        private readonly ProposalVacancyPosition $vacancyPositions,
+        private readonly ReservationMode $reservation,
+    ) {}
 
     /**
      * Calculate every figure the register's summary names.
@@ -76,6 +81,16 @@ class VacancyEngine
         $proposal->loadMissing('promotionToPost', 'workingOfficers');
 
         [$periodFrom, $periodTo] = $this->period($proposal);
+
+        /*
+         | A proposal raised on the Administrator's Vacancy Management record takes
+         | every figure from that finalized record (2026-10-17). The record was
+         | computed with `quotaPosition()` below, so the formula is the same; only
+         | the source of the counts differs. A chart proposal is untouched.
+         */
+        if ($proposal->usesVacancyMaster()) {
+            return $this->vacancyPositions->breakdown($proposal, $periodFrom, $periodTo, $this->roundingRule());
+        }
 
         $toPost = $proposal->promotionToPost;
         $sanctioned = $this->sanctionedStrengths->forProposal($proposal);
@@ -320,6 +335,22 @@ class VacancyEngine
     public function classification(DpcProposal $proposal): array
     {
         $proposal->loadMissing('workingOfficers');
+
+        /*
+         | A Vacancy Management proposal: its promotion vacancy, in the one pool.
+         | The record carries no reservation category per vacancy, so category-wise
+         | reservation cannot be served from it — `[]`, and the submission gate says
+         | why, rather than inventing categories.
+         */
+        if ($proposal->usesVacancyMaster()) {
+            $pool = $this->reservation->poolCategoryId();
+
+            if ($this->reservation->categoryWise() || $pool === null) {
+                return [];
+            }
+
+            return $this->vacancyPositions->rows($proposal, VacancyType::query()->pluck('id', 'code')->all(), $pool);
+        }
 
         [$from, $to] = $this->period($proposal);
 

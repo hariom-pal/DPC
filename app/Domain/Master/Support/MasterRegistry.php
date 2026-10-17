@@ -14,7 +14,6 @@ use App\Domain\Master\Models\Qualification;
 use App\Domain\Master\Models\RecordReason;
 use App\Domain\Master\Models\ReservationCategory;
 use App\Domain\Master\Models\ReviewReason;
-use App\Domain\Master\Models\VacancyType;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -52,9 +51,6 @@ final class MasterRegistry
              */
             self::bilingual('dpc-types', 'DPC Types', DpcType::class, [
                 ['code' => 'fresh', 'name_en' => 'Fresh DPC', 'name_hi' => 'फ्रेश डी.पी.सी.', 'status' => 'active'],
-            ]),
-            self::bilingual('vacancy-types', 'Vacancy Types', VacancyType::class, [
-                ['code' => 'DIRECT', 'name_en' => 'Direct Vacancy', 'name_hi' => 'सीधी रिक्ति', 'status' => 'active'],
             ]),
             self::bilingual('review-reasons', 'Review Reasons', ReviewReason::class, [
                 ['code' => 'COURT', 'name_en' => 'Court direction', 'name_hi' => 'न्यायालयीन निर्देश', 'status' => 'active'],

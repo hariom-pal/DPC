@@ -6,6 +6,21 @@
                         @include('dpc-proposals.sections._action', ['manageRoute' => 'dpc-proposals.working-officers'])
                     </div>
 
+                    @if ($proposal->usesVacancyMaster())
+                        {{-- The Administrator's finalized Vacancy Management record; the AO enters no chart. --}}
+                        @php
+                            $adminVacancy = app(\App\Domain\Dpc\Services\ProposalVacancyPosition::class);
+                            $position = $adminVacancy->for($proposal);
+                        @endphp
+                        <div class="mt-2">
+                            @include('dpc-proposals._admin-vacancy-summary', [
+                                'position' => $position,
+                                'counts' => $position === null ? null : $adminVacancy->counts($position),
+                                'vacancy' => app(\App\Domain\Dpc\Services\VacancyCalculationService::class)->summary($proposal),
+                                'year' => (int) ($proposal->dpc_year ?: $proposal->proposal_date->year),
+                            ])
+                        </div>
+                    @else
                     {!! __('dpc.sections.working_officers.sanctioned_post_count', ['count' => $proposal->sanctioned_post_count ?? '—']) !!}
 
                     <div class="table-responsive">
@@ -46,6 +61,7 @@
                             </tbody>
                         </table>
                     </div>
+                    @endif
                 </div>
             </div>
 

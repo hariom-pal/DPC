@@ -29,8 +29,8 @@ use App\Http\Controllers\Admin\ReservationRosterPointController;
 use App\Http\Controllers\Admin\ReviewReasonController;
 use App\Http\Controllers\Admin\UserAssignmentController;
 use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Admin\VacancyManagementController;
 use App\Http\Controllers\Admin\VacancyMasterController;
-use App\Http\Controllers\Admin\VacancyTypeController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\PasswordChangeController;
 use App\Http\Controllers\Auth\RegistrationController;
@@ -623,6 +623,13 @@ Route::middleware('auth')->group(function (): void {
                  | mapped post, in four steps: sanctioned strength for the year, working
                  | strength on 1 January, vacancies during the year, summary.
                  */
+                /*
+                 | Vacancy Management — the Administrator's one entry point: choose
+                 | Department → Post → Year, or find a record. The record's four steps
+                 | are the Vacancy Master routes below.
+                 */
+                Route::get('vacancy-management', [VacancyManagementController::class, 'index'])->name('vacancy-management.index');
+                Route::get('vacancy-management/open', [VacancyManagementController::class, 'go'])->name('vacancy-management.go');
                 Route::prefix('departments/{department}/vacancy-master')
                     ->name('departments.vacancy-master.')
                     ->controller(VacancyMasterController::class)
@@ -677,9 +684,12 @@ Route::middleware('auth')->group(function (): void {
                 Route::resource('record-reasons', RecordReasonController::class)
                     ->parameters(['record-reasons' => 'recordReason'])
                     ->except(['show']);
-                Route::resource('vacancy-types', VacancyTypeController::class)
-                    ->parameters(['vacancy-types' => 'vacancyType'])
-                    ->except(['show']);
+                /*
+                 | The Vacancy Type master has no screen (2026-10-17). The vacancy
+                 | engine reads four fixed codes from `vacancy_types`, so renaming or
+                 | deleting one silently dropped vacancies from a proposal. The table
+                 | and its rows stay for the `dpc_vacancies` that cite them.
+                 */
                 Route::resource('dpc-types', DpcTypeController::class)
                     ->parameters(['dpc-types' => 'dpcType'])
                     ->except(['show']);

@@ -22,9 +22,16 @@ use Illuminate\Support\Carbon;
  */
 class SaveWorkingOfficersRequest extends FormRequest
 {
+    /**
+     * A proposal on the Administrator's Vacancy Management record takes no chart
+     * from the AO: refused before validation, so the refusal is a 403 and not a
+     * list of field errors about data that may not be sent at all.
+     */
     public function authorize(): bool
     {
-        return true;
+        $proposal = $this->route('dpcProposal');
+
+        return ! ($proposal instanceof DpcProposal && $proposal->usesVacancyMaster());
     }
 
     /**

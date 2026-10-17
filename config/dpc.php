@@ -196,6 +196,21 @@ return [
     */
 
     'vacancy_master' => [
+        /*
+         | Where a NEW proposal's vacancy figures come from (2026-10-17):
+         |
+         |  - `vacancy_master` — the Administrator's finalized Vacancy Management
+         |    record for the department, Promotion To Post and DPC year. The AO
+         |    enters no Working Officers chart and no vacancy breakdown; the S16
+         |    screen shows the Administrator's figures read-only, and the proposal
+         |    cannot be submitted until that record is finalized.
+         |  - `chart` — the earlier behaviour: the AO's Working Officers chart.
+         |
+         | Stamped on each proposal when it is created (`dpc_proposals.vacancy_source`),
+         | so changing this never alters a proposal already raised. Proposals raised
+         | before this setting existed are `chart`.
+         */
+        'source_for_new_proposals' => env('DPC_VACANCY_SOURCE', 'vacancy_master'),
         'required_for_submission' => (bool) env('DPC_VACANCY_MASTER_REQUIRED', false),
         'max_entry_count' => (int) env('DPC_VACANCY_MASTER_MAX_ENTRY_COUNT', 500),
         'earliest_year' => (int) env('DPC_VACANCY_MASTER_EARLIEST_YEAR', 2019),

@@ -20,6 +20,7 @@ use App\Domain\Dpc\Services\DpcCommitteeService;
 use App\Domain\Dpc\Services\DpcProposalCompletenessService;
 use App\Domain\Dpc\Services\DpcProposalService;
 use App\Domain\Dpc\Services\EvaluationCandidateService;
+use App\Domain\Dpc\Services\ProposalVacancyPosition;
 use App\Domain\Dpc\Services\ProposalVerificationService;
 use App\Domain\Dpc\Services\VacancyCalculationService;
 use App\Domain\Import\Services\ImportTemplateBuilder;
@@ -252,6 +253,24 @@ class DpcProposalController extends Controller
 
     public function workingOfficers(Request $request, DpcProposal $dpcProposal): View
     {
+        /*
+         | A proposal on the Administrator's Vacancy Management record: S16 is that
+         | record's figures, read-only, for anyone who may view the proposal.
+         */
+        if ($dpcProposal->usesVacancyMaster()) {
+            $this->authorize('view', $dpcProposal);
+
+            $position = app(ProposalVacancyPosition::class)->for($dpcProposal);
+
+            return view('dpc-proposals.admin-vacancy', [
+                'proposal' => $dpcProposal,
+                'position' => $position,
+                'counts' => $position === null ? null : app(ProposalVacancyPosition::class)->counts($position),
+                'vacancy' => $this->vacancies->summary($dpcProposal),
+                'year' => (int) ($dpcProposal->dpc_year ?: $dpcProposal->proposal_date->year),
+            ]);
+        }
+
         $this->authorize('update', $dpcProposal);
         $dpcProposal->load('vacancies.vacancyType', 'vacancies.reservationCategory', 'workingOfficers');
 

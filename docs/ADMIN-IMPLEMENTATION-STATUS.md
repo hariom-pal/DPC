@@ -15,7 +15,8 @@
   - 155 routes named `admin.*` behind `auth` + `EnsurePasswordChanged` + `role:admin` (`routes/web.php:562-768`)
   - 22 sidebar entries
   - 30 distinct features
-- **Feature readiness:** 9 Ready, 17 Ready with limitations, 4 Not ready.
+- **Feature readiness:** 11 Ready, 14 Ready with limitations, 4 Not ready, 1 removed (Vacancy Types screen).
+- **Vacancy Management (2026-10-17):** one Admin entry; the finalized record is the only vacancy source of new DPC proposals, read-only to the AO; results proven equal to the Working Officers chart. See [`ADMIN-VACANCY-MANAGEMENT.md`](ADMIN-VACANCY-MANAGEMENT.md).
 - **Not ready:**
   - reservation policies and rosters — stored, but no engine reads them
   - master-data CSV import for departments, department posts and DPC types
@@ -40,7 +41,7 @@
 |---|---|---|---|---|---|---|
 | F1 | Admin dashboard | Counts across the portal and masters | `admin.dashboard`; `AdminDashboardController` | many (read) | `AdminAccessTest`, `ScreenSmokeTest` | ⚠️ master tile labels hard-coded English |
 | F2 | Department master + registration status | Department catalogue; code = DPC ID prefix | `admin.departments.*`; `DepartmentController`, `DepartmentRequest` | `departments` | `DepartmentMasterTest` (9) | ⚠️ admin can set Registered/Active by hand, bypassing S6; English titles/flashes |
-| F3 | **Vacancy Master** | Year-wise vacancy position per post, in 4 steps: sanctioned strength (entered per year with order + PDF, not taken from the post mapping) → working strength → reason-wise vacancies → summary & finalize | `admin.departments.vacancy-master.*` (13 routes); `VacancyMasterController`, `VacancyMasterService` | `vacancy_positions`, `…_sanctioned_strengths`, `…_working_strengths`, `…_entries` | `VacancyMasterTest` (34) | ✅ (reconciliation optional by config, by design) |
+| F3 | **Vacancy Management** (was Vacancy Master) | One sidebar entry: Department → Post → Year, then 4 steps — sanctioned strength for the year (order + PDF) → working strength and existing / anticipated vacancies → review & finalize. Filtered, searchable list of records with year-wise history. **The finalized record is the vacancy source of every new DPC proposal**, read-only to the AO ([`ADMIN-VACANCY-MANAGEMENT.md`](ADMIN-VACANCY-MANAGEMENT.md)). | `admin.vacancy-management.*`, `admin.departments.vacancy-master.*`; `VacancyManagementController`, `VacancyMasterController`, `VacancyMasterService`, `ProposalVacancyPosition` | `vacancy_positions`, `…_sanctioned_strengths`, `…_working_strengths`, `…_entries`; `dpc_proposals.vacancy_source` | `VacancyMasterTest`, `VacancyManagementIntegrationTest` (14) | ✅ (category-wise reservation not served — V-1) |
 | F4 | Department Post Mapping | Effective-dated posts, several GOs + PDFs, supersession | `admin.department-posts.*`; `DepartmentPostController`, `DepartmentPostMappingService` | `department_posts`, `department_post_orders` | `DepartmentPostMappingTest` (27) | ⚠️ `destroy` unguarded; plain edit changes an in-force mapping without a GO |
 | F5 | Class master | Service classes | `admin.service-classes.*` | `service_classes` | `ClassMasterTest` (10) | ✅ |
 | F6 | Pay scales | Pay-scale master | `admin.pay-scales.*` | `pay_scales` | smoke + portability only | ⚠️ unguarded delete |
@@ -52,7 +53,7 @@
 | F12 | Reservation rosters + points | Roster points | `admin.reservation-rosters.*` | `reservation_rosters`, `reservation_roster_points` | `ReservationHierarchyTest` | ❌ **no engine reads it** |
 | F13 | Review reasons | Reasons for a Review DPC | `admin.review-reasons.*` | `review_reasons` | none dedicated | ⚠️ **deactivating has no effect** (`ReviewProposalController.php:39` lists every reason) |
 | F14 | Record reasons | Why a CR / loyalty record is missing | `admin.record-reasons.*` | `record_reasons` | `RecordReasonMasterTest` (7) | ✅ |
-| F15 | Vacancy types | Vacancy grounds | `admin.vacancy-types.*` | `vacancy_types` | `LookupMasterTest` | ⚠️ engine matches hard-coded codes (`VacancyEngine.php:332`) |
+| F15 | ~~Vacancy types~~ — **screen removed 2026-10-17** | The engine reads four fixed codes; renaming or deleting one dropped vacancies silently. CRUD, routes, sidebar entry and CSV import removed; table and rows kept for `dpc_vacancies`. | — | `vacancy_types` (kept) | `VacancyManagementIntegrationTest::test_the_vacancy_type_screens_are_gone_and_the_rows_survive` | — |
 | F16 | DPC types | Fresh / Review / Circulation | `admin.dpc-types.*` | `dpc_types` | `LookupMasterTest` | ⚠️ `'fresh'` hard-coded (`SaveDpcProposalRequest.php:99`) |
 | F17 | **Promotion rules on the Class Master** + **Eligible CR Grades** | Class Master → a class → promotion into it from the same class or the one below. Each rule applies from a DPC year until a newer one, and states: years of CR / Loyalty / Property Declaration; year-wise CR passing marks and whether each year's CR, Loyalty and Property Declaration is mandatory; the qualifying (average) mark; the super-seat grade; the tribal posting bonus (0 = none). The marks come from the Eligible CR Grades master (numeric values, each valid from a date). **Settings only: the eligibility calculation does not read them yet.** | `admin.service-classes.promotion-rules.*`, `admin.cr-grades.*` | `promotion_cr_rules`, `promotion_cr_rule_years`, `cr_grade_values` | `PromotionCrRuleTest` (7) | ✅ (the CR Marks screen recorded earlier the same day was removed) |
 | F18 | **DPC Committee Rules** | Members besides the Chairman, attributes the committee must cover (SC, ST, OBC, female, Bhar Sadhak Sachiv, Vibhag Sachiv), one SC/ST/OBC member, effective dates; Chairman mandatory by rule | `admin.committee-configurations.*`, `align-bounds` | `committee_configurations` | `CommitteeMasterTest`, `CommitteeBoundsReconcilerTest`, `DpcCommitteeTest` | ✅ the 9 unread fields were dropped |
@@ -69,11 +70,11 @@
 | F29 | Sanctioning orders (Pre-DPC links) | Link DPCs to Pre-DPCs | `admin.pre-dpc-links.*` | `dpc_proposals`, `pre_dpc_proposals` | `PreDpcLinkReconcilerTest` (7) | ✅ |
 | F30 | Reports (shared) | Pipeline, outcomes, CSV | `reports.index` | read-only | report tests | ⚠️ reachable only from the admin dashboard |
 
-**Navigation** (`resources/views/layouts/admin.blade.php`, 22 entries): Dashboard, Departments, Districts, Designations, Pay Scales, Department Posts, Class Master, Qualifications, Reservation Policies, Reservation Rosters, CGPSC Chairman, DPC Committee Rules, Eligible CR Grades, User Management, Reservation Categories, Vacancy Types, DPC Types, Review Reasons, Record Reasons, Notice Board, Sanctioning orders.
+**Navigation** (`resources/views/layouts/admin.blade.php`, 22 entries): Dashboard, Departments, Districts, Designations, Pay Scales, Department Posts, Class Master, Qualifications, Reservation Policies, Reservation Rosters, CGPSC Chairman, DPC Committee Rules, Eligible CR Grades, User Management, Reservation Categories, DPC Types, Review Reasons, Record Reasons, Notice Board, Sanctioning orders.
 
 **Reached without a menu entry:**
 - Audit Trail, Integration Status and Reports — dashboard buttons
-- Vacancy Master — department row and edit page
+- Vacancy Management also from a department's row and edit page (its own sidebar entry since 2026-10-17)
 - User Assignments — user row
 - Master-data import/export — a toolbar on 9 index screens
 - Committee replacement — no entry point at all
@@ -123,7 +124,7 @@
 | CI-29 | Online DPC order; link by SMS and mail to officers and committee; order date (4.3) | COMM | N | no order entity; SMS/mail are mocks | — | order + gateways | Decide; needs gateways |
 | CI-30 | Seniority from the date of the DPC order (4.3) | COMM | N | "promotion as on" year only | — | — | with CI-29 |
 | CI-31 | Every entered and calculated data matches some version (4.4) | ENGINE | V | revisions, calculation snapshots, fingerprints exist | — | the requirement is not specific enough to test | Clarify |
-| CI-32 | Working officers count entered and matching the uploaded list 100 % (4.4) | DEPT | P | count derived from the list; Vacancy Master reconciliation when finalized | `VacancyMasterTest::test_a_dpc_proposal_is_reconciled…` | no separately entered figure | Decide if a typed count is wanted |
+| CI-32 | Working officers count entered and matching the uploaded list 100 % (4.4) | DEPT | P | new proposals: the Administrator's finalized working strength (Vacancy Management) is the count; older proposals: derived from the chart | `VacancyManagementIntegrationTest` | no named list is collected for new proposals (V-2) | Decide whether the AO uploads the list as evidence |
 | CI-33 | DOB / joining order number + date + undertaking (4.4) | DEPT | N | dates only | — | — | — |
 | CI-34 | Complaints / representations uploaded + undertaking (4.4) | DEPT | N | — | — | — | — |
 | CI-35 | "Refused promotion on same post" field; refusal letter; last-year refusal → unfit (4.4) | DEPT | N | — | — | — | — |
@@ -143,7 +144,7 @@
 ## 4. Completed features
 
 **Admin panel features — Ready (11):**
-- F3 Vacancy Master
+- F3 Vacancy Management (single vacancy source for new proposals)
 - F17 DPC Rules (CR marks, qualifying scores, PH reservation)
 - F18 DPC Committee Rules
 - F5 Class master
@@ -159,7 +160,9 @@
 
 ## 5. Partially implemented
 
-**Admin panel features — Ready with limitations (15):** F1, F2, F4, F6, F7, F8, F9, F10, F13, F15, F16, F20, F21, F23, F30.
+**Admin panel features — Ready with limitations (14):** F1, F2, F4, F6, F7, F8, F9, F10, F13, F16, F20, F21, F23, F30.
+
+**Admin panel features — Removed (1):** F15 Vacancy types (screen only; table kept), 2026-10-17.
 
 **Coder Instructions — Partial (11):** CI-05, CI-06, CI-12, CI-13, CI-16, CI-19, CI-22, CI-28, CI-32, CI-38, CI-41.
 
@@ -194,7 +197,7 @@ Ordered by severity. Items 1–5 re-verified by hand on 2026-10-17.
    - department-post import can modify a superseded row and records no GO;
    - exports do not neutralise spreadsheet formulas.
 8. Unguarded soft deletes on most masters, with no restore screen. Unique rules do not exclude trashed rows, so a deleted code cannot be reused.
-9. Business logic keys on master codes that admin can edit: `fresh`, the vacancy-type codes, `dpc_committee`.
+9. Business logic keys on master codes that admin can edit: `fresh`, `dpc_committee`. (The vacancy-type codes are no longer editable: their screen was removed 2026-10-17.)
 10. Dead masters and fields:
     - `reservation_policies`, `reservation_rosters` and `reservation_roster_points` — read by no engine;
     - 9 of 11 committee-configuration fields.
@@ -246,9 +249,10 @@ Points 1–3 only (CI-01 … CI-24): 11 completed of 24 (**45.8 %**, was 16.7 %)
 
 | Admin panel features | Count |
 |---|---|
-| Ready | 9 |
-| Ready with limitations | 17 |
+| Ready | 11 |
+| Ready with limitations | 14 |
 | Not ready | 4 |
+| Removed | 1 |
 | **Total** | **30** |
 
 ## 10. Evidence references

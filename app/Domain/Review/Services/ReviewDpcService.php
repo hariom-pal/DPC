@@ -477,6 +477,11 @@ class ReviewDpcService
             // The Seniority List is copied below, so the date the department stated
             // it was drawn up as on (rule 1.6) comes with it.
             'seniority_list_as_on' => $original->seniority_list_as_on?->toDateString(),
+            // A Review re-decides the original's DPC on the original's vacancies:
+            // the same source, and for a Vacancy Management proposal the same
+            // finalized revision the original was submitted with.
+            'vacancy_source' => $original->vacancy_source,
+            'vacancy_position_id' => $original->vacancy_position_id,
             'proposal_date' => $proposalDate->toDateString(),
             'status' => DpcProposalStatus::Draft->value,
             'prepared_by' => $actor->id,

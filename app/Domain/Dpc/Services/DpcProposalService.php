@@ -352,6 +352,12 @@ class DpcProposalService
     {
         $this->assertEditable($proposal);
 
+        // The Administrator's Vacancy Management record is the source for this
+        // proposal: the AO enters no working strength and no vacancy breakdown.
+        if ($proposal->usesVacancyMaster()) {
+            throw new WorkflowException(__('vacancymaster.proposal.ao_cannot_enter'));
+        }
+
         DB::transaction(function () use ($proposal, $officers): void {
             $proposal->workingOfficers()->delete();
 
@@ -563,6 +569,16 @@ class DpcProposalService
     public function submit(DpcProposal $proposal, User $actor, Request $request): void
     {
         $missing = $this->completeness->missingSections($proposal);
+
+        /*
+         | A Vacancy Management proposal stores, at submission, the promotion
+         | vacancy the scoring engine fills — derived from the finalized record and
+         | recorded in the vacancy-calculation audit like a chart's. Written before
+         | the status changes, while the proposal is still the AO's.
+         */
+        if ($missing === [] && $proposal->usesVacancyMaster()) {
+            $this->saveVacancies($proposal, $actor);
+        }
 
         if ($missing !== []) {
             throw new WorkflowException(

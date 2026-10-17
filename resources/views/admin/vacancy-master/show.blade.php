@@ -30,7 +30,7 @@
 
     <nav aria-label="breadcrumb">
         <ol class="breadcrumb small">
-            <li class="breadcrumb-item"><a href="{{ route('admin.departments.index') }}">{{ __('vacancymaster.department_management') }}</a></li>
+            <li class="breadcrumb-item"><a href="{{ route('admin.vacancy-management.index') }}">{{ __('vacancymaster.title') }}</a></li>
             <li class="breadcrumb-item"><a href="{{ route('admin.departments.edit', $department) }}">{{ $department->name }}</a></li>
             <li class="breadcrumb-item"><a href="{{ route('admin.departments.vacancy-master.index', [$department, 'year' => $year]) }}">{{ __('vacancymaster.title') }} {{ $year }}</a></li>
             <li class="breadcrumb-item active" aria-current="page">{{ $post->name }}</li>

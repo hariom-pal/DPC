@@ -71,6 +71,12 @@ class ExcelImportService
     ): ImportBatch {
         $this->assertProposalEditable($proposal);
 
+        // The Administrator's Vacancy Management record supplies this proposal's
+        // working strength; a Working Officers file is not taken from the AO.
+        if ($template === ImportTemplate::CurrentlyWorkingUs && $proposal->usesVacancyMaster()) {
+            throw new WorkflowException(__('vacancymaster.proposal.ao_cannot_enter'));
+        }
+
         // Rule 1.6: refused before anything is stored, so a list drawn up on the
         // wrong date never reaches a preview the officer might commit.
         if ($template === ImportTemplate::FinalSeniorityListUs) {

@@ -7,6 +7,8 @@ namespace App\Domain\Dpc\Services;
 use App\Domain\Committee\Services\CommitteeComplianceService;
 use App\Domain\Dpc\Models\DpcCommitteeMember;
 use App\Domain\Dpc\Models\DpcProposal;
+use App\Domain\Master\Models\RecruitmentRule;
+use App\Domain\Master\Support\ReservationMode;
 
 /**
  * Is this proposal complete enough to be submitted for approval? — M4 Phase 7
@@ -57,6 +59,8 @@ class DpcProposalCompletenessService
         private readonly ProposalVerificationService $verification,
         private readonly VacancyMasterService $vacancyMaster,
         private readonly EmployeeDetailsService $employeeDetails,
+        private readonly ProposalVacancyPosition $vacancyPositions,
+        private readonly ReservationMode $reservation,
     ) {}
 
     /**
@@ -278,7 +282,20 @@ class DpcProposalCompletenessService
          | has not yet recorded keep working as before. A draft position is never
          | read here: only a finalized one is authoritative.
          */
-        $vacancyMaster = $this->vacancyMasterSection($proposal, $sums);
+        /*
+         | A Vacancy Management proposal has no chart: its S16 entry is the
+         | Administrator's finalized record, and the reconciliation below — chart
+         | against record — has nothing to compare.
+         */
+        if ($proposal->usesVacancyMaster()) {
+            foreach ($sections as $index => $section) {
+                if ($section['key'] === 'working_officers') {
+                    $sections[$index] = $this->adminVacancySection($proposal, $sums);
+                }
+            }
+        }
+
+        $vacancyMaster = $proposal->usesVacancyMaster() ? null : $this->vacancyMasterSection($proposal, $sums);
 
         if ($vacancyMaster !== null) {
             $sections[] = $vacancyMaster;
@@ -420,6 +437,50 @@ class DpcProposalCompletenessService
             'route' => 'dpc-proposals.employees.index',
             'complete' => $statuses->isNotEmpty() && $pending->isEmpty(),
             'detail' => (string) $detail,
+        ];
+    }
+
+    /**
+     * S16 for a Vacancy Management proposal: the Administrator's finalized record
+     * for this department, Promotion To Post and DPC year must exist, must have been
+     * computed under the same promotion share as the proposal's Recruitment Rule,
+     * and must leave at least one promotion vacancy to fill.
+     *
+     * @param  array<string, mixed>  $sums
+     * @return array{key: string, label: string, screen: string, route: string, complete: bool, detail: string}
+     */
+    private function adminVacancySection(DpcProposal $proposal, array $sums): array
+    {
+        $position = $this->vacancyPositions->for($proposal);
+        $proposalShare = $proposal->recruitment_rule_id === null
+            ? null
+            : RecruitmentRule::query()->whereKey($proposal->recruitment_rule_id)->value('promotion_recruitment_pct');
+        $recordShare = $position?->promotion_percentage;
+
+        $detail = match (true) {
+            $position === null => __('vacancymaster.proposal.not_finalized'),
+            $this->reservation->categoryWise() => __('vacancymaster.proposal.category_wise_unsupported'),
+            $proposalShare !== null && $recordShare !== null && (float) $proposalShare !== (float) $recordShare => __('vacancymaster.proposal.rule_differs', [
+                'record' => (string) $recordShare,
+                'proposal' => (string) $proposalShare,
+            ]),
+            ($sums['promotion_vacancy'] ?? 0) < 1 => __('vacancymaster.proposal.no_promotion_vacancy'),
+            default => null,
+        };
+
+        return [
+            'key' => 'vacancy_master',
+            'label' => (string) __('vacancymaster.proposal.admin_section_label'),
+            'screen' => 'S16',
+            'route' => 'dpc-proposals.working-officers',
+            'complete' => $detail === null,
+            'detail' => (string) ($detail ?? __('vacancymaster.proposal.admin_section_ok', [
+                'revision' => $position->revision,
+                'year' => $position->vacancy_year,
+                'sanctioned' => $sums['sanctioned'],
+                'working' => $sums['working'],
+                'promotion' => $sums['promotion_vacancy'],
+            ])),
         ];
     }
 

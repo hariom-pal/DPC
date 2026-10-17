@@ -50,6 +50,7 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property int|null $pre_dpc_proposal_id
  * @property int|null $dpc_year
  * @property Carbon|null $seniority_list_as_on
+ * @property string|null $vacancy_source
  * @property int $dpc_type_id
  * @property int|null $original_dpc_proposal_id
  * @property int|null $review_reason_id
@@ -100,6 +101,35 @@ class DpcProposal extends Model implements Auditable
     use HasUuids;
 
     use SoftDeletes;
+
+    /** Vacancy figures from the AO's Working Officers chart (proposals raised before 2026-10-17). */
+    public const VACANCY_SOURCE_CHART = 'chart';
+
+    /** Vacancy figures from the Administrator's finalized Vacancy Management record. */
+    public const VACANCY_SOURCE_MASTER = 'vacancy_master';
+
+    /**
+     * The vacancy source is stamped once, at creation, so changing the setting never
+     * changes a proposal already raised.
+     */
+    protected static function booted(): void
+    {
+        static::creating(function (DpcProposal $proposal): void {
+            if ($proposal->vacancy_source === null) {
+                $source = (string) config('dpc.vacancy_master.source_for_new_proposals', self::VACANCY_SOURCE_MASTER);
+                $proposal->vacancy_source = $source === self::VACANCY_SOURCE_CHART ? self::VACANCY_SOURCE_CHART : self::VACANCY_SOURCE_MASTER;
+            }
+        });
+    }
+
+    /**
+     * Whether this proposal's vacancy figures are the Administrator's finalized
+     * Vacancy Management record rather than an AO-entered chart.
+     */
+    public function usesVacancyMaster(): bool
+    {
+        return $this->vacancy_source === self::VACANCY_SOURCE_MASTER;
+    }
 
     /**
      * The columns `HasUuids` fills on create.
@@ -174,6 +204,8 @@ class DpcProposal extends Model implements Auditable
         'return_remarks',
         'cancelled_at',
         'seniority_list_as_on',
+        'vacancy_source',
+        'vacancy_position_id',
     ];
 
     /**

@@ -42,20 +42,6 @@ class LookupMasterTest extends TestCase
         $this->assertFalse((bool) ReservationCategory::query()->where('code', 'UR')->value('is_reserved'));
     }
 
-    public function test_admin_can_create_a_vacancy_type(): void
-    {
-        $this->actingAs($this->admin())
-            ->post(route('admin.vacancy-types.store'), [
-                'code' => 'clear',
-                'name_en' => 'Clear vacancy',
-                'name_hi' => 'स्पष्ट रिक्ति',
-                'status' => MasterStatus::Active->value,
-            ])
-            ->assertRedirect(route('admin.vacancy-types.index'));
-
-        $this->assertDatabaseHas('vacancy_types', ['code' => 'clear']);
-    }
-
     public function test_reservation_category_reserved_flag_persists(): void
     {
         $this->actingAs($this->admin())
