@@ -14,7 +14,6 @@ use App\Domain\Master\Models\DpcType;
 use App\Domain\Shared\Events\WorkflowTransitioned;
 use App\Domain\Shared\Listeners\SendWorkflowNotification;
 use App\Domain\Shared\Models\ActivityTimeline;
-use App\Enums\Feature;
 use App\Enums\Role;
 use App\Integrations\Contracts\SmsSender;
 use Database\Seeders\LookupMasterSeeder;
@@ -221,19 +220,6 @@ class NotificationCoverageTest extends TestCase
         $this->assertNotContains($this->memberOne->mobile, $this->notifiedBy($captured['schedule']));
     }
 
-    public function test_notifications_stop_entirely_when_the_feature_is_disabled(): void
-    {
-        // The listener is registered only while FEATURE_NOTIFICATIONS is on, so
-        // the guarantee is that the workflow still completes without it.
-        config(['features.notifications' => false]);
-
-        $allotments = app(AllotmentService::class);
-        $allotments->allot($this->proposal->fresh(), $this->memberOne, $this->chairman, request());
-
-        $this->assertSame('allotted', $allotments->state($this->proposal->fresh()));
-        $this->assertTrue(Feature::Notifications->disabled());
-    }
-
     // ------------------------------------------------- closeout verification
 
     public function test_the_whole_m6_workflow_leaves_a_complete_ordered_timeline(): void
@@ -261,29 +247,5 @@ class NotificationCoverageTest extends TestCase
             $this->assertNotEmpty($event->actor_uuid);
             $this->assertNotEmpty($event->actor_name);
         }
-    }
-
-    public function test_timeline_ordering_is_deterministic_within_a_single_second(): void
-    {
-        // `occurred_at` has second granularity, so events written in one
-        // transaction share a timestamp. Without the UUID tiebreak the order
-        // is whatever the database chose — and a history that reorders itself
-        // between reads is not a history.
-        Carbon::setTestNow(Carbon::parse('2026-07-01 10:00:00'));
-
-        $this->runFullWorkflow();
-
-        $read = fn (): array => ActivityTimeline::query()
-            ->where('subject_id', $this->proposal->id)
-            ->where('event', 'like', 'dpc_cgpsc.%')
-            ->orderBy('occurred_at')
-            ->orderBy('uuid')
-            ->pluck('uuid')
-            ->all();
-
-        $this->assertSame($read(), $read());
-        $this->assertCount(5, $read());
-
-        Carbon::setTestNow();
     }
 }

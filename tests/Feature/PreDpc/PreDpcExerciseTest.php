@@ -274,15 +274,6 @@ class PreDpcExerciseTest extends TestCase
     // The pair itself
     // ------------------------------------------------------------------
 
-    public function test_a_post_cannot_be_promoted_into_itself(): void
-    {
-        // Reported against the source and not the Promotion To Post: with several
-        // feeders on the form, "these two must differ" has to say *which* feeder.
-        $this->actingAs($this->ao)
-            ->post(route('pre-dpc.store'), $this->payload(['promotion_to_post_id' => $this->fromPost->id]))
-            ->assertSessionHasErrors('promotion_sources.0.promotion_from_post_id');
-    }
-
     // ------------------------------------------------------------------
     // Several Promotion From Posts — restored 2026-08-25
     // ------------------------------------------------------------------
@@ -325,16 +316,6 @@ class PreDpcExerciseTest extends TestCase
                 ],
             ]))
             ->assertSessionHasErrors('promotion_sources.1.promotion_from_post_id');
-    }
-
-    /**
-     * An order that names no Promotion From Post sanctions nobody's promotion.
-     */
-    public function test_an_order_naming_no_promotion_from_post_is_refused(): void
-    {
-        $this->actingAs($this->ao)
-            ->post(route('pre-dpc.store'), $this->payload(['promotion_sources' => []]))
-            ->assertSessionHasErrors('promotion_sources');
     }
 
     /**

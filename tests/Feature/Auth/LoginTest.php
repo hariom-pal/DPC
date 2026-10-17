@@ -9,6 +9,7 @@ use App\Domain\Authentication\Models\User;
 use App\Enums\Role;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class LoginTest extends TestCase
@@ -29,24 +30,21 @@ class LoginTest extends TestCase
         return $user;
     }
 
-    public function test_user_can_login_with_mobile(): void
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function loginIdentifiers(): array
     {
-        $user = $this->verifiedUser();
-
-        $this->post(route('login.store'), [
-            'login' => $user->mobile,
-            'password' => 'password',
-        ])->assertRedirect(route('dashboard'));
-
-        $this->assertAuthenticatedAs($user);
+        return ['by mobile' => ['mobile'], 'by email' => ['email']];
     }
 
-    public function test_user_can_login_with_email(): void
+    #[DataProvider('loginIdentifiers')]
+    public function test_a_user_can_login_with_either_identifier(string $identifier): void
     {
         $user = $this->verifiedUser();
 
         $this->post(route('login.store'), [
-            'login' => $user->email,
+            'login' => $user->{$identifier},
             'password' => 'password',
         ])->assertRedirect(route('dashboard'));
 

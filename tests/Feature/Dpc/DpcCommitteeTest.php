@@ -595,8 +595,9 @@ class DpcCommitteeTest extends TestCase
                 'is_bhar_sadhak_sachiv' => true, 'is_vibhag_sachiv' => true],
         ])->assertSessionHasNoErrors();
 
-        // Three members and the seat the system adds.
+        // Three members and the seat the system adds — and the coverage rule is met.
         $this->assertSame(4, $this->proposal->committeeMembers()->count());
+        $this->assertTrue($this->committeeSection()['complete'], 'Three members cover the whole required combination.');
     }
 
     /**

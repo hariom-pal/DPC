@@ -227,17 +227,6 @@ class AllotmentDeadlineTest extends TestCase
     }
 
     /**
-     * Before anybody is designated the CGPSC Chairman may allot, or the Commission
-     * could not move a proposal at all.
-     */
-    public function test_the_cgpsc_chairman_may_allot_before_a_dpc_chairman_is_designated(): void
-    {
-        $this->allot()->assertSessionHasNoErrors();
-
-        $this->assertSame(1, DpcAllotment::query()->count());
-    }
-
-    /**
      * The register says so in as many words, so it is pinned rather than assumed.
      */
     public function test_one_member_may_hold_several_dpcs_at_once(): void

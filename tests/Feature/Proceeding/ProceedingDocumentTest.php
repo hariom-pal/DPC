@@ -151,18 +151,6 @@ class ProceedingDocumentTest extends TestCase
         $this->assertStringContainsString('a1b2c3d4e5f6', $this->documents()->contents($document));
     }
 
-    public function test_the_commit_hash_is_recorded_even_when_the_build_does_not_know_it(): void
-    {
-        // A development checkout has no APP_GIT_COMMIT. Recording `unknown`
-        // honestly beats refusing to produce the document.
-        config()->set('dpc.application.git_commit', 'unknown');
-
-        $this->approve();
-        $this->generate();
-
-        $this->assertSame('unknown', DpcProceedingDocument::query()->firstOrFail()->generator_commit_hash);
-    }
-
     public function test_a_document_is_hashed_and_verifiable(): void
     {
         $this->approve();

@@ -203,7 +203,18 @@ class ReviewSupersessionTest extends TestCase
 
         $first = DpcReviewLink::query()->firstOrFail()->superseded_at;
 
-        // A second approval is refused by M7 anyway; the link must not move.
+        // A second approval is attempted for real. M7 refuses it; whatever the refusal
+        // looks like, the supersession must not be applied again or move.
+        Carbon::setTestNow(now()->addDay());
+
+        try {
+            $this->approveReview($proceeding);
+        } catch (\Throwable) {
+            // refused — expected
+        }
+
+        Carbon::setTestNow();
+
         $this->assertSame(
             $first->toIso8601String(),
             DpcReviewLink::query()->firstOrFail()->superseded_at->toIso8601String(),

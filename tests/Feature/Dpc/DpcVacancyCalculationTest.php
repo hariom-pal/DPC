@@ -207,6 +207,16 @@ class DpcVacancyCalculationTest extends TestCase
 
     // ------------------------------------------------ the directive's own example
 
+    /**
+     * The directive's worked example — which is also its valid "zero in one type"
+     * example (Deputation at 0).
+     *
+     * **The balance invariant is worth more than it looks.** The scoring engine fills
+     * seats from the sum of the vacancy rows, not from the sanctioned strength. Before
+     * this rule a department could record four classified vacancies against a derived
+     * total of three, and the engine would have promoted four officers. The invariant
+     * makes the number M5 acts on equal the number the screen shows.
+     */
     public function test_the_directives_worked_example(): void
     {
         // Sanctioned 10, 7 officers in post and 3 chairs empty → Working 7,
@@ -216,7 +226,11 @@ class DpcVacancyCalculationTest extends TestCase
             'officers' => $this->chart(7, 3),
         ])->assertSessionHasNoErrors();
 
-        $summary = $this->calculator()->summary($this->proposal->fresh());
+        $proposal = $this->proposal->fresh();
+        $summary = $this->calculator()->summary($proposal);
+
+        // The number the engine will use is the balanced total.
+        $this->assertSame($this->calculator()->totalVacancy($proposal), (int) $proposal->vacancies()->sum('count'));
 
         $this->assertSame(10, $summary['sanctioned']);
         $this->assertSame(7, $summary['working']);
@@ -611,41 +625,6 @@ class DpcVacancyCalculationTest extends TestCase
         $this->assertSame(2, $rows['clear']);
         $this->assertSame(1, $rows['from_promotion']);
         $this->assertSame(3, $this->calculator()->summary($this->proposal->fresh())['total_vacancy']);
-    }
-
-    public function test_a_zero_in_one_type_is_fine_as_long_as_the_total_matches(): void
-    {
-        // The directive's valid example, with Deputation at 0.
-        $this->save([
-            'sanctioned_post_count' => 10,
-            'officers' => $this->chart(7, 3),
-        ])->assertSessionHasNoErrors();
-
-        $this->assertTrue($this->calculator()->summary($this->proposal->fresh())['balanced']);
-    }
-
-    /**
-     * **Why this invariant is worth more than it looks.**
-     *
-     * The scoring engine fills seats from the sum of the vacancy rows, not from
-     * the sanctioned strength. Before this rule a department could record four
-     * classified vacancies against a derived total of three, and the engine
-     * would have promoted four officers. The invariant makes the number M5 acts
-     * on equal the number the screen shows.
-     */
-    public function test_the_balanced_total_is_the_number_the_engine_will_use(): void
-    {
-        $this->save([
-            'sanctioned_post_count' => 10,
-            'officers' => $this->chart(7, 3),
-        ])->assertSessionHasNoErrors();
-
-        $proposal = $this->proposal->fresh();
-
-        $this->assertSame(
-            $this->calculator()->totalVacancy($proposal),
-            (int) $proposal->vacancies()->sum('count'),
-        );
     }
 
     // ------------------------------------------------------ the zone, and the deck

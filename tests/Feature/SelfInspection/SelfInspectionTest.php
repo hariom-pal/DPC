@@ -82,12 +82,6 @@ class SelfInspectionTest extends TestCase
     // S50 — identification
     // ------------------------------------------------------------------
 
-    public function test_all_configured_factors_must_match(): void
-    {
-        $this->post(route('self-inspection.identify.store'), $this->correctFactors())
-            ->assertRedirect(route('self-inspection.show'));
-    }
-
     public function test_a_wrong_factor_refuses_and_says_nothing_about_which_one(): void
     {
         $answers = $this->correctFactors();

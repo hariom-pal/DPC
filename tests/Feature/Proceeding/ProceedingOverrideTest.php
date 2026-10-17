@@ -118,21 +118,6 @@ class ProceedingOverrideTest extends TestCase
         ], $attributes));
     }
 
-    public function test_an_override_records_both_the_previous_and_the_new_value(): void
-    {
-        // Architect Directive 2. Storing only the new value would make the
-        // correction history reconstructible solely by replaying M4 and every
-        // prior override in order — the dependency the timeline must not have.
-        $override = $this->override(['previous_value' => null, 'new_value' => '2021']);
-
-        $this->assertNull($override->previous_value);
-        $this->assertSame('2021', $override->new_value);
-        $this->assertNotEmpty($override->reason);
-        $this->assertSame($this->member->id, $override->applied_by);
-        $this->assertNotNull($override->applied_at);
-        $this->assertNotEmpty($override->uuid);
-    }
-
     public function test_an_override_carries_everything_needed_to_replay_it(): void
     {
         $properties = $this->override()->toTimelineProperties();

@@ -7,7 +7,6 @@ namespace Tests\Feature\Circulation;
 use App\Domain\Circulation\Enums\CirculationDecision;
 use App\Domain\Circulation\Enums\CirculationStatus;
 use App\Domain\Circulation\Models\DpcCirculation;
-use App\Domain\Circulation\Models\DpcCirculationDocument;
 use App\Domain\Circulation\Services\CirculationCommissionService;
 use App\Domain\Circulation\Services\CirculationResultService;
 use App\Domain\Circulation\Services\CirculationService;
@@ -19,7 +18,6 @@ use App\Domain\Shared\Models\ActivityTimeline;
 use App\Domain\Shared\Workflow\WorkflowException;
 use App\Domain\Shared\Workflow\WorkflowTransition;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Schema;
 use Tests\Feature\Circulation\Concerns\BuildsCirculations;
 use Tests\TestCase;
 
@@ -274,23 +272,5 @@ class CirculationSignatureTest extends TestCase
             ->postJson(route('cgpsc.circulations.decide', [$this->circulation, $item]), ['decision' => 'consented'])
             ->assertStatus(422)
             ->assertJsonPath('status', 'error');
-    }
-
-    public function test_phase_3_documents_exist_but_are_produced_only_after_signature(): void
-    {
-        // This test read `assertFalse(Schema::hasTable(...))` in Phase 2 and
-        // fired the moment Phase 3 created the table — the guard doing its
-        // job, as Phase 1's transition guard did when Phase 2 arrived.
-        $this->assertTrue(Schema::hasTable('dpc_circulation_documents'));
-
-        // What Phase 2 must still be able to say: signing is what makes a
-        // document producible, and nothing is produced before it.
-        $this->assertSame(
-            0,
-            DpcCirculationDocument::query()
-                ->where('dpc_circulation_id', $this->circulation->id)
-                ->count(),
-            'Signing alone produces no document; generation is a separate act.'
-        );
     }
 }

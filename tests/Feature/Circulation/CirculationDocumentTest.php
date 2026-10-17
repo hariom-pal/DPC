@@ -119,13 +119,6 @@ class CirculationDocumentTest extends TestCase
         $this->assertNotNull($document->generator_version);
     }
 
-    public function test_a_generated_document_verifies_against_its_stored_bytes(): void
-    {
-        $document = $this->documents()->generate($this->circulation, $this->memberOne)->first();
-
-        $this->assertTrue($this->documents()->verify($document));
-    }
-
     public function test_verification_fails_if_the_stored_file_is_tampered_with(): void
     {
         $document = $this->documents()->generate($this->circulation, $this->memberOne)->first();

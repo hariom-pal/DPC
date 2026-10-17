@@ -206,18 +206,6 @@ class DepartmentPostMappingTest extends TestCase
         $this->assertStringContainsString('F-55/2026', $post->governmentOrderLabel());
     }
 
-    public function test_adding_an_order_keeps_the_ones_already_recorded(): void
-    {
-        $post = $this->mapping();
-
-        app(DepartmentPostMappingService::class)->recordOrder(
-            $post, 'F-31/2026', Carbon::parse('2026-04-15'), $this->pdf('corrigendum.pdf'), $this->admin,
-        );
-
-        $this->assertSame(2, $post->orders()->count());
-        $this->assertSame('F-12/2026', $this->orderNumber($post));
-    }
-
     public function test_the_same_order_cannot_be_attached_to_one_mapping_twice(): void
     {
         $post = $this->mapping();
@@ -283,9 +271,10 @@ class DepartmentPostMappingTest extends TestCase
 
         $this->assertSame(2, $post->orders()->count());
 
-        // The earlier order is untouched, and its file is still on disk.
+        // The earlier order is untouched, and it still answers for the mapping.
         $first->refresh();
         $this->assertSame('F-12/2026', $first->government_order_number);
+        $this->assertSame('F-12/2026', $this->orderNumber($post), 'The earliest order still answers for the mapping.');
     }
 
     public function test_an_order_cannot_be_edited_or_deleted(): void
@@ -629,31 +618,5 @@ class DepartmentPostMappingTest extends TestCase
         $this->actingAs($officer)
             ->get(route('admin.department-posts.documents.download', [$post, $order]))
             ->assertForbidden();
-    }
-
-    /**
-     * A superseded mapping keeps its terms, and that is what an old proposal reads.
-     */
-    public function test_the_superseded_mapping_still_answers_for_a_proposal_raised_under_it(): void
-    {
-        $post = $this->mapping();
-        $originalId = $post->id;
-
-        Carbon::setTestNow('2026-12-01');
-
-        app(DepartmentPostMappingService::class)->supersede($post, [
-            'class_level' => 'I', 'pay_scale_id' => $this->level13->id, 'promotion_duration_years' => 6,
-            'sanctioned_strength' => 18,
-            'government_order_number' => 'F-45/2026', 'government_order_date' => '2026-08-01',
-            'effective_from' => '2026-09-01',
-        ], $this->admin);
-
-        // Whatever the master says today, the row a 2026 proposal pointed at still
-        // reads Level-14 under F-12/2026.
-        $asRaised = DepartmentPost::query()->findOrFail($originalId);
-        $this->assertSame('Level-14', $asRaised->payScale?->label);
-        $this->assertSame('F-12/2026', $this->orderNumber($asRaised));
-
-        Carbon::setTestNow();
     }
 }

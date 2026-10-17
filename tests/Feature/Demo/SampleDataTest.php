@@ -198,7 +198,6 @@ class SampleDataTest extends TestCase
             $this->countsOf($held),
             'A held promotion must not fill a seat, so Serial 4 stays off the Main List.',
         );
-        $this->assertTrue(true);
     }
 
     /**

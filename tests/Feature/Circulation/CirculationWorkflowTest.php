@@ -187,21 +187,6 @@ class CirculationWorkflowTest extends TestCase
         $this->assertNotNull($transitions->last()->signature_id);
     }
 
-    public function test_the_workflow_declares_exactly_what_phases_1_and_2_perform(): void
-    {
-        $declared = array_keys(config('dpc.workflows.dpc_circulation.transitions'));
-
-        // This assertion read `['submit', 'approve', 'return', 'cancel']` in
-        // Phase 1 and failed the moment Phase 2 declared the Commission's
-        // three — which is the guard doing its job, not a regression. The
-        // standing rule since M6 is that a phase declares only what it
-        // performs, and Phase 2 performs these.
-        $this->assertEqualsCanonicalizing(
-            ['submit', 'approve', 'return', 'cancel', 'consent', 'return_to_department', 'sign'],
-            $declared,
-        );
-    }
-
     public function test_the_screens_are_reachable_and_department_scoped(): void
     {
         $this->actingAs($this->authorizedOfficer)

@@ -23,6 +23,7 @@ use App\Enums\Role;
 use Database\Seeders\LookupMasterSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Tests\Concerns\RaisesDpcProposals;
 use Tests\Concerns\SanctionsVacancies;
@@ -362,49 +363,38 @@ class DpcCalculationTest extends TestCase
 
     // ------------------------------------------------------------ immutability
 
-    public function test_a_completed_run_cannot_be_edited_by_anyone(): void
+    /**
+     * @return array<string, array{0: string, 1: string, 2: string|null}>
+     */
+    public static function immutableEvidence(): array
+    {
+        return [
+            'a completed run cannot be edited by anyone' => ['run', 'update', 'immutable'],
+            'a completed run cannot be deleted' => ['run', 'delete', null],
+            // No role, including an administrator, may alter a result.
+            'a calculation result cannot be edited' => ['result', 'update', 'immutable'],
+            'a calculation result cannot be deleted' => ['result', 'delete', null],
+        ];
+    }
+
+    #[DataProvider('immutableEvidence')]
+    public function test_a_run_and_its_results_are_immutable(string $target, string $operation, ?string $message): void
     {
         $this->standardChart();
         $run = $this->calculate();
-
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('immutable');
-
-        $run->update(['main_list_count' => 99]);
-    }
-
-    public function test_a_completed_run_cannot_be_deleted(): void
-    {
-        $this->standardChart();
-        $run = $this->calculate();
+        $record = $target === 'run' ? $run : $run->results()->firstOrFail();
 
         $this->expectException(RuntimeException::class);
 
-        $run->delete();
-    }
+        if ($message !== null) {
+            $this->expectExceptionMessage($message);
+        }
 
-    public function test_a_calculation_result_cannot_be_edited(): void
-    {
-        // No role, including an administrator, may alter a result.
-        $this->standardChart();
-        $result = $this->calculate()->results()->firstOrFail();
-
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('immutable');
-
-        // A genuinely different value: Eloquent fires `updating` only when the
-        // model is dirty, so re-setting the same value would prove nothing.
-        $result->update(['remark' => 'TAMPERED']);
-    }
-
-    public function test_a_calculation_result_cannot_be_deleted(): void
-    {
-        $this->standardChart();
-        $result = $this->calculate()->results()->firstOrFail();
-
-        $this->expectException(RuntimeException::class);
-
-        $result->delete();
+        // A genuinely different value: Eloquent fires `updating` only when the model is
+        // dirty, so re-setting the same value would prove nothing.
+        $operation === 'update'
+            ? $record->update($target === 'run' ? ['main_list_count' => 99] : ['remark' => 'TAMPERED'])
+            : $record->delete();
     }
 
     public function test_recalculating_creates_a_new_run_and_leaves_the_old_one_intact(): void

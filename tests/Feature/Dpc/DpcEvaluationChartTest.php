@@ -389,7 +389,10 @@ class DpcEvaluationChartTest extends TestCase
         $this->actingAs($this->ao)->get(route('dpc-proposals.evaluation-chart', $this->proposal))
             ->assertOk()
             ->assertSee('Expected Officers')
-            ->assertSee('Imported Officers');
+            ->assertSee('Imported Officers')
+            // The figures, not just their labels: four officers on the Seniority List.
+            ->assertViewHas('chart', fn (array $chart): bool => $chart['expected'] === 4
+                && $chart['present'] === $this->proposal->fresh()->evaluationRows()->count());
     }
 
     // -------------------------------------------------------- evaluation data

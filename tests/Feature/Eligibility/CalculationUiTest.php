@@ -153,11 +153,14 @@ class CalculationUiTest extends TestCase
     {
         $this->seedChart();
 
-        $this->actingAs($this->ao)
+        $response = $this->actingAs($this->ao)
             ->post(route('dpc-proposals.calculate', $this->proposal))
             ->assertSessionHasNoErrors();
 
         $run = DpcCalculationRun::query()->latest('id')->firstOrFail();
+
+        // The redirect itself names the run by its UUID, never by its sequential id.
+        $response->assertRedirect(route('dpc-proposals.calculations.show', [$this->proposal, $run->uuid]));
 
         $this->actingAs($this->ao)
             ->get(route('dpc-proposals.calculations.show', [$this->proposal, $run->uuid]))

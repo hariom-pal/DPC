@@ -119,17 +119,6 @@ class DpcProposalClosureTest extends TestCase
             ->assertSee('No committee members named yet.');
     }
 
-    public function test_a_complete_proposal_submits(): void
-    {
-        $this->makeProposalSubmittable($this->proposal);
-
-        $this->actingAs($this->ao)
-            ->post(route('dpc-proposals.submit', $this->proposal))
-            ->assertSessionHasNoErrors();
-
-        $this->assertSame('submitted', $this->proposal->refresh()->status->value);
-    }
-
     // ------------------------------------------------------------------- review
 
     public function test_ah_can_walk_every_review_step(): void
@@ -208,6 +197,11 @@ class DpcProposalClosureTest extends TestCase
 
     public function test_one_approval_covers_every_section_and_signs_the_whole_proposal(): void
     {
+        // Pinned explicitly, as the counterpart to the production rule: with CSC's API
+        // still outstanding, a non-production environment signs through the mock, so UAT
+        // can demonstrate the full workflow end to end.
+        config(['features.csc_digisign' => false]);
+
         $this->makeProposalSubmittable($this->proposal);
         $this->actingAs($this->ao)->post(route('dpc-proposals.submit', $this->proposal));
 
@@ -394,23 +388,6 @@ class DpcProposalClosureTest extends TestCase
             ->where('signable_type', $proposal->getMorphClass())
             ->where('signable_id', $proposal->id)
             ->count());
-    }
-
-    public function test_non_production_still_signs_so_uat_stays_demonstrable(): void
-    {
-        // The counterpart to the rule above: with CSC's API still outstanding,
-        // UAT must remain able to demonstrate the full workflow end to end.
-        $this->makeProposalSubmittable($this->proposal);
-        $this->actingAs($this->ao)->post(route('dpc-proposals.submit', $this->proposal));
-
-        config(['features.csc_digisign' => false]);
-
-        $this->actingAs($this->ah)
-            ->post(route('dpc-proposals.approve', $this->proposal))
-            ->assertSessionHasNoErrors();
-
-        $this->assertSame('approved', $this->proposal->refresh()->status->value);
-        $this->assertNotNull($this->proposal->dpc_code);
     }
 
     public function test_the_whole_m4_workflow_runs_with_every_integration_disabled(): void

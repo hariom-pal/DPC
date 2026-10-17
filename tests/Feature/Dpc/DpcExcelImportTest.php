@@ -48,6 +48,9 @@ class DpcExcelImportTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        // Uploads, the retained originals and the error reports go to a faked disk, so
+        // the suite never writes into storage/app and runs cannot see each other's files.
+        Storage::fake('local');
         $this->seed(RolesAndPermissionsSeeder::class);
         $this->seed(LookupMasterSeeder::class);
 
@@ -264,6 +267,9 @@ class DpcExcelImportTest extends TestCase
 
     public function test_commit_writes_through_the_existing_service_layer(): void
     {
+        // No sanctioned strength yet, so no zone, so nothing to match: a seniority
+        // import is unrestricted before a vacancy is known. The other tests in this
+        // class rely on that — they import a two-row file without the vacancy section.
         $batch = $this->upload(ImportTemplate::FinalSeniorityListUs, $this->seniorityFile());
 
         $this->actingAs($this->ao)
@@ -690,20 +696,6 @@ class DpcExcelImportTest extends TestCase
             ->assertSessionHasNoErrors();
 
         $this->assertSame(5, $this->proposal->fresh()->seniorityEntries()->count());
-    }
-
-    public function test_a_seniority_import_is_unrestricted_before_a_vacancy_is_known(): void
-    {
-        // No sanctioned strength yet, so no zone, so nothing to match. The
-        // existing tests in this class rely on this: they import a two-row
-        // seniority file without touching the vacancy section at all.
-        $batch = $this->upload(ImportTemplate::FinalSeniorityListUs, $this->seniorityFile());
-
-        $this->actingAs($this->ao)
-            ->post(route('dpc-proposals.imports.commit', [$this->proposal, $batch]))
-            ->assertSessionHasNoErrors();
-
-        $this->assertSame(2, $this->proposal->fresh()->seniorityEntries()->count());
     }
 
     public function test_an_evaluation_chart_import_is_unaffected_by_the_vacancy_rules(): void

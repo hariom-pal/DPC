@@ -641,19 +641,6 @@ class ReviewDpcTest extends TestCase
         $this->assertSame(0, DpcReviewLink::query()->count());
     }
 
-    public function test_the_review_banner_appears_on_the_reviews_own_screens(): void
-    {
-        // Architect Directive 3. A Review looks exactly like a Fresh DPC —
-        // which is precisely why it needs saying.
-        $this->concludeOriginal();
-        $review = $this->raise();
-
-        $this->actingAs($this->authorizedOfficer)
-            ->get(route('dpc-proposals.show', $review))
-            ->assertOk()
-            ->assertSee('This is a Review DPC');
-    }
-
     public function test_the_banner_does_not_appear_on_a_fresh_dpc(): void
     {
         $this->actingAs($this->authorizedOfficer)
@@ -681,6 +668,8 @@ class ReviewDpcTest extends TestCase
      */
     public function test_the_banner_offers_the_chain_to_a_departmental_officer(): void
     {
+        // Architect Directive 3: a Review looks exactly like a Fresh DPC — which is
+        // precisely why its own screens must say so.
         $this->concludeOriginal();
         $review = $this->raise();
 

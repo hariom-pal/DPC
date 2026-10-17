@@ -232,17 +232,6 @@ class ProceedingLifecycleTest extends TestCase
 
     // ------------------------------------------------------------ early open
 
-    public function test_opening_early_is_permitted_by_default(): void
-    {
-        $this->allottedAndScheduled();
-        Carbon::setTestNow('2026-07-01 09:00:00');   // before the 12/07 slot
-
-        $this->open()->assertSessionHasNoErrors();
-
-        $this->assertSame(1, DpcProceeding::query()->count());
-        Carbon::setTestNow();
-    }
-
     public function test_opening_early_is_refused_when_configuration_forbids_it(): void
     {
         config()->set('dpc.proceeding.allow_open_before_scheduled_time', false);
@@ -259,11 +248,13 @@ class ProceedingLifecycleTest extends TestCase
     public function test_the_actual_opening_time_is_always_recorded(): void
     {
         // AQ-5: whether early opening is allowed is configurable; recording
-        // when it actually happened is not.
+        // when it actually happened is not. This open is before the 12/07 slot,
+        // so it also proves early opening is permitted by default.
         $this->allottedAndScheduled();
         Carbon::setTestNow('2026-07-01 09:30:00');
 
-        $this->open();
+        $this->open()->assertSessionHasNoErrors();
+        $this->assertSame(1, DpcProceeding::query()->count());
 
         $this->assertSame(
             '2026-07-01 09:30:00',

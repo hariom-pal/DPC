@@ -118,12 +118,15 @@ class DpcProposalDetailPerformanceTest extends TestCase
                 'count' => 1,
             ]],
             'officers' => $officers,
-        ]);
+        ])->assertSessionHasNoErrors();
         $this->actingAs($this->ao)->put(route('dpc-proposals.seniority-list.update', $proposal), [
             'seniority_list_as_on' => $proposal->seniorityReferenceDate()->toDateString(),
             'entries' => $entries,
-        ]);
-        $this->actingAs($this->ao)->put(route('dpc-proposals.evaluation-chart.update', $proposal), ['rows' => $rows]);
+        ])->assertSessionHasNoErrors();
+        // Each fixture save is asserted: a refused one would leave the screens empty and
+        // the query counts below would then measure nothing.
+        $this->actingAs($this->ao)->put(route('dpc-proposals.evaluation-chart.update', $proposal), ['rows' => $rows])
+            ->assertSessionHasNoErrors();
 
         return $proposal;
     }

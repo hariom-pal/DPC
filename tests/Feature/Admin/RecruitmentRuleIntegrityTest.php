@@ -18,6 +18,7 @@ use Database\Seeders\DepartmentPostSeeder;
 use Database\Seeders\QualificationSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 /**
@@ -113,35 +114,39 @@ class RecruitmentRuleIntegrityTest extends TestCase
         $this->assertSame('Post-Graduate', $feeder->qualificationLabel());
     }
 
-    public function test_an_inactive_qualification_cannot_be_attached(): void
+    /**
+     * A qualification that is withdrawn, deleted or never existed cannot be attached.
+     *
+     * @return array<string, array{0: string}>
+     */
+    public static function unattachableQualifications(): array
     {
-        $admin = $this->admin();
-        $withdrawn = Qualification::query()->where('code', 'PG')->firstOrFail();
-        $withdrawn->forceFill(['status' => MasterStatus::Inactive->value])->save();
-
-        $this->actingAs($admin)->post(route('admin.recruitment-rules.store'), $this->payload([
-            ['promotion_from_post_id' => $this->feeder()->id, 'promotion_percentage' => '100',
-                'min_experience_years' => '5', 'qualification_ids' => [(string) $withdrawn->id]],
-        ]))->assertSessionHasErrors('feeders.0.qualification_ids.0');
+        return [
+            'an inactive qualification' => ['inactive'],
+            'a soft-deleted qualification' => ['soft_deleted'],
+            'a qualification that does not exist' => ['missing'],
+        ];
     }
 
-    public function test_a_soft_deleted_qualification_cannot_be_attached(): void
+    #[DataProvider('unattachableQualifications')]
+    public function test_an_unattachable_qualification_is_refused(string $state): void
     {
         $admin = $this->admin();
         $qualification = Qualification::query()->where('code', 'PG')->firstOrFail();
-        $qualification->delete();
+
+        if ($state === 'inactive') {
+            $qualification->forceFill(['status' => MasterStatus::Inactive->value])->save();
+        }
+
+        if ($state === 'soft_deleted') {
+            $qualification->delete();
+        }
+
+        $id = $state === 'missing' ? 99999 : $qualification->id;
 
         $this->actingAs($admin)->post(route('admin.recruitment-rules.store'), $this->payload([
             ['promotion_from_post_id' => $this->feeder()->id, 'promotion_percentage' => '100',
-                'min_experience_years' => '5', 'qualification_ids' => [(string) $qualification->id]],
-        ]))->assertSessionHasErrors('feeders.0.qualification_ids.0');
-    }
-
-    public function test_a_qualification_that_does_not_exist_is_refused(): void
-    {
-        $this->actingAs($this->admin())->post(route('admin.recruitment-rules.store'), $this->payload([
-            ['promotion_from_post_id' => $this->feeder()->id, 'promotion_percentage' => '100',
-                'min_experience_years' => '5', 'qualification_ids' => ['99999']],
+                'min_experience_years' => '5', 'qualification_ids' => [(string) $id]],
         ]))->assertSessionHasErrors('feeders.0.qualification_ids.0');
     }
 
@@ -498,19 +503,6 @@ class RecruitmentRuleIntegrityTest extends TestCase
 
         $this->assertSame(3, RecruitmentRule::query()->where('post_id', $this->target()->id)
             ->firstOrFail()->promotionSources()->count());
-    }
-
-    /**
-     * The share total is a property of the promotion quota. With no quota there
-     * is nothing to divide, so the rule does not apply — and the feeder list is
-     * already refused for a different reason.
-     */
-    public function test_the_share_total_is_not_required_without_a_promotion_quota(): void
-    {
-        $this->actingAs($this->admin())->post(
-            route('admin.recruitment-rules.store'),
-            ['direct_recruitment_pct' => '100'] + $this->payload([], promotionPct: '0'),
-        )->assertRedirect(route('admin.recruitment-rules.index'));
     }
 
     // ------------------------------------------------------------------
