@@ -19,8 +19,10 @@ class DatabaseSeeder extends Seeder
             QualificationSeeder::class,
             DepartmentMasterSeeder::class,
             DepartmentPostSeeder::class,
+            ReservationRosterSeeder::class,
             CommitteeMasterSeeder::class,
             AdminUserSeeder::class,
+            CgpscChairmanSeeder::class,
         ]);
     }
 }

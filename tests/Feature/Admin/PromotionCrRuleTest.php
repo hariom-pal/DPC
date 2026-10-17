@@ -133,10 +133,28 @@ class PromotionCrRuleTest extends TestCase
         $this->record(['years' => [3 => ['cr_min_marks' => '']]])->assertSessionHasErrors('years.3.cr_min_marks');
         $this->record(['from_class' => 'III'])->assertSessionHasErrors('from_class');
 
-        // No grade is valid yet in 2019.
-        $this->record(['effective_from_year' => '2019'])->assertSessionHasErrors('effective_from_year');
+        // No grade is valid yet in 2018 (the rule-3.4 grades are valid from 2019).
+        $this->record(['effective_from_year' => '2018'])->assertSessionHasErrors('effective_from_year');
 
         $this->assertSame(0, PromotionCrRule::query()->count());
+    }
+
+    /**
+     * The five grades of the Coder Instructions, rule 3.4, are there from the start.
+     */
+    public function test_the_coder_instruction_grades_are_seeded(): void
+    {
+        $seeded = CrGradeValue::query()->whereDate('effective_from', '2019-01-01')->orderByDesc('value')->get();
+
+        $this->assertSame([9, 7, 5, 3, 1], $seeded->pluck('value')->all());
+        $this->assertStringContainsString('उत्कृष्ट', (string) $seeded->first()->remarks);
+        $this->assertSame([9, 7, 5, 3, 1], app(PromotionCrRules::class)->gradesForYear(2026));
+
+        $this->actingAs($this->admin)->get(route('admin.cr-grades.index'))
+            ->assertOk()
+            ->assertSee('बहुत अच्छा')
+            ->assertSee('Remarks')
+            ->assertDontSee('ui.remarks');
     }
 
     public function test_eligible_grades_are_valid_from_their_date(): void

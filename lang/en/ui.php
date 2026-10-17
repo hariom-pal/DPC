@@ -300,6 +300,7 @@ return [
     'record' => 'Record',
     'reference' => 'Reference',
     'remark' => 'Remark',
+    'remarks' => 'Remarks',
     'remarks_required_to_return' => 'Remarks (required to return)',
     'remove' => 'Remove',
     'remove_2' => '× Remove',

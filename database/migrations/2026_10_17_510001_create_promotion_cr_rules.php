@@ -21,15 +21,11 @@ use Illuminate\Support\Facades\Schema;
  *    Property Declaration are mandatory.
  *
  * Settings only for now: the eligibility calculation does not read them yet.
- *
- * Drops `cr_scoring_scales` (created earlier today, never used), which these replace.
  */
 return new class extends Migration
 {
     public function up(): void
     {
-        Schema::dropIfExists('cr_scoring_scales');
-
         Schema::create('cr_grade_values', function (Blueprint $table): void {
             $table->id();
             $table->unsignedSmallInteger('value');
@@ -82,30 +78,5 @@ return new class extends Migration
         Schema::dropIfExists('promotion_cr_rule_years');
         Schema::dropIfExists('promotion_cr_rules');
         Schema::dropIfExists('cr_grade_values');
-
-        Schema::create('cr_scoring_scales', function (Blueprint $table): void {
-            $table->id();
-            $table->uuid('uuid')->unique();
-            $table->string('name', 150);
-            $table->unsignedSmallInteger('effective_from_year')->index();
-            $table->json('grade_marks');
-            $table->unsignedTinyInteger('scoring_years');
-            $table->unsignedTinyInteger('tribal_area_bonus')->default(0);
-            $table->string('disqualifying_grade', 10);
-            $table->json('last_year_forbidden_grades');
-            $table->string('super_seat_grade', 10);
-            $table->json('qualifying_scores');
-            $table->string('order_number', 120);
-            $table->date('order_date');
-            $table->string('disk', 40);
-            $table->string('path');
-            $table->string('original_name');
-            $table->unsignedInteger('size_bytes');
-            $table->char('sha256', 64);
-            $table->text('remarks')->nullable();
-            $table->foreignId('recorded_by')->nullable()->constrained('users')->nullOnDelete();
-            $table->timestamp('recorded_at');
-            $table->timestamps();
-        });
     }
 };

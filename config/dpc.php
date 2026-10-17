@@ -274,6 +274,24 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Seeded CGPSC Chairman
+    |--------------------------------------------------------------------------
+    |
+    | The Chairman's account and serving record. Every DPC committee needs a
+    | serving Chairman, so a freshly seeded portal cannot compose one without it.
+    | Change the password immediately in any non-local environment.
+    |
+    */
+
+    'chairman' => [
+        'name' => env('DPC_CHAIRMAN_NAME', 'Dr. Ajay Kumar Shrivastava'),
+        'email' => env('DPC_CHAIRMAN_EMAIL', 'chairman@cgpsc.gov.in'),
+        'mobile' => env('DPC_CHAIRMAN_MOBILE', '9000000101'),
+        'password' => env('DPC_CHAIRMAN_PASSWORD', 'ChangeMe@12345'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Reservation in promotion
     |--------------------------------------------------------------------------
     |

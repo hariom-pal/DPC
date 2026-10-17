@@ -295,6 +295,7 @@ return [
     'record' => 'अभिलेख',
     'reference' => 'संदर्भ',
     'remark' => 'अभ्युक्ति',
+    'remarks' => 'अभ्युक्ति',
     'remarks_required_to_return' => 'अभ्युक्ति (वापस करने हेतु आवश्यक)',
     'remove' => 'हटाएँ',
     'remove_2' => '× हटाएँ',

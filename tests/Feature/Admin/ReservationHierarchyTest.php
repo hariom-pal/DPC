@@ -59,7 +59,8 @@ class ReservationHierarchyTest extends TestCase
     public function test_admin_can_create_a_roster_and_add_points_within_size(): void
     {
         $admin = $this->admin();
-        $department = Department::query()->where('code', 'HE')->firstOrFail();
+        // The seeded posts are School Education's (2026-10-17).
+        $department = Department::query()->where('code', 'SE')->firstOrFail();
         $post = DepartmentPost::query()->where('department_id', $department->id)->firstOrFail();
         $category = ReservationCategory::query()->where('code', 'UR')->firstOrFail();
 
@@ -86,7 +87,8 @@ class ReservationHierarchyTest extends TestCase
     public function test_roster_point_beyond_size_is_rejected(): void
     {
         $admin = $this->admin();
-        $department = Department::query()->where('code', 'HE')->firstOrFail();
+        // The seeded posts are School Education's (2026-10-17).
+        $department = Department::query()->where('code', 'SE')->firstOrFail();
         $post = DepartmentPost::query()->where('department_id', $department->id)->firstOrFail();
         $category = ReservationCategory::query()->where('code', 'UR')->firstOrFail();
 

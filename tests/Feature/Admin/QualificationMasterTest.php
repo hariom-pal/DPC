@@ -94,8 +94,8 @@ class QualificationMasterTest extends TestCase
         $admin = $this->admin();
         $qualification = Qualification::query()->where('code', 'GRAD')->firstOrFail();
 
-        $target = DepartmentPost::query()->where('name', 'Deputy Secretary')->firstOrFail();
-        $feeder = DepartmentPost::query()->where('name', 'Under Secretary')->firstOrFail();
+        $target = DepartmentPost::query()->where('name', 'Additional Director, Education')->firstOrFail();
+        $feeder = DepartmentPost::query()->where('name', 'Block Education Officer')->firstOrFail();
 
         $rule = RecruitmentRule::query()->create([
             'post_id' => $target->id, 'version' => 1, 'government_order_number' => 'GO/1',

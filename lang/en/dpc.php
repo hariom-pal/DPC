@@ -748,6 +748,12 @@ return [
         'the_evaluation_chart_is_empty_so_there_is_nothin' => 'The evaluation chart is empty, so there is nothing to calculate yet.',
     ],
     'working_officers' => [
+        'quota_overfilled' => 'More chairs are filled from one quota than the Recruitment Rule allows.',
+        'quota_overfilled_explained' => 'The rule fills :percentage% of this post by promotion, but the chart shows more officers holding chairs of the other quota than it leaves. Check the SOURCE of each working officer.',
+        'source' => 'Source',
+        'source_promotion' => 'Promotion',
+        'source_deputation' => 'Deputation',
+        'source_direct' => 'Direct recruitment',
         'summary_heading' => 'Vacancy Summary',
         'summary_incomplete' => 'This vacancy cannot be calculated yet.',
         'no_sanctioned_strength' => 'No Sanctioned Strength is recorded in the Vacancy Master for this post and DPC year. Ask the CGPSC Administrator to record it.',

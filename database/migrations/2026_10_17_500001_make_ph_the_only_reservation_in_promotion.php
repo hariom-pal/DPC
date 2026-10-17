@@ -18,8 +18,6 @@ use Illuminate\Support\Facades\Schema;
  *    the promotion vacancies, decimal dropped — is recorded as the policy in force,
  *    the figure the portal applied from configuration until now. Every other policy
  *    and roster is set inactive.
- *  - `ph_reservation_rules` (created earlier today, never used) is dropped: the PH
- *    quota is a Reservation Policy, where an administrator looks for it.
  *
  * `down()` reactivates the five categories, removes the PH policy and category when
  * nothing cites them, and drops the added columns. Statuses that were inactive before
@@ -72,31 +70,10 @@ return new class extends Migration
                 'updated_at' => $now,
             ]);
         }
-
-        Schema::dropIfExists('ph_reservation_rules');
     }
 
     public function down(): void
     {
-        Schema::create('ph_reservation_rules', function (Blueprint $table): void {
-            $table->id();
-            $table->uuid('uuid')->unique();
-            $table->unsignedSmallInteger('effective_from_year')->index();
-            $table->decimal('percentage', 5, 2);
-            $table->string('rounding', 10)->default('floor');
-            $table->string('order_number', 120);
-            $table->date('order_date');
-            $table->string('disk', 40);
-            $table->string('path');
-            $table->string('original_name');
-            $table->unsignedInteger('size_bytes');
-            $table->char('sha256', 64);
-            $table->text('remarks')->nullable();
-            $table->foreignId('recorded_by')->nullable()->constrained('users')->nullOnDelete();
-            $table->timestamp('recorded_at');
-            $table->timestamps();
-        });
-
         DB::table('reservation_categories')->whereIn('code', self::OTHERS)->update(['status' => 'active']);
 
         $ph = DB::table('reservation_categories')->where('code', 'PH')->value('id');
