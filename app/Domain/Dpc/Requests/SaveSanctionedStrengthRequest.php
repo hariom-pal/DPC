@@ -33,4 +33,21 @@ class SaveSanctionedStrengthRequest extends FormRequest
             'correction_reason' => ['nullable', 'string', 'max:2000'],
         ];
     }
+
+    /**
+     * The labels the screen shows, so a message names the field the way the form does.
+     *
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'sanctioned_total' => __('vacancymaster.sanctioned.total'),
+            'order_number' => __('vacancymaster.order_number'),
+            'order_date' => __('vacancymaster.order_date'),
+            'document' => __('vacancymaster.document'),
+            'remarks' => __('vacancymaster.remarks'),
+            'correction_reason' => __('vacancymaster.sanctioned.correction_reason'),
+        ];
+    }
 }

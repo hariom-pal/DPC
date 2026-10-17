@@ -94,7 +94,8 @@
             <form method="POST" action="{{ route('admin.departments.vacancy-master.revise', [$department, $year, $post]) }}">
                 @csrf
                 <label class="form-label small" for="revision_reason">{{ __('vacancymaster.revision_reason_label') }}</label>
-                <textarea class="form-control form-control-sm mb-2" id="revision_reason" name="revision_reason" rows="2" maxlength="2000" required></textarea>
+                <textarea class="form-control form-control-sm mb-2 @error('revision_reason') is-invalid @enderror" id="revision_reason" name="revision_reason" rows="2" maxlength="2000" required @error('revision_reason') autofocus @enderror>{{ old('revision_reason') }}</textarea>
+@include('admin.vacancy-master.partials.field-error', ['field' => 'revision_reason'])
                 <button class="btn btn-outline-warning btn-sm">{{ __('vacancymaster.revise') }}</button>
             </form>
         @endif

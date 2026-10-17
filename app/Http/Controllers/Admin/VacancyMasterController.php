@@ -154,20 +154,22 @@ class VacancyMasterController extends Controller
             $this->vacancies->verifyEntry($entry, $request->validated(), $request->user());
 
             return __('vacancymaster.flash.entry_verified');
-        }, 'vacancies', 'vacancies');
+        }, 'vacancies', 'vacancies', VerifyVacancyEntryRequest::bagFor($entry));
     }
 
     public function withdrawEntry(Request $request, Department $department, int $year, DepartmentPost $post, VacancyPositionEntry $entry): RedirectResponse
     {
         $this->assertAdmin($request);
         $this->assertEntryInPost($department, $year, $post, $entry);
-        $data = $request->validate(['withdrawal_reason' => ['required', 'string', 'max:2000']]);
+        $data = $request->validateWithBag(VerifyVacancyEntryRequest::bagFor($entry), [
+            'withdrawal_reason' => ['required', 'string', 'max:2000'],
+        ], [], ['withdrawal_reason' => __('vacancymaster.entries.withdrawal_reason')]);
 
         return $this->attempt($department, $year, $post, function () use ($entry, $data, $request): string {
             $this->vacancies->withdrawEntry($entry, $data['withdrawal_reason'], $request->user());
 
             return __('vacancymaster.flash.entry_withdrawn');
-        }, 'vacancies', 'vacancies');
+        }, 'vacancies', 'vacancies', VerifyVacancyEntryRequest::bagFor($entry));
     }
 
     public function finalize(Request $request, Department $department, int $year, DepartmentPost $post): RedirectResponse
@@ -186,7 +188,7 @@ class VacancyMasterController extends Controller
     {
         $this->assertAdmin($request);
         $this->assertPostInDepartment($department, $post);
-        $data = $request->validate(['revision_reason' => ['required', 'string', 'max:2000']]);
+        $data = $request->validate(['revision_reason' => ['required', 'string', 'max:2000']], [], ['revision_reason' => __('vacancymaster.revision_reason_label')]);
         $position = $this->vacancies->current($department->id, $post->name, $year);
         abort_if($position === null, 404);
 
@@ -226,14 +228,19 @@ class VacancyMasterController extends Controller
      * Run a write, then go to the next step on success or stay on the same step to
      * show what went wrong.
      */
-    private function attempt(Department $department, int $year, DepartmentPost $post, callable $action, string $here, string $next): RedirectResponse
+    /**
+     * A refused rule goes back to the step it came from, keyed by the field it is about
+     * (or `workflow` when it is about no one field), in `$bag` — each entry's own forms
+     * use their own bag, so a message never appears beside another form's field.
+     */
+    private function attempt(Department $department, int $year, DepartmentPost $post, callable $action, string $here, string $next, string $bag = 'default'): RedirectResponse
     {
         $target = fn (string $section): string => route('admin.departments.vacancy-master.show', [$department, $year, $post, 'section' => $section]);
 
         try {
             $message = $action();
         } catch (WorkflowException $e) {
-            return redirect()->to($target($here))->withErrors(['workflow' => $e->getMessage()])->withInput();
+            return redirect()->to($target($here))->withErrors([$e->field ?? 'workflow' => $e->getMessage()], $bag)->withInput();
         }
 
         return redirect()->to($target($next))->with('status', $message);

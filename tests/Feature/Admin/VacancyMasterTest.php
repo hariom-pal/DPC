@@ -173,6 +173,28 @@ class VacancyMasterTest extends TestCase
         ], $overrides));
     }
 
+    /**
+     * The page the redirect lands on, rendered with what the refused request flashed.
+     *
+     * The test client keeps no session cookie between requests, so the flashed bag is
+     * handed on here — in the stored form, because with `session.serialization=json`
+     * the store rebuilds the bag from that form and turns a live object into an empty
+     * bag. A browser's session goes through exactly that round trip.
+     */
+    private function revisit(string $url): TestResponse
+    {
+        $errors = session('errors');
+        $stored = $errors === null ? [] : array_map(
+            fn ($bag): array => ['messages' => $bag->getMessages(), 'format' => $bag->getFormat()],
+            $errors->getBags(),
+        );
+
+        return $this->actingAs($this->admin)->withSession([
+            'errors' => $stored,
+            '_old_input' => session('_old_input', []),
+        ])->get($url);
+    }
+
     private function breakdown(): array
     {
         $position = app(VacancyMasterService::class)->current($this->department->id, 'Principal', self::YEAR);
@@ -299,7 +321,7 @@ class VacancyMasterTest extends TestCase
     {
         $position = $this->openDraft(100);
 
-        $this->saveSanctioned(['sanctioned_total' => '110', 'order_number' => 'SE/SANC/2026/02'])->assertSessionHasErrors('workflow');
+        $this->saveSanctioned(['sanctioned_total' => '110', 'order_number' => 'SE/SANC/2026/02'])->assertSessionHasErrors('correction_reason');
         $this->assertSame(100, $position->fresh()->sanctionedStrength->sanctioned_total);
 
         $this->saveSanctioned(['sanctioned_total' => '110', 'order_number' => 'SE/SANC/2026/02', 'correction_reason' => 'Ten posts created by the March order.'])
@@ -393,6 +415,55 @@ class VacancyMasterTest extends TestCase
         $this->saveWorking(['working_total' => '70', 'correction_reason' => ''])->assertRedirect($this->url('show', ['section' => 'working']));
     }
 
+    public function test_a_refused_save_shows_its_message_beside_the_field_it_is_about(): void
+    {
+        $this->openDraft();
+        $here = $this->url('show', ['section' => 'working']);
+
+        // A business rule (the split), refused by the service.
+        $page = $this->from($here)->saveWorking(['working_promotion' => '41'])
+            ->assertRedirect($here)
+            ->assertSessionHasErrors('working_split');
+        $html = $this->revisit($here)->assertOk()->getContent();
+        $message = e(__('vacancymaster.errors.split_must_sum', ['total' => 75]));
+
+        $this->assertSame(1, substr_count($html, $message), 'The message appears once, beside the field, not again at the top.');
+        $this->assertMatchesRegularExpression('/split_help.*?|invalid-feedback d-block">'.preg_quote($message, '/').'/s', $html);
+        $this->assertStringContainsString(e(__('vacancymaster.errors.fix_highlighted')), $html);
+        $this->assertMatchesRegularExpression('/name="working_promotion"[^>]*autofocus/', $html);
+        $this->assertMatchesRegularExpression('/class="[^"]*is-invalid[^"]*"[^>]*name="working_promotion"/', $html);
+        $this->assertStringContainsString(e(__('vacancymaster.errors.document_reselect')), $html);
+
+        // A field rule (the form request), named the way the form labels it.
+        $this->from($here)->saveWorking(['order_number' => ''])->assertRedirect($here)->assertSessionHasErrors('order_number');
+        $html = $this->revisit($here)->assertOk()->getContent();
+        $this->assertMatchesRegularExpression('/name="order_number"[^>]*autofocus/', $html);
+        $this->assertStringContainsString(__('vacancymaster.order_number'), $html);
+    }
+
+    public function test_an_entrys_message_stays_with_that_entry(): void
+    {
+        $this->openDraft();
+        $this->saveWorking()->assertSessionHasNoErrors();
+        $this->addEntry()->assertSessionHasNoErrors();
+        $entry = VacancyPositionEntry::query()->latest('id')->firstOrFail();
+        $here = $this->url('show', ['section' => 'vacancies']);
+
+        $this->actingAs($this->admin)->from($here)
+            ->post($this->url('entries.withdraw', [$entry]), ['_entry' => (string) $entry->id, 'withdrawal_reason' => ''])
+            ->assertRedirect($here)
+            ->assertSessionHasErrors('withdrawal_reason', null, 'entry_'.$entry->id);
+
+        $html = $this->revisit($here)->assertOk()->getContent();
+        $this->assertMatchesRegularExpression('/name="withdrawal_reason"[^>]*is-invalid|is-invalid[^"]*"[^>]*name="withdrawal_reason"/', $html);
+        $this->assertMatchesRegularExpression('/name="withdrawal_reason"[^>]*autofocus/', $html);
+
+        // The add-entry form below is untouched: no red field, no PDF warning.
+        $add = substr($html, (int) strpos($html, 'id="add-entry"'));
+        $this->assertStringNotContainsString('is-invalid', $add);
+        $this->assertStringNotContainsString(e(__('vacancymaster.errors.document_reselect')), $add);
+    }
+
     public function test_missing_working_strength_is_not_treated_as_zero(): void
     {
         $this->openDraft();
@@ -427,7 +498,7 @@ class VacancyMasterTest extends TestCase
         $position = $this->openDraft();
         $this->saveWorking()->assertSessionHasNoErrors();
 
-        $this->saveWorking(['working_total' => '74', 'working_direct' => '32'])->assertSessionHasErrors('workflow');
+        $this->saveWorking(['working_total' => '74', 'working_direct' => '32'])->assertSessionHasErrors('correction_reason');
 
         $this->saveWorking(['working_total' => '74', 'working_direct' => '32', 'correction_reason' => 'One officer was relieved on 31-12-2025.'])
             ->assertSessionHasNoErrors();
@@ -455,7 +526,7 @@ class VacancyMasterTest extends TestCase
         $this->openDraft();
 
         $this->saveWorking(['working_total' => '101', 'working_promotion' => '51', 'working_direct' => '48', 'working_deputation' => '2'])
-            ->assertSessionHasErrors('workflow');
+            ->assertSessionHasErrors('exceeds_sanctioned_acknowledged');
 
         $this->saveWorking([
             'working_total' => '101', 'working_promotion' => '51', 'working_direct' => '48', 'working_deputation' => '2',
@@ -470,7 +541,7 @@ class VacancyMasterTest extends TestCase
     {
         $this->openDraft();
 
-        $this->saveWorking(['working_promotion' => '41'])->assertSessionHasErrors('workflow');
+        $this->saveWorking(['working_promotion' => '41'])->assertSessionHasErrors('working_split');
         $this->saveWorking(['working_promotion' => '', 'working_direct' => '', 'working_deputation' => ''])->assertSessionHasNoErrors();
 
         $this->assertContains('working_split_missing', array_column($this->breakdown()['issues'], 'key'));
@@ -570,12 +641,12 @@ class VacancyMasterTest extends TestCase
 
         $this->addEntry(['effective_date' => '2026-01-01', 'order_number' => 'A'])->assertSessionHasNoErrors();
         $this->addEntry(['effective_date' => '2026-12-31', 'order_number' => 'B'])->assertSessionHasNoErrors();
-        $this->addEntry(['effective_date' => '2027-01-01', 'order_number' => 'C'])->assertSessionHasErrors('workflow');
-        $this->addEntry(['effective_date' => '2025-12-31', 'order_number' => 'D'])->assertSessionHasErrors('workflow');
+        $this->addEntry(['effective_date' => '2027-01-01', 'order_number' => 'C'])->assertSessionHasErrors('effective_date');
+        $this->addEntry(['effective_date' => '2025-12-31', 'order_number' => 'D'])->assertSessionHasErrors('effective_date');
 
         // An existing vacancy is one already open on 1 January.
         $this->addEntry(['kind' => 'existing', 'effective_date' => '2026-01-02', 'occupant_quota' => '', 'reconciliation' => '', 'order_number' => 'E'])
-            ->assertSessionHasErrors('workflow');
+            ->assertSessionHasErrors('effective_date');
 
         $this->assertSame(2, VacancyPositionEntry::query()->count());
     }
@@ -592,9 +663,9 @@ class VacancyMasterTest extends TestCase
             'higher_dpc_reference' => 'DPC-2026-SE-0007', 'order_number' => 'SE/HP/2026/1'];
 
         $this->addEntry([...$higher, 'higher_dpc_reference' => ''])->assertSessionHasErrors('higher_dpc_reference');
-        $this->addEntry([...$higher, 'higher_post_id' => (string) $this->principal->id])->assertSessionHasErrors('workflow');
+        $this->addEntry([...$higher, 'higher_post_id' => (string) $this->principal->id])->assertSessionHasErrors('higher_post_id');
         $this->addEntry($higher)->assertSessionHasNoErrors();
-        $this->addEntry([...$higher, 'order_number' => 'SE/HP/2026/2'])->assertSessionHasErrors('workflow');
+        $this->addEntry([...$higher, 'order_number' => 'SE/HP/2026/2'])->assertSessionHasErrors('higher_dpc_reference');
 
         $entry = VacancyPositionEntry::query()->sole();
         $this->assertSame(VacancyEntryEligibility::PendingVerification, $entry->eligibility);
@@ -604,7 +675,7 @@ class VacancyMasterTest extends TestCase
         // Verified on the order basis, which needs the order itself.
         $verify = $this->url('entries.verify', [$entry]);
         $this->actingAs($this->admin)->post($verify, ['decision' => 'eligible', 'basis' => 'promotion_order_issued', 'remarks' => 'Seen.'])
-            ->assertSessionHasErrors('workflow');
+            ->assertSessionHasErrors('promotion_order_number', null, 'entry_'.$entry->id);
         $this->actingAs($this->admin)->post($verify, [
             'decision' => 'eligible', 'basis' => 'promotion_order_issued', 'remarks' => 'Order seen.',
             'promotion_order_number' => 'SE/PROM/2026/3', 'promotion_order_date' => '2026-02-01',

@@ -448,7 +448,7 @@ class VacancyMasterService
         $this->assertDraft($position);
 
         if ($document === null) {
-            throw new WorkflowException(__('vacancymaster.errors.document_required'));
+            throw new WorkflowException(__('vacancymaster.errors.document_required'), 'document');
         }
 
         $total = (int) $data['sanctioned_total'];
@@ -456,7 +456,7 @@ class VacancyMasterService
         $reason = trim((string) ($data['correction_reason'] ?? ''));
 
         if ($previous !== null && $reason === '') {
-            throw new WorkflowException(__('vacancymaster.errors.correction_reason_required'));
+            throw new WorkflowException(__('vacancymaster.errors.correction_reason_required'), 'correction_reason');
         }
 
         return DB::transaction(function () use ($position, $data, $document, $actor, $total, $previous, $reason): VacancyPositionSanctionedStrength {
@@ -510,7 +510,7 @@ class VacancyMasterService
         $this->assertDraft($position);
 
         if ($document === null) {
-            throw new WorkflowException(__('vacancymaster.errors.document_required'));
+            throw new WorkflowException(__('vacancymaster.errors.document_required'), 'document');
         }
 
         $total = (int) $data['working_total'];
@@ -520,11 +520,11 @@ class VacancyMasterService
         $split = [$promotion, $direct, $deputation];
 
         if (in_array(null, $split, true) && array_filter($split, fn ($v): bool => $v !== null) !== []) {
-            throw new WorkflowException(__('vacancymaster.errors.split_all_or_none'));
+            throw new WorkflowException(__('vacancymaster.errors.split_all_or_none'), 'working_split');
         }
 
         if (! in_array(null, $split, true) && (int) $promotion + (int) $direct + (int) $deputation !== $total) {
-            throw new WorkflowException(__('vacancymaster.errors.split_must_sum', ['total' => $total]));
+            throw new WorkflowException(__('vacancymaster.errors.split_must_sum', ['total' => $total]), 'working_split');
         }
 
         $sanctioned = $position->sanctionedStrength?->sanctioned_total;
@@ -534,14 +534,14 @@ class VacancyMasterService
             throw new WorkflowException(__('vacancymaster.errors.exceeds_sanctioned', [
                 'working' => $total,
                 'sanctioned' => $sanctioned,
-            ]));
+            ]), 'exceeds_sanctioned_acknowledged');
         }
 
         $previous = $position->workingStrength;
         $reason = trim((string) ($data['correction_reason'] ?? ''));
 
         if ($previous !== null && $reason === '') {
-            throw new WorkflowException(__('vacancymaster.errors.correction_reason_required'));
+            throw new WorkflowException(__('vacancymaster.errors.correction_reason_required'), 'correction_reason');
         }
 
         return DB::transaction(function () use ($position, $data, $document, $actor, $total, $promotion, $direct, $deputation, $acknowledged, $previous, $reason): VacancyPositionWorkingStrength {
@@ -598,7 +598,7 @@ class VacancyMasterService
         $this->assertDraft($position);
 
         if ($document === null) {
-            throw new WorkflowException(__('vacancymaster.errors.document_required'));
+            throw new WorkflowException(__('vacancymaster.errors.document_required'), 'document');
         }
 
         $kind = VacancyEntryKind::from((string) $data['kind']);
@@ -611,11 +611,11 @@ class VacancyMasterService
             throw new WorkflowException(__('vacancymaster.errors.anticipated_outside_year', [
                 'from' => $from->format('d-m-Y'),
                 'to' => $to->format('d-m-Y'),
-            ]));
+            ]), 'effective_date');
         }
 
         if ($kind === VacancyEntryKind::Existing && $effective->gt($from)) {
-            throw new WorkflowException(__('vacancymaster.errors.existing_after_opening', ['date' => $from->format('d-m-Y')]));
+            throw new WorkflowException(__('vacancymaster.errors.existing_after_opening', ['date' => $from->format('d-m-Y')]), 'effective_date');
         }
 
         $quota = $data['occupant_quota'] ?? null;
@@ -624,7 +624,7 @@ class VacancyMasterService
             : null;
 
         if ($kind === VacancyEntryKind::Anticipated && ($quota === null || $reconciliation === null)) {
-            throw new WorkflowException(__('vacancymaster.errors.anticipated_needs_quota_and_reconciliation'));
+            throw new WorkflowException(__('vacancymaster.errors.anticipated_needs_quota_and_reconciliation'), 'occupant_quota');
         }
 
         $higher = $this->higherPostReference($position, $reason, $data);
@@ -697,7 +697,7 @@ class VacancyMasterService
         $remarks = trim($data['remarks']);
 
         if ($remarks === '') {
-            throw new WorkflowException(__('vacancymaster.errors.verification_remarks_required'));
+            throw new WorkflowException(__('vacancymaster.errors.verification_remarks_required'), 'remarks');
         }
 
         $decision = (string) $data['decision'];
@@ -706,7 +706,7 @@ class VacancyMasterService
 
         if ($decision === VacancyEntryEligibility::Eligible->value) {
             if (! in_array($basis, $entry->reason->verificationBases(), true)) {
-                throw new WorkflowException(__('vacancymaster.errors.basis_required'));
+                throw new WorkflowException(__('vacancymaster.errors.basis_required'), 'basis');
             }
 
             if ($basis === 'promotion_order_issued') {
@@ -714,7 +714,7 @@ class VacancyMasterService
                 $date = $data['promotion_order_date'] ?? $entry->promotion_order_date?->toDateString();
 
                 if ($number === '' || empty($date)) {
-                    throw new WorkflowException(__('vacancymaster.errors.promotion_order_required'));
+                    throw new WorkflowException(__('vacancymaster.errors.promotion_order_required'), 'promotion_order_number');
                 }
 
                 $updates = ['promotion_order_number' => $number, 'promotion_order_date' => Carbon::parse((string) $date)->toDateString()];
@@ -725,10 +725,10 @@ class VacancyMasterService
                 throw new WorkflowException(__('vacancymaster.errors.higher_dpc_not_received', [
                     'code' => $entry->higherDpcProposal->dpc_code,
                     'status' => $entry->higherDpcProposal->status->value,
-                ]));
+                ]), 'basis');
             }
         } elseif ($decision !== VacancyEntryEligibility::NotEligible->value) {
-            throw new WorkflowException(__('vacancymaster.errors.decision_required'));
+            throw new WorkflowException(__('vacancymaster.errors.decision_required'), 'decision');
         }
 
         return DB::transaction(function () use ($entry, $position, $decision, $basis, $remarks, $updates, $actor): VacancyPositionEntry {
@@ -763,7 +763,7 @@ class VacancyMasterService
         }
 
         if (trim($reason) === '') {
-            throw new WorkflowException(__('vacancymaster.errors.withdrawal_reason_required'));
+            throw new WorkflowException(__('vacancymaster.errors.withdrawal_reason_required'), 'withdrawal_reason');
         }
 
         DB::transaction(function () use ($entry, $position, $reason, $actor): void {
@@ -847,7 +847,7 @@ class VacancyMasterService
     public function revise(VacancyPosition $position, string $reason, User $actor): VacancyPosition
     {
         if (trim($reason) === '') {
-            throw new WorkflowException(__('vacancymaster.errors.revision_reason_required'));
+            throw new WorkflowException(__('vacancymaster.errors.revision_reason_required'), 'revision_reason');
         }
 
         $current = $this->current($position->department_id, $position->post_name, $position->vacancy_year);
@@ -1001,13 +1001,13 @@ class VacancyMasterService
         $higher = DepartmentPost::query()->find((int) ($data['higher_post_id'] ?? 0));
 
         if ($higher === null || $higher->department_id !== $position->department_id || $higher->name === $position->post_name) {
-            throw new WorkflowException(__('vacancymaster.errors.higher_post_invalid'));
+            throw new WorkflowException(__('vacancymaster.errors.higher_post_invalid'), 'higher_post_id');
         }
 
         $reference = trim((string) ($data['higher_dpc_reference'] ?? ''));
 
         if ($reference === '') {
-            throw new WorkflowException(__('vacancymaster.errors.higher_dpc_reference_required'));
+            throw new WorkflowException(__('vacancymaster.errors.higher_dpc_reference_required'), 'higher_dpc_reference');
         }
 
         // Linked when the reference is a DPC this portal holds, so its status can be read.
@@ -1052,7 +1052,7 @@ class VacancyMasterService
         }
 
         if ($higherReference !== null && (clone $active)->where('higher_dpc_reference', $higherReference)->exists()) {
-            throw new WorkflowException(__('vacancymaster.errors.duplicate_higher_dpc', ['reference' => $higherReference]));
+            throw new WorkflowException(__('vacancymaster.errors.duplicate_higher_dpc', ['reference' => $higherReference]), 'higher_dpc_reference');
         }
     }
 

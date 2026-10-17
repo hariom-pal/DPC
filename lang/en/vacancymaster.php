@@ -127,6 +127,8 @@ return [
     'yes' => 'Yes',
     'no' => 'No',
     'entries' => [
+        'decision' => 'Decision',
+        'basis' => 'Basis of verification',
         'heading' => 'Reason-wise vacancies',
         'kind' => 'Vacancy type',
         'reason' => 'Reason',
@@ -229,6 +231,8 @@ return [
         'deputation_within_a_year' => 'Deputation of one year or less — rule 2.3 does not create a vacancy.',
     ],
     'errors' => [
+        'fix_highlighted' => 'Please correct the fields marked in red below.',
+        'document_reselect' => 'Please choose the PDF again — a file cannot be kept after an error.',
         'post_not_in_department' => 'That post does not belong to this department.',
         'already_finalized' => 'A finalized position exists for this post and year. Open a revision to correct it.',
         'document_required' => 'A supporting document is required.',

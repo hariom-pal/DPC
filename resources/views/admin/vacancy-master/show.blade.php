@@ -55,7 +55,7 @@
         </div>
     </div>
 
-    @include('partials.alerts')
+    @include('partials.alerts', ['inlineErrors' => true])
 
     @if ($position === null)
         <div class="card border-0 shadow-sm mb-3">

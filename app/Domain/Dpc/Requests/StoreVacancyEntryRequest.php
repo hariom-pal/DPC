@@ -54,4 +54,33 @@ class StoreVacancyEntryRequest extends FormRequest
             'cadre_details' => ['nullable', 'string', 'max:255'],
         ];
     }
+
+    /**
+     * The labels the screen shows, so a message names the field the way the form does.
+     *
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'kind' => __('vacancymaster.entries.kind'),
+            'reason' => __('vacancymaster.entries.reason'),
+            'vacancy_count' => __('vacancymaster.entries.count'),
+            'effective_date' => __('vacancymaster.entries.date'),
+            'order_number' => __('vacancymaster.order_number'),
+            'order_date' => __('vacancymaster.order_date'),
+            'document' => __('vacancymaster.document'),
+            'remarks' => __('vacancymaster.remarks'),
+            'occupant_quota' => __('vacancymaster.entries.quota'),
+            'reconciliation' => __('vacancymaster.entries.reconciliation'),
+            'higher_post_id' => __('vacancymaster.entries.higher_post'),
+            'higher_dpc_reference' => __('vacancymaster.entries.higher_dpc_reference'),
+            'promotion_order_number' => __('vacancymaster.entries.promotion_order_number'),
+            'promotion_order_date' => __('vacancymaster.entries.promotion_order_date'),
+            'deputation_to' => __('vacancymaster.entries.deputation_to'),
+            'deputation_expected_months' => __('vacancymaster.entries.deputation_months'),
+            'against_sanctioned_post' => __('vacancymaster.entries.against_sanctioned_post'),
+            'cadre_details' => __('vacancymaster.entries.cadre_details'),
+        ];
+    }
 }

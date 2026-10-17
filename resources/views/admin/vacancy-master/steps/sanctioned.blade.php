@@ -22,33 +22,45 @@
         @endif
 
         @if ($isDraft)
+@php
+    $focus = collect(['sanctioned_total', 'order_number', 'order_date', 'document', 'remarks', 'correction_reason'])->first(fn ($field) => $errors->has($field));
+@endphp
             <form method="POST" enctype="multipart/form-data" action="{{ route('admin.departments.vacancy-master.sanctioned-strength', [$department, $year, $post]) }}">
                 @csrf
                 <div class="row g-2">
                     <div class="col-md-3">
                         <label class="form-label small" for="sanctioned_total">{{ __('vacancymaster.sanctioned.total') }}</label>
-                        <input type="number" min="0" class="form-control form-control-sm" id="sanctioned_total" name="sanctioned_total" value="{{ old('sanctioned_total', $sanctioned?->sanctioned_total) }}" required>
+                        <input type="number" min="0" class="form-control form-control-sm @error('sanctioned_total') is-invalid @enderror" id="sanctioned_total" name="sanctioned_total" value="{{ old('sanctioned_total', $sanctioned?->sanctioned_total) }}" required @if ($focus === 'sanctioned_total') autofocus @endif>
+@include('admin.vacancy-master.partials.field-error', ['field' => 'sanctioned_total'])
                     </div>
                     <div class="col-md-4">
                         <label class="form-label small" for="ss_order_number">{{ __('vacancymaster.order_number') }}</label>
-                        <input type="text" maxlength="120" class="form-control form-control-sm" id="ss_order_number" name="order_number" value="{{ old('order_number') }}" required>
+                        <input type="text" maxlength="120" class="form-control form-control-sm @error('order_number') is-invalid @enderror" id="ss_order_number" name="order_number" value="{{ old('order_number') }}" required @if ($focus === 'order_number') autofocus @endif>
+@include('admin.vacancy-master.partials.field-error', ['field' => 'order_number'])
                     </div>
                     <div class="col-md-2">
                         <label class="form-label small" for="ss_order_date">{{ __('vacancymaster.order_date') }}</label>
-                        <input type="date" class="form-control form-control-sm" id="ss_order_date" name="order_date" value="{{ old('order_date') }}" required>
+                        <input type="date" class="form-control form-control-sm @error('order_date') is-invalid @enderror" id="ss_order_date" name="order_date" value="{{ old('order_date') }}" required @if ($focus === 'order_date') autofocus @endif>
+@include('admin.vacancy-master.partials.field-error', ['field' => 'order_date'])
                     </div>
                     <div class="col-md-3">
                         <label class="form-label small" for="ss_document">{{ __('vacancymaster.document') }}</label>
-                        <input type="file" accept="application/pdf" class="form-control form-control-sm" id="ss_document" name="document" required>
+                        <input type="file" accept="application/pdf" class="form-control form-control-sm @error('document') is-invalid @enderror" id="ss_document" name="document" required @if ($focus === 'document') autofocus @endif>
+@include('admin.vacancy-master.partials.field-error', ['field' => 'document'])
+@if ($errors->any() && ! $errors->has('document'))
+    <div class="form-text text-danger">{{ __('vacancymaster.errors.document_reselect') }}</div>
+@endif
                     </div>
                     <div class="col-md-6">
                         <label class="form-label small" for="ss_remarks">{{ __('vacancymaster.remarks') }}</label>
-                        <textarea class="form-control form-control-sm" id="ss_remarks" name="remarks" rows="2" maxlength="2000">{{ old('remarks') }}</textarea>
+                        <textarea class="form-control form-control-sm @error('remarks') is-invalid @enderror" id="ss_remarks" name="remarks" rows="2" maxlength="2000" @if ($focus === 'remarks') autofocus @endif>{{ old('remarks') }}</textarea>
+@include('admin.vacancy-master.partials.field-error', ['field' => 'remarks'])
                     </div>
                     @if ($sanctioned !== null)
                         <div class="col-md-6">
                             <label class="form-label small" for="ss_correction_reason">{{ __('vacancymaster.sanctioned.correction_reason') }}</label>
-                            <textarea class="form-control form-control-sm" id="ss_correction_reason" name="correction_reason" rows="2" maxlength="2000" required>{{ old('correction_reason') }}</textarea>
+                            <textarea class="form-control form-control-sm @error('correction_reason') is-invalid @enderror" id="ss_correction_reason" name="correction_reason" rows="2" maxlength="2000" required @if ($focus === 'correction_reason') autofocus @endif>{{ old('correction_reason') }}</textarea>
+@include('admin.vacancy-master.partials.field-error', ['field' => 'correction_reason'])
                         </div>
                     @endif
                     <div class="col-12">
