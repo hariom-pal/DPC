@@ -274,6 +274,22 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | UAT data cleanup (`php artisan dpc:uat-cleanup`)
+    |--------------------------------------------------------------------------
+    |
+    | Roles whose accounts survive the cleanup (`admin` is always kept), and the
+    | environments where `--apply` is allowed. Production is refused regardless.
+    | See docs/UAT-DATA-CLEANUP.md.
+    |
+    */
+
+    'uat_cleanup' => [
+        'preserve_roles' => array_values(array_filter(array_map('trim', explode(',', (string) (env('DPC_UAT_CLEANUP_PRESERVE_ROLES') ?: 'admin,chairman'))))),
+        'allowed_environments' => array_values(array_filter(array_map('trim', explode(',', (string) (env('DPC_UAT_CLEANUP_ENVIRONMENTS') ?: 'uat'))))),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Workflows (configuration-driven)
     |--------------------------------------------------------------------------
     |
