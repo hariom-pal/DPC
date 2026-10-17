@@ -550,6 +550,13 @@ Expect **TOTAL VACANCY 4**, broken down **UR · ST · OBC · SC**. The arithmeti
 ## Step 9 · Seniority List (S17) — and the ten candidate logins
 **AO** · Upload **`uploads/demo-seniority-list.csv`** → **Commit 10 Row(s)** → **read the panel**.
 
+> **Since 2026-10-17** the file has the simplified columns (Seniority No, Employee ID,
+> Employee Name, Date of Birth, Date of Appointment, Current Post, optional Date of
+> Posting on Current Post). The upload form asks for **"Seniority list as on"** — enter
+> **1 April of the year before the DPC year** (01-04-2025 for a 2026 DPC). After the
+> commit, open **Employee Details** and complete each officer's category, CR, Property
+> Return and PH sections before submitting — see `docs/CODER-INSTRUCTIONS-POINTS-1-TO-3.md` §7.
+
 This is the seniority list **of the FROM post** — ten Block Education Officers. Three
 things happen on one commit: the list is recorded; the Evaluation Chart is projected from
 it; and **ten Promotion Candidate accounts are provisioned** — `SE/BEO/1001` …
