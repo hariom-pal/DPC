@@ -8,8 +8,6 @@ use App\Domain\Authentication\Models\User;
 use App\Domain\Committee\Models\CgpscChairman;
 use App\Domain\Committee\Services\CgpscChairmanService;
 use App\Domain\Department\Models\Department;
-use App\Domain\Master\Models\CommitteeConfiguration;
-use App\Domain\Master\Models\CommitteeType;
 use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\DepartmentPostOrder;
 use App\Domain\Master\Models\PayScale;
@@ -129,7 +127,6 @@ class DemoMasterSeeder extends Seeder
     public function run(PreDpcProposalService $preDpc): void
     {
         $this->reservationPolicies();
-        $this->committeeMasters();
         $this->cgpscChairman();
 
         $department = Department::query()->where('code', 'SE')->firstOrFail();
@@ -165,40 +162,6 @@ class DemoMasterSeeder extends Seeder
                 ],
             );
         }
-    }
-
-    /**
-     * A second committee type beside the base seeder's DPC Committee, so the
-     * Committee Type and Committee Configuration screens each show a list
-     * rather than a single row.
-     */
-    private function committeeMasters(): void
-    {
-        $active = MasterStatus::Active->value;
-
-        $type = CommitteeType::query()->updateOrCreate(
-            ['code' => 'departmental_screening_committee'],
-            ['name_en' => 'Departmental Screening Committee', 'name_hi' => 'विभागीय स्क्रीनिंग समिति', 'status' => $active],
-        );
-
-        CommitteeConfiguration::query()->updateOrCreate(
-            ['committee_type_id' => $type->id],
-            [
-                'min_members' => 2,
-                'max_members' => 4,
-                'chairman_mandatory' => true,
-                'quorum' => 2,
-                'voting_method' => 'chairman_decision',
-                'majority_type' => 'not_applicable',
-                'tie_break_rule' => 'chairman_decision',
-                'digital_signature_required' => true,
-                'remarks_required' => true,
-                'external_member_allowed' => false,
-                'secretary_required' => true,
-                'effective_from' => '2026-01-01',
-                'status' => $active,
-            ],
-        );
     }
 
     /**

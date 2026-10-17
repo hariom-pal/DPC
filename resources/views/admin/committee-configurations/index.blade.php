@@ -1,10 +1,13 @@
 @extends('layouts.admin')
 
-@section('title', __('admin.committee_configurations.index.committee_configurations_2'))
+@section('title', __('admin.committee_rules.title'))
 
 @section('content')
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <h1 class="h4 mb-0">{{ __('admin.committee_configurations.index.committee_configurations') }}</h1>
+        <div>
+            <h1 class="h4 mb-0">{{ __('admin.committee_rules.title') }}</h1>
+            <p class="text-muted small mb-0">{{ __('admin.committee_rules.intro') }}</p>
+        </div>
         <a href="{{ route('admin.committee-configurations.create') }}" class="btn btn-success btn-sm">{{ __('ui.new') }}</a>
     </div>
 
@@ -40,15 +43,22 @@
         <div class="table-responsive">
             <table class="table table-striped mb-0 align-middle">
                 <thead>
-                    <tr><th>{{ __('ui.committee_type') }}</th><th>{{ __('admin.committee_configurations.index.members_min_max') }}</th><th>{{ __('ui.quorum') }}</th><th>{{ __('admin.committee_configurations.index.voting') }}</th><th>{{ __('ui.status') }}</th><th class="text-end">{{ __('ui.actions') }}</th></tr>
+                    <tr><th>{{ __('admin.committee_rules.col_members') }}</th><th>{{ __('admin.committee_rules.col_composition') }}</th><th>{{ __('admin.committee_rules.col_effective') }}</th><th>{{ __('ui.status') }}</th><th class="text-end">{{ __('ui.actions') }}</th></tr>
                 </thead>
                 <tbody>
                     @forelse ($configurations as $configuration)
                         <tr>
-                            <td>{{ $configuration->committeeType?->name_en }}</td>
-                            <td>{{ $configuration->min_members }}–{{ $configuration->max_members }}</td>
-                            <td>{{ $configuration->quorum }}</td>
-                            <td>{{ $configuration->voting_method }}</td>
+                            <td>{{ __('admin.committee_rules.members_value', ['min' => $configuration->min_members - 1, 'max' => $configuration->max_members - 1]) }}</td>
+                            <td class="small">
+                                {{ __('admin.committee_rules.chairman_short') }}
+                                @foreach ((array) $configuration->required_categories as $value)
+                                    · {{ \App\Domain\Committee\Enums\MemberCategory::tryFrom($value)?->label() ?? $value }}
+                                @endforeach
+                                @if ($configuration->requires_reserved_category)
+                                    <div class="text-muted">{{ __('admin.committee_rules.requires_reserved_category') }}</div>
+                                @endif
+                            </td>
+                            <td class="small">{{ $configuration->effective_from?->format('d-m-Y') ?? '—' }} → {{ $configuration->effective_to?->format('d-m-Y') ?? __('admin.committee_rules.open_ended') }}</td>
                             <td><x-status-badge :status="$configuration->status" /></td>
                             <td class="text-end">
                                 <a href="{{ route('admin.committee-configurations.edit', $configuration) }}" class="btn btn-outline-primary btn-sm">{{ __('ui.edit') }}</a>
@@ -60,7 +70,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="6" class="text-center text-muted py-4">{{ __('admin.committee_configurations.index.no_configurations_yet') }}</td></tr>
+                        <tr><td colspan="5" class="text-center text-muted py-4">{{ __('admin.committee_configurations.index.no_configurations_yet') }}</td></tr>
                     @endforelse
                 </tbody>
             </table>

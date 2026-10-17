@@ -62,8 +62,6 @@
                        href="{{ route('admin.reservation-rosters.index') }}">{{ __('ui.layouts.admin.nav.reservation_rosters') }}</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.cgpsc-chairman.*') ? 'active' : '' }}"
                        href="{{ route('admin.cgpsc-chairman.index') }}">{{ __('ui.layouts.admin.nav.cgpsc_chairman') }}</a>
-                    <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.committee-types.*') ? 'active' : '' }}"
-                       href="{{ route('admin.committee-types.index') }}">{{ __('ui.layouts.admin.nav.committee_types') }}</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.committee-configurations.*') ? 'active' : '' }}"
                        href="{{ route('admin.committee-configurations.index') }}">{{ __('ui.layouts.admin.nav.committee_configurations') }}</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.recruitment-rules.*') ? 'active' : '' }}"

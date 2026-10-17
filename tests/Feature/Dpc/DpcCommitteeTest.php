@@ -12,6 +12,7 @@ use App\Domain\Dpc\Enums\CommitteeCapacity;
 use App\Domain\Dpc\Models\DpcCommitteeMember;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Services\DpcProposalCompletenessService;
+use App\Domain\Master\Models\CommitteeConfiguration;
 use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\Designation;
 use App\Enums\MasterStatus;
@@ -339,7 +340,7 @@ class DpcCommitteeTest extends TestCase
      */
     public function test_one_member_may_represent_several_attributes(): void
     {
-        config(['dpc.committee.required_categories' => ['sc', 'st', 'obc', 'female', 'bhar_sadhak_sachiv']]);
+        $this->committeeRules(['sc', 'st', 'obc', 'female', 'bhar_sadhak_sachiv']);
 
         $this->saveCommittee([
             ['name' => 'ABC', 'mobile' => '9000000011', 'designation_id' => $this->designationId(), 'capacity' => 'member',
@@ -460,10 +461,7 @@ class DpcCommitteeTest extends TestCase
      */
     public function test_an_uncovered_required_attribute_leaves_the_committee_incomplete(): void
     {
-        config([
-            'dpc.committee.required_categories' => ['vibhag_sachiv'],
-            'dpc.committee.require_reserved_category' => false,
-        ]);
+        $this->committeeRules(['vibhag_sachiv'], reserved: false);
 
         // Saves — and reports incomplete.
         $this->saveCommittee($this->plainFiller(3))->assertSessionHasNoErrors();
@@ -475,6 +473,18 @@ class DpcCommitteeTest extends TestCase
         ])->assertSessionHasNoErrors();
 
         $this->assertTrue($this->committeeSection()['complete']);
+    }
+
+    /**
+     * Set the DPC Committee Rules as the Administrator would: on the configuration,
+     * which wins over `config/dpc.php`.
+     *
+     * @param  list<string>  $categories
+     */
+    private function committeeRules(array $categories, bool $reserved = false): void
+    {
+        CommitteeConfiguration::query()->get()->each(fn (CommitteeConfiguration $configuration) => $configuration
+            ->forceFill(['required_categories' => $categories, 'requires_reserved_category' => $reserved])->save());
     }
 
     /**

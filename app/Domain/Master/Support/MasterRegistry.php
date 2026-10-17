@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Domain\Master\Support;
 
 use App\Domain\Department\Models\Department;
-use App\Domain\Master\Models\CommitteeType;
 use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\Designation;
 use App\Domain\Master\Models\District;
@@ -59,9 +58,6 @@ final class MasterRegistry
             ]),
             self::bilingual('review-reasons', 'Review Reasons', ReviewReason::class, [
                 ['code' => 'COURT', 'name_en' => 'Court direction', 'name_hi' => 'न्यायालयीन निर्देश', 'status' => 'active'],
-            ]),
-            self::bilingual('committee-types', 'Committee Types', CommitteeType::class, [
-                ['code' => 'dpc_committee', 'name_en' => 'DPC Committee', 'name_hi' => 'डीपीसी समिति', 'status' => 'active'],
             ]),
 
             new MasterDefinition(

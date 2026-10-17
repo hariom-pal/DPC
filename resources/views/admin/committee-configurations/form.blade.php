@@ -1,112 +1,110 @@
 @extends('layouts.admin')
 
-@section('title', __($configuration->exists ? 'admin.committee_configurations.form.title_edit' : 'admin.committee_configurations.form.title_new'))
-
-@php($c = $configuration)
+@section('title', __($configuration->exists ? 'admin.committee_rules.title_edit' : 'admin.committee_rules.title_new'))
 
 @section('content')
-    <h1 class="h4 mb-3">{{ $c->exists ? 'Edit Committee Configuration' : 'New Committee Configuration' }}</h1>
+    @php
+        $c = $configuration;
+        $chosen = old('required_categories', $c->exists ? ($c->required_categories ?? []) : (array) config('dpc.committee.required_categories', []));
+    @endphp
 
-    <div class="card border-0 shadow-sm">
-        <div class="card-body">
-            <form method="POST" action="{{ $c->exists ? route('admin.committee-configurations.update', $c) : route('admin.committee-configurations.store') }}">
-                @csrf
-                @if ($c->exists) @method('PUT') @endif
+    <h1 class="h4 mb-1">{{ __($c->exists ? 'admin.committee_rules.title_edit' : 'admin.committee_rules.title_new') }}</h1>
+    <p class="text-muted small mb-3">{{ __('admin.committee_rules.intro') }}</p>
 
-                <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label" for="committee_type_id">{{ __('ui.committee_type') }}</label>
-                        <select class="form-select @error('committee_type_id') is-invalid @enderror" id="committee_type_id" name="committee_type_id" required>
-                            <option value="">{{ __('ui.select') }}</option>
-                            @foreach ($committeeTypes as $type)
-                                <option value="{{ $type->id }}" @selected(old('committee_type_id', $c->committee_type_id) == $type->id)>{{ $type->code }} — {{ $type->name_en }}</option>
-                            @endforeach
-                        </select>
-                        @error('committee_type_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+    <form method="POST" action="{{ $c->exists ? route('admin.committee-configurations.update', $c) : route('admin.committee-configurations.store') }}">
+        @csrf
+        @if ($c->exists) @method('PUT') @endif
+
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-header bg-white"><strong>1. {{ __('admin.committee_rules.chairman_heading') }}</strong></div>
+            <div class="card-body small">{{ __('admin.committee_rules.chairman_fixed') }}</div>
+        </div>
+
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-header bg-white"><strong>2. {{ __('admin.committee_rules.size_heading') }}</strong></div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label" for="members_min">{{ __('admin.committee_rules.members_min') }}</label>
+                        <input type="number" min="1" max="50" class="form-control @error('members_min') is-invalid @enderror" id="members_min" name="members_min"
+                               value="{{ old('members_min', $c->exists ? $c->min_members - 1 : config('dpc.committee.min_members', 3)) }}" required @error('members_min') autofocus @enderror>
+                        @error('members_min')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
-                    <div class="col-md-2 mb-3">
+                    <div class="col-md-3">
+                        <label class="form-label" for="members_max">{{ __('admin.committee_rules.members_max') }}</label>
+                        <input type="number" min="1" max="50" class="form-control @error('members_max') is-invalid @enderror" id="members_max" name="members_max"
+                               value="{{ old('members_max', $c->exists ? $c->max_members - 1 : config('dpc.committee.max_members', 6)) }}" required @error('members_max') autofocus @enderror>
+                        @error('members_max')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="col-12"><div class="form-text">{{ __('admin.committee_rules.size_help') }}</div></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-header bg-white"><strong>3. {{ __('admin.committee_rules.composition_heading') }}</strong></div>
+            <div class="card-body">
+                <p class="small text-muted">{{ __('admin.committee_rules.composition_help') }}</p>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="small fw-semibold mb-1">{{ __('admin.committee_rules.social_heading') }}</div>
+                        @foreach ($socialCategories as $category)
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="required_categories[]" value="{{ $category->value }}" id="cat_{{ $category->value }}" @checked(in_array($category->value, $chosen, true))>
+                                <label class="form-check-label" for="cat_{{ $category->value }}">{{ $category->label() }}</label>
+                            </div>
+                        @endforeach
+                        <div class="form-text">{{ __('admin.committee_rules.social_help') }}</div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="small fw-semibold mb-1">{{ __('admin.committee_rules.additional_heading') }}</div>
+                        @foreach ($additionalAttributes as $category)
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="required_categories[]" value="{{ $category->value }}" id="cat_{{ $category->value }}" @checked(in_array($category->value, $chosen, true))>
+                                <label class="form-check-label" for="cat_{{ $category->value }}">{{ $category->label() }}</label>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+                @error('required_categories')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                @error('required_categories.*')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+
+                <div class="form-check mt-3">
+                    <input class="form-check-input" type="checkbox" value="1" id="requires_reserved_category" name="requires_reserved_category"
+                           @checked(old('requires_reserved_category', $c->exists ? $c->requires_reserved_category : config('dpc.committee.require_reserved_category', false)))>
+                    <label class="form-check-label" for="requires_reserved_category">{{ __('admin.committee_rules.requires_reserved_category') }}</label>
+                </div>
+            </div>
+        </div>
+
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-header bg-white"><strong>4. {{ __('admin.committee_rules.when_heading') }}</strong></div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label" for="effective_from">{{ __('admin.committee_rules.effective_from') }}</label>
+                        <input type="date" class="form-control @error('effective_from') is-invalid @enderror" id="effective_from" name="effective_from" value="{{ old('effective_from', $c->effective_from?->toDateString()) }}">
+                        @error('effective_from')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label" for="effective_to">{{ __('admin.committee_rules.effective_to') }}</label>
+                        <input type="date" class="form-control @error('effective_to') is-invalid @enderror" id="effective_to" name="effective_to" value="{{ old('effective_to', $c->effective_to?->toDateString()) }}">
+                        @error('effective_to')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="col-md-3">
                         <label class="form-label" for="status">{{ __('ui.status') }}</label>
                         <select class="form-select" id="status" name="status" required>
                             @foreach ($statuses as $status)
-                                <option value="{{ $status->value }}" @selected(old('status', $c->status?->value ?? 'draft') === $status->value)>{{ $status->label() }}</option>
+                                <option value="{{ $status->value }}" @selected(old('status', $c->status?->value ?? 'active') === $status->value)>{{ $status->label() }}</option>
                             @endforeach
                         </select>
                     </div>
+                    <div class="col-12"><div class="form-text">{{ __('admin.committee_rules.when_help') }}</div></div>
                 </div>
-
-                <div class="row">
-                    <div class="col-md-3 mb-3">
-                        <label class="form-label" for="min_members">{{ __('admin.committee_configurations.form.minimum_members') }}</label>
-                        <input type="number" min="1" class="form-control @error('min_members') is-invalid @enderror" id="min_members" name="min_members" value="{{ old('min_members', $c->min_members) }}" required>
-                        @error('min_members')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                    </div>
-                    <div class="col-md-3 mb-3">
-                        <label class="form-label" for="max_members">{{ __('admin.committee_configurations.form.maximum_members') }}</label>
-                        <input type="number" min="1" class="form-control @error('max_members') is-invalid @enderror" id="max_members" name="max_members" value="{{ old('max_members', $c->max_members) }}" required>
-                        @error('max_members')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                    </div>
-                    <div class="col-md-3 mb-3">
-                        <label class="form-label" for="quorum">{{ __('ui.quorum') }}</label>
-                        <input type="number" min="1" class="form-control @error('quorum') is-invalid @enderror" id="quorum" name="quorum" value="{{ old('quorum', $c->quorum) }}" required>
-                        @error('quorum')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                    </div>
-                </div>
-
-                <div class="row">
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label" for="voting_method">{{ __('admin.committee_configurations.form.voting_method') }}</label>
-                        <input type="text" list="voting_methods" class="form-control @error('voting_method') is-invalid @enderror" id="voting_method" name="voting_method" value="{{ old('voting_method', $c->voting_method) }}" required>
-                        <datalist id="voting_methods"><option value="Open"><option value="Secret"><option value="None"></datalist>
-                        @error('voting_method')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label" for="majority_type">{{ __('admin.committee_configurations.form.majority_type') }}</label>
-                        <input type="text" list="majority_types" class="form-control @error('majority_type') is-invalid @enderror" id="majority_type" name="majority_type" value="{{ old('majority_type', $c->majority_type) }}" required>
-                        <datalist id="majority_types"><option value="Simple"><option value="Two-Thirds"><option value="Consensus"></datalist>
-                        @error('majority_type')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label" for="tie_break_rule">{{ __('admin.committee_configurations.form.tie_break_rule') }}</label>
-                        <input type="text" list="tie_breaks" class="form-control @error('tie_break_rule') is-invalid @enderror" id="tie_break_rule" name="tie_break_rule" value="{{ old('tie_break_rule', $c->tie_break_rule) }}" required>
-                        <datalist id="tie_breaks"><option value="Chairman casting vote"><option value="Senior-most member"></datalist>
-                        @error('tie_break_rule')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                    </div>
-                </div>
-
-                <div class="row">
-                    @php($flags = [
-                        'chairman_mandatory' => 'Chairman Mandatory',
-                        'digital_signature_required' => 'Digital Signature Required',
-                        'remarks_required' => 'Remarks Required',
-                        'external_member_allowed' => 'External Member Allowed',
-                        'secretary_required' => 'Secretary Required',
-                    ])
-                    @foreach ($flags as $field => $label)
-                        <div class="col-md-4 mb-2">
-                            <div class="form-check">
-                                <input type="checkbox" class="form-check-input" id="{{ $field }}" name="{{ $field }}" value="1"
-                                    @checked(old($field, $c->{$field} ?? ($field === 'chairman_mandatory')))>
-                                <label class="form-check-label" for="{{ $field }}">{{ $label }}</label>
-                            </div>
-                        </div>
-                    @endforeach
-                </div>
-
-                <div class="row mt-2">
-                    <div class="col-md-3 mb-3">
-                        <label class="form-label" for="effective_from">{{ __('ui.effective_from') }}</label>
-                        <input type="date" class="form-control" id="effective_from" name="effective_from" value="{{ old('effective_from', $c->effective_from?->format('Y-m-d')) }}">
-                    </div>
-                    <div class="col-md-3 mb-3">
-                        <label class="form-label" for="effective_to">{{ __('ui.effective_to') }}</label>
-                        <input type="date" class="form-control @error('effective_to') is-invalid @enderror" id="effective_to" name="effective_to" value="{{ old('effective_to', $c->effective_to?->format('Y-m-d')) }}">
-                        @error('effective_to')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                    </div>
-                </div>
-
-                <button type="submit" class="btn btn-success">{{ __('ui.save') }}</button>
-                <a href="{{ route('admin.committee-configurations.index') }}" class="btn btn-outline-secondary">{{ __('ui.cancel') }}</a>
-            </form>
+            </div>
         </div>
-    </div>
+
+        <button class="btn btn-primary">{{ __('ui.save') }}</button>
+        <a href="{{ route('admin.committee-configurations.index') }}" class="btn btn-outline-secondary">{{ __('ui.cancel') }}</a>
+    </form>
 @endsection

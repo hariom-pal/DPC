@@ -52,17 +52,11 @@ class CommitteeBoundsReconciler
      */
     public function drift(CommitteeConfiguration $configuration): ?array
     {
-        if ($configuration->committeeType?->code !== CommitteeRuleResolver::COMMITTEE_TYPE) {
-            // Only the DPC committee's bounds are the register's business. A
-            // Departmental Screening Committee is somebody else's rule.
-            return null;
-        }
-
-        $chairman = (bool) $configuration->chairman_mandatory;
-
+        // The Chairman is mandatory by rule, so the stored whole-committee counts
+        // always hold one seat more than the members besides the Chairman.
         $stored = [
-            'min' => $this->besidesChairman((int) $configuration->min_members, $chairman),
-            'max' => $this->besidesChairman((int) $configuration->max_members, $chairman),
+            'min' => max(0, (int) $configuration->min_members - 1),
+            'max' => max(0, (int) $configuration->max_members - 1),
         ];
 
         $configured = [
@@ -82,11 +76,8 @@ class CommitteeBoundsReconciler
      */
     public function apply(CommitteeConfiguration $configuration): void
     {
-        $chairman = (bool) $configuration->chairman_mandatory;
-        $offset = $chairman ? 1 : 0;
-
-        $min = (int) config('dpc.committee.min_members', 3) + $offset;
-        $max = (int) config('dpc.committee.max_members', 6) + $offset;
+        $min = (int) config('dpc.committee.min_members', 3) + 1;
+        $max = (int) config('dpc.committee.max_members', 6) + 1;
 
         $this->crud->update($configuration, ['min_members' => $min, 'max_members' => $max]);
 
@@ -95,10 +86,5 @@ class CommitteeBoundsReconciler
             $configuration,
             sprintf('Committee size set to %d–%d members (change item 15).', $min, $max),
         );
-    }
-
-    private function besidesChairman(int $bound, bool $convert): int
-    {
-        return $convert ? max(0, $bound - 1) : $bound;
     }
 }

@@ -211,7 +211,6 @@ class ResetTransactionalDataCommand extends Command
         'reservation_policies',
         'reservation_rosters',
         'reservation_roster_points',
-        'committee_types',
         'committee_configurations',
 
         /*

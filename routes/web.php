@@ -8,7 +8,6 @@ use App\Http\Controllers\Admin\AuditTrailController;
 use App\Http\Controllers\Admin\CgpscChairmanController;
 use App\Http\Controllers\Admin\ClassMasterController;
 use App\Http\Controllers\Admin\CommitteeConfigurationController;
-use App\Http\Controllers\Admin\CommitteeTypeController;
 use App\Http\Controllers\Admin\DepartmentController;
 use App\Http\Controllers\Admin\DepartmentPostController;
 use App\Http\Controllers\Admin\DesignationController;
@@ -734,9 +733,6 @@ Route::middleware('auth')->group(function (): void {
                     'dpc-proposals/{dpcProposal}/committee/{member}/replace',
                     [DpcCommitteeMemberController::class, 'replace'],
                 )->name('committee-members.replace');
-                Route::resource('committee-types', CommitteeTypeController::class)
-                    ->parameters(['committee-types' => 'committeeType'])
-                    ->except(['show']);
                 /*
                  | Suggestion 3. Proposals raised before change item 11 carry no
                  | sanctioning order, because migration 360007 refused to guess one.

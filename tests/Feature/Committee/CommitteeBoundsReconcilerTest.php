@@ -7,7 +7,6 @@ namespace Tests\Feature\Committee;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Committee\Services\CommitteeBoundsReconciler;
 use App\Domain\Master\Models\CommitteeConfiguration;
-use App\Domain\Master\Models\CommitteeType;
 use App\Enums\Role;
 use Database\Seeders\CommitteeMasterSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
@@ -40,9 +39,7 @@ class CommitteeBoundsReconcilerTest extends TestCase
 
     private function dpcConfiguration(): CommitteeConfiguration
     {
-        return CommitteeConfiguration::query()
-            ->whereHas('committeeType', fn ($q) => $q->where('code', 'dpc_committee'))
-            ->sole();
+        return CommitteeConfiguration::query()->sole();
     }
 
     private function reconciler(): CommitteeBoundsReconciler
@@ -69,29 +66,6 @@ class CommitteeBoundsReconcilerTest extends TestCase
         $this->assertNotNull($drift);
         $this->assertSame(['min' => 0, 'max' => 4], $drift['stored']);
         $this->assertSame(['min' => 3, 'max' => 6], $drift['configured']);
-    }
-
-    public function test_another_committee_type_is_not_the_register_s_business(): void
-    {
-        // Not seeded by CommitteeMasterSeeder — the DPC committee is the only type
-        // the register speaks about, which is the point of this test.
-        $type = CommitteeType::query()->create([
-            'code' => 'departmental_screening_committee',
-            'name_en' => 'Departmental Screening Committee',
-            'name_hi' => 'विभागीय स्क्रीनिंग समिति',
-            'status' => 'active',
-        ]);
-
-        $other = CommitteeConfiguration::query()->create([
-            'committee_type_id' => $type->id,
-            'min_members' => 2, 'max_members' => 4, 'chairman_mandatory' => true, 'quorum' => 2,
-            'voting_method' => 'chairman_decision', 'majority_type' => 'not_applicable',
-            'tie_break_rule' => 'chairman_decision', 'digital_signature_required' => true,
-            'remarks_required' => true, 'external_member_allowed' => false, 'secretary_required' => true,
-            'status' => 'active',
-        ]);
-
-        $this->assertNull($this->reconciler()->drift($other));
     }
 
     public function test_the_screen_reports_the_difference_and_the_administrator_applies_it(): void

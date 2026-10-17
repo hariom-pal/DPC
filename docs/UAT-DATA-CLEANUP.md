@@ -29,7 +29,7 @@ classification `dpc:reset-transactional-data` already maintains, with one differ
 - The CGPSC Chairman **record** (`cgpsc_chairmen`) is preserved. Because the Chairman account is kept by default, its `user_id` link stays intact.
 - If **no** account holds `admin`, the cleanup refuses to run.
 
-### 1.2 Preserved — never touched (27 tables)
+### 1.2 Preserved — never touched (26 tables)
 
 | Table | Why |
 |---|---|
@@ -40,7 +40,7 @@ classification `dpc:reset-transactional-data` already maintains, with one differ
 | `cgpsc_chairmen` | Required to compose any committee |
 | `pay_scales`, `service_classes`, `designations`, `districts`, `qualifications` | Masters |
 | `reservation_categories`, `reservation_policies`, `reservation_rosters`, `reservation_roster_points` | Reservation masters |
-| `record_reasons`, `review_reasons`, `vacancy_types`, `dpc_types`, `committee_types`, `committee_configurations`, `portal_notices` | Reference masters and configuration |
+| `record_reasons`, `review_reasons`, `vacancy_types`, `dpc_types`, `committee_configurations` (DPC Committee Rules), `portal_notices` | Reference masters and configuration |
 | `migrations` | Migration history |
 
 ### 1.3 Trimmed — only rows of accounts not kept (4 tables)
@@ -49,7 +49,7 @@ classification `dpc:reset-transactional-data` already maintains, with one differ
 
 ### 1.4 Emptied (54 tables)
 
-27 preserved + 4 trimmed + 54 emptied = all 85 tables of the schema. This is the same
+26 preserved + 4 trimmed + 54 emptied = all 84 tables of the schema (the Committee Type master was removed on 2026-10-17). This is the same
 set `dpc:reset-transactional-data` classifies, and its test proves that set complete.
 
 | Group | Tables |

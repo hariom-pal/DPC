@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Admin;
 
+use App\Domain\Committee\Enums\MemberCategory;
 use App\Domain\Committee\Services\CommitteeBoundsReconciler;
 use App\Domain\Master\Models\CommitteeConfiguration;
-use App\Domain\Master\Models\CommitteeType;
 use App\Domain\Master\Requests\CommitteeConfigurationRequest;
 use App\Domain\Master\Services\MasterCrudService;
 use App\Enums\MasterStatus;
@@ -14,6 +14,10 @@ use App\Http\Controllers\Controller;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 
+/**
+ * The DPC Committee Rules: who must sit on every DPC committee, and how many.
+ * There is one committee, so there is no committee type to choose.
+ */
 class CommitteeConfigurationController extends Controller
 {
     public function __construct(
@@ -23,7 +27,7 @@ class CommitteeConfigurationController extends Controller
 
     public function index(): View
     {
-        $configurations = CommitteeConfiguration::query()->with('committeeType')->latest('id')->paginate(20);
+        $configurations = CommitteeConfiguration::query()->latest('effective_from')->latest('id')->paginate(20);
 
         return view('admin.committee-configurations.index', [
             'configurations' => $configurations,
@@ -63,9 +67,9 @@ class CommitteeConfigurationController extends Controller
 
     public function store(CommitteeConfigurationRequest $request): RedirectResponse
     {
-        $this->crud->create(new CommitteeConfiguration, $request->validated());
+        $this->crud->create(new CommitteeConfiguration, $request->toAttributes());
 
-        return redirect()->route('admin.committee-configurations.index')->with('status', 'Committee configuration created.');
+        return redirect()->route('admin.committee-configurations.index')->with('status', __('admin.committee_rules.flash.created'));
     }
 
     public function edit(CommitteeConfiguration $committeeConfiguration): View
@@ -75,16 +79,16 @@ class CommitteeConfigurationController extends Controller
 
     public function update(CommitteeConfigurationRequest $request, CommitteeConfiguration $committeeConfiguration): RedirectResponse
     {
-        $this->crud->update($committeeConfiguration, $request->validated());
+        $this->crud->update($committeeConfiguration, $request->toAttributes());
 
-        return redirect()->route('admin.committee-configurations.index')->with('status', 'Committee configuration updated.');
+        return redirect()->route('admin.committee-configurations.index')->with('status', __('admin.committee_rules.flash.updated'));
     }
 
     public function destroy(CommitteeConfiguration $committeeConfiguration): RedirectResponse
     {
         $this->crud->delete($committeeConfiguration);
 
-        return redirect()->route('admin.committee-configurations.index')->with('status', 'Committee configuration deleted.');
+        return redirect()->route('admin.committee-configurations.index')->with('status', __('admin.committee_rules.flash.deleted'));
     }
 
     /**
@@ -94,7 +98,8 @@ class CommitteeConfigurationController extends Controller
     {
         return [
             'configuration' => $configuration,
-            'committeeTypes' => CommitteeType::query()->where('status', MasterStatus::Active->value)->orderBy('code')->get(),
+            'socialCategories' => MemberCategory::socialCategories(),
+            'additionalAttributes' => MemberCategory::additionalAttributes(),
             'statuses' => MasterStatus::cases(),
         ];
     }

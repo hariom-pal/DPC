@@ -124,7 +124,6 @@ final class UatCleanupPlan
         'reservation_policies' => 'Reservation policy master',
         'reservation_rosters' => 'Reservation roster master',
         'reservation_roster_points' => 'Reservation roster points',
-        'committee_types' => 'Committee type master',
         'committee_configurations' => 'Committee configuration',
         'cgpsc_chairmen' => 'CGPSC Chairman record (required to compose any committee)',
         'recruitment_rules' => 'Recruitment rules',

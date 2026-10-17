@@ -32,15 +32,6 @@ use App\Enums\MasterStatus;
  */
 class CommitteeRuleResolver
 {
-    /**
-     * The committee type a DPC committee is.
-     *
-     * A constant rather than a literal in two places, because
-     * `SaveDpcCommitteeRequest` uses the same key and the two silently agreeing is
-     * not the same as the two being the same string.
-     */
-    public const COMMITTEE_TYPE = 'dpc_committee';
-
     public function forProposal(DpcProposal $proposal): CommitteeRules
     {
         $configuration = $this->configurationFor($proposal);
@@ -48,15 +39,13 @@ class CommitteeRuleResolver
         /*
          | Item 9 (2026-08-26): the CGPSC Chairman sits on every DPC, always.
          |
-         | Not `config('dpc.committee.chairman_required')` and not the committee
-         | type's `chairman_mandatory`, both of which this used to read. The
+         | Not `config('dpc.committee.chairman_required')` and not a configuration
+         | column (`chairman_mandatory`, dropped 2026-10-17), both of which this
+         | used to read. The
          | register states the requirement without qualification, and a setting that
          | could switch it off would let an installation configure away a rule the
          | Commission stated — quietly, and only discoverable by composing a
          | committee and noticing the seat was absent.
-         |
-         | The configuration column is left in place and simply not consulted here;
-         | other committee types may still use it.
          */
         $chairmanRequired = true;
 
@@ -70,7 +59,7 @@ class CommitteeRuleResolver
              | are converted rather than used raw: `committee_configurations`
              | `min_members`/`max_members` have always counted the *whole*
              | committee — that is how `SaveDpcCommitteeRequest` read them before
-             | this — so a mandatory Chairman is subtracted from each. Without the
+             | this — so the mandatory Chairman is subtracted from each. Without the
              | conversion the same field would mean two different things depending
              | on where the number came from, which is precisely how a committee
              | comes to be refused for having the size the screen asked for.
@@ -89,7 +78,7 @@ class CommitteeRuleResolver
 
             chairmanRequired: $chairmanRequired,
 
-            requiredCategories: $this->requiredCategories(),
+            requiredCategories: $this->requiredCategories($configuration),
 
             /*
              | Business clarification of 2026-09-06: at least one member belongs to
@@ -98,7 +87,9 @@ class CommitteeRuleResolver
              | than an each-of; see `config/dpc.php` for why the two cannot share a
              | list.
              */
-            requiresReservedCategory: (bool) config('dpc.committee.require_reserved_category', false),
+            requiresReservedCategory: $configuration === null
+                ? (bool) config('dpc.committee.require_reserved_category', false)
+                : (bool) $configuration->requires_reserved_category,
 
             configuration: $configuration,
         );
@@ -127,13 +118,14 @@ class CommitteeRuleResolver
      * the optimiser only has the size bounds to satisfy, which is exactly the
      * pre-existing behaviour.
      *
-     * Recorded as a Pending Business Question in the final report.
+     * The Administrator's DPC Committee Rules state the set; configuration is the
+     * default for an installation that has not registered any.
      *
      * @return list<MemberCategory>
      */
-    private function requiredCategories(): array
+    private function requiredCategories(?CommitteeConfiguration $configuration): array
     {
-        $configured = (array) config('dpc.committee.required_categories', []);
+        $configured = $configuration->required_categories ?? (array) config('dpc.committee.required_categories', []);
 
         return array_values(array_filter(array_map(
             static fn (mixed $value): ?MemberCategory => is_string($value) ? MemberCategory::tryFrom($value) : null,
@@ -142,16 +134,8 @@ class CommitteeRuleResolver
     }
 
     /**
-     * The **DPC committee** type's live configuration, if the Administrator has
-     * registered one.
-     *
-     * Keyed on the committee type `dpc_committee` — the same key
-     * `SaveDpcCommitteeRequest` has always used and the same one
-     * `CommitteeMasterSeeder` creates. It is deliberately *not* keyed on the DPC
-     * type: "Fresh" and "Review" are kinds of promotion exercise, not kinds of
-     * committee, and reading the DPC type here would silently find no
-     * configuration at all and fall back to the defaults — which is exactly the
-     * bug this note exists to stop being reintroduced.
+     * The DPC Committee Rules in force, if the Administrator has registered any.
+     * There is one committee — the DPC Committee — so there is no type to choose.
      *
      * Effective-dated, so a configuration that has lapsed does not govern a
      * proposal raised after it.
@@ -160,7 +144,6 @@ class CommitteeRuleResolver
     {
         return CommitteeConfiguration::query()
             ->where('status', MasterStatus::Active->value)
-            ->whereHas('committeeType', fn ($query) => $query->where('code', self::COMMITTEE_TYPE))
             ->where(fn ($query) => $query
                 ->whereNull('effective_from')
                 ->orWhere('effective_from', '<=', $proposal->proposal_date))
