@@ -139,6 +139,60 @@
             <p class="small text-muted">{{ __('dpc.employee_details.cr.lead', ['count' => $requiredCrCount]) }}</p>
             @error('cr')<div class="alert alert-danger py-2">{{ $message }}</div>@enderror
 
+            {{-- The candidate against the Class Master promotion rule (points: Eligible CR Grades). --}}
+            <div class="border rounded p-2 mb-3" id="promotion-rule-check">
+                <div class="d-flex flex-wrap justify-content-between gap-2 mb-1">
+                    <strong class="small">{{ __('dpc.employee_details.rule.heading') }}</strong>
+                    <span class="badge {{ ['meets' => 'text-bg-success', 'does_not_meet' => 'text-bg-danger', 'no_rule' => 'text-bg-secondary'][$ruleCheck['status']] }}" data-rule-status="{{ $ruleCheck['status'] }}">{{ __('dpc.employee_details.rule.status.'.$ruleCheck['status']) }}</span>
+                </div>
+                @if ($ruleCheck['rule'] !== null)
+                    <p class="small text-muted mb-2">{{ __('dpc.employee_details.rule.summary', [
+                        'from' => $ruleCheck['rule']->from_class,
+                        'to' => $ruleCheck['rule']->to_class,
+                        'since' => $ruleCheck['rule']->effective_from_year,
+                        'cr' => $ruleCheck['rule']->cr_years,
+                        'average' => number_format((float) $ruleCheck['rule']->qualifying_average, 2),
+                    ]) }}</p>
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-2 small align-middle">
+                            <thead><tr>
+                                <th>{{ __('ui.year') }}</th>
+                                <th>{{ __('dpc.employee_details.rule.points') }}</th>
+                                <th>{{ __('dpc.employee_details.rule.min') }}</th>
+                                <th>{{ __('dpc.employee_details.sections.cr') }}</th>
+                                <th>{{ __('dpc.employee_details.sections.property') }}</th>
+                                <th>{{ __('dpc.employee_details.rule.loyalty') }}</th>
+                            </tr></thead>
+                            <tbody>
+                                @foreach ($ruleCheck['years'] as $line)
+                                    <tr data-rule-year="{{ $line['year'] }}">
+                                        <td>{{ $line['year'] }}</td>
+                                        <td>{{ $line['points'] ?? '—' }}</td>
+                                        <td>{{ $line['min'] ?? '—' }}</td>
+                                        <td>{!! $line['cr_ok'] ? ($line['cr_required'] ? '✓' : '—') : '<span class="text-danger">✗</span>' !!}</td>
+                                        <td>{!! $line['property_ok'] ? ($line['property_required'] ? '✓' : '—') : '<span class="text-danger">✗</span>' !!}</td>
+                                        <td>{!! $line['loyalty_ok'] ? ($line['loyalty_required'] ? '✓' : '—') : '<span class="text-danger">✗</span>' !!}</td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                    @php
+                        $ruleYears = app(\App\Domain\Dpc\Services\EmployeeDetailsService::class)->ruleCrYears($row);
+                    @endphp
+                    @if ($ruleYears !== [])
+                        <p class="small mb-1" id="rule-required-years">{{ __('dpc.employee_details.rule.required_years', ['years' => implode(', ', $ruleYears)]) }}</p>
+                    @endif
+                    <p class="small mb-1">{{ __('dpc.employee_details.rule.average', ['average' => $ruleCheck['average'] === null ? '—' : number_format($ruleCheck['average'], 2)]) }}</p>
+                @endif
+                @if ($ruleCheck['findings'] !== [])
+                    <ul class="small text-danger mb-0">
+                        @foreach ($ruleCheck['findings'] as $finding)<li>{{ $finding }}</li>@endforeach
+                    </ul>
+                @endif
+                <p class="small text-muted mb-0 mt-1">{{ __('dpc.employee_details.rule.note') }}</p>
+            </div>
+
             <div class="table-responsive mb-3">
                 <table class="table table-sm align-middle mb-0">
                     <thead><tr>
@@ -248,7 +302,7 @@
                                         <select class="form-select form-select-sm" name="reports[{{ $i }}][{{ $role }}_grade]" aria-label="{{ __("dpc.employee_details.cr.{$role}_grade") }}">
                                             <option value="">{{ __("dpc.employee_details.cr.{$role}_grade") }}</option>
                                             @foreach ($crGrades as $grade)
-                                                <option value="{{ $grade }}" @selected(old("reports.{$i}.{$role}_grade", $existingReport["{$role}_grade"] ?? '') === $grade)>{{ $grade }}</option>
+                                                <option value="{{ $grade }}" @selected(old("reports.{$i}.{$role}_grade", $existingReport["{$role}_grade"] ?? '') === $grade)>{{ $grade }}@isset($gradePoints[$grade]) ({{ $gradePoints[$grade] }})@endisset</option>
                                             @endforeach
                                         </select>
                                     </div>
@@ -515,6 +569,7 @@
                                 {{ $label }}
                             </label>
                         @endforeach
+                        <div class="form-text">{{ __('dpc.employee_details.ph.q2_help') }}</div>
                     </div>
                     <div class="mb-2" data-show-when="ph_previously_availed=1">
                         <label class="form-label small" for="ph_ineligibility_reason">{{ __('dpc.employee_details.ph.reason') }}</label>

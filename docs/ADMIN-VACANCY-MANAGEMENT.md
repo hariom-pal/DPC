@@ -1,5 +1,13 @@
 # Admin Vacancy Management
 
+> **Ownership changed 2026-10-19:** the department's **Authorized Officer** keeps and
+> finalizes the vacancy records of their own department (top bar → *Vacancy
+> Management*). The CGPSC Administrator sees every department's records, trail and
+> documents **read-only**; the Administrative Head of the department reads its records.
+> Everything below about the record, the year key, the calculation source and the
+> proposal integration is unchanged; where it says "Admin enters / finalizes", read
+> "the department's AO".
+
 > Development branch `feature/uat-cleanup-and-admin-audit`, 2026-10-17. Not deployed.
 
 One authoritative vacancy record per **department + post + Vacancy Year**, owned by
@@ -36,8 +44,15 @@ are the existing Vacancy Master screens, now reached from this one entry.
 
 **AO — proposal → S16** shows the finalized record **read-only**: sanctioned and working
 strength, existing and anticipated vacancies, promotion share and posts, promotion and
-direct vacancies, the sanction order, and each vacancy entry. No chart, no upload, no
-breakdown entry. Without a finalized record for the department, post and DPC year the
+direct vacancies, the sanction order, and each vacancy entry. No manual grid and no
+breakdown entry.
+
+**Since 2026-10-19 the AO uploads the Working Officers List here (step 1).** Its working
+officers by quota (promotion, direct, deputation) and in total are compared with the
+record's working strength (`ProposalVacancyPosition::reconcile()`); every figure that
+differs is shown, the S16 checklist entry stays incomplete, and the Seniority List
+(upload and manual save) is refused until all four agree. The list is evidence only: the
+vacancy is still calculated from the record, and no vacancy rows are written from it. Without a finalized record for the department, post and DPC year the
 screen says:
 
 > Vacancy information for the selected Department, Post and Year has not yet been finalized by Admin.
@@ -90,13 +105,18 @@ retirement figures and the same seniority-list size.
 
 ## 5. Ownership and authorization
 
-- Vacancy Management routes are inside the `role:admin` group; writes also call
-  `assertAdmin`. An AO gets 403.
+- The record routes (`routes/vacancy-records.php`) are loaded twice: in the department's
+  area (`vacancy-records.*`, role AO / AH) and in the Administrator's
+  (`admin.departments.vacancy-master.*`). `VacancyMasterController::canManage()` allows a
+  write only to an Authorized Officer of the record's own department, and never from the
+  Administrator's area; reading needs the Administrator role or the same department.
+  Forms are shown only to that officer.
 - AO: `SaveWorkingOfficersRequest::authorize()` refuses a `vacancy_master` proposal (403);
   `DpcProposalService::saveWorkingOfficers()` and the Working Officers Excel import refuse
   it too. S16 is gated on `view` (same department only).
-- Sanction and working-strength PDFs stay on the private disk, streamed only through the
-  Admin routes.
+- Sanction and working-strength PDFs stay on the private disk, streamed only to those
+  who may read the record.
+- Each record page shows its **trail**: every step of every revision (who, when, what).
 
 ## 6. History
 
@@ -120,6 +140,6 @@ Additive; no column or table dropped.
 | # | Blocker | Effect today |
 |---|---|---|
 | V-1 | **Category-wise reservation.** The record has no reservation category per vacancy. | With `DPC_RESERVATION_CATEGORY_WISE=true` a `vacancy_master` proposal cannot be submitted (gate explains why). Single pool (today's rule) works. |
-| V-2 | **Working Officers list (rules 1.1, 4.4).** The PDF has the department upload the officers on the promotion post and match the count 100 %. Under the Admin-owned decision the AO uploads no list for new proposals. | CI-32 is met by the Administrator's working strength; a named list is no longer collected. Decide whether the AO should still upload it as evidence (not as a figure). |
+| V-2 | ~~Working Officers list (rules 1.1, 4.4).~~ **Closed 2026-10-19:** the AO uploads the list as evidence and it must match the record's working strength by quota (see §2). | — |
 | V-3 | **Promotion share mismatch.** A record is finalized under the Recruitment Rule in force on 1 January; a proposal carries its Pre-DPC's rule. | If the shares differ the gate refuses the proposal and asks for a revised record, rather than choosing one. |
 | V-4 | Old `department_posts.sanctioned_strength` values have no year. | Not migrated into any year (see §3). |

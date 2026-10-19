@@ -9,6 +9,7 @@ use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Models\DpcWorkingOfficer;
 use App\Domain\Dpc\Services\DpcProposalService;
 use App\Domain\Dpc\Services\EvaluationCandidateService;
+use App\Domain\Dpc\Services\ProposalVacancyPosition;
 use App\Domain\Dpc\Services\SanctionedStrengthSource;
 use App\Domain\Dpc\Services\VacancyCalculationService;
 use App\Domain\Dpc\Validation\DpcRowRules;
@@ -71,15 +72,10 @@ class ExcelImportService
     ): ImportBatch {
         $this->assertProposalEditable($proposal);
 
-        // The Administrator's Vacancy Management record supplies this proposal's
-        // working strength; a Working Officers file is not taken from the AO.
-        if ($template === ImportTemplate::CurrentlyWorkingUs && $proposal->usesVacancyMaster()) {
-            throw new WorkflowException(__('vacancymaster.proposal.ao_cannot_enter'));
-        }
-
         // Rule 1.6: refused before anything is stored, so a list drawn up on the
         // wrong date never reaches a preview the officer might commit.
         if ($template === ImportTemplate::FinalSeniorityListUs) {
+            $this->assertWorkingListReconciled($proposal);
             $this->assertListAsOn($proposal, $listAsOn);
         }
 
@@ -198,7 +194,9 @@ class ExcelImportService
                 throw new WorkflowException(__('dpc.seniority_list.import_has_rejections', ['count' => $batch->rejected_count]));
             }
 
-            // The DPC year may have been edited since the preview.
+            // The DPC year may have been edited since the preview, and the Working
+            // Officers List replaced.
+            $this->assertWorkingListReconciled($proposal);
             $this->assertListAsOn($proposal, $batch->list_as_on);
         }
 
@@ -214,10 +212,14 @@ class ExcelImportService
                  | upload had ever filled. Calling the same service method the
                  | manual screen calls closes that path.
                  */
-                ImportTemplate::CurrentlyWorkingUs => $this->proposals->saveVacancies(
-                    $this->proposals->saveWorkingOfficers($proposal, $payloads, $actor)->refresh(),
-                    $actor,
-                ),
+                // A Vacancy Management proposal's list is reconciled, not calculated
+                // from: its vacancy rows are written from the record at submission.
+                ImportTemplate::CurrentlyWorkingUs => $proposal->usesVacancyMaster()
+                    ? $this->proposals->saveWorkingOfficers($proposal, $payloads, $actor)
+                    : $this->proposals->saveVacancies(
+                        $this->proposals->saveWorkingOfficers($proposal, $payloads, $actor)->refresh(),
+                        $actor,
+                    ),
                 ImportTemplate::FinalSeniorityListUs => $this->proposals->saveSeniorityEntries($proposal, $payloads, $actor, $batch->list_as_on),
                 ImportTemplate::EvaluationChartUs => $this->proposals->saveEvaluationRows($proposal, $payloads, $actor),
             };
@@ -396,13 +398,27 @@ class ExcelImportService
         };
     }
 
+    /**
+     * A Vacancy Management proposal takes its Seniority List only once the Working
+     * Officers List agrees with the finalized record (step 1 before step 2).
+     */
+    private function assertWorkingListReconciled(DpcProposal $proposal): void
+    {
+        if ($proposal->usesVacancyMaster() && ! app(ProposalVacancyPosition::class)->reconcile($proposal)['matches']) {
+            throw new WorkflowException(__('vacancymaster.proposal.working_list.seniority_blocked'));
+        }
+    }
+
     private function assertWithinSanctionedStrength(DpcProposal $proposal, int $incoming): void
     {
         if (! (bool) config('dpc.vacancy.enforce_sanctioned_ceiling', true)) {
             return;
         }
 
-        $sanctioned = app(SanctionedStrengthSource::class)->forProposal($proposal) ?? $proposal->sanctioned_post_count;
+        // A Vacancy Management proposal: the finalized record's sanctioned strength.
+        $sanctioned = $proposal->usesVacancyMaster()
+            ? app(ProposalVacancyPosition::class)->for($proposal)?->sanctioned_strength
+            : app(SanctionedStrengthSource::class)->forProposal($proposal) ?? $proposal->sanctioned_post_count;
 
         if ($sanctioned !== null && $incoming > $sanctioned) {
             throw new WorkflowException(

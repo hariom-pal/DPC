@@ -114,7 +114,15 @@
                 @endif
             </div>
 
-            @include('dpc-proposals.imports._upload', ['template' => \App\Domain\Import\Enums\ImportTemplate::from('final_seniority_list_us')])
+            @if ($workingListBlocked)
+                {{-- Step 1 first: the Working Officers List must agree with Vacancy Management. --}}
+                <div class="alert alert-warning" id="seniority-blocked">
+                    {{ __('vacancymaster.proposal.working_list.seniority_blocked') }}
+                    <a href="{{ route('dpc-proposals.working-officers', $proposal) }}">{{ __('vacancymaster.proposal.working_list.open') }}</a>
+                </div>
+            @else
+                @include('dpc-proposals.imports._upload', ['template' => \App\Domain\Import\Enums\ImportTemplate::from('final_seniority_list_us')])
+            @endif
 
             <form method="POST" action="{{ route('dpc-proposals.seniority-list.update', $proposal) }}">
                 @csrf

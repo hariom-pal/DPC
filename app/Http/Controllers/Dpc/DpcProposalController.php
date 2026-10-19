@@ -265,6 +265,9 @@ class DpcProposalController extends Controller
             return view('dpc-proposals.admin-vacancy', [
                 'proposal' => $dpcProposal,
                 'position' => $position,
+                // Step 1: the AO's Working Officers List against the record.
+                'reconciliation' => app(ProposalVacancyPosition::class)->reconcile($dpcProposal),
+                'canEdit' => $request->user()?->can('update', $dpcProposal) ?? false,
                 'counts' => $position === null ? null : app(ProposalVacancyPosition::class)->counts($position),
                 'vacancy' => $this->vacancies->summary($dpcProposal),
                 'year' => (int) ($dpcProposal->dpc_year ?: $dpcProposal->proposal_date->year),
@@ -339,6 +342,15 @@ class DpcProposalController extends Controller
         return redirect()->route('dpc-proposals.show', $dpcProposal)->with('status', 'Working officers and vacancies saved.');
     }
 
+    /**
+     * A Vacancy Management proposal whose Working Officers List is missing or does
+     * not agree with the finalized record.
+     */
+    private function workingListBlocked(DpcProposal $proposal): bool
+    {
+        return $proposal->usesVacancyMaster() && ! app(ProposalVacancyPosition::class)->reconcile($proposal)['matches'];
+    }
+
     public function seniorityList(Request $request, DpcProposal $dpcProposal): View
     {
         $this->authorize('update', $dpcProposal);
@@ -346,6 +358,8 @@ class DpcProposalController extends Controller
 
         return view('dpc-proposals.seniority-list', [
             'proposal' => $dpcProposal,
+            // Step 2 opens once the Working Officers List agrees with the record.
+            'workingListBlocked' => $this->workingListBlocked($dpcProposal),
 
             // A Post is chosen from the master, never typed (DPC-MODULE-FIX-001).
             'departmentPosts' => $this->selectablePosts($dpcProposal),

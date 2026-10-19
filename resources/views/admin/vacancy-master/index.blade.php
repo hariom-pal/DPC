@@ -1,12 +1,12 @@
-@extends('layouts.admin')
+@extends($layout)
 
 @section('title', __('vacancymaster.title'))
 
 @section('content')
     <nav aria-label="breadcrumb">
         <ol class="breadcrumb small">
-            <li class="breadcrumb-item"><a href="{{ route('admin.vacancy-management.index') }}">{{ __('vacancymaster.title') }}</a></li>
-            <li class="breadcrumb-item"><a href="{{ route('admin.departments.edit', $department) }}">{{ $department->name }}</a></li>
+            <li class="breadcrumb-item"><a href="{{ route($management.'.index') }}">{{ __('vacancymaster.title') }}</a></li>
+            @if ($adminArea)<li class="breadcrumb-item"><a href="{{ route('admin.departments.edit', $department) }}">{{ $department->name }}</a></li>@endif
             <li class="breadcrumb-item active" aria-current="page">{{ __('vacancymaster.title') }}</li>
         </ol>
     </nav>
@@ -22,7 +22,7 @@
                 · {{ __('vacancymaster.seniority_reference', ['date' => $seniorityReference->format('d-m-Y')]) }}
             </div>
         </div>
-        <form method="GET" action="{{ route('admin.departments.vacancy-master.index', $department) }}" class="d-flex gap-2 align-items-center">
+        <form method="GET" action="{{ route($records.'.index', $department) }}" class="d-flex gap-2 align-items-center">
             <label for="year" class="form-label mb-0 small">{{ __('vacancymaster.vacancy_year') }}</label>
             <select id="year" name="year" class="form-select form-select-sm">
                 @foreach ($years as $option)
@@ -34,6 +34,10 @@
     </div>
 
     @include('partials.alerts')
+
+    @unless ($canManage)
+        <div class="alert alert-secondary py-2 small" id="vacancy-read-only">{{ __('vacancymaster.read_only_note') }}</div>
+    @endunless
 
     <div class="card border-0 shadow-sm">
         <div class="table-responsive">
@@ -97,7 +101,7 @@
                                 @endif
                             </td>
                             <td class="text-end">
-                                <a href="{{ route('admin.departments.vacancy-master.show', [$department, $year, $row['any']]) }}" class="btn btn-outline-primary btn-sm">{{ __('vacancymaster.manage') }}</a>
+                                <a href="{{ route($records.'.show', [$department, $year, $row['any']]) }}" class="btn btn-outline-primary btn-sm">{{ __('vacancymaster.manage') }}</a>
                             </td>
                         </tr>
                     @empty

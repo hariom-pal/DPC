@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Dpc\Requests;
 
 use App\Domain\Dpc\Models\DpcProposal;
+use App\Domain\Dpc\Services\ProposalVacancyPosition;
 use App\Domain\Dpc\Services\VacancyCalculationService;
 use App\Domain\Dpc\Validation\DpcRowRules;
 use Illuminate\Contracts\Validation\Validator;
@@ -54,6 +55,14 @@ class SaveSeniorityEntriesRequest extends FormRequest
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator): void {
+            // Step 1 before step 2: a Vacancy Management proposal's Working Officers
+            // List must agree with the finalized record.
+            $proposal = $this->route('dpcProposal');
+            if ($proposal instanceof DpcProposal && $proposal->usesVacancyMaster()
+                && ! app(ProposalVacancyPosition::class)->reconcile($proposal)['matches']) {
+                $validator->errors()->add('entries', __('vacancymaster.proposal.working_list.seniority_blocked'));
+            }
+
             /** @var array<int, array<string, mixed>> $entries */
             $entries = $this->input('entries', []);
 

@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace App\Domain\Master\Services;
 
 use App\Domain\Authentication\Models\User;
+use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Master\Models\ClassMaster;
 use App\Domain\Master\Models\CrGradeValue;
 use App\Domain\Master\Models\PromotionCrRule;
 use App\Domain\Shared\Services\ActivityTimelineService;
 use App\Enums\MasterStatus;
+use App\Enums\ServiceClass;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -22,7 +25,57 @@ use Illuminate\Support\Facades\DB;
  */
 final class PromotionCrRules
 {
+    /** @var array<string, PromotionCrRule|null> */
+    private array $resolved = [];
+
     public function __construct(private readonly ActivityTimelineService $timeline) {}
+
+    /**
+     * The rule a DPC proposal is held to: its Promotion From Post's class into its
+     * Promotion To Post's class, in force in its DPC year. Asked once per pair and year.
+     */
+    public function ruleForProposal(DpcProposal $proposal): ?PromotionCrRule
+    {
+        $year = (int) ($proposal->dpc_year ?: $proposal->proposal_date->year);
+        $from = self::classCode($proposal->promotionFromPost?->class_level);
+        $to = self::classCode($proposal->promotionToPost?->class_level);
+
+        if ($from === null || $to === null) {
+            return null;
+        }
+
+        $key = $to.'|'.$from.'|'.$year;
+
+        if (! array_key_exists($key, $this->resolved)) {
+            $this->resolved[$key] = $this->ruleFor($to, $from, $year);
+        }
+
+        return $this->resolved[$key];
+    }
+
+    /**
+     * The calendar years whose CR the rule makes mandatory for a DPC year (year 1 is
+     * the year just before it), newest first.
+     *
+     * @return list<int>
+     */
+    public function mandatoryCrYears(PromotionCrRule $rule, int $dpcYear): array
+    {
+        return $rule->years
+            ->filter(fn ($year): bool => $year->years_before <= $rule->cr_years && $year->cr_mandatory)
+            ->map(fn ($year): int => $dpcYear - $year->years_before)
+            ->values()
+            ->all();
+    }
+
+    public static function classCode(mixed $level): ?string
+    {
+        return match (true) {
+            $level instanceof ServiceClass => $level->value,
+            is_string($level) && $level !== '' => $level,
+            default => null,
+        };
+    }
 
     /**
      * The classes a promotion into `$to` may come from: the same class, and the one
@@ -42,19 +95,39 @@ final class PromotionCrRules
     }
 
     /**
-     * The Eligible CR Grades valid on 1 January of a year, highest first.
+     * The Eligible CR Grades valid on 1 January of a year, highest first — a grade
+     * deactivated before that day is not one of them, and one deactivated later still
+     * is, so a year always answers with the grades that applied to it.
      *
      * @return list<int>
      */
     public function gradesForYear(int $year): array
     {
         return CrGradeValue::query()
-            ->whereDate('effective_from', '<=', "{$year}-01-01")
+            ->validOn(Carbon::create($year, 1, 1)->startOfDay())
             ->orderByDesc('value')
             ->pluck('value')
             ->map(fn ($value): int => (int) $value)
             ->unique()
             ->values()
+            ->all();
+    }
+
+    /**
+     * Points of each CR grade code valid on 1 January of a year (rule 3.4), from the
+     * Eligible CR Grades that name a grade code.
+     *
+     * @return array<string, int>
+     */
+    public function pointsForYear(int $year): array
+    {
+        return CrGradeValue::query()
+            ->validOn(Carbon::create($year, 1, 1)->startOfDay())
+            ->whereNotNull('grade_code')
+            ->orderByDesc('effective_from')
+            ->get(['grade_code', 'value'])
+            ->unique('grade_code')
+            ->mapWithKeys(fn (CrGradeValue $grade): array => [(string) $grade->grade_code => (int) $grade->value])
             ->all();
     }
 

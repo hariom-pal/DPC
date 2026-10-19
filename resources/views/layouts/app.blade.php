@@ -51,6 +51,10 @@
                         @role(\App\Enums\Role::PromotionCandidate->value)
                             <a class="btn btn-sm btn-outline-light" href="{{ route('my-dpc.index') }}">{{ __('ui.my_promotion') }}</a>
                         @endrole
+                        {{-- The department's year-wise vacancy records, kept by its Authorized Officer. --}}
+                        @if (auth()->user()->hasAnyRole([\App\Enums\Role::AuthorizedOfficer->value, \App\Enums\Role::AdministrativeHead->value]))
+                            <a class="btn btn-sm btn-outline-light" href="{{ route('vacancy-management.index') }}">{{ __('vacancymaster.title') }}</a>
+                        @endif
                         {{-- M11. Every role has a reports screen; it scopes itself. --}}
                         <a class="btn btn-sm btn-outline-light d-none d-lg-inline" href="{{ route('reports.index') }}">{{ __('ui.reports') }}</a>
 

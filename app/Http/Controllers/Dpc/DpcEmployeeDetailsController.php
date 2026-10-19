@@ -14,8 +14,10 @@ use App\Domain\Dpc\Requests\SaveEmployeePhRequest;
 use App\Domain\Dpc\Requests\SaveEmployeePropertyYearRequest;
 use App\Domain\Dpc\Requests\UploadEmployeeDocumentRequest;
 use App\Domain\Dpc\Services\EmployeeDetailsService;
+use App\Domain\Dpc\Services\PromotionRuleCheck;
 use App\Domain\Master\Models\RecordReason;
 use App\Domain\Master\Models\ReservationCategory;
+use App\Domain\Master\Services\PromotionCrRules;
 use App\Domain\Shared\Workflow\WorkflowException;
 use App\Enums\MasterStatus;
 use App\Http\Controllers\Controller;
@@ -51,12 +53,17 @@ class DpcEmployeeDetailsController extends Controller
         $this->authorize('view', $dpcProposal);
 
         $statuses = $this->details->statuses($dpcProposal);
+        $ruleCheck = app(PromotionRuleCheck::class);
 
         return view('dpc-proposals.employees.index', [
             'proposal' => $dpcProposal,
             'statuses' => $statuses,
             'completeCount' => $statuses->filter(fn (array $entry): bool => $entry['status']['complete'])->count(),
             'phQuota' => $this->details->phQuota($dpcProposal),
+            // Each candidate against the Class Master promotion rule.
+            'ruleChecks' => $statuses->mapWithKeys(fn (array $entry): array => [
+                $entry['row']->id => $ruleCheck->check($entry['row'], $dpcProposal),
+            ])->all(),
             'canEdit' => request()->user()?->can('update', $dpcProposal) ?? false,
         ]);
     }
@@ -89,6 +96,9 @@ class DpcEmployeeDetailsController extends Controller
             'canEdit' => request()->user()?->can('update', $dpcProposal) ?? false,
             'categories' => ReservationCategory::query()->where('status', MasterStatus::Active->value)->orderBy('code')->get(),
             'crGrades' => (array) config('dpc.evaluation.cr_grades'),
+            // Points of each grade (Eligible CR Grades, rule 3.4) for the DPC year.
+            'gradePoints' => app(PromotionCrRules::class)->pointsForYear((int) ($dpcProposal->dpc_year ?: $dpcProposal->proposal_date->year)),
+            'ruleCheck' => app(PromotionRuleCheck::class)->check($evaluationRow, $dpcProposal),
             'maxReports' => (int) config('dpc.employee_details.max_crs_per_year', 4),
             'reasons' => RecordReason::query()->selectable()->get(),
             'requiredCrCount' => (int) config('dpc.merit.required_cr_count', 5),

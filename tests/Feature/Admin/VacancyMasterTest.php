@@ -110,7 +110,7 @@ class VacancyMasterTest extends TestCase
 
     private function url(string $name, array $extra = [], ?DepartmentPost $post = null): string
     {
-        return route("admin.departments.vacancy-master.{$name}", [$this->department, self::YEAR, $post ?? $this->principal, ...$extra]);
+        return route("vacancy-records.{$name}", [$this->department, self::YEAR, $post ?? $this->principal, ...$extra]);
     }
 
     /**
@@ -119,7 +119,7 @@ class VacancyMasterTest extends TestCase
      */
     private function openDraft(?int $sanctioned = 100): VacancyPosition
     {
-        $this->actingAs($this->admin)->post($this->url('open'))->assertSessionHasNoErrors();
+        $this->actingAs($this->ao)->post($this->url('open'))->assertSessionHasNoErrors();
 
         if ($sanctioned !== null) {
             $this->saveSanctioned(['sanctioned_total' => (string) $sanctioned])->assertSessionHasNoErrors();
@@ -133,7 +133,7 @@ class VacancyMasterTest extends TestCase
      */
     private function saveSanctioned(array $overrides = []): TestResponse
     {
-        return $this->actingAs($this->admin)->post($this->url('sanctioned-strength'), array_replace([
+        return $this->actingAs($this->ao)->post($this->url('sanctioned-strength'), array_replace([
             'sanctioned_total' => '100',
             'order_number' => 'SE/SANC/2026/01',
             'order_date' => '2026-01-02',
@@ -146,7 +146,7 @@ class VacancyMasterTest extends TestCase
      */
     private function saveWorking(array $overrides = []): TestResponse
     {
-        return $this->actingAs($this->admin)->post($this->url('working-strength'), array_replace([
+        return $this->actingAs($this->ao)->post($this->url('working-strength'), array_replace([
             'working_total' => '75',
             'working_promotion' => '40',
             'working_direct' => '33',
@@ -162,7 +162,7 @@ class VacancyMasterTest extends TestCase
      */
     private function addEntry(array $overrides = []): TestResponse
     {
-        return $this->actingAs($this->admin)->post($this->url('entries.store'), array_replace([
+        return $this->actingAs($this->ao)->post($this->url('entries.store'), array_replace([
             'kind' => 'anticipated',
             'reason' => 'retirement',
             'vacancy_count' => '5',
@@ -191,7 +191,7 @@ class VacancyMasterTest extends TestCase
             $errors->getBags(),
         );
 
-        return $this->actingAs($this->admin)->withSession([
+        return $this->actingAs($this->ao)->withSession([
             'errors' => $stored,
             '_old_input' => session('_old_input', []),
         ])->get($url);
@@ -211,6 +211,7 @@ class VacancyMasterTest extends TestCase
         $other = Department::query()->create(['code' => 'HE', 'name' => 'Higher Education', 'status' => 'active']);
         $this->makePost($other, 'Professor', 40);
 
+        // The Administrator still finds every department's records, read-only.
         $this->actingAs($this->admin)->get(route('admin.departments.index'))
             ->assertOk()
             ->assertSee(route('admin.departments.vacancy-master.index', $this->department), false);
@@ -221,28 +222,53 @@ class VacancyMasterTest extends TestCase
             ->assertSee('Principal')
             ->assertDontSee('Professor')
             ->assertSee(__('vacancymaster.not_entered'));
+
+        // The department's own officer reaches them from Vacancy Management.
+        $this->actingAs($this->ao)->get(route('vacancy-records.index', [$this->department, 'year' => self::YEAR]))
+            ->assertOk()
+            ->assertSee('Principal')
+            ->assertDontSee('Professor');
     }
 
-    public function test_only_the_cgpsc_administrator_may_open_or_write(): void
+    /**
+     * Since 2026-10-19 the department's Authorized Officer keeps and finalizes the
+     * records; the Administrative Head and the CGPSC Administrator read them; another
+     * department's officer does neither.
+     */
+    public function test_only_the_departments_authorized_officer_may_open_or_write(): void
     {
-        foreach ([$this->ao, $this->ah] as $user) {
-            $this->actingAs($user)->get(route('admin.departments.vacancy-master.index', $this->department))->assertForbidden();
-            $this->actingAs($user)->get($this->url('show'))->assertForbidden();
-            $this->actingAs($user)->post($this->url('open'))->assertForbidden();
-        }
+        $other = Department::query()->create(['code' => 'HE', 'name' => 'Higher Education', 'status' => 'active']);
+        $outsider = User::factory()->assignedTo($other->id, Role::AuthorizedOfficer)->create();
+
+        $this->actingAs($outsider)->get(route('vacancy-records.index', $this->department))->assertForbidden();
+        $this->actingAs($outsider)->get($this->url('show'))->assertForbidden();
+        $this->actingAs($outsider)->post($this->url('open'))->assertForbidden();
+        $this->actingAs($this->ah)->post($this->url('open'))->assertForbidden();
+        $this->actingAs($this->admin)->post(route('admin.departments.vacancy-master.open', [$this->department, self::YEAR, $this->principal]))->assertForbidden();
 
         $this->assertSame(0, VacancyPosition::query()->count());
 
         $this->openDraft();
 
-        foreach ([$this->ao, $this->ah] as $user) {
+        foreach ([$this->ah, $outsider] as $user) {
             $this->actingAs($user)->post($this->url('working-strength'), [
                 'working_total' => '75', 'order_number' => 'X', 'order_date' => '2026-01-05', 'document' => $this->pdf(),
             ])->assertForbidden();
             $this->actingAs($user)->post($this->url('finalize'))->assertForbidden();
         }
 
+        $this->actingAs($this->admin)->post(route('admin.departments.vacancy-master.finalize', [$this->department, self::YEAR, $this->principal]))->assertForbidden();
         $this->assertNull(VacancyPosition::query()->sole()->working_strength_id);
+
+        // Reading: the Administrative Head here, the Administrator there — without forms.
+        $this->actingAs($this->ah)->get($this->url('show'))->assertOk()->assertSee('id="vacancy-read-only"', false);
+        $this->actingAs($this->admin)->get(route('admin.departments.vacancy-master.show', [$this->department, self::YEAR, $this->principal, 'section' => 'sanctioned']))
+            ->assertOk()
+            ->assertSee('id="vacancy-read-only"', false)
+            ->assertDontSee('name="sanctioned_total"', false);
+        $this->actingAs($this->ao)->get($this->url('show', ['section' => 'sanctioned']))
+            ->assertOk()
+            ->assertSee('name="sanctioned_total"', false);
     }
 
     public function test_a_post_of_another_department_is_not_reachable_through_this_department(): void
@@ -250,8 +276,8 @@ class VacancyMasterTest extends TestCase
         $other = Department::query()->create(['code' => 'HE', 'name' => 'Higher Education', 'status' => 'active']);
         $professor = $this->makePost($other, 'Professor', 40);
 
-        $this->actingAs($this->admin)->get($this->url('show', post: $professor))->assertNotFound();
-        $this->actingAs($this->admin)->post($this->url('open', post: $professor))->assertNotFound();
+        $this->actingAs($this->ao)->get($this->url('show', post: $professor))->assertNotFound();
+        $this->actingAs($this->ao)->post($this->url('open', post: $professor))->assertNotFound();
     }
 
     public function test_vacancy_years_are_isolated(): void
@@ -262,7 +288,7 @@ class VacancyMasterTest extends TestCase
         $rows = app(VacancyMasterService::class)->postsFor($this->department, 2025);
         $this->assertNull($rows[0]['position']);
 
-        $this->actingAs($this->admin)->get(route('admin.departments.vacancy-master.index', [$this->department, 'year' => 2025]))
+        $this->actingAs($this->ao)->get(route('vacancy-records.index', [$this->department, 'year' => 2025]))
             ->assertOk()
             ->assertSee(__('vacancymaster.list_status.not_started'));
     }
@@ -315,7 +341,7 @@ class VacancyMasterTest extends TestCase
         $this->assertNull($b['opening_vacancy']);
         $this->assertContains('sanctioned_not_entered', array_column($b['issues'], 'key'));
 
-        $this->actingAs($this->admin)->post($this->url('finalize'))->assertSessionHasErrors('workflow');
+        $this->actingAs($this->ao)->post($this->url('finalize'))->assertSessionHasErrors('workflow');
         $this->assertSame(VacancyPositionStatus::Draft, $position->fresh()->status);
     }
 
@@ -337,7 +363,7 @@ class VacancyMasterTest extends TestCase
 
     public function test_the_sanctioning_order_is_mandatory_and_downloadable(): void
     {
-        $this->actingAs($this->admin)->post($this->url('open'))->assertSessionHasNoErrors();
+        $this->actingAs($this->ao)->post($this->url('open'))->assertSessionHasNoErrors();
 
         $this->saveSanctioned(['document' => null])->assertSessionHasErrors('document');
         $this->saveSanctioned(['document' => UploadedFile::fake()->create('sanction.docx', 10)])->assertSessionHasErrors('document');
@@ -347,7 +373,7 @@ class VacancyMasterTest extends TestCase
         Storage::disk($record->disk)->assertExists($record->path);
         $this->assertSame(64, strlen($record->sha256));
 
-        $this->actingAs($this->admin)
+        $this->actingAs($this->ao)
             ->get($this->url('sanctioned-strength.document', [$record]))
             ->assertOk();
     }
@@ -366,9 +392,9 @@ class VacancyMasterTest extends TestCase
     {
         $first = $this->openDraft(100);
         $this->saveWorking()->assertSessionHasNoErrors();
-        $this->actingAs($this->admin)->post($this->url('finalize'))->assertSessionHasNoErrors();
+        $this->actingAs($this->ao)->post($this->url('finalize'))->assertSessionHasNoErrors();
 
-        $this->actingAs($this->admin)->post($this->url('revise'), ['revision_reason' => 'Order re-read.'])->assertSessionHasNoErrors();
+        $this->actingAs($this->ao)->post($this->url('revise'), ['revision_reason' => 'Order re-read.'])->assertSessionHasNoErrors();
 
         $draft = VacancyPosition::query()->where('revision', 2)->firstOrFail();
         $this->assertSame(100, $draft->sanctionedStrength->sanctioned_total);
@@ -381,7 +407,7 @@ class VacancyMasterTest extends TestCase
     {
         $this->openDraft(null);
 
-        $screen = fn (string $section) => $this->actingAs($this->admin)->get($this->url('show', ['section' => $section]))->assertOk();
+        $screen = fn (string $section) => $this->actingAs($this->ao)->get($this->url('show', ['section' => $section]))->assertOk();
 
         $screen('sanctioned')->assertSee(__('vacancymaster.sanctioned.heading', ['year' => self::YEAR]))
             ->assertSee('name="sanctioned_total"', false)
@@ -405,13 +431,13 @@ class VacancyMasterTest extends TestCase
     {
         $this->openDraft(null);
 
-        $this->actingAs($this->admin)->get($this->url('show'))->assertOk()->assertSee('name="sanctioned_total"', false);
+        $this->actingAs($this->ao)->get($this->url('show'))->assertOk()->assertSee('name="sanctioned_total"', false);
 
         $this->saveSanctioned()->assertRedirect($this->url('show', ['section' => 'working']));
-        $this->actingAs($this->admin)->get($this->url('show'))->assertOk()->assertSee('name="working_total"', false);
+        $this->actingAs($this->ao)->get($this->url('show'))->assertOk()->assertSee('name="working_total"', false);
 
         $this->saveWorking()->assertRedirect($this->url('show', ['section' => 'vacancies']));
-        $this->actingAs($this->admin)->get($this->url('show'))->assertOk()->assertSee('name="vacancy_count"', false);
+        $this->actingAs($this->ao)->get($this->url('show'))->assertOk()->assertSee('name="vacancy_count"', false);
 
         // A refused save stays on its own step.
         $this->saveWorking(['working_total' => '70', 'correction_reason' => ''])->assertRedirect($this->url('show', ['section' => 'working']));
@@ -451,7 +477,7 @@ class VacancyMasterTest extends TestCase
         $entry = VacancyPositionEntry::query()->latest('id')->firstOrFail();
         $here = $this->url('show', ['section' => 'vacancies']);
 
-        $this->actingAs($this->admin)->from($here)
+        $this->actingAs($this->ao)->from($here)
             ->post($this->url('entries.withdraw', [$entry]), ['_entry' => (string) $entry->id, 'withdrawal_reason' => ''])
             ->assertRedirect($here)
             ->assertSessionHasErrors('withdrawal_reason', null, 'entry_'.$entry->id);
@@ -490,7 +516,7 @@ class VacancyMasterTest extends TestCase
 
         $this->assertSame(25, $this->breakdown()['opening_vacancy']);
 
-        $this->actingAs($this->admin)
+        $this->actingAs($this->ao)
             ->get($this->url('working-strength.document', [$working]))
             ->assertOk();
     }
@@ -676,16 +702,16 @@ class VacancyMasterTest extends TestCase
 
         // Verified on the order basis, which needs the order itself.
         $verify = $this->url('entries.verify', [$entry]);
-        $this->actingAs($this->admin)->post($verify, ['decision' => 'eligible', 'basis' => 'promotion_order_issued', 'remarks' => 'Seen.'])
+        $this->actingAs($this->ao)->post($verify, ['decision' => 'eligible', 'basis' => 'promotion_order_issued', 'remarks' => 'Seen.'])
             ->assertSessionHasErrors('promotion_order_number', null, 'entry_'.$entry->id);
-        $this->actingAs($this->admin)->post($verify, [
+        $this->actingAs($this->ao)->post($verify, [
             'decision' => 'eligible', 'basis' => 'promotion_order_issued', 'remarks' => 'Order seen.',
             'promotion_order_number' => 'SE/PROM/2026/3', 'promotion_order_date' => '2026-02-01',
         ])->assertSessionHasNoErrors();
 
         $entry->refresh();
         $this->assertSame(VacancyEntryEligibility::Eligible, $entry->eligibility);
-        $this->assertSame($this->admin->id, $entry->verified_by);
+        $this->assertSame($this->ao->id, $entry->verified_by);
         $this->assertSame(3, $this->breakdown()['anticipated_counted_promotion']);
     }
 
@@ -723,7 +749,7 @@ class VacancyMasterTest extends TestCase
 
         // A decision either way resolves the entry; not eligible never counts.
         $entry = VacancyPositionEntry::query()->where('reason', 'other')->sole();
-        $this->actingAs($this->admin)->post($this->url('entries.verify', [$entry]), ['decision' => 'not_eligible', 'remarks' => 'Not an approved cause.'])
+        $this->actingAs($this->ao)->post($this->url('entries.verify', [$entry]), ['decision' => 'not_eligible', 'remarks' => 'Not an approved cause.'])
             ->assertSessionHasNoErrors();
         $this->assertSame(1, $this->breakdown()['anticipated_pending']);
     }
@@ -734,11 +760,11 @@ class VacancyMasterTest extends TestCase
     {
         $position = $this->openDraft();
 
-        $this->actingAs($this->admin)->post($this->url('finalize'))->assertSessionHasErrors('workflow');
+        $this->actingAs($this->ao)->post($this->url('finalize'))->assertSessionHasErrors('workflow');
         $this->assertSame(VacancyPositionStatus::Draft, $position->fresh()->status);
 
         $this->saveWorking()->assertSessionHasNoErrors();
-        $this->actingAs($this->admin)->post($this->url('finalize'))->assertSessionHasNoErrors();
+        $this->actingAs($this->ao)->post($this->url('finalize'))->assertSessionHasNoErrors();
 
         $position->refresh();
         $this->assertSame(VacancyPositionStatus::Finalized, $position->status);
@@ -759,7 +785,7 @@ class VacancyMasterTest extends TestCase
     {
         $position = $this->openDraft();
         $this->saveWorking()->assertSessionHasNoErrors();
-        $this->actingAs($this->admin)->post($this->url('finalize'))->assertSessionHasNoErrors();
+        $this->actingAs($this->ao)->post($this->url('finalize'))->assertSessionHasNoErrors();
 
         $this->principal->forceFill(['sanctioned_strength' => 120])->save();
         RecruitmentRule::query()->update(['promotion_recruitment_pct' => '70.00']);
@@ -775,10 +801,10 @@ class VacancyMasterTest extends TestCase
         $first = $this->openDraft();
         $this->saveWorking()->assertSessionHasNoErrors();
         $this->addEntry()->assertSessionHasNoErrors();
-        $this->actingAs($this->admin)->post($this->url('finalize'))->assertSessionHasNoErrors();
+        $this->actingAs($this->ao)->post($this->url('finalize'))->assertSessionHasNoErrors();
 
-        $this->actingAs($this->admin)->post($this->url('revise'), [])->assertSessionHasErrors('revision_reason');
-        $this->actingAs($this->admin)->post($this->url('revise'), ['revision_reason' => 'Retirement order corrected.'])->assertSessionHasNoErrors();
+        $this->actingAs($this->ao)->post($this->url('revise'), [])->assertSessionHasErrors('revision_reason');
+        $this->actingAs($this->ao)->post($this->url('revise'), ['revision_reason' => 'Retirement order corrected.'])->assertSessionHasNoErrors();
 
         $second = app(VacancyMasterService::class)->current($this->department->id, 'Principal', self::YEAR);
         $this->assertSame(2, $second->revision);
@@ -790,8 +816,8 @@ class VacancyMasterTest extends TestCase
         $this->assertSame($first->id, app(VacancyMasterService::class)->finalized($this->department->id, 'Principal', self::YEAR)->id);
 
         $entry = $second->entries()->sole();
-        $this->actingAs($this->admin)->post($this->url('entries.withdraw', [$entry]), ['withdrawal_reason' => 'Order cancelled.'])->assertSessionHasNoErrors();
-        $this->actingAs($this->admin)->post($this->url('finalize'))->assertSessionHasNoErrors();
+        $this->actingAs($this->ao)->post($this->url('entries.withdraw', [$entry]), ['withdrawal_reason' => 'Order cancelled.'])->assertSessionHasNoErrors();
+        $this->actingAs($this->ao)->post($this->url('finalize'))->assertSessionHasNoErrors();
 
         $this->assertSame(VacancyPositionStatus::Superseded, $first->fresh()->status);
         $this->assertSame(15, $first->fresh()->promotion_vacancy, 'The first revision keeps its own figures.');
@@ -799,7 +825,7 @@ class VacancyMasterTest extends TestCase
         $this->assertSame($second->id, app(VacancyMasterService::class)->finalized($this->department->id, 'Principal', self::YEAR)->id);
         $this->assertSame(VacancyPositionEntry::STATUS_WITHDRAWN, $entry->fresh()->status);
 
-        $this->actingAs($this->admin)->get($this->url('show'))
+        $this->actingAs($this->ao)->get($this->url('show'))
             ->assertOk()
             ->assertSee('Retirement order corrected.');
     }
@@ -810,7 +836,7 @@ class VacancyMasterTest extends TestCase
     {
         $this->assertSame('2025-04-01', app(VacancyMasterService::class)->seniorityReferenceDate(2026)->toDateString());
 
-        $this->actingAs($this->admin)->get($this->url('show'))
+        $this->actingAs($this->ao)->get($this->url('show'))
             ->assertOk()
             ->assertSee(__('vacancymaster.seniority_reference', ['date' => '01-04-2025']));
     }

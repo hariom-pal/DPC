@@ -16,11 +16,15 @@ use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Services\DpcProposalCompletenessService;
 use App\Domain\Dpc\Services\DpcProposalService;
 use App\Domain\Dpc\Services\EmployeeDetailsService;
+use App\Domain\Dpc\Services\PromotionRuleCheck;
+use App\Domain\Master\Models\CrGradeValue;
 use App\Domain\Master\Models\DepartmentPost;
+use App\Domain\Master\Models\PromotionCrRule;
 use App\Domain\Master\Models\RecordReason;
 use App\Domain\Master\Models\ReservationCategory;
 use App\Domain\Master\Models\ReservationPolicy;
 use App\Domain\Master\Models\VacancyType;
+use App\Domain\Master\Services\PromotionCrRules;
 use App\Enums\Role;
 use Database\Seeders\LookupMasterSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
@@ -416,7 +420,7 @@ class EmployeeDetailsTest extends TestCase
         $this->assertSame([], $this->details()['sections']['ph'], 'No undertaking is asked of a non-PH officer.');
     }
 
-    public function test_case_2_a_benefit_availed_before_gives_no_fresh_benefit(): void
+    public function test_case_2_a_benefit_availed_before_gives_no_fresh_benefit_and_needs_the_document(): void
     {
         $outcome = $this->answerPh(['is_ph' => '1', 'ph_previously_availed' => '1', 'ph_claims_reservation' => '1']);
 
@@ -424,7 +428,12 @@ class EmployeeDetailsTest extends TestCase
         $this->assertNull($this->row->ph_claims_reservation, 'No fresh claim can be recorded.');
         $this->assertNotNull($this->row->ph_ineligibility_reason);
         $this->assertSame('no_benefit', $this->row->ph_final_decision);
+
+        // Every PH employee needs one supporting declaration/document (2026-10-19).
+        $this->assertSame([__('dpc.employee_details.missing.ph_undertaking')], $this->details()['sections']['ph']);
+        $this->upload(EvaluationDocumentKind::PhUndertaking)->assertSessionHasNoErrors();
         $this->assertSame([], $this->details()['sections']['ph']);
+        $this->assertSame('no_benefit', $this->row->refresh()->ph_final_decision, 'The document grants nothing.');
     }
 
     public function test_case_3_a_declined_benefit_gives_no_reservation_and_needs_the_undertaking(): void
@@ -433,7 +442,7 @@ class EmployeeDetailsTest extends TestCase
 
         $this->assertSame(PhReservationOutcome::Declined, $outcome);
         $this->assertSame('no_benefit', $this->row->ph_final_decision);
-        $this->assertSame(["Upload the employee's PH undertaking."], $this->details()['sections']['ph']);
+        $this->assertSame([__('dpc.employee_details.missing.ph_undertaking')], $this->details()['sections']['ph']);
 
         $this->upload(EvaluationDocumentKind::PhUndertaking)->assertSessionHasNoErrors();
         $this->assertSame([], $this->details()['sections']['ph']);
@@ -448,7 +457,7 @@ class EmployeeDetailsTest extends TestCase
         $this->assertSame('pending', $this->row->ph_verification_status, 'A claim goes to eligibility verification.');
         $this->assertNull($this->row->ph_final_decision, 'A claim is not an approval.');
         $this->assertSame($this->ao->id, $this->row->ph_recorded_by);
-        $this->assertSame(["Upload the employee's PH undertaking."], $this->details()['sections']['ph']);
+        $this->assertSame([__('dpc.employee_details.missing.ph_undertaking')], $this->details()['sections']['ph']);
 
         $this->upload(EvaluationDocumentKind::PhUndertaking)->assertSessionHasNoErrors();
         $this->assertSame([], $this->details()['sections']['ph']);
@@ -675,5 +684,158 @@ class EmployeeDetailsTest extends TestCase
         $keys = collect(app(DpcProposalCompletenessService::class)->checklist($this->proposal))->pluck('key')->all();
 
         $this->assertNotContains('employee_details', $keys);
+    }
+
+    // ======================================== CR points against the Class Master rule
+
+    /**
+     * A Class I → Class I rule in force for the 2026 DPC: the two CR years 2025 and
+     * 2024, each mandatory with a minimum.
+     */
+    private function promotionRule(int $min = 5, string $average = '6', int $loyaltyYears = 0, int $propertyYears = 0): PromotionCrRule
+    {
+        $rule = PromotionCrRule::query()->create([
+            'to_class' => 'I', 'from_class' => 'I', 'effective_from_year' => 2026,
+            'cr_years' => 2, 'loyalty_years' => $loyaltyYears, 'property_years' => $propertyYears,
+            'qualifying_average' => $average, 'super_seat_grade' => 9, 'tribal_bonus' => 1,
+        ]);
+
+        foreach ([1, 2] as $before) {
+            $rule->years()->create([
+                'years_before' => $before, 'cr_min_marks' => $min, 'cr_mandatory' => true,
+                'loyalty_mandatory' => $before <= $loyaltyYears, 'property_mandatory' => $before <= $propertyYears,
+            ]);
+        }
+
+        return $rule;
+    }
+
+    private function ruleCheck(): array
+    {
+        return app(PromotionRuleCheck::class)->check($this->row->refresh(), $this->proposal->refresh());
+    }
+
+    public function test_the_grade_choices_show_the_points_of_the_eligible_cr_grades(): void
+    {
+        $this->actingAs($this->ao)->get($this->route('show'))
+            ->assertOk()
+            ->assertSee('क+ (9)')
+            ->assertSee('क (7)')
+            ->assertSee('घ (1)');
+    }
+
+    public function test_points_are_those_in_force_on_1_january_of_the_dpc_year(): void
+    {
+        // A later value for क, from 2027, does not reach a 2026 DPC.
+        CrGradeValue::query()->create(['value' => 8, 'grade_code' => 'क', 'effective_from' => '2027-01-01']);
+
+        $this->assertSame(7, app(PromotionCrRules::class)->pointsForYear(2026)['क']);
+        $this->assertSame(8, app(PromotionCrRules::class)->pointsForYear(2027)['क']);
+    }
+
+    public function test_a_candidate_meeting_the_rule_is_shown_as_meeting_it(): void
+    {
+        $this->promotionRule();
+        $this->saveCr(2025, [self::report('क')])->assertSessionHasNoErrors();
+        $this->saveCr(2024, [self::report('क+')])->assertSessionHasNoErrors();
+
+        $check = $this->ruleCheck();
+        $this->assertSame('meets', $check['status']);
+        $this->assertSame([7, 9], array_column($check['years'], 'points'));
+        $this->assertSame(8.0, $check['average']);
+
+        $this->actingAs($this->ao)->get($this->route('show'))
+            ->assertOk()
+            ->assertSee('id="promotion-rule-check"', false)
+            ->assertSee('data-rule-status="meets"', false);
+
+        $this->actingAs($this->ao)->get(route('dpc-proposals.employees.index', $this->proposal))
+            ->assertOk()
+            ->assertSee('Meets rule');
+    }
+
+    public function test_the_highest_available_authority_counts_within_a_cr(): void
+    {
+        $this->promotionRule(min: 1, average: '1');
+        // Accepting क+ over a Reporting घ; without an Accepting remark the Reviewing one.
+        $this->saveCr(2025, [array_merge(self::report('घ'), ['accepting_grade' => 'क+'])])->assertSessionHasNoErrors();
+        $this->saveCr(2024, [array_merge(self::report('घ'), ['reviewer_grade' => 'ख', 'accepting_designation' => null, 'accepting_grade' => null])]);
+
+        $this->assertSame([9, 5], array_column($this->ruleCheck()['years'], 'points'));
+    }
+
+    public function test_several_crs_in_a_year_are_averaged_with_the_decimal_dropped(): void
+    {
+        $this->promotionRule(min: 1, average: '1');
+        // क+ (9) and ग (3): 6. क+ (9) and क (7) and ग (3): 19 / 3 → 6.
+        $this->saveCr(2025, [self::report('क+'), self::report('ग')])->assertSessionHasNoErrors();
+        $this->saveCr(2024, [self::report('क+'), self::report('क'), self::report('ग')])->assertSessionHasNoErrors();
+
+        $this->assertSame([6, 6], array_column($this->ruleCheck()['years'], 'points'));
+    }
+
+    public function test_a_cr_below_the_years_minimum_does_not_meet_the_rule(): void
+    {
+        $this->promotionRule(min: 7, average: '1');
+        $this->saveCr(2025, [self::report('ख')])->assertSessionHasNoErrors();
+        $this->saveCr(2024, [self::report('क')])->assertSessionHasNoErrors();
+
+        $check = $this->ruleCheck();
+        $this->assertSame('does_not_meet', $check['status']);
+        $this->assertContains(__('dpc.employee_details.rule.cr_below_min', ['year' => 2025, 'points' => 5, 'min' => 7]), $check['findings']);
+
+        $this->actingAs($this->ao)->get(route('dpc-proposals.employees.index', $this->proposal))
+            ->assertSee('Does not meet rule');
+    }
+
+    public function test_a_missing_mandatory_cr_year_does_not_meet_the_rule(): void
+    {
+        $this->promotionRule();
+        $this->saveCr(2025, [self::report('क')])->assertSessionHasNoErrors();
+
+        $check = $this->ruleCheck();
+        $this->assertSame('does_not_meet', $check['status']);
+        $this->assertContains(__('dpc.employee_details.rule.cr_missing', ['year' => 2024]), $check['findings']);
+    }
+
+    public function test_an_average_below_the_qualifying_average_does_not_meet_the_rule(): void
+    {
+        $this->promotionRule(min: 1, average: '8');
+        $this->saveCr(2025, [self::report('क')])->assertSessionHasNoErrors();
+        $this->saveCr(2024, [self::report('क')])->assertSessionHasNoErrors();
+
+        $check = $this->ruleCheck();
+        $this->assertSame('does_not_meet', $check['status']);
+        $this->assertContains(__('dpc.employee_details.rule.average_below', ['average' => '7.00', 'required' => '8.00']), $check['findings']);
+    }
+
+    public function test_a_mandatory_property_return_is_checked(): void
+    {
+        $this->promotionRule(min: 1, average: '1', propertyYears: 1);
+        $this->saveCr(2025, [self::report('क')])->assertSessionHasNoErrors();
+        $this->saveCr(2024, [self::report('क')])->assertSessionHasNoErrors();
+
+        $this->assertContains(__('dpc.employee_details.rule.property_missing', ['year' => 2025]), $this->ruleCheck()['findings']);
+    }
+
+    public function test_without_a_class_master_rule_the_check_says_so(): void
+    {
+        $check = $this->ruleCheck();
+        $this->assertSame('no_rule', $check['status']);
+        $this->assertNull($check['rule']);
+
+        $this->actingAs($this->ao)->get($this->route('show'))
+            ->assertOk()
+            ->assertSee('data-rule-status="no_rule"', false)
+            ->assertSee(__('dpc.employee_details.rule.no_rule', ['from' => 'I', 'to' => 'I', 'year' => 2026]));
+    }
+
+    public function test_the_rule_check_does_not_change_what_is_required_to_submit(): void
+    {
+        $this->promotionRule(min: 9);
+
+        // The rule is reported for the committee; completeness is unchanged.
+        $this->assertSame($this->details()['complete'], app(EmployeeDetailsService::class)->status($this->row->refresh())['complete']);
+        $this->actingAs($this->ao)->get($this->route('show'))->assertOk()->assertSee('data-rule-status="does_not_meet"', false);
     }
 }

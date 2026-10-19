@@ -15,6 +15,7 @@ use App\Domain\Dpc\Models\DpcEvaluationRecordGap;
 use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Master\Services\PhReservationPolicy;
+use App\Domain\Master\Services\PromotionCrRules;
 use App\Domain\Master\Support\ReservationMode;
 use App\Domain\Shared\Services\ActivityTimelineService;
 use App\Domain\Shared\Workflow\WorkflowException;
@@ -48,6 +49,7 @@ class EmployeeDetailsService
 {
     public function __construct(
         private readonly ActivityTimelineService $timeline,
+        private readonly PromotionCrRules $promotionRules,
     ) {}
 
     // ------------------------------------------------------------------
@@ -413,9 +415,13 @@ class EmployeeDetailsService
      */
     public function statuses(DpcProposal $proposal): Collection
     {
+        $proposal->loadMissing(['promotionFromPost', 'promotionToPost']);
+
         return $proposal->evaluationRows()
             ->with(['crGrades', 'propertyFlags', 'recordGaps', 'currentDocuments', 'reservationCategory'])
             ->get()
+            // The proposal is the same for every row: its promotion rule is read once.
+            ->each(fn (DpcEvaluationRow $row) => $row->setRelation('proposal', $proposal))
             ->map(fn (DpcEvaluationRow $row): array => ['row' => $row, 'status' => $this->status($row)])
             ->values();
     }
@@ -498,16 +504,39 @@ class EmployeeDetailsService
     }
 
     /**
+     * The CR years the Class Master promotion rule makes mandatory for this officer's
+     * proposal; none when no rule is in force (the rule check then says so).
+     *
+     * @return list<int>
+     */
+    public function ruleCrYears(DpcEvaluationRow $row): array
+    {
+        $proposal = $row->proposal;
+        $rule = $proposal === null ? null : $this->promotionRules->ruleForProposal($proposal);
+
+        return $rule === null ? [] : $this->promotionRules->mandatoryCrYears($rule, (int) ($proposal->dpc_year ?: $proposal->proposal_date->year));
+    }
+
+    /**
      * @return list<string>
      */
     private function crMissing(DpcEvaluationRow $row): array
     {
-        $missing = [];
         $requireDocuments = (bool) config('dpc.employee_details.require_cr_documents', true);
 
+        // Step 3: every CR year the Class Master promotion rule makes mandatory is
+        // answered; a year not put up then needs its rule-3.2 reason as below.
+        $recorded = $row->crGrades->pluck('year')->all();
+        $ruleMissing = array_values(array_map(
+            static fn (int $year): string => (string) __('dpc.employee_details.missing.cr_rule_year', ['year' => $year]),
+            array_diff($this->ruleCrYears($row), $recorded),
+        ));
+
         if ($row->crGrades->isEmpty()) {
-            return [(string) __('dpc.employee_details.missing.cr_none')];
+            return $ruleMissing !== [] ? $ruleMissing : [(string) __('dpc.employee_details.missing.cr_none')];
         }
+
+        $missing = $ruleMissing;
 
         $anyPutUp = false;
 

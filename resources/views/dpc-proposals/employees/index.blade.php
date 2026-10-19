@@ -43,6 +43,7 @@
                         <th>{{ __('ui.name') }}</th>
                         <th>{{ __('dpc.employee_details.current_post') }}</th>
                         <th>{{ __('dpc.employee_details.completion') }}</th>
+                        <th>{{ __('dpc.employee_details.rule.heading') }}</th>
                         <th class="text-end">{{ __('ui.actions') }}</th>
                     </tr>
                 </thead>
@@ -61,6 +62,14 @@
                                     <div class="small text-muted">{{ $entry['status']['summary'] }}</div>
                                 @endunless
                             </td>
+                            <td>
+                                @php
+                                    $check = $ruleChecks[$entry['row']->id] ?? null;
+                                @endphp
+                                @if ($check !== null)
+                                    <span class="badge {{ ['meets' => 'text-bg-success', 'does_not_meet' => 'text-bg-danger', 'no_rule' => 'text-bg-secondary'][$check['status']] }}" data-rule-status="{{ $check['status'] }}">{{ __('dpc.employee_details.rule.status.'.$check['status']) }}</span>
+                                @endif
+                            </td>
                             <td class="text-end">
                                 <a class="btn btn-sm {{ $canEdit ? 'btn-primary' : 'btn-outline-secondary' }}"
                                    href="{{ route('dpc-proposals.employees.show', [$proposal, $entry['row']]) }}">
@@ -70,7 +79,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" class="text-center text-muted py-4">
+                            <td colspan="7" class="text-center text-muted py-4">
                                 {{ __('dpc.employee_details.no_officers') }}
                                 <a href="{{ route('dpc-proposals.seniority-list', $proposal) }}">{{ __('ui.seniority_list') }}</a>
                             </td>

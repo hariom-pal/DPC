@@ -456,6 +456,17 @@ class DpcProposalCompletenessService
             ? null
             : RecruitmentRule::query()->whereKey($proposal->recruitment_rule_id)->value('promotion_recruitment_pct');
         $recordShare = $position?->promotion_percentage;
+        // Step 1: the AO's Working Officers List against the record's working strength.
+        $reconciliation = $this->vacancyPositions->reconcile($proposal);
+        $differences = implode('; ', array_map(
+            static fn (string $figure, array $pair): string => (string) __('vacancymaster.proposal.working_list.section_item', [
+                'figure' => __('vacancymaster.proposal.working_list.figures.'.$figure),
+                'uploaded' => $pair['uploaded'],
+                'record' => $pair['record'],
+            ]),
+            array_keys($reconciliation['differences']),
+            $reconciliation['differences'],
+        ));
 
         $detail = match (true) {
             $position === null => __('vacancymaster.proposal.not_finalized'),
@@ -464,6 +475,8 @@ class DpcProposalCompletenessService
                 'record' => (string) $recordShare,
                 'proposal' => (string) $proposalShare,
             ]),
+            $reconciliation['uploaded'] === null => __('vacancymaster.proposal.working_list.section_missing'),
+            ! $reconciliation['matches'] => __('vacancymaster.proposal.working_list.section_differs', ['items' => $differences]),
             ($sums['promotion_vacancy'] ?? 0) < 1 => __('vacancymaster.proposal.no_promotion_vacancy'),
             default => null,
         };

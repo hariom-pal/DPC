@@ -157,6 +157,23 @@ class PromotionCrRuleTest extends TestCase
             ->assertDontSee('ui.remarks');
     }
 
+    public function test_an_eligible_grade_names_the_cr_grade_it_scores(): void
+    {
+        // The rule-3.4 values carry their grade codes from the migration.
+        $this->assertSame(['क+' => 9, 'क' => 7, 'ख' => 5, 'ग' => 3, 'घ' => 1], app(PromotionCrRules::class)->pointsForYear(2026));
+
+        $this->actingAs($this->admin)->post(route('admin.cr-grades.store'), ['value' => '10', 'grade_code' => 'क+', 'effective_from' => '2028-01-01'])
+            ->assertSessionHasNoErrors();
+        $this->assertSame(10, app(PromotionCrRules::class)->pointsForYear(2028)['क+']);
+
+        $this->actingAs($this->admin)->post(route('admin.cr-grades.store'), ['value' => '12', 'grade_code' => 'Z', 'effective_from' => '2028-01-01'])
+            ->assertSessionHasErrors('grade_code');
+
+        $this->actingAs($this->admin)->get(route('admin.cr-grades.index'))
+            ->assertOk()
+            ->assertSee('name="grade_code"', false);
+    }
+
     public function test_eligible_grades_are_valid_from_their_date(): void
     {
         $this->actingAs($this->admin)->post(route('admin.cr-grades.store'), ['value' => '10', 'effective_from' => '2027-01-01'])
@@ -181,6 +198,76 @@ class PromotionCrRuleTest extends TestCase
         $this->assertModelMissing($upcoming);
     }
 
+    /**
+     * A grade is made inactive from a date, never deleted: every DPC year keeps the
+     * grades that were valid on its 1 January, and the window stays on record.
+     */
+    public function test_a_grade_is_made_inactive_with_its_window_kept_for_earlier_years(): void
+    {
+        $this->travelTo('2026-10-17');
+        $grade = CrGradeValue::query()->create(['value' => 11, 'effective_from' => '2021-01-01']);
+        $deactivate = fn (array $data) => $this->actingAs($this->admin)->patch(route('admin.cr-grades.deactivate', $grade), $data);
+
+        // Not into the past, and not without a reason.
+        $deactivate(['effective_to' => '2025-12-31', 'deactivation_reason' => 'Order'])->assertSessionHasErrors('effective_to');
+        $deactivate(['effective_to' => '2026-12-31'])->assertSessionHasErrors('deactivation_reason');
+
+        $deactivate(['effective_to' => '2026-12-31', 'deactivation_reason' => 'GAD order 12/2026'])->assertSessionHasNoErrors();
+
+        $grade->refresh();
+        $this->assertSame('2026-12-31', $grade->effective_to?->toDateString());
+        $this->assertSame($this->admin->id, $grade->deactivated_by);
+        $this->assertNotNull($grade->deactivated_at);
+
+        $rules = app(PromotionCrRules::class);
+        $this->assertContains(11, $rules->gradesForYear(2022));
+        $this->assertContains(11, $rules->gradesForYear(2026), 'Valid on 1 January 2026, so 2026 keeps it.');
+        $this->assertNotContains(11, $rules->gradesForYear(2027));
+
+        // Once only: the window it was valid for is not rewritten.
+        $deactivate(['effective_to' => '2027-06-30', 'deactivation_reason' => 'Again'])->assertSessionHasErrors('effective_to');
+        $this->assertSame('2026-12-31', $grade->fresh()->effective_to?->toDateString());
+
+        // Brought back later as a new window; an overlapping one is refused.
+        $this->actingAs($this->admin)->post(route('admin.cr-grades.store'), ['value' => '11', 'effective_from' => '2026-12-01'])
+            ->assertSessionHasErrors('value');
+        $this->actingAs($this->admin)->post(route('admin.cr-grades.store'), ['value' => '11', 'effective_from' => '2028-01-01'])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(2, CrGradeValue::query()->where('value', 11)->count());
+        $this->assertNotContains(11, $rules->gradesForYear(2027));
+        $this->assertContains(11, $rules->gradesForYear(2028));
+
+        $this->travelTo('2027-02-01');
+        $this->actingAs($this->admin)->get(route('admin.cr-grades.index'))
+            ->assertOk()
+            ->assertSee('31-12-2026')
+            ->assertSee('Inactive')
+            ->assertSee('GAD order 12/2026');
+    }
+
+    public function test_a_grades_remarks_can_be_edited_and_the_old_wording_stays_in_the_audit(): void
+    {
+        config(['audit.console' => true]);
+        $grade = CrGradeValue::query()->create(['value' => 12, 'effective_from' => '2021-01-01', 'remarks' => 'Old wording']);
+
+        $this->actingAs($this->admin)->patch(route('admin.cr-grades.remarks', $grade), ['remarks' => 'क+ — उत्कृष्ट'])
+            ->assertSessionHasNoErrors();
+
+        $grade->refresh();
+        $this->assertSame('क+ — उत्कृष्ट', $grade->remarks);
+        $this->assertSame(12, $grade->value, 'Only the remarks change.');
+        $this->assertSame('2021-01-01', $grade->effective_from->toDateString());
+
+        $this->assertTrue(
+            $grade->audits()->get()->contains(fn ($audit): bool => ($audit->old_values['remarks'] ?? null) === 'Old wording'),
+            'The previous wording is kept in the audit trail.',
+        );
+
+        $this->actingAs($this->admin)->patch(route('admin.cr-grades.remarks', $grade), ['remarks' => str_repeat('x', 256)])
+            ->assertSessionHasErrors('remarks');
+    }
+
     public function test_only_the_administrator_sets_the_rules(): void
     {
         $officer = User::factory()->create();
@@ -188,5 +275,9 @@ class PromotionCrRuleTest extends TestCase
 
         $this->actingAs($officer)->get(route('admin.service-classes.promotion-rules.index', $this->classOne))->assertForbidden();
         $this->actingAs($officer)->post(route('admin.cr-grades.store'), ['value' => '4', 'effective_from' => '2027-01-01'])->assertForbidden();
+        $this->actingAs($officer)->patch(route('admin.cr-grades.remarks', CrGradeValue::query()->firstOrFail()), ['remarks' => 'x'])->assertForbidden();
+        $this->actingAs($officer)->patch(route('admin.cr-grades.deactivate', CrGradeValue::query()->firstOrFail()), [
+            'effective_to' => now()->toDateString(), 'deactivation_reason' => 'x',
+        ])->assertForbidden();
     }
 }

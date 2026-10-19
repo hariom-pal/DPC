@@ -275,6 +275,19 @@ Route::middleware('auth')->group(function (): void {
                 Route::delete('/{preDpc}', [PreDpcProposalController::class, 'destroy'])->name('destroy');
             });
 
+        // Vacancy Management — the department's own year-wise vacancy records, kept and
+        // finalized by its Authorized Officer; its Administrative Head reads them.
+        Route::middleware('role:'.Role::AuthorizedOfficer->value.'|'.Role::AdministrativeHead->value)
+            ->prefix('vacancy-management')
+            ->group(function (): void {
+                Route::get('/', [VacancyManagementController::class, 'index'])->name('vacancy-management.index');
+                Route::get('/open', [VacancyManagementController::class, 'go'])->name('vacancy-management.go');
+                Route::prefix('departments/{department}')
+                    ->name('vacancy-records.')
+                    ->controller(VacancyMasterController::class)
+                    ->group(base_path('routes/vacancy-records.php'));
+            });
+
         // DPC Proposal workflow (M4 Phase 1: post selection + submit/approve/return/cancel).
         Route::middleware('role:'.Role::AuthorizedOfficer->value.'|'.Role::AdministrativeHead->value)
             ->prefix('dpc-proposals')
@@ -633,21 +646,7 @@ Route::middleware('auth')->group(function (): void {
                 Route::prefix('departments/{department}/vacancy-master')
                     ->name('departments.vacancy-master.')
                     ->controller(VacancyMasterController::class)
-                    ->group(function (): void {
-                        Route::get('/', 'index')->name('index');
-                        Route::get('/{year}/posts/{post}', 'show')->whereNumber('year')->name('show');
-                        Route::post('/{year}/posts/{post}/open', 'open')->whereNumber('year')->name('open');
-                        Route::post('/{year}/posts/{post}/sanctioned-strength', 'saveSanctionedStrength')->whereNumber('year')->name('sanctioned-strength');
-                        Route::get('/{year}/posts/{post}/sanctioned-strength/{sanctionedStrength}/document', 'sanctionedStrengthDocument')->whereNumber('year')->name('sanctioned-strength.document');
-                        Route::post('/{year}/posts/{post}/working-strength', 'saveWorkingStrength')->whereNumber('year')->name('working-strength');
-                        Route::get('/{year}/posts/{post}/working-strength/{workingStrength}/document', 'workingStrengthDocument')->whereNumber('year')->name('working-strength.document');
-                        Route::post('/{year}/posts/{post}/entries', 'storeEntry')->whereNumber('year')->name('entries.store');
-                        Route::post('/{year}/posts/{post}/entries/{entry}/verify', 'verifyEntry')->whereNumber('year')->name('entries.verify');
-                        Route::post('/{year}/posts/{post}/entries/{entry}/withdraw', 'withdrawEntry')->whereNumber('year')->name('entries.withdraw');
-                        Route::get('/{year}/posts/{post}/entries/{entry}/document', 'entryDocument')->whereNumber('year')->name('entries.document');
-                        Route::post('/{year}/posts/{post}/finalize', 'finalize')->whereNumber('year')->name('finalize');
-                        Route::post('/{year}/posts/{post}/revise', 'revise')->whereNumber('year')->name('revise');
-                    });
+                    ->group(base_path('routes/vacancy-records.php'));
                 Route::resource('districts', DistrictController::class)->except(['show']);
                 Route::resource('designations', DesignationController::class)->except(['show']);
                 // Class Master (change item 1). `service-classes` rather than
@@ -665,6 +664,8 @@ Route::middleware('auth')->group(function (): void {
                 // Eligible CR Grades — the numeric values a CR may carry.
                 Route::get('cr-grades', [CrGradeValueController::class, 'index'])->name('cr-grades.index');
                 Route::post('cr-grades', [CrGradeValueController::class, 'store'])->name('cr-grades.store');
+                Route::patch('cr-grades/{crGrade}/deactivate', [CrGradeValueController::class, 'deactivate'])->name('cr-grades.deactivate');
+                Route::patch('cr-grades/{crGrade}/remarks', [CrGradeValueController::class, 'updateRemarks'])->name('cr-grades.remarks');
                 Route::delete('cr-grades/{crGrade}', [CrGradeValueController::class, 'destroy'])->name('cr-grades.destroy');
                 Route::resource('pay-scales', PayScaleController::class)
                     ->parameters(['pay-scales' => 'payScale'])

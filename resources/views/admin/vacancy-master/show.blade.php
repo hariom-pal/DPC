@@ -1,4 +1,4 @@
-@extends('layouts.admin')
+@extends($layout)
 
 @section('title', __('vacancymaster.title').' — '.$post->name)
 
@@ -6,6 +6,8 @@
     @php
         $isDraft = $position !== null && $position->isDraft();
         $isLatestFinalized = $position !== null && $position->status->value === 'finalized';
+        // Forms only for the department's Authorized Officer; everyone else reads.
+        $editable = $isDraft && $canManage;
         $sanctioned = $position?->sanctionedStrength;
         $working = $position?->workingStrength;
         $b = $breakdown;
@@ -25,14 +27,14 @@
         $index = array_search($section, $order, true);
         $previous = $index > 0 ? $order[$index - 1] : null;
         $next = $index < count($order) - 1 ? $order[$index + 1] : null;
-        $stepUrl = fn (string $key): string => route('admin.departments.vacancy-master.show', [$department, $year, $post, 'section' => $key]);
+        $stepUrl = fn (string $key): string => route($records.'.show', [$department, $year, $post, 'section' => $key]);
     @endphp
 
     <nav aria-label="breadcrumb">
         <ol class="breadcrumb small">
-            <li class="breadcrumb-item"><a href="{{ route('admin.vacancy-management.index') }}">{{ __('vacancymaster.title') }}</a></li>
-            <li class="breadcrumb-item"><a href="{{ route('admin.departments.edit', $department) }}">{{ $department->name }}</a></li>
-            <li class="breadcrumb-item"><a href="{{ route('admin.departments.vacancy-master.index', [$department, 'year' => $year]) }}">{{ __('vacancymaster.title') }} {{ $year }}</a></li>
+            <li class="breadcrumb-item"><a href="{{ route($management.'.index') }}">{{ __('vacancymaster.title') }}</a></li>
+            @if ($adminArea)<li class="breadcrumb-item"><a href="{{ route('admin.departments.edit', $department) }}">{{ $department->name }}</a></li>@endif
+            <li class="breadcrumb-item"><a href="{{ route($records.'.index', [$department, 'year' => $year]) }}">{{ __('vacancymaster.title') }} {{ $year }}</a></li>
             <li class="breadcrumb-item active" aria-current="page">{{ $post->name }}</li>
         </ol>
     </nav>
@@ -57,14 +59,22 @@
 
     @include('partials.alerts', ['inlineErrors' => true])
 
+    @unless ($canManage)
+        <div class="alert alert-secondary py-2 small" id="vacancy-read-only">{{ __('vacancymaster.read_only_note') }}</div>
+    @endunless
+
     @if ($position === null)
         <div class="card border-0 shadow-sm mb-3">
             <div class="card-body">
                 <p class="mb-2">{{ __('vacancymaster.no_position_yet', ['year' => $year]) }}</p>
-                <form method="POST" action="{{ route('admin.departments.vacancy-master.open', [$department, $year, $post]) }}">
-                    @csrf
-                    <button class="btn btn-primary btn-sm">{{ __('vacancymaster.open_draft') }}</button>
-                </form>
+                @if ($canManage)
+                    <form method="POST" action="{{ route($records.'.open', [$department, $year, $post]) }}">
+                        @csrf
+                        <button class="btn btn-primary btn-sm">{{ __('vacancymaster.open_draft') }}</button>
+                    </form>
+                @else
+                    <p class="small text-muted mb-0">{{ __('vacancymaster.read_only_note') }}</p>
+                @endif
             </div>
         </div>
     @else
@@ -107,4 +117,32 @@
             </div>
         </div>
     @endif
+
+    {{-- The record's trail: every step of every revision, newest first. --}}
+    <div class="card border-0 shadow-sm mt-3" id="vacancy-trail">
+        <div class="card-header bg-white"><strong>{{ __('vacancymaster.trail.heading') }}</strong>
+            <span class="small text-muted">{{ __('vacancymaster.trail.lead') }}</span></div>
+        <div class="table-responsive">
+            <table class="table table-sm table-striped mb-0 align-middle">
+                <thead><tr>
+                    <th style="width:11rem">{{ __('vacancymaster.trail.when') }}</th>
+                    <th style="width:12rem">{{ __('vacancymaster.trail.who') }}</th>
+                    <th style="width:6rem">{{ __('vacancymaster.trail.revision') }}</th>
+                    <th>{{ __('vacancymaster.trail.what') }}</th>
+                </tr></thead>
+                <tbody>
+                    @forelse ($trail as $event)
+                        <tr data-trail-event="{{ $event->event }}">
+                            <td class="small">{{ $event->occurred_at?->format('d-m-Y H:i') }}</td>
+                            <td class="small">{{ $event->actor_name ?? '—' }}</td>
+                            <td class="small">{{ $event->properties['revision'] ?? '—' }}</td>
+                            <td class="small">{{ $event->description }}</td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="4" class="text-center text-muted py-3">{{ __('vacancymaster.trail.none') }}</td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </div>
 @endsection

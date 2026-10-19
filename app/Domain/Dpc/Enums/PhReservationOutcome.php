@@ -20,7 +20,7 @@ enum PhReservationOutcome: string
     /** Case 1 — not PH: no PH reservation benefit. */
     case NotPh = 'not_ph';
 
-    /** Case 2 — PH, benefit already availed once in service: no fresh benefit. */
+    /** Case 2 — PH, benefit already availed once in service: no fresh benefit; supporting document required. */
     case PreviouslyAvailed = 'previously_availed';
 
     /** Case 3 — PH, not availed, does not want it: no benefit; undertaking required. */
@@ -48,12 +48,14 @@ enum PhReservationOutcome: string
     }
 
     /**
-     * Rule 2.1 and the business decision: the undertaking is mandatory for every PH
-     * officer who reaches question 3, whatever the answer.
+     * Rule 2.1 and the business decisions: one supporting declaration/document is
+     * mandatory for every PH officer — whether the benefit was availed before
+     * (case 2, since 2026-10-19) or not, and whatever the answer to question 3.
+     * Nothing is granted by it: a claim still needs verification.
      */
     public function requiresUndertaking(): bool
     {
-        return $this === self::Declined || $this === self::Claimed;
+        return $this === self::PreviouslyAvailed || $this === self::Declined || $this === self::Claimed;
     }
 
     public function isClaim(): bool

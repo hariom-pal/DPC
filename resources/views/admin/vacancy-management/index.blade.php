@@ -1,4 +1,4 @@
-@extends('layouts.admin')
+@extends($layout)
 
 @section('title', __('vacancymaster.title'))
 
@@ -8,11 +8,15 @@
 
     @include('partials.alerts', ['inlineErrors' => true])
 
+    @unless ($canManage)
+        <div class="alert alert-secondary py-2 small" id="vacancy-read-only">{{ __('vacancymaster.read_only_note') }}</div>
+    @endunless
+
     {{-- Step 1: Department → Post → Year. Choosing a department reloads its posts. --}}
     <div class="card border-0 shadow-sm mb-3">
         <div class="card-header bg-white"><strong>{{ __('vacancymaster.management.open_heading') }}</strong></div>
         <div class="card-body">
-            <form method="GET" action="{{ route('admin.vacancy-management.index') }}" class="row g-2 align-items-end" id="vacancy-picker">
+            <form method="GET" action="{{ route($management.'.index') }}" class="row g-2 align-items-end" id="vacancy-picker">
                 <div class="col-md-4">
                     <label class="form-label small" for="picker-department">{{ __('vacancymaster.management.department') }}</label>
                     <select class="form-select" id="picker-department" name="department_id" data-submit-on-change>
@@ -44,7 +48,7 @@
                     </select>
                 </div>
                 <div class="col-md-2">
-                    <button class="btn btn-primary w-100" formaction="{{ route('admin.vacancy-management.go') }}" @disabled($posts->isEmpty())>{{ __('vacancymaster.management.open') }}</button>
+                    <button class="btn btn-primary w-100" formaction="{{ route($management.'.go') }}" @disabled($posts->isEmpty())>{{ __('vacancymaster.management.open') }}</button>
                 </div>
             </form>
             <p class="small text-muted mb-0 mt-2">{{ __('vacancymaster.management.steps_note') }}</p>
@@ -54,7 +58,7 @@
     {{-- Every record, latest revision first; filter to see one post's years. --}}
     <div class="card border-0 shadow-sm">
         <div class="card-header bg-white">
-            <form method="GET" action="{{ route('admin.vacancy-management.index') }}" class="row g-2 align-items-end">
+            <form method="GET" action="{{ route($management.'.index') }}" class="row g-2 align-items-end">
                 <div class="col-12"><strong>{{ __('vacancymaster.management.records_heading') }}</strong></div>
                 <div class="col-md-3">
                     <label class="form-label small" for="filter-department">{{ __('vacancymaster.management.department') }}</label>
@@ -118,7 +122,7 @@
                             </td>
                             <td class="text-end">
                                 @if ($postId !== null)
-                                    <a class="btn btn-outline-primary btn-sm" href="{{ route('admin.departments.vacancy-master.show', [$record->department_id, $record->vacancy_year, $postId]) }}">{{ __('vacancymaster.manage') }}</a>
+                                    <a class="btn btn-outline-primary btn-sm" href="{{ route($recordsRoute.'.show', [$record->department_id, $record->vacancy_year, $postId]) }}">{{ __('vacancymaster.manage') }}</a>
                                 @endif
                             </td>
                         </tr>

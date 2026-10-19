@@ -50,7 +50,7 @@ class OtpVerificationTest extends TestCase
 
     public function test_valid_otps_verify_the_account_and_activate_the_department(): void
     {
-        $department = Department::query()->where('code', 'HE')->firstOrFail();
+        $department = Department::query()->where('code', 'SE')->firstOrFail();
         $this->post(route('register.store'), $this->payload($department));
 
         $this->post(route('verify.store'), [
@@ -65,7 +65,7 @@ class OtpVerificationTest extends TestCase
 
     public function test_invalid_otp_is_rejected(): void
     {
-        $department = Department::query()->where('code', 'HE')->firstOrFail();
+        $department = Department::query()->where('code', 'SE')->firstOrFail();
         $this->post(route('register.store'), $this->payload($department));
 
         $this->post(route('verify.store'), [

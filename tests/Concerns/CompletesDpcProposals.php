@@ -16,6 +16,7 @@ use App\Domain\Dpc\Models\DpcWorkingOfficer;
 use App\Domain\Dpc\Services\DpcCommitteeService;
 use App\Domain\Dpc\Services\DpcProposalCompletenessService;
 use App\Domain\Dpc\Services\DpcProposalService;
+use App\Domain\Dpc\Services\ProposalVacancyPosition;
 use App\Domain\Dpc\Services\ProposalVerificationService;
 use App\Domain\Dpc\Services\SanctionedStrengthSource;
 use App\Domain\Dpc\Services\VacancyCalculationService;
@@ -148,6 +149,10 @@ trait CompletesDpcProposals
                  */
                 'working_officers' => $this->recordVacancies($proposal, $plan, $category->id, $service),
 
+                // A Vacancy Management proposal: the Working Officers List the AO
+                // uploads, matching the finalized record (step 1).
+                'vacancy_master' => $this->uploadMatchingWorkingList($proposal, $category->id, $actor),
+
                 /*
                  | The length is read **live**, after the chart has been saved, and
                  | only falls back to the plan.
@@ -187,6 +192,37 @@ trait CompletesDpcProposals
                 default => null,
             };
         }
+    }
+
+    /**
+     * A Working Officers List whose working officers, by quota, are the finalized
+     * Vacancy Management record's. Nothing when no record is finalized — the test
+     * is then about that.
+     */
+    protected function uploadMatchingWorkingList(DpcProposal $proposal, int $categoryId, ?User $actor = null): void
+    {
+        $record = app(ProposalVacancyPosition::class)->reconcile($proposal)['record'];
+
+        if ($record === null) {
+            return;
+        }
+
+        $rows = [];
+
+        foreach ([DpcWorkingOfficer::SOURCE_PROMOTION, DpcWorkingOfficer::SOURCE_DIRECT, DpcWorkingOfficer::SOURCE_DEPUTATION] as $source) {
+            for ($i = 0; $i < $record[$source]; $i++) {
+                $rows[] = [
+                    'sn' => count($rows) + 1,
+                    'status' => DpcWorkingOfficer::STATUS_WORKING,
+                    'source' => $source,
+                    'name' => 'Officer '.(count($rows) + 1),
+                    'dob' => '1975-01-01',
+                    'reservation_category_id' => $categoryId,
+                ];
+            }
+        }
+
+        app(DpcProposalService::class)->saveWorkingOfficers($proposal->refresh(), $rows, $actor);
     }
 
     /**

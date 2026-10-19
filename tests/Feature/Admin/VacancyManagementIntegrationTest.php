@@ -210,6 +210,29 @@ class VacancyManagementIntegrationTest extends TestCase
             ->assertSessionHasErrors('post');
     }
 
+    public function test_the_admin_sees_the_whole_trail_of_a_record_across_revisions(): void
+    {
+        $position = $this->finalize(12, 7, 2, [['reason' => 'retirement', 'quota' => 'promotion', 'count' => 1]]);
+        $draft = app(VacancyMasterService::class)->revise($position->fresh(), 'Strength revised.', $this->admin);
+        app(VacancyMasterService::class)->saveSanctionedStrength($draft, ['sanctioned_total' => 14, 'order_number' => 'SANC/2', 'order_date' => '2026-03-01', 'correction_reason' => 'New order.'], $this->pdf(), $this->admin);
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.departments.vacancy-master.show', [$this->department, self::YEAR, $this->to]))
+            ->assertOk()
+            ->assertSee('id="vacancy-trail"', false)
+            ->assertSee($this->admin->name)
+            // Revision 1's steps and revision 2's, newest first.
+            ->assertSeeInOrder([
+                'corrected from 12 to 14',
+                'Revision 2 opened',
+                'finalized (revision 1)',
+                'vacancy/vacancies added',
+                'Working strength for Deputy Director, 2026 recorded',
+                'Sanctioned strength for Deputy Director, 2026 recorded: 12',
+                'draft opened',
+            ]);
+    }
+
     public function test_the_record_list_is_filtered_and_keeps_each_years_figures(): void
     {
         $this->finalize(12, 7, 2, [], null, 2025);
@@ -224,10 +247,31 @@ class VacancyManagementIntegrationTest extends TestCase
         $this->assertSame([2025 => 12, 2026 => 20], $years, 'Each year keeps its own sanctioned strength.');
     }
 
-    public function test_only_the_administrator_reaches_vacancy_management(): void
+    /**
+     * 2026-10-19: the department's Authorized Officer keeps the records, in the
+     * department's own area and for the department only; the Administrator's area
+     * is read-only and stays closed to the AO.
+     */
+    public function test_the_ao_keeps_own_department_records_and_the_admin_only_reads(): void
     {
         $this->actingAs($this->ao)->get(route('admin.vacancy-management.index'))->assertForbidden();
-        $this->actingAs($this->ao)->post(route('admin.departments.vacancy-master.open', [$this->department, self::YEAR, $this->to]))->assertForbidden();
+
+        $this->actingAs($this->ao)->get(route('dashboard'))->assertOk()->assertSee(route('vacancy-management.index'), false);
+        $this->actingAs($this->ao)->get(route('vacancy-management.index'))
+            ->assertOk()
+            ->assertSee('Deputy Director')
+            ->assertDontSee('id="vacancy-read-only"', false);
+
+        $this->actingAs($this->ao)->post(route('vacancy-records.open', [$this->department, self::YEAR, $this->to]))->assertRedirect();
+        $this->assertSame(1, VacancyPosition::query()->where('department_id', $this->department->id)->count());
+
+        // Another department is neither listed nor reachable.
+        $other = Department::query()->create(['code' => 'PW', 'name' => 'Public Works', 'status' => 'active']);
+        $this->actingAs($this->ao)
+            ->get(route('vacancy-management.go', ['department_id' => $other->id, 'post' => 'Deputy Director', 'year' => self::YEAR]))
+            ->assertForbidden();
+
+        $this->actingAs($this->admin)->get(route('admin.vacancy-management.index'))->assertOk()->assertSee('id="vacancy-read-only"', false);
     }
 
     public function test_the_vacancy_type_screens_are_gone_and_the_rows_survive(): void
@@ -282,7 +326,7 @@ class VacancyManagementIntegrationTest extends TestCase
 
     // ===================================================== the AO's proposal
 
-    public function test_the_ao_sees_the_finalized_figures_read_only_and_cannot_enter_a_chart(): void
+    public function test_the_ao_sees_the_finalized_figures_read_only_and_uploads_only_the_working_officers_list(): void
     {
         $proposal = $this->raise();
         $this->share($proposal, '75.00');
@@ -290,9 +334,12 @@ class VacancyManagementIntegrationTest extends TestCase
 
         $this->actingAs($this->ao)->get(route('dpc-proposals.working-officers', $proposal))
             ->assertOk()
-            ->assertSee('Vacancy position (from Admin)')
+            ->assertSee('Vacancy position (Vacancy Management)')
             ->assertSee('data-admin-vacancy="promotion_vacancy">3<', false)
             ->assertSee('data-admin-vacancy="sanctioned">12<', false)
+            // Step 1: the list is uploaded, never typed.
+            ->assertSee('value="currently_working_us"', false)
+            ->assertSee('id="working-list-missing"', false)
             ->assertDontSee('name="officers[', false);
 
         // The proposal's own page shows the same record in its S16 section.
@@ -304,11 +351,6 @@ class VacancyManagementIntegrationTest extends TestCase
         $this->actingAs($this->ao)->put(route('dpc-proposals.working-officers.update', $proposal), [
             'officers' => [['sn' => 1, 'status' => 'vacant', 'reservation_category_id' => ReservationCategory::query()->value('id')]],
         ])->assertForbidden();
-
-        $this->actingAs($this->ao)->post(route('dpc-proposals.imports.store', $proposal), [
-            'template' => 'currently_working_us',
-            'file' => UploadedFile::fake()->createWithContent('w.csv', "SN,STATUS\n1,vacant\n"),
-        ])->assertSessionHasErrors('file');
 
         $this->assertSame(0, $proposal->workingOfficers()->count());
     }
@@ -322,7 +364,7 @@ class VacancyManagementIntegrationTest extends TestCase
 
         $this->actingAs($this->ao)->get(route('dpc-proposals.working-officers', $proposal))
             ->assertOk()
-            ->assertSee('Vacancy information for the selected Department, Post and Year has not yet been finalized by Admin.');
+            ->assertSee('Vacancy information for the selected Department, Post and Year has not yet been finalized in Vacancy Management.');
 
         $section = collect(app(DpcProposalCompletenessService::class)->checklist($proposal))->firstWhere('key', 'vacancy_master');
         $this->assertFalse($section['complete']);

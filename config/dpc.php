@@ -298,6 +298,14 @@ return [
     |
     */
 
+    /*
+     | Password of the School Education AO and AH seeded ready to start one DPC
+     | (ReadyDpcSeeder; never seeded in production).
+     */
+    'ready_department' => [
+        'password' => env('DPC_DEPARTMENT_PASSWORD', 'ChangeMe@12345'),
+    ],
+
     'chairman' => [
         'name' => env('DPC_CHAIRMAN_NAME', 'Dr. Ajay Kumar Shrivastava'),
         'email' => env('DPC_CHAIRMAN_EMAIL', 'chairman@cgpsc.gov.in'),

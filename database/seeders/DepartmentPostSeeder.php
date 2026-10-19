@@ -37,8 +37,10 @@ class DepartmentPostSeeder extends Seeder
         $scales = PayScale::query()->pluck('id', 'code');
 
         $posts = [
-            ['name' => 'Block Education Officer', 'class' => ServiceClass::II, 'scale' => 'L12', 'sanctioned' => 4, 'duration' => null],
-            ['name' => 'Additional Director, Education', 'class' => ServiceClass::I, 'scale' => 'L13A', 'sanctioned' => 10, 'duration' => 3],
+            // Promotion Duration is the qualifying service in the feeder post: a
+            // Pre-DPC copies it from the Promotion From Post.
+            ['name' => 'Block Education Officer', 'class' => ServiceClass::II, 'scale' => 'L12', 'sanctioned' => 4, 'duration' => 3],
+            ['name' => 'Additional Director, Education', 'class' => ServiceClass::I, 'scale' => 'L13A', 'sanctioned' => 10, 'duration' => null],
         ];
 
         foreach ($posts as $post) {

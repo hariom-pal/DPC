@@ -23,6 +23,8 @@ class DatabaseSeeder extends Seeder
             CommitteeMasterSeeder::class,
             AdminUserSeeder::class,
             CgpscChairmanSeeder::class,
+            // School Education ready to start one DPC (not in production).
+            ReadyDpcSeeder::class,
         ]);
     }
 }

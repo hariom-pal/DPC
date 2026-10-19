@@ -54,16 +54,16 @@
                                 @endif
                             @endif
                         </td>
-                        <td>{{ $entry->order_number }} · <a href="{{ route('admin.departments.vacancy-master.entries.document', [$department, $year, $post, $entry]) }}">{{ $entry->original_name }}</a></td>
+                        <td>{{ $entry->order_number }} · <a href="{{ route($records.'.entries.document', [$department, $year, $post, $entry]) }}">{{ $entry->original_name }}</a></td>
                         <td class="text-end">
 @php
     $entryBag = $errors->getBag('entry_'.$entry->id);
     $entryFocus = collect(['decision', 'basis', 'promotion_order_number', 'promotion_order_date', 'remarks', 'withdrawal_reason'])->first(fn ($field) => $entryBag->has($field));
     $entryOld = fn (string $key, $default = null) => (string) old('_entry') === (string) $entry->id ? old($key, $default) : $default;
 @endphp
-                            @if ($isDraft && $entry->isActive())
+                            @if ($editable && $entry->isActive())
                                 @if ($entry->eligibility->value === 'pending_verification')
-                                    <form method="POST" class="mb-1 text-start" action="{{ route('admin.departments.vacancy-master.entries.verify', [$department, $year, $post, $entry]) }}">
+                                    <form method="POST" class="mb-1 text-start" action="{{ route($records.'.entries.verify', [$department, $year, $post, $entry]) }}">
                                         @csrf
                                         <input type="hidden" name="_entry" value="{{ $entry->id }}">
 @include('admin.vacancy-master.partials.field-error', ['field' => 'workflow', 'bag' => 'entry_'.$entry->id])
@@ -90,7 +90,7 @@
                                         <button class="btn btn-outline-success btn-sm">{{ __('vacancymaster.entries.verify') }}</button>
                                     </form>
                                 @endif
-                                <form method="POST" class="text-start" action="{{ route('admin.departments.vacancy-master.entries.withdraw', [$department, $year, $post, $entry]) }}">
+                                <form method="POST" class="text-start" action="{{ route($records.'.entries.withdraw', [$department, $year, $post, $entry]) }}">
                                     @csrf
                                     <input type="hidden" name="_entry" value="{{ $entry->id }}">
                                     <input type="text" name="withdrawal_reason" class="form-control form-control-sm mb-1 @error('withdrawal_reason', 'entry_'.$entry->id) is-invalid @enderror" required placeholder="{{ __('vacancymaster.entries.withdrawal_reason') }}" @if ($entryFocus === 'withdrawal_reason') autofocus @endif>
@@ -107,14 +107,14 @@
         </table>
     </div>
 
-    @if ($isDraft)
+    @if ($editable)
         <div class="card-body border-top">
 @php
     $addOld = fn (string $key, $default = null) => old('_form') === 'add_entry' ? old($key, $default) : $default;
     $addFocus = collect(['kind', 'reason', 'vacancy_count', 'effective_date', 'occupant_quota', 'reconciliation', 'order_number', 'order_date', 'document', 'higher_post_id', 'higher_dpc_reference', 'promotion_order_number', 'promotion_order_date', 'deputation_to', 'deputation_expected_months', 'against_sanctioned_post', 'cadre_details', 'remarks'])->first(fn ($field) => $errors->has($field));
 @endphp
             <h3 class="h6" id="add-entry">{{ __('vacancymaster.entries.add_heading') }}</h3>
-            <form method="POST" enctype="multipart/form-data" action="{{ route('admin.departments.vacancy-master.entries.store', [$department, $year, $post]) }}">
+            <form method="POST" enctype="multipart/form-data" action="{{ route($records.'.entries.store', [$department, $year, $post]) }}">
                 @csrf
                 <input type="hidden" name="_form" value="add_entry">
                 <div class="row g-2">

@@ -13,7 +13,7 @@
                 <dt class="col-sm-4">{{ __('vacancymaster.order') }}</dt>
                 <dd class="col-sm-8">
                     {{ $sanctioned->order_number }} · {{ $sanctioned->order_date->format('d-m-Y') }} ·
-                    <a href="{{ route('admin.departments.vacancy-master.sanctioned-strength.document', [$department, $year, $post, $sanctioned]) }}">{{ $sanctioned->original_name }}</a>
+                    <a href="{{ route($records.'.sanctioned-strength.document', [$department, $year, $post, $sanctioned]) }}">{{ $sanctioned->original_name }}</a>
                 </dd>
                 @if ($sanctioned->remarks)
                     <dt class="col-sm-4">{{ __('vacancymaster.remarks') }}</dt><dd class="col-sm-8">{{ $sanctioned->remarks }}</dd>
@@ -21,11 +21,11 @@
             </dl>
         @endif
 
-        @if ($isDraft)
+        @if ($editable)
 @php
     $focus = collect(['sanctioned_total', 'order_number', 'order_date', 'document', 'remarks', 'correction_reason'])->first(fn ($field) => $errors->has($field));
 @endphp
-            <form method="POST" enctype="multipart/form-data" action="{{ route('admin.departments.vacancy-master.sanctioned-strength', [$department, $year, $post]) }}">
+            <form method="POST" enctype="multipart/form-data" action="{{ route($records.'.sanctioned-strength', [$department, $year, $post]) }}">
                 @csrf
                 <div class="row g-2">
                     <div class="col-md-3">
@@ -82,7 +82,7 @@
                         @foreach ($position->sanctionedStrengthHistory as $row)
                             <tr>
                                 <td>{{ $row->sanctioned_total }}</td>
-                                <td>{{ $row->order_number }} · <a href="{{ route('admin.departments.vacancy-master.sanctioned-strength.document', [$department, $year, $post, $row]) }}">{{ $row->original_name }}</a></td>
+                                <td>{{ $row->order_number }} · <a href="{{ route($records.'.sanctioned-strength.document', [$department, $year, $post, $row]) }}">{{ $row->original_name }}</a></td>
                                 <td>{{ $row->correction_reason ?? '—' }}</td>
                                 <td>{{ $row->recorder?->name ?? '—' }}</td>
                                 <td>{{ $row->recorded_at->format('d-m-Y H:i') }}</td>

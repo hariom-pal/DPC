@@ -257,11 +257,11 @@ class DpcVacancyCalculationTest extends TestCase
      */
     public function test_the_vacancy_master_is_the_maintenance_source_for_the_vacancy_engine(): void
     {
-        $admin = User::factory()->create();
-        $admin->assignRole(Role::Admin->value);
+        // The department's Authorized Officer keeps the Vacancy Master (2026-10-19).
+        $admin = $this->ao;
         $post = $this->proposal->promotionToPost;
         $year = app(SanctionedStrengthSource::class)->yearOf($this->proposal);
-        $url = fn (string $name): string => route("admin.departments.vacancy-master.{$name}", [$this->department, $year, $post]);
+        $url = fn (string $name): string => route("vacancy-records.{$name}", [$this->department, $year, $post]);
         $pdf = fn (): UploadedFile => UploadedFile::fake()->create('sanction.pdf', 20, 'application/pdf');
 
         // The mapping no longer carries the figure.

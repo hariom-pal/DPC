@@ -16,7 +16,7 @@
   - 22 sidebar entries
   - 30 distinct features
 - **Feature readiness:** 11 Ready, 14 Ready with limitations, 4 Not ready, 1 removed (Vacancy Types screen).
-- **Vacancy Management (2026-10-17):** one Admin entry; the finalized record is the only vacancy source of new DPC proposals, read-only to the AO; results proven equal to the Working Officers chart. See [`ADMIN-VACANCY-MANAGEMENT.md`](ADMIN-VACANCY-MANAGEMENT.md).
+- **Vacancy Management (2026-10-17, ownership changed 2026-10-19):** the department's Authorized Officer keeps and finalizes the year-wise records; the Administrator reads every department's records and trail; the finalized record is the only vacancy source of new DPC proposals (read-only inside the proposal); results proven equal to the Working Officers chart. See [`ADMIN-VACANCY-MANAGEMENT.md`](ADMIN-VACANCY-MANAGEMENT.md).
 - **Not ready:**
   - reservation policies and rosters — stored, but no engine reads them
   - master-data CSV import for departments, department posts and DPC types

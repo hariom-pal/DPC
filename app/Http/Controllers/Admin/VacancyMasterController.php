@@ -18,6 +18,7 @@ use App\Domain\Dpc\Requests\StoreVacancyEntryRequest;
 use App\Domain\Dpc\Requests\VerifyVacancyEntryRequest;
 use App\Domain\Dpc\Services\VacancyMasterService;
 use App\Domain\Master\Models\DepartmentPost;
+use App\Domain\Shared\Models\ActivityTimeline;
 use App\Domain\Shared\Workflow\WorkflowException;
 use App\Enums\Role;
 use App\Http\Controllers\Controller;
@@ -41,9 +42,11 @@ class VacancyMasterController extends Controller
 
     public function index(Request $request, Department $department): View
     {
+        $this->assertCanView($request, $department);
         $year = $this->year($request);
 
         return view('admin.vacancy-master.index', [
+            ...$this->context($request, $department),
             'department' => $department,
             'year' => $year,
             'years' => $this->selectableYears(),
@@ -64,6 +67,7 @@ class VacancyMasterController extends Controller
 
     public function show(Request $request, Department $department, int $year, DepartmentPost $post): View
     {
+        $this->assertCanView($request, $department);
         $this->assertPostInDepartment($department, $post);
 
         $position = $this->vacancies->current($department->id, $post->name, $year);
@@ -74,13 +78,23 @@ class VacancyMasterController extends Controller
         );
 
         return view('admin.vacancy-master.show', [
+            ...$this->context($request, $department),
             'section' => $this->section($request, $position),
             'department' => $department,
             'year' => $year,
             'post' => $post,
             'position' => $position,
             'breakdown' => $position === null ? null : $this->vacancies->breakdown($position),
-            'revisions' => $this->vacancies->revisions($department->id, $post->name, $year),
+            'revisions' => $revisions = $this->vacancies->revisions($department->id, $post->name, $year),
+
+            // Every recorded step of every revision of this record, newest first:
+            // who did what, and when.
+            'trail' => ActivityTimeline::query()
+                ->where('subject_type', (new VacancyPosition)->getMorphClass())
+                ->whereIn('subject_id', $revisions->pluck('id'))
+                ->orderByDesc('occurred_at')
+                ->orderByDesc('id')
+                ->get(),
             'higherPosts' => DepartmentPost::query()
                 ->where('department_id', $department->id)
                 ->where('name', '!=', $post->name)
@@ -96,7 +110,7 @@ class VacancyMasterController extends Controller
 
     public function open(Request $request, Department $department, int $year, DepartmentPost $post): RedirectResponse
     {
-        $this->assertAdmin($request);
+        $this->assertCanManage($request, $department);
         $this->assertPostInDepartment($department, $post);
 
         return $this->attempt($department, $year, $post, function () use ($department, $post, $year, $request): string {
@@ -108,7 +122,7 @@ class VacancyMasterController extends Controller
 
     public function saveSanctionedStrength(SaveSanctionedStrengthRequest $request, Department $department, int $year, DepartmentPost $post): RedirectResponse
     {
-        $this->assertAdmin($request);
+        $this->assertCanManage($request, $department);
         $position = $this->draftFor($department, $year, $post);
 
         return $this->attempt($department, $year, $post, function () use ($position, $request): string {
@@ -120,7 +134,7 @@ class VacancyMasterController extends Controller
 
     public function saveWorkingStrength(SaveWorkingStrengthRequest $request, Department $department, int $year, DepartmentPost $post): RedirectResponse
     {
-        $this->assertAdmin($request);
+        $this->assertCanManage($request, $department);
         $position = $this->draftFor($department, $year, $post);
 
         return $this->attempt($department, $year, $post, function () use ($position, $request): string {
@@ -135,7 +149,7 @@ class VacancyMasterController extends Controller
 
     public function storeEntry(StoreVacancyEntryRequest $request, Department $department, int $year, DepartmentPost $post): RedirectResponse
     {
-        $this->assertAdmin($request);
+        $this->assertCanManage($request, $department);
         $position = $this->draftFor($department, $year, $post);
 
         return $this->attempt($department, $year, $post, function () use ($position, $request): string {
@@ -147,7 +161,7 @@ class VacancyMasterController extends Controller
 
     public function verifyEntry(VerifyVacancyEntryRequest $request, Department $department, int $year, DepartmentPost $post, VacancyPositionEntry $entry): RedirectResponse
     {
-        $this->assertAdmin($request);
+        $this->assertCanManage($request, $department);
         $this->assertEntryInPost($department, $year, $post, $entry);
 
         return $this->attempt($department, $year, $post, function () use ($entry, $request): string {
@@ -159,7 +173,7 @@ class VacancyMasterController extends Controller
 
     public function withdrawEntry(Request $request, Department $department, int $year, DepartmentPost $post, VacancyPositionEntry $entry): RedirectResponse
     {
-        $this->assertAdmin($request);
+        $this->assertCanManage($request, $department);
         $this->assertEntryInPost($department, $year, $post, $entry);
         $data = $request->validateWithBag(VerifyVacancyEntryRequest::bagFor($entry), [
             'withdrawal_reason' => ['required', 'string', 'max:2000'],
@@ -174,7 +188,7 @@ class VacancyMasterController extends Controller
 
     public function finalize(Request $request, Department $department, int $year, DepartmentPost $post): RedirectResponse
     {
-        $this->assertAdmin($request);
+        $this->assertCanManage($request, $department);
         $position = $this->draftFor($department, $year, $post);
 
         return $this->attempt($department, $year, $post, function () use ($position, $request): string {
@@ -186,7 +200,7 @@ class VacancyMasterController extends Controller
 
     public function revise(Request $request, Department $department, int $year, DepartmentPost $post): RedirectResponse
     {
-        $this->assertAdmin($request);
+        $this->assertCanManage($request, $department);
         $this->assertPostInDepartment($department, $post);
         $data = $request->validate(['revision_reason' => ['required', 'string', 'max:2000']], [], ['revision_reason' => __('vacancymaster.revision_reason_label')]);
         $position = $this->vacancies->current($department->id, $post->name, $year);
@@ -201,6 +215,7 @@ class VacancyMasterController extends Controller
 
     public function sanctionedStrengthDocument(Department $department, int $year, DepartmentPost $post, VacancyPositionSanctionedStrength $sanctionedStrength): StreamedResponse
     {
+        $this->assertCanView(request(), $department);
         $this->assertPostInDepartment($department, $post);
         $this->assertPositionInPost($department, $year, $post, $sanctionedStrength->position);
 
@@ -209,6 +224,7 @@ class VacancyMasterController extends Controller
 
     public function workingStrengthDocument(Department $department, int $year, DepartmentPost $post, VacancyPositionWorkingStrength $workingStrength): StreamedResponse
     {
+        $this->assertCanView(request(), $department);
         $this->assertPostInDepartment($department, $post);
         $this->assertPositionInPost($department, $year, $post, $workingStrength->position);
 
@@ -217,6 +233,7 @@ class VacancyMasterController extends Controller
 
     public function entryDocument(Department $department, int $year, DepartmentPost $post, VacancyPositionEntry $entry): StreamedResponse
     {
+        $this->assertCanView(request(), $department);
         $this->assertEntryInPost($department, $year, $post, $entry);
 
         return $this->stream((string) $entry->disk, (string) $entry->path, (string) $entry->original_name);
@@ -235,7 +252,8 @@ class VacancyMasterController extends Controller
      */
     private function attempt(Department $department, int $year, DepartmentPost $post, callable $action, string $here, string $next, string $bag = 'default'): RedirectResponse
     {
-        $target = fn (string $section): string => route('admin.departments.vacancy-master.show', [$department, $year, $post, 'section' => $section]);
+        $records = $this->context(request(), $department)['records'];
+        $target = fn (string $section): string => route($records.'.show', [$department, $year, $post, 'section' => $section]);
 
         try {
             $message = $action();
@@ -278,9 +296,59 @@ class VacancyMasterController extends Controller
         return $position;
     }
 
-    private function assertAdmin(Request $request): void
+    /**
+     * Who may see a department's vacancy records: the CGPSC Administrator (every
+     * department, read-only), and the department's own Authorized Officer and
+     * Administrative Head.
+     */
+    private function assertCanView(Request $request, Department $department): void
     {
-        abort_unless($request->user()?->hasRole(Role::Admin->value), 403);
+        $user = $request->user();
+
+        abort_unless(
+            $user !== null && ($user->hasRole(Role::Admin->value)
+                || ($user->department_id === $department->id
+                    && $user->hasAnyRole([Role::AuthorizedOfficer->value, Role::AdministrativeHead->value]))),
+            403,
+        );
+    }
+
+    /**
+     * Who may change them (2026-10-19): the department's own Authorized Officer, who
+     * also finalizes. The Administrator's screens are read-only.
+     */
+    private function canManage(Request $request, Department $department): bool
+    {
+        $user = $request->user();
+
+        return $user !== null
+            && ! $request->routeIs('admin.*')
+            && $user->hasRole(Role::AuthorizedOfficer->value)
+            && $user->department_id === $department->id;
+    }
+
+    private function assertCanManage(Request $request, Department $department): void
+    {
+        abort_unless($this->canManage($request, $department), 403);
+    }
+
+    /**
+     * The area the screen is shown in — the Administrator's (read-only) or the
+     * department's — so links, redirects and the layout stay in it.
+     *
+     * @return array{records: string, management: string, layout: string, canManage: bool, adminArea: bool}
+     */
+    private function context(Request $request, Department $department): array
+    {
+        $admin = $request->routeIs('admin.*');
+
+        return [
+            'records' => $admin ? 'admin.departments.vacancy-master' : 'vacancy-records',
+            'management' => $admin ? 'admin.vacancy-management' : 'vacancy-management',
+            'layout' => $admin ? 'layouts.admin' : 'layouts.app',
+            'canManage' => $this->canManage($request, $department),
+            'adminArea' => $admin,
+        ];
     }
 
     private function assertPostInDepartment(Department $department, DepartmentPost $post): void

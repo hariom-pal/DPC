@@ -9,6 +9,7 @@ use App\Domain\Dpc\Enums\VacancyPositionStatus;
 use App\Domain\Dpc\Models\VacancyPosition;
 use App\Domain\Dpc\Services\VacancyMasterService;
 use App\Domain\Master\Models\DepartmentPost;
+use App\Enums\Role;
 use App\Http\Controllers\Controller;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -16,8 +17,10 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 
 /**
- * Vacancy Management — the Administrator's one entry point to the year-wise vacancy
- * records (2026-10-17).
+ * Vacancy Management — the one entry point to the year-wise vacancy records.
+ *
+ * Since 2026-10-19 the department's Authorized Officer keeps and finalizes them (own
+ * department only); the CGPSC Administrator sees every department read-only.
  *
  * Choose Department → Post → Year and open that record's four steps (sanctioned
  * strength, working strength, vacancies, review and finalize — the existing
@@ -30,7 +33,9 @@ class VacancyManagementController extends Controller
 
     public function index(Request $request): View
     {
-        $departmentId = $request->integer('department_id') ?: null;
+        $own = $this->ownDepartmentId($request);
+        // A department's officers see their own department only.
+        $departmentId = $own ?? ($request->integer('department_id') ?: null);
         $year = $request->integer('year') ?: null;
         $status = $request->string('status')->toString();
         $search = trim($request->string('q')->toString());
@@ -51,7 +56,8 @@ class VacancyManagementController extends Controller
             ->withQueryString();
 
         return view('admin.vacancy-management.index', [
-            'departments' => Department::query()->orderBy('name')->get(['id', 'name']),
+            ...$this->area($request),
+            'departments' => Department::query()->when($own !== null, fn ($q) => $q->whereKey($own))->orderBy('name')->get(['id', 'name']),
             'posts' => $departmentId === null ? collect() : $this->postNames($departmentId),
             'years' => $this->years(),
             'records' => $records,
@@ -84,6 +90,8 @@ class VacancyManagementController extends Controller
         ]);
 
         $department = Department::query()->findOrFail($validated['department_id']);
+        $own = $this->ownDepartmentId($request);
+        abort_if($own !== null && $own !== $department->id, 403);
         $mappings = DepartmentPost::query()
             ->where('department_id', $department->id)
             ->where('name', $validated['post'])
@@ -96,7 +104,39 @@ class VacancyManagementController extends Controller
 
         $post = $this->vacancies->mappingInForce($mappings, (int) $validated['year']) ?? $mappings->first();
 
-        return redirect()->route('admin.departments.vacancy-master.show', [$department, (int) $validated['year'], $post]);
+        return redirect()->route($this->area($request)['recordsRoute'].'.show', [$department, (int) $validated['year'], $post]);
+    }
+
+    /**
+     * The Administrator sees every department (read-only); a department's officer,
+     * only their own.
+     */
+    private function ownDepartmentId(Request $request): ?int
+    {
+        if ($request->routeIs('admin.*')) {
+            return null;
+        }
+
+        $id = $request->user()?->department_id;
+        abort_if($id === null, 403);
+
+        return (int) $id;
+    }
+
+    /**
+     * @return array{recordsRoute: string, management: string, layout: string, adminArea: bool, canManage: bool}
+     */
+    private function area(Request $request): array
+    {
+        $admin = $request->routeIs('admin.*');
+
+        return [
+            'recordsRoute' => $admin ? 'admin.departments.vacancy-master' : 'vacancy-records',
+            'management' => $admin ? 'admin.vacancy-management' : 'vacancy-management',
+            'layout' => $admin ? 'layouts.admin' : 'layouts.app',
+            'adminArea' => $admin,
+            'canManage' => ! $admin && ($request->user()?->hasRole(Role::AuthorizedOfficer->value) ?? false),
+        ];
     }
 
     /**

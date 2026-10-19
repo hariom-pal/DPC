@@ -35,7 +35,7 @@ class ReservationHierarchyTest extends TestCase
     public function test_admin_can_create_a_post(): void
     {
         $admin = $this->admin();
-        $department = Department::query()->where('code', 'HE')->firstOrFail();
+        $department = Department::query()->where('code', 'SE')->firstOrFail();
 
         $this->actingAs($admin)
             ->post(route('admin.department-posts.store'), [

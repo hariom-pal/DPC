@@ -26,7 +26,7 @@
                 <dt class="col-sm-4">{{ __('vacancymaster.order') }}</dt>
                 <dd class="col-sm-8">
                     {{ $working->order_number }} · {{ $working->order_date->format('d-m-Y') }} ·
-                    <a href="{{ route('admin.departments.vacancy-master.working-strength.document', [$department, $year, $post, $working]) }}">{{ $working->original_name }}</a>
+                    <a href="{{ route($records.'.working-strength.document', [$department, $year, $post, $working]) }}">{{ $working->original_name }}</a>
                 </dd>
                 @if ($working->remarks)
                     <dt class="col-sm-4">{{ __('vacancymaster.remarks') }}</dt><dd class="col-sm-8">{{ $working->remarks }}</dd>
@@ -34,11 +34,11 @@
             </dl>
         @endif
 
-        @if ($isDraft)
+        @if ($editable)
 @php
     $focus = collect(['working_total', 'working_promotion', 'working_direct', 'working_deputation', 'order_number', 'order_date', 'document', 'remarks', 'correction_reason', 'exceeds_sanctioned_acknowledged'])->first(fn ($field) => $errors->has($field)) ?? ($errors->has('working_split') ? 'working_promotion' : null);
 @endphp
-            <form method="POST" enctype="multipart/form-data" action="{{ route('admin.departments.vacancy-master.working-strength', [$department, $year, $post]) }}">
+            <form method="POST" enctype="multipart/form-data" action="{{ route($records.'.working-strength', [$department, $year, $post]) }}">
                 @csrf
                 <div class="row g-2">
                     <div class="col-md-3">
@@ -121,7 +121,7 @@
                             <tr>
                                 <td>{{ $row->working_total }}</td>
                                 <td>{{ $row->hasQuotaSplit() ? $row->working_promotion.' / '.$row->working_direct.' / '.$row->working_deputation : '—' }}</td>
-                                <td>{{ $row->order_number }} · <a href="{{ route('admin.departments.vacancy-master.working-strength.document', [$department, $year, $post, $row]) }}">{{ $row->original_name }}</a></td>
+                                <td>{{ $row->order_number }} · <a href="{{ route($records.'.working-strength.document', [$department, $year, $post, $row]) }}">{{ $row->original_name }}</a></td>
                                 <td>{{ $row->correction_reason ?? '—' }}</td>
                                 <td>{{ $row->recorder?->name ?? '—' }}</td>
                                 <td>{{ $row->recorded_at->format('d-m-Y H:i') }}</td>

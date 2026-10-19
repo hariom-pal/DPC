@@ -8,6 +8,7 @@ use App\Domain\Dpc\Enums\VacancyEntryKind;
 use App\Domain\Dpc\Enums\VacancyPositionStatus;
 use App\Domain\Dpc\Enums\VacancyReason;
 use App\Domain\Dpc\Models\DpcProposal;
+use App\Domain\Dpc\Models\DpcWorkingOfficer;
 use App\Domain\Dpc\Models\VacancyPosition;
 use App\Domain\Dpc\ValueObjects\VacancyBreakdown;
 use Illuminate\Support\Carbon;
@@ -193,6 +194,64 @@ final class ProposalVacancyPosition
         ));
 
         return ['existing' => $sum(VacancyEntryKind::Existing->value), 'anticipated' => $sum(VacancyEntryKind::Anticipated->value)];
+    }
+
+    /**
+     * The AO's Working Officers List against the finalized record (step 1 of a
+     * Vacancy Management proposal): officers working on the post, by the quota
+     * their chair is held against, beside the record's working strength.
+     *
+     * The list is evidence that the record's working strength names real officers;
+     * the vacancy is still calculated from the record alone. `differences` holds
+     * each figure that does not agree, and `matches` is true only when a list is
+     * uploaded, a record is finalized and all four figures agree.
+     *
+     * @return array{
+     *     uploaded: array{total: int, promotion: int, direct: int, deputation: int}|null,
+     *     record: array{total: int, promotion: int, direct: int, deputation: int}|null,
+     *     differences: array<string, array{uploaded: int, record: int}>,
+     *     matches: bool
+     * }
+     */
+    public function reconcile(DpcProposal $proposal): array
+    {
+        $working = $this->for($proposal)?->breakdown['working'] ?? null;
+        $record = is_array($working) ? [
+            'total' => (int) ($working['total'] ?? 0),
+            'promotion' => (int) ($working['promotion'] ?? 0),
+            'direct' => (int) ($working['direct'] ?? 0),
+            'deputation' => (int) ($working['deputation'] ?? 0),
+        ] : null;
+
+        $officers = $proposal->workingOfficers()->get();
+        $uploaded = null;
+
+        if ($officers->isNotEmpty()) {
+            $serving = $officers->filter(fn (DpcWorkingOfficer $officer): bool => $officer->isWorking());
+            $uploaded = [
+                'total' => $serving->count(),
+                'promotion' => $serving->where('source', DpcWorkingOfficer::SOURCE_PROMOTION)->count(),
+                'direct' => $serving->where('source', DpcWorkingOfficer::SOURCE_DIRECT)->count(),
+                'deputation' => $serving->where('source', DpcWorkingOfficer::SOURCE_DEPUTATION)->count(),
+            ];
+        }
+
+        $differences = [];
+
+        if ($uploaded !== null && $record !== null) {
+            foreach (['promotion', 'direct', 'deputation', 'total'] as $figure) {
+                if ($uploaded[$figure] !== $record[$figure]) {
+                    $differences[$figure] = ['uploaded' => $uploaded[$figure], 'record' => $record[$figure]];
+                }
+            }
+        }
+
+        return [
+            'uploaded' => $uploaded,
+            'record' => $record,
+            'differences' => $differences,
+            'matches' => $uploaded !== null && $record !== null && $differences === [],
+        ];
     }
 
     private function matches(VacancyPosition $position, DpcProposal $proposal, string $postName, int $year): bool

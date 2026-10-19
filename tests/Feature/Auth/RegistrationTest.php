@@ -52,7 +52,7 @@ class RegistrationTest extends TestCase
 
     public function test_department_registration_provisions_two_accounts_and_issues_otps(): void
     {
-        $department = Department::query()->where('code', 'HE')->firstOrFail();
+        $department = Department::query()->where('code', 'SE')->firstOrFail();
 
         $this->post(route('register.store'), $this->validPayload($department))
             ->assertRedirect(route('verify.show'));
@@ -78,7 +78,7 @@ class RegistrationTest extends TestCase
 
     public function test_registration_rejects_non_government_email(): void
     {
-        $department = Department::query()->where('code', 'HE')->firstOrFail();
+        $department = Department::query()->where('code', 'SE')->firstOrFail();
         $payload = $this->validPayload($department);
         $payload['ao_email'] = 'someone@gmail.com';
 
@@ -90,7 +90,7 @@ class RegistrationTest extends TestCase
 
     public function test_registration_rejects_identical_officer_mobiles(): void
     {
-        $department = Department::query()->where('code', 'HE')->firstOrFail();
+        $department = Department::query()->where('code', 'SE')->firstOrFail();
         $payload = $this->validPayload($department);
         $payload['ah_mobile'] = $payload['ao_mobile'];
 

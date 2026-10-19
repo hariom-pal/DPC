@@ -19,6 +19,7 @@
                                 'vacancy' => app(\App\Domain\Dpc\Services\VacancyCalculationService::class)->summary($proposal),
                                 'year' => (int) ($proposal->dpc_year ?: $proposal->proposal_date->year),
                             ])
+                            @include('dpc-proposals._working-list-reconciliation', ['reconciliation' => $adminVacancy->reconcile($proposal)])
                         </div>
                     @else
                     {!! __('dpc.sections.working_officers.sanctioned_post_count', ['count' => $proposal->sanctioned_post_count ?? '—']) !!}

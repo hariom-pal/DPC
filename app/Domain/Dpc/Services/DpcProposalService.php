@@ -352,12 +352,9 @@ class DpcProposalService
     {
         $this->assertEditable($proposal);
 
-        // The Administrator's Vacancy Management record is the source for this
-        // proposal: the AO enters no working strength and no vacancy breakdown.
-        if ($proposal->usesVacancyMaster()) {
-            throw new WorkflowException(__('vacancymaster.proposal.ao_cannot_enter'));
-        }
-
+        // On a Vacancy Management proposal the list is reconciled against the
+        // finalized record (ProposalVacancyPosition::reconcile); the vacancy is still
+        // calculated from the record alone.
         DB::transaction(function () use ($proposal, $officers): void {
             $proposal->workingOfficers()->delete();
 
