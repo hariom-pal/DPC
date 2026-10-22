@@ -139,6 +139,16 @@ class PreDpcExerciseTest extends TestCase
             ->assertSessionHasErrors('dpc_year');
     }
 
+    public function test_a_dpc_year_before_2019_is_refused(): void
+    {
+        // Coder Instructions rule 1.4: reservation in promotion ended in 2019.
+        $this->actingAs($this->ao)
+            ->post(route('pre-dpc.store'), $this->payload(['dpc_year' => 2018]))
+            ->assertSessionHasErrors(['dpc_year' => __('predpc.validation.year_before_earliest', ['year' => 2019])]);
+
+        $this->assertSame(0, PreDpcProposal::query()->count());
+    }
+
     // ------------------------------------------------------------------
     // Item 10 — the Pre-DPC Number
     // ------------------------------------------------------------------

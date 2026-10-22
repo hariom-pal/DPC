@@ -119,18 +119,20 @@ class SampleDataTest extends TestCase
             'Main 4 - Waiting 3 - Not eligible 3.',
         );
 
+        // Points on the Eligible CR Grades (9/7/5/3/1) under the PPT's rules as Class
+        // Master rules: each PPT total doubled plus five, the same outcome.
         $this->assertSame(
             [
-                1 => ['Shri Ramesh Chandra Verma', 'UR', 20, 'EL', 'main'],
-                2 => ['Smt. Sunita Rani Patel', 'OBC', 18, 'EL', 'main'],
-                3 => ['Shri Jagdish Prasad Netam', 'ST', 18, 'EL', 'main'],
-                4 => ['Smt. Kavita Bhaskar', 'SC', 15, 'EL', 'main'],
-                5 => ['Shri Prakash Kumar Yadav', 'OBC', 13, 'EL', 'waiting'],
-                6 => ['Shri Naresh Kumar Markam', 'ST', 13, 'EL', 'waiting'],
-                7 => ['Smt. Anjali Shrivastava', 'UR', 14, 'EL', 'waiting'],
-                8 => ['Shri Suresh Kumar Sahu', 'OBC', 7, 'NE', 'none'],
-                9 => ['Shri Dinesh Kumar Kashyap', 'SC', 12, 'NE', 'none'],
-                10 => ['Smt. Priya Dubey', 'UR', 15, 'NE', 'none'],
+                1 => ['Shri Ramesh Chandra Verma', 'UR', 45, 'EL', 'main'],
+                2 => ['Smt. Sunita Rani Patel', 'OBC', 41, 'EL', 'main'],
+                3 => ['Shri Jagdish Prasad Netam', 'ST', 41, 'EL', 'main'],
+                4 => ['Smt. Kavita Bhaskar', 'SC', 35, 'EL', 'main'],
+                5 => ['Shri Prakash Kumar Yadav', 'OBC', 31, 'EL', 'waiting'],
+                6 => ['Shri Naresh Kumar Markam', 'ST', 31, 'EL', 'waiting'],
+                7 => ['Smt. Anjali Shrivastava', 'UR', 33, 'EL', 'waiting'],
+                8 => ['Shri Suresh Kumar Sahu', 'OBC', 19, 'NE', 'none'],
+                9 => ['Shri Dinesh Kumar Kashyap', 'SC', 29, 'NE', 'none'],
+                10 => ['Smt. Priya Dubey', 'UR', 35, 'NE', 'none'],
             ],
             $this->rowsOf($base),
         );

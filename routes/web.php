@@ -27,6 +27,7 @@ use App\Http\Controllers\Admin\ReservationPolicyController;
 use App\Http\Controllers\Admin\ReservationRosterController;
 use App\Http\Controllers\Admin\ReservationRosterPointController;
 use App\Http\Controllers\Admin\ReviewReasonController;
+use App\Http\Controllers\Admin\SealedCoverReasonController;
 use App\Http\Controllers\Admin\UserAssignmentController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\VacancyManagementController;
@@ -40,6 +41,7 @@ use App\Http\Controllers\Candidate\CandidateDpcController;
 use App\Http\Controllers\Cgpsc\AllotmentController;
 use App\Http\Controllers\Cgpsc\CirculationConsentController;
 use App\Http\Controllers\Cgpsc\CirculationDocumentController;
+use App\Http\Controllers\Cgpsc\PreviousDpcRecordController;
 use App\Http\Controllers\Cgpsc\ProceedingController;
 use App\Http\Controllers\Cgpsc\ProceedingCorrectionController;
 use App\Http\Controllers\Cgpsc\ProceedingDocumentController;
@@ -52,6 +54,7 @@ use App\Http\Controllers\Dpc\DpcCalculationController;
 use App\Http\Controllers\Dpc\DpcCommitteeMemberController;
 use App\Http\Controllers\Dpc\DpcEmployeeDetailsController;
 use App\Http\Controllers\Dpc\DpcImportController;
+use App\Http\Controllers\Dpc\DpcPromotionOrderController;
 use App\Http\Controllers\Dpc\DpcProposalController;
 use App\Http\Controllers\Dpc\DpcProposalVerificationController;
 use App\Http\Controllers\Dpc\DpcRecordGapController;
@@ -116,7 +119,24 @@ Route::prefix('self-inspection')->name('self-inspection.')->group(function (): v
 /*
  | Authenticated area
  */
+// Coder Instructions rule 4.3: the promotion order link sent to officers and committee
+// members by SMS and e-mail. Signed, so a member with no portal account can open it.
+Route::get('/promotion-orders/{order}', [DpcPromotionOrderController::class, 'public'])
+    ->middleware(['signed', 'throttle:60,1'])
+    ->name('promotion-orders.public');
+
 Route::middleware('auth')->group(function (): void {
+    // Coder Instructions rule 1.1: DPCs held offline, entered by the Commission's staff;
+    // the Administrator reads them.
+    Route::middleware('role:cgpsc_staff|admin')->prefix('previous-dpcs')->name('previous-dpcs.')->group(function (): void {
+        Route::get('/', [PreviousDpcRecordController::class, 'index'])->name('index');
+        Route::get('/create', [PreviousDpcRecordController::class, 'create'])->name('create');
+        Route::post('/', [PreviousDpcRecordController::class, 'store'])->name('store');
+        Route::get('/{previousDpc}', [PreviousDpcRecordController::class, 'show'])->name('show');
+        Route::get('/{previousDpc}/files/{file}', [PreviousDpcRecordController::class, 'file'])
+            ->whereIn('file', ['minutes', 'seniority_list', 'working_officers'])->name('file');
+    });
+
     // Reachable even while a first-login password change is pending.
     Route::get('/password/change', [PasswordChangeController::class, 'show'])->name('password.change.show');
     Route::post('/password/change', [PasswordChangeController::class, 'update'])->name('password.change.update');
@@ -396,6 +416,15 @@ Route::middleware('auth')->group(function (): void {
                     Route::post('/property', [DpcEmployeeDetailsController::class, 'savePropertyYear'])->name('property.save');
                     Route::delete('/property/{year}', [DpcEmployeeDetailsController::class, 'removePropertyYear'])->whereNumber('year')->name('property.remove');
                     Route::put('/ph', [DpcEmployeeDetailsController::class, 'savePh'])->name('ph');
+                    // Rule 2.1: the Administrative Head's decision on a PH claim.
+                    Route::post('/ph/verify', [DpcEmployeeDetailsController::class, 'verifyPh'])->name('ph.verify');
+                    // Departmental enquiry and the sealed cover (Coder Instructions rule 2.2).
+                    Route::put('/vigilance', [DpcEmployeeDetailsController::class, 'saveVigilance'])->name('vigilance');
+                    // Rule 4.4: the Administrative Head's verification of the documents.
+                    Route::post('/documents/verify', [DpcEmployeeDetailsController::class, 'verifyDocument'])->name('documents.verify-all');
+                    Route::post('/documents/{document}/verify', [DpcEmployeeDetailsController::class, 'verifyDocument'])->name('documents.verify');
+                    // Rule 2.3 (deputation without a sanctioned setup) and rule 4.4 (promotion refused).
+                    Route::put('/declarations', [DpcEmployeeDetailsController::class, 'saveDeclarations'])->name('declarations');
                     Route::post('/documents', [DpcEmployeeDetailsController::class, 'uploadDocument'])->name('documents.store');
                     Route::get('/documents/{document}', [DpcEmployeeDetailsController::class, 'download'])->name('documents.download');
                 });
@@ -403,6 +432,10 @@ Route::middleware('auth')->group(function (): void {
                  | Rule 1.1 — the department's pre-submission confirmations. A step of
                  | the proposal like S15–S18; the controller gates writes on `update`.
                  */
+                // Rule 4.3: the promotion orders, issued by the Administrative Head on the approved result.
+                Route::get('/{dpcProposal}/promotion-orders', [DpcPromotionOrderController::class, 'index'])->name('promotion-orders.index');
+                Route::post('/{dpcProposal}/promotion-orders', [DpcPromotionOrderController::class, 'store'])->name('promotion-orders.store');
+                Route::get('/{dpcProposal}/promotion-orders/{order}', [DpcPromotionOrderController::class, 'download'])->name('promotion-orders.download');
                 Route::get('/{dpcProposal}/verification', [DpcProposalVerificationController::class, 'index'])
                     ->name('verification');
                 Route::post('/{dpcProposal}/verification/{item}', [DpcProposalVerificationController::class, 'store'])
@@ -413,6 +446,11 @@ Route::middleware('auth')->group(function (): void {
                     '/{dpcProposal}/verification/{verification}/minutes',
                     [DpcProposalVerificationController::class, 'download'],
                 )->name('verification.minutes');
+                // Rule 4.4: representations and complaints about the DPC, with summaries.
+                Route::post('/{dpcProposal}/representations', [DpcProposalVerificationController::class, 'storeRepresentation'])
+                    ->name('representations.store');
+                Route::get('/{dpcProposal}/representations/{representation}', [DpcProposalVerificationController::class, 'downloadRepresentation'])
+                    ->name('representations.download');
                 // Excel import (M4 Phase 6): Preview -> Validation -> Error Report -> Commit.
                 Route::post('/{dpcProposal}/imports', [DpcImportController::class, 'store'])->name('imports.store');
                 Route::get('/{dpcProposal}/imports/{importBatch}', [DpcImportController::class, 'show'])->name('imports.show');
@@ -684,6 +722,10 @@ Route::middleware('auth')->group(function (): void {
                  */
                 Route::resource('record-reasons', RecordReasonController::class)
                     ->parameters(['record-reasons' => 'recordReason'])
+                    ->except(['show']);
+                // Departmental enquiry and the sealed cover (Coder Instructions rule 2.2).
+                Route::resource('sealed-cover-reasons', SealedCoverReasonController::class)
+                    ->parameters(['sealed-cover-reasons' => 'sealedCoverReason'])
                     ->except(['show']);
                 /*
                  | The Vacancy Type master has no screen (2026-10-17). The vacancy

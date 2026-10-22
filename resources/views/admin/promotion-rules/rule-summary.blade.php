@@ -2,12 +2,18 @@
 <dl class="row small mb-2">
     <dt class="col-sm-5">{{ __('admin.promotion_rules.counts') }}</dt>
     <dd class="col-sm-7">{{ __('admin.promotion_rules.counts_value', ['cr' => $rule->cr_years, 'loyalty' => $rule->loyalty_years, 'property' => $rule->property_years]) }}</dd>
-    <dt class="col-sm-5">{{ __('admin.promotion_rules.qualifying_average') }}</dt>
-    <dd class="col-sm-7">{{ rtrim(rtrim((string) $rule->qualifying_average, '0'), '.') }}</dd>
+    <dt class="col-sm-5">{{ __('admin.promotion_rules.qualifying_total') }}</dt>
+    <dd class="col-sm-7" data-qualifying-total>{{ $rule->qualifying_total ?? '—' }} <span class="text-muted">({{ __('admin.promotion_rules.qualifying_average') }}: {{ rtrim(rtrim((string) $rule->qualifying_average, '0'), '.') }})</span></dd>
     <dt class="col-sm-5">{{ __('admin.promotion_rules.super_seat_grade') }}</dt>
     <dd class="col-sm-7">{{ $rule->super_seat_grade ?? __('admin.promotion_rules.none') }}</dd>
     <dt class="col-sm-5">{{ __('admin.promotion_rules.tribal_bonus') }}</dt>
-    <dd class="col-sm-7">{{ $rule->tribal_bonus === 0 ? __('admin.promotion_rules.no_bonus') : $rule->tribal_bonus }}</dd>
+    <dd class="col-sm-7" data-tribal-bonus>
+        @if ($rule->tribal_bonus === 0)
+            {{ __('admin.promotion_rules.no_bonus') }}
+        @else
+            {{ __('admin.promotion_rules.tribal_value_'.($rule->tribal_bonus_basis === 'officer' ? 'officer' : 'year'), ['bonus' => $rule->tribal_bonus]) }}@if ($rule->tribal_bonus_basis !== 'officer' && $rule->tribal_bonus_skips_extremes) — {{ __('admin.promotion_rules.tribal_value_skips') }}@endif
+        @endif
+    </dd>
 </dl>
 <div class="table-responsive">
     <table class="table table-sm small align-middle mb-0">

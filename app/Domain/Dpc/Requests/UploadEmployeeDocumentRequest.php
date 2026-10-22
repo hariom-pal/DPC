@@ -37,6 +37,8 @@ class UploadEmployeeDocumentRequest extends FormRequest
             'kind' => ['required', new Enum(EvaluationDocumentKind::class)],
             'year' => ['nullable', 'integer', 'min:'.(int) config('dpc.evaluation.min_year', 1950), 'max:2200'],
             'undertaking' => ['nullable', 'boolean'],
+            // Rule 4.4: the AO verifies the document against its original on uploading it.
+            'verified' => ['accepted'],
             'remarks' => ['nullable', 'string', 'max:2000'],
             'document' => ['required', 'file', 'mimes:pdf', 'max:'.(int) config('dpc.documents.max_kb', 10240)],
         ];

@@ -10,13 +10,17 @@ use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Requests\SaveEmployeeBasicRequest;
 use App\Domain\Dpc\Requests\SaveEmployeeCrYearRequest;
+use App\Domain\Dpc\Requests\SaveEmployeeDeclarationsRequest;
 use App\Domain\Dpc\Requests\SaveEmployeePhRequest;
 use App\Domain\Dpc\Requests\SaveEmployeePropertyYearRequest;
+use App\Domain\Dpc\Requests\SaveEmployeeVigilanceRequest;
 use App\Domain\Dpc\Requests\UploadEmployeeDocumentRequest;
+use App\Domain\Dpc\Requests\VerifyPhClaimRequest;
 use App\Domain\Dpc\Services\EmployeeDetailsService;
 use App\Domain\Dpc\Services\PromotionRuleCheck;
 use App\Domain\Master\Models\RecordReason;
 use App\Domain\Master\Models\ReservationCategory;
+use App\Domain\Master\Models\SealedCoverReason;
 use App\Domain\Master\Services\PromotionCrRules;
 use App\Domain\Shared\Workflow\WorkflowException;
 use App\Enums\MasterStatus;
@@ -94,6 +98,8 @@ class DpcEmployeeDetailsController extends Controller
             'nextRow' => $statuses->get((int) $position + 1)['row'] ?? null,
             'nextPending' => $next['row'] ?? null,
             'canEdit' => request()->user()?->can('update', $dpcProposal) ?? false,
+            // Rule 4.4: the Administrative Head verifies the documents of a submitted proposal.
+            'canVerify' => request()->user()?->can('approve', $dpcProposal) ?? false,
             'categories' => ReservationCategory::query()->where('status', MasterStatus::Active->value)->orderBy('code')->get(),
             'crGrades' => (array) config('dpc.evaluation.cr_grades'),
             // Points of each grade (Eligible CR Grades, rule 3.4) for the DPC year.
@@ -101,6 +107,7 @@ class DpcEmployeeDetailsController extends Controller
             'ruleCheck' => app(PromotionRuleCheck::class)->check($evaluationRow, $dpcProposal),
             'maxReports' => (int) config('dpc.employee_details.max_crs_per_year', 4),
             'reasons' => RecordReason::query()->selectable()->get(),
+            'sealedCoverReasons' => SealedCoverReason::query()->selectable()->get(),
             'requiredCrCount' => (int) config('dpc.merit.required_cr_count', 5),
             'propertyYearsRequired' => (int) config('dpc.merit.property_return_years', 5),
             'latestYear' => (int) ($dpcProposal->dpc_year ?: $dpcProposal->proposal_date->year),
@@ -150,6 +157,20 @@ class DpcEmployeeDetailsController extends Controller
         });
     }
 
+    public function saveVigilance(SaveEmployeeVigilanceRequest $request, DpcProposal $dpcProposal, DpcEvaluationRow $evaluationRow): RedirectResponse
+    {
+        return $this->write($request, $dpcProposal, $evaluationRow, 'vigilance', function () use ($request, $evaluationRow): void {
+            $this->details->saveVigilance($evaluationRow, $request->validated(), $request->user());
+        });
+    }
+
+    public function saveDeclarations(SaveEmployeeDeclarationsRequest $request, DpcProposal $dpcProposal, DpcEvaluationRow $evaluationRow): RedirectResponse
+    {
+        return $this->write($request, $dpcProposal, $evaluationRow, 'declarations', function () use ($request, $evaluationRow): void {
+            $this->details->saveDeclarations($evaluationRow, $request->validated(), $request->user());
+        });
+    }
+
     public function uploadDocument(UploadEmployeeDocumentRequest $request, DpcProposal $dpcProposal, DpcEvaluationRow $evaluationRow): RedirectResponse
     {
         $kind = EvaluationDocumentKind::from((string) $request->validated('kind'));
@@ -158,6 +179,9 @@ class DpcEmployeeDetailsController extends Controller
             EvaluationDocumentKind::CrNrc, EvaluationDocumentKind::CrChannel => 'cr',
             EvaluationDocumentKind::PropertyReturn, EvaluationDocumentKind::PropertyLateDecision => 'property',
             EvaluationDocumentKind::PhUndertaking => 'ph',
+            EvaluationDocumentKind::VigilanceOrder => 'vigilance',
+            EvaluationDocumentKind::DeputationOrder, EvaluationDocumentKind::RefusalLetter,
+            EvaluationDocumentKind::RefusalDpcOrder => 'declarations',
             EvaluationDocumentKind::Other => 'documents',
         };
 
@@ -170,8 +194,48 @@ class DpcEmployeeDetailsController extends Controller
                 $request->boolean('undertaking'),
                 $request->input('remarks'),
                 $request->user(),
+                $request->boolean('verified'),
             );
         });
+    }
+
+    /**
+     * Rule 2.1: the Administrative Head verifies, or does not, a PH claim.
+     */
+    public function verifyPh(VerifyPhClaimRequest $request, DpcProposal $dpcProposal, DpcEvaluationRow $evaluationRow): RedirectResponse
+    {
+        $this->assertRowBelongsToProposal($dpcProposal, $evaluationRow);
+
+        try {
+            $this->details->verifyPhClaim($evaluationRow, $request->validated('decision') === 'verified', $request->validated('remarks'), $request->user());
+        } catch (WorkflowException $e) {
+            return back()->withErrors(['ph' => $e->getMessage()]);
+        }
+
+        return redirect()->to(route('dpc-proposals.employees.show', [$dpcProposal, $evaluationRow]).'#section-ph')
+            ->with('status', __('dpc.employee_details.ph.claim_decided'));
+    }
+
+    /**
+     * Rule 4.4's second verification, by the Administrative Head of a submitted
+     * proposal: one document, or every current document of the officer.
+     */
+    public function verifyDocument(Request $request, DpcProposal $dpcProposal, DpcEvaluationRow $evaluationRow, ?DpcEvaluationDocument $document = null): RedirectResponse
+    {
+        $this->authorize('approve', $dpcProposal);
+        $this->assertRowBelongsToProposal($dpcProposal, $evaluationRow);
+
+        $documents = $document !== null
+            ? collect([$document])
+            : $evaluationRow->currentDocuments()->whereNull('ah_verified_at')->get();
+
+        foreach ($documents as $item) {
+            abort_unless($item->dpc_evaluation_row_id === $evaluationRow->id, 404);
+            $this->details->verifyByHead($item, $request->user());
+        }
+
+        return redirect()->to(route('dpc-proposals.employees.show', [$dpcProposal, $evaluationRow]).'#section-documents')
+            ->with('status', __('dpc.employee_details.verification.verified'));
     }
 
     /**

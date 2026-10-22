@@ -272,6 +272,41 @@ class DpcRecordGapTest extends TestCase
         );
     }
 
+    public function test_a_suspension_needs_both_the_suspension_and_the_reinstatement_orders(): void
+    {
+        // Rule 3.2: the document follows the reason.
+        $suspended = $this->reason('suspended');
+        $this->assertTrue($suspended->requiresSecondDocument());
+        $this->assertSame(['Suspension order', 'Reinstatement order'], [$suspended->document_label_en, $suspended->second_document_label_en]);
+        $this->assertFalse($this->reason('nrc_issued')->requiresSecondDocument());
+
+        $store = fn (array $files) => $this->actingAs($this->ao)->post(
+            route('dpc-proposals.record-gaps.store', [$this->proposal, $this->row()]),
+            ['kind' => DpcEvaluationRecordGap::KIND_CR, 'year' => 2013, 'record_reason_id' => $suspended->id, ...$files],
+        );
+
+        $store(['document' => UploadedFile::fake()->create('suspension.pdf', 12, 'application/pdf')])
+            ->assertSessionHasErrors('second_document');
+        $this->assertSame(0, DpcEvaluationRecordGap::query()->count());
+
+        $store([
+            'document' => UploadedFile::fake()->create('suspension.pdf', 12, 'application/pdf'),
+            'second_document' => UploadedFile::fake()->create('reinstatement.pdf', 12, 'application/pdf'),
+        ])->assertSessionHasNoErrors();
+
+        $gap = DpcEvaluationRecordGap::query()->with('reason')->sole();
+        $this->assertTrue($gap->isJustified());
+        $this->assertSame('reinstatement.pdf', $gap->second_original_name);
+
+        $this->actingAs($this->ao)
+            ->get(route('dpc-proposals.record-gaps.download', [$this->proposal, $this->row(), $gap, 'part' => 'second']))
+            ->assertOk();
+
+        // A gap without its second order is not a justification.
+        $gap->forceFill(['second_disk' => null, 'second_path' => null])->save();
+        $this->assertFalse($gap->refresh()->isJustified());
+    }
+
     public function test_a_withdrawn_reason_cannot_be_chosen(): void
     {
         $reason = $this->reason('record_not_available');

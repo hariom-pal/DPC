@@ -72,6 +72,7 @@ class ActiveRoleService
         Role::AdministrativeHead,
         Role::Chairman,
         Role::Member,
+        Role::CgpscStaff,
         Role::Admin,
         Role::PromotionCandidate,
         Role::Individual,

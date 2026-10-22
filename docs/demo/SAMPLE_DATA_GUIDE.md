@@ -94,26 +94,27 @@ year with no CR on record looks like.
 
 ### The result the engine produces
 
-Qualifying mark for Class II → Class I is **13**. Marks are क+ 4 · क 3 · ख 2 · ग 1 ·
-घ 0, plus one for tribal-area service in the same CR year.
+Qualifying total for Class II → Class I is **31** (the Class Master promotion rule). Points
+are the Eligible CR Grades — क+ 9 · क 7 · ख 5 · ग 3 · घ 1 — plus two for tribal-area
+service in the same CR year.
 
 | SN | Officer | Cat | Score | Outcome |
 |---:|---|---|---:|---|
-| 1 | Shri Ramesh Chandra Verma | UR | 20 | **Main** · Super Seat — क+ in all five years |
-| 2 | Smt. Sunita Rani Patel | OBC | 18 | **Main** |
-| 3 | Shri Jagdish Prasad Netam | ST | 18 | **Main** — 17 on CR, +1 tribal area |
-| 4 | Smt. Kavita Bhaskar | SC | 15 | **Main** |
-| 5 | Shri Prakash Kumar Yadav | OBC | 13 | Waiting |
-| 6 | Shri Naresh Kumar Markam | ST | 13 | Waiting — 12 on CR, +1 tribal area |
-| 7 | Smt. Anjali Shrivastava | UR | 14 | Waiting |
-| 8 | Shri Suresh Kumar Sahu | OBC | 7 | Not eligible — below the qualifying mark |
-| 9 | Shri Dinesh Kumar Kashyap | SC | 12 | Not eligible — **घ in 2023**, refused outright |
-| 10 | Smt. Priya Dubey | UR | 15 | Not eligible — **under five years** on the feeder post |
+| 1 | Shri Ramesh Chandra Verma | UR | 45 | **Main** · Super Seat — क+ in all five years |
+| 2 | Smt. Sunita Rani Patel | OBC | 41 | **Main** |
+| 3 | Shri Jagdish Prasad Netam | ST | 41 | **Main** — 39 on CR, +2 tribal area |
+| 4 | Smt. Kavita Bhaskar | SC | 35 | **Main** |
+| 5 | Shri Prakash Kumar Yadav | OBC | 31 | Waiting |
+| 6 | Shri Naresh Kumar Markam | ST | 31 | Waiting — 29 on CR, +2 tribal area |
+| 7 | Smt. Anjali Shrivastava | UR | 33 | Waiting |
+| 8 | Shri Suresh Kumar Sahu | OBC | 19 | Not eligible — below the qualifying mark |
+| 9 | Shri Dinesh Kumar Kashyap | SC | 29 | Not eligible — **घ in 2023**, refused outright |
+| 10 | Smt. Priya Dubey | UR | 35 | Not eligible — **under five years** on the feeder post |
 
 **Main 4** — exactly the four vacancies. **Waiting 3. Not eligible 3**, each for a
 different reason, which is the point of showing all three.
 
-Note SN 9: a score of 12 is computed and then set aside. An adverse CR anywhere in the
+Note SN 9: a score of 29 is computed and then set aside. An adverse CR anywhere in the
 window is a gate, not a deduction.
 
 ---

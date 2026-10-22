@@ -14,6 +14,7 @@ use App\Domain\Dpc\Enums\DpcProposalStatus;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\PreDpc\Enums\PreDpcStatus;
 use App\Domain\PreDpc\Models\PreDpcProposal;
+use App\Domain\PreviousDpc\Models\PreviousDpcRecord;
 use App\Domain\Proceeding\Enums\DpcProceedingStatus;
 use App\Domain\Proceeding\Models\DpcProceeding;
 use App\Domain\Proceeding\Models\DpcProceedingHold;
@@ -69,6 +70,21 @@ class DashboardSummaryService
 
         if ($user->hasRole(Role::Admin->value)) {
             $groups[] = $this->administrationGroup();
+        }
+
+        // Rule 1.1: the Commission's staff enter DPCs held offline.
+        if ($user->hasRole(Role::CgpscStaff->value)) {
+            $groups[] = [
+                'title' => 'Previous DPCs',
+                'subtitle' => 'DPCs held offline before the portal (rule 1.1)',
+                'cards' => [[
+                    'label' => 'Previous DPCs recorded',
+                    'value' => PreviousDpcRecord::query()->count(),
+                    'hint' => 'Record one with its minutes, order and officers promoted',
+                    'href' => route('previous-dpcs.index'),
+                    'tone' => 'muted',
+                ]],
+            ];
         }
 
         return $groups;

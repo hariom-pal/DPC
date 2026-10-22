@@ -194,7 +194,7 @@ class ReadyDpcSeeder extends Seeder
 
     /**
      * Class II → Class I from DPC year 2026: the last five years' CR, Property Return
-     * and Loyalty, each year mandatory, and an average of at least ख (5).
+     * and Loyalty, each year mandatory, and a total of at least 25 points (ख, 5, a year).
      *
      * The Coder Instructions leave these figures to master data (rule 3.5); they are a
      * starting point the Administrator corrects on Class Master → Promotion rules.
@@ -221,7 +221,7 @@ class ReadyDpcSeeder extends Seeder
             'cr_years' => 5,
             'loyalty_years' => 5,
             'property_years' => 5,
-            'qualifying_average' => '5',
+            'qualifying_total' => '25',
             'super_seat_grade' => '9',
             'tribal_bonus' => '0',
             'remarks' => 'Seeded starting point; figures to be confirmed by the Administrator.',

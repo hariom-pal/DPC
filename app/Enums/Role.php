@@ -47,6 +47,12 @@ enum Role: string
      */
     case PromotionCandidate = 'promotion_candidate';
 
+    /**
+     * The Commission's staff (Coder Instructions rule 1.1, 2026-10-21): enters a DPC
+     * held offline before the portal, so a department's reconciliation can cite it.
+     */
+    case CgpscStaff = 'cgpsc_staff';
+
     public function label(): string
     {
         return match ($this) {
@@ -57,6 +63,7 @@ enum Role: string
             self::Member => 'Member, CGPSC',
             self::Individual => 'Individual under Consideration',
             self::PromotionCandidate => 'Promotion Candidate',
+            self::CgpscStaff => 'CGPSC Staff',
         };
     }
 
@@ -112,7 +119,7 @@ enum Role: string
      */
     public static function provisionable(): array
     {
-        return [self::Admin, self::Chairman, self::Member, self::AuthorizedOfficer, self::AdministrativeHead];
+        return [self::Admin, self::Chairman, self::Member, self::CgpscStaff, self::AuthorizedOfficer, self::AdministrativeHead];
     }
 
     /**

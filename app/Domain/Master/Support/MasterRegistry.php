@@ -14,6 +14,7 @@ use App\Domain\Master\Models\Qualification;
 use App\Domain\Master\Models\RecordReason;
 use App\Domain\Master\Models\ReservationCategory;
 use App\Domain\Master\Models\ReviewReason;
+use App\Domain\Master\Models\SealedCoverReason;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -136,6 +137,22 @@ final class MasterRegistry
                 unique: ['code'],
                 sample: [
                     ['code' => 'CR_MISSING', 'name_en' => 'CR not available', 'name_hi' => 'सीआर उपलब्ध नहीं', 'requires_remarks' => '1', 'sort_order' => '10', 'status' => 'active'],
+                ],
+            ),
+
+            new MasterDefinition(
+                key: 'sealed-cover-reasons',
+                label: 'Sealed Cover Reasons',
+                model: SealedCoverReason::class,
+                columns: [
+                    'code' => 'code', 'name_en' => 'name_en', 'name_hi' => 'name_hi', 'effect' => 'effect',
+                    'requires_document' => 'requires_document', 'sort_order' => 'sort_order', 'status' => 'status',
+                ],
+                required: ['code', 'name_en', 'effect'],
+                searchable: ['name_en', 'name_hi', 'code'],
+                unique: ['code'],
+                sample: [
+                    ['code' => 'de_chargesheet', 'name_en' => 'Departmental enquiry instituted and charge-sheet issued', 'name_hi' => 'विभागीय जाँच प्रारंभ एवं आरोप-पत्र जारी', 'effect' => 'sealed_cover', 'requires_document' => '1', 'sort_order' => '10', 'status' => 'active'],
                 ],
             ),
 

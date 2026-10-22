@@ -71,6 +71,65 @@ class DpcEvaluationCrGrade extends Model
     }
 
     /**
+     * The grades this year's CRs carry: each report's highest available authority
+     * (Accepting, else Reviewing, else Reporting); a year entered on the Evaluation
+     * Chart, without reports, its own grade.
+     *
+     * @return list<string>
+     */
+    public function finalGrades(): array
+    {
+        $grades = array_values(array_filter(array_map(
+            static fn (array $report): ?string => self::finalGradeOf($report),
+            (array) $this->reports,
+        )));
+
+        return $grades === [] && $this->grade !== null && $this->grade !== '' ? [$this->grade] : $grades;
+    }
+
+    /**
+     * @param  array<string, string|null>  $report
+     */
+    public static function finalGradeOf(array $report): ?string
+    {
+        foreach (['accepting_grade', 'reviewer_grade', 'reporter_grade'] as $role) {
+            if (($report[$role] ?? null) !== null && $report[$role] !== '') {
+                return $report[$role];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * The year's points on the Eligible CR Grades (rule 3.4): several CRs averaged,
+     * the decimal dropped (rule 3.1). Null when the year carries no grade, or a grade
+     * the points do not name.
+     *
+     * @param  array<string, int>  $points  grade code => points
+     */
+    public function pointsOn(array $points): ?int
+    {
+        $grades = $this->finalGrades();
+
+        if ($grades === []) {
+            return null;
+        }
+
+        $values = [];
+
+        foreach ($grades as $grade) {
+            if (! isset($points[$grade])) {
+                return null;
+            }
+
+            $values[] = $points[$grade];
+        }
+
+        return intdiv(array_sum($values), count($values));
+    }
+
+    /**
      * @return BelongsTo<DpcEvaluationRow, $this>
      */
     public function row(): BelongsTo

@@ -70,6 +70,20 @@
                         @case('seniority_list')
                             {{ __('dpc.verification.figures.seniority', ['count' => $summary['seniority_entered']]) }}
                             @break
+                        @case('representations')
+                            {{ __('dpc.verification.figures.representations', ['count' => $representations->count()]) }}
+                            @break
+                        @case('original_documents')
+                            {{ __('dpc.verification.figures.original_documents') }}
+                            @break
+                        @case('recruitment_rule_conformity')
+                            {{ $rule === null
+                                ? __('dpc.verification.figures.rule_missing')
+                                : __('dpc.verification.figures.rule', ['version' => $rule->version, 'go' => $rule->government_order_number]) }}
+                            @if ($latest?->rr_notified_on && $entry['confirmed'])
+                                — {{ __('dpc.verification.figures.rr_notified_on', ['date' => $latest->rr_notified_on->format('d-m-Y')]) }}
+                            @endif
+                            @break
                         @default
                             {{ __('dpc.verification.figures.working', ['count' => $summary['working']]) }}
                     @endswitch
@@ -77,6 +91,56 @@
 
                 @if ($entry['stale'])
                     <div class="alert alert-warning py-2 small">{{ __('dpc.verification.stale_help') }}</div>
+                @endif
+
+                @if ($item->value === 'representations')
+                    {{-- Rule 4.4: each representation or complaint, with its summary. --}}
+                    @error('representation')<div class="alert alert-danger py-2 small">{{ $message }}</div>@enderror
+                    @if ($representations->isNotEmpty())
+                        <div class="table-responsive mb-2">
+                            <table class="table table-sm small mb-0" id="representations-list">
+                                <thead><tr>
+                                    <th>{{ __('dpc.representations.received_from') }}</th>
+                                    <th>{{ __('dpc.representations.received_on') }}</th>
+                                    <th>{{ __('dpc.representations.summary') }}</th>
+                                    <th>{{ __('dpc.representations.document') }}</th>
+                                </tr></thead>
+                                <tbody>
+                                    @foreach ($representations as $representation)
+                                        <tr>
+                                            <td>{{ $representation->received_from ?? '—' }}</td>
+                                            <td>{{ $representation->received_on?->format('d-m-Y') ?? '—' }}</td>
+                                            <td>{{ $representation->summary }}</td>
+                                            <td><a href="{{ route('dpc-proposals.representations.download', [$proposal, $representation]) }}">{{ $representation->original_name }}</a></td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @endif
+                    @if ($canEdit)
+                        <form method="POST" enctype="multipart/form-data" class="border rounded p-2 mb-2 row g-2 align-items-end"
+                              action="{{ route('dpc-proposals.representations.store', $proposal) }}">
+                            @csrf
+                            <div class="col-md-4">
+                                <label class="form-label small" for="received_from">{{ __('dpc.representations.received_from') }}</label>
+                                <input type="text" class="form-control form-control-sm" id="received_from" name="received_from" maxlength="255">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small" for="received_on">{{ __('dpc.representations.received_on') }}</label>
+                                <input type="date" class="form-control form-control-sm" id="received_on" name="received_on">
+                            </div>
+                            <div class="col-md-5">
+                                <label class="form-label small" for="representation-document">{{ __('dpc.representations.document') }}</label>
+                                <input type="file" accept="application/pdf" class="form-control form-control-sm" id="representation-document" name="document" required>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label small" for="representation-summary">{{ __('dpc.representations.summary') }}</label>
+                                <textarea class="form-control form-control-sm" id="representation-summary" name="summary" rows="2" maxlength="2000" required></textarea>
+                            </div>
+                            <div class="col-12"><button class="btn btn-outline-primary btn-sm">{{ __('dpc.representations.upload') }}</button></div>
+                        </form>
+                    @endif
                 @endif
 
                 @if ($latest?->previous_dpc_basis && $entry['confirmed'])
@@ -140,6 +204,23 @@
                                     </div>
                                 </div>
 
+                                @if ($previousRecords->isNotEmpty())
+                                    {{-- Rule 1.1: a previous DPC the Commission's staff recorded. --}}
+                                    <div class="mb-3 col-md-8">
+                                        <label class="form-label" for="previous_dpc_record_id">{{ __('previous_dpc.verification.record') }}</label>
+                                        <select class="form-select @error('previous_dpc_record_id') is-invalid @enderror" id="previous_dpc_record_id" name="previous_dpc_record_id">
+                                            <option value="">{{ __('previous_dpc.verification.none') }}</option>
+                                            @foreach ($previousRecords as $previousRecord)
+                                                <option value="{{ $previousRecord->id }}" @selected((int) old('previous_dpc_record_id') === $previousRecord->id)>
+                                                    {{ $previousRecord->reference }} — {{ $previousRecord->held_on->format('d-m-Y') }} ({{ $previousRecord->dpc_year }})
+                                                </option>
+                                            @endforeach
+                                        </select>
+                                        <div class="form-text">{{ __('previous_dpc.verification.record_help') }}</div>
+                                        @error('previous_dpc_record_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                    </div>
+                                @endif
+
                                 <div class="row">
                                     <div class="col-md-4 mb-3">
                                         <label class="form-label" for="previous_dpc_reference">{{ __('dpc.verification.previous_dpc.reference') }}</label>
@@ -159,6 +240,15 @@
                                                id="minutes" name="minutes">
                                         @error('minutes')<div class="invalid-feedback">{{ $message }}</div>@enderror
                                     </div>
+                                </div>
+                            @endif
+
+                            @if ($item->value === 'recruitment_rule_conformity')
+                                <div class="mb-2 col-md-4">
+                                    <label class="form-label" for="rr_notified_on">{{ __('dpc.verification.items.recruitment_rule_conformity.date_label') }}</label>
+                                    <input type="date" class="form-control @error('rr_notified_on') is-invalid @enderror" id="rr_notified_on" name="rr_notified_on" required
+                                           value="{{ old('rr_notified_on') }}">
+                                    @error('rr_notified_on')<div class="invalid-feedback">{{ $message }}</div>@enderror
                                 </div>
                             @endif
 

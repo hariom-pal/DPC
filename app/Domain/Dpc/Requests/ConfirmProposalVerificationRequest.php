@@ -34,6 +34,10 @@ class ConfirmProposalVerificationRequest extends FormRequest
             'remarks' => ['nullable', 'string', 'max:2000'],
         ];
 
+        if ($this->route('item') === ProposalVerificationItem::RecruitmentRuleConformity->value) {
+            return $rules + ['rr_notified_on' => ['required', 'date', 'before_or_equal:today']];
+        }
+
         if ($this->route('item') !== ProposalVerificationItem::PreviousDpcReconciliation->value) {
             return $rules;
         }
@@ -47,20 +51,21 @@ class ConfirmProposalVerificationRequest extends FormRequest
                 'nullable',
                 'integer',
             ],
+            'previous_dpc_record_id' => ['nullable', 'integer'],
             'previous_dpc_reference' => [
-                Rule::requiredIf(fn (): bool => $this->input('previous_dpc_basis') === PreviousDpcBasis::Offline->value),
+                Rule::requiredIf(fn (): bool => $this->input('previous_dpc_basis') === PreviousDpcBasis::Offline->value && ! $this->filled('previous_dpc_record_id')),
                 'nullable',
                 'string',
                 'max:120',
             ],
             'previous_dpc_held_on' => [
-                Rule::requiredIf(fn (): bool => $this->input('previous_dpc_basis') === PreviousDpcBasis::Offline->value),
+                Rule::requiredIf(fn (): bool => $this->input('previous_dpc_basis') === PreviousDpcBasis::Offline->value && ! $this->filled('previous_dpc_record_id')),
                 'nullable',
                 'date',
                 'before_or_equal:today',
             ],
             'minutes' => [
-                Rule::requiredIf(fn (): bool => $this->input('previous_dpc_basis') === PreviousDpcBasis::Offline->value),
+                Rule::requiredIf(fn (): bool => $this->input('previous_dpc_basis') === PreviousDpcBasis::Offline->value && ! $this->filled('previous_dpc_record_id')),
                 'nullable',
                 'file',
                 'mimes:pdf',

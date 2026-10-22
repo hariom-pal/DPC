@@ -33,6 +33,8 @@ use App\Domain\Proceeding\Policies\DpcProceedingPolicy;
 use App\Domain\Proceeding\Services\ProceedingCalculationService;
 use App\Domain\Proceeding\Services\ProceedingDocumentService;
 use App\Domain\Proceeding\Services\ResultApprovalService;
+use App\Domain\PromotionOrder\Events\PromotionOrderIssued;
+use App\Domain\PromotionOrder\Listeners\SendPromotionOrderLink;
 use App\Domain\Review\Documents\ReviewAwareDocumentRenderer;
 use App\Domain\Review\Events\DpcSupersededByReview;
 use App\Domain\Review\Listeners\SendSupersessionNotification;
@@ -216,6 +218,8 @@ class AppServiceProvider extends ServiceProvider
          | actually receive today.
          */
         Event::listen(DpcSittingScheduled::class, AnnounceSittingToParticipants::class);
+        // Rule 4.3: the promotion order's link to the officers and the committee.
+        Event::listen(PromotionOrderIssued::class, SendPromotionOrderLink::class);
 
         if (Feature::Notifications->enabled()) {
             Event::listen(WorkflowTransitioned::class, SendWorkflowNotification::class);

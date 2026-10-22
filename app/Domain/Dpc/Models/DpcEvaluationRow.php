@@ -6,6 +6,7 @@ namespace App\Domain\Dpc\Models;
 
 use App\Domain\Dpc\Enums\PhReservationOutcome;
 use App\Domain\Master\Models\ReservationCategory;
+use App\Domain\Master\Models\SealedCoverReason;
 use App\Domain\Proceeding\Models\DpcCandidateCall;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -51,6 +52,21 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $ph_recorded_at
  * @property int|null $cr_channel_undertaking_by
  * @property Carbon|null $cr_channel_undertaking_at
+ * @property bool|null $vigilance_pending rule 2.2: null not answered, false nothing pending, true a matter is pending
+ * @property int|null $sealed_cover_reason_id
+ * @property Carbon|null $vigilance_date
+ * @property string|null $vigilance_remarks
+ * @property Carbon|null $vigilance_recorded_at
+ * @property-read SealedCoverReason|null $sealedCoverReason
+ * @property string|null $dob_order_number
+ * @property Carbon|null $dob_order_date
+ * @property string|null $joining_order_number
+ * @property Carbon|null $joining_order_date
+ * @property Carbon|null $service_record_undertaking_at
+ * @property bool|null $unsanctioned_deputation rule 2.3
+ * @property bool $refused_promotion rule 4.4
+ * @property int|null $refused_promotion_year
+ * @property Carbon|null $declarations_recorded_at
  */
 class DpcEvaluationRow extends Model
 {
@@ -84,10 +100,37 @@ class DpcEvaluationRow extends Model
         'ph_final_decision',
         'ph_recorded_by',
         'ph_recorded_at',
+        // Rule 2.1: the Administrative Head's verification of a claim.
+        'ph_verified_by',
+        'ph_verified_at',
+        'ph_verification_remarks',
 
         // Page 3 — the undertaking that the officer's CRs are signed as per channel.
         'cr_channel_undertaking_by',
         'cr_channel_undertaking_at',
+
+        // Rule 2.2 — departmental enquiry and the sealed cover.
+        'vigilance_pending',
+        'sealed_cover_reason_id',
+        'vigilance_date',
+        'vigilance_remarks',
+        'vigilance_recorded_by',
+        'vigilance_recorded_at',
+
+        // Rule 4.4 — the orders behind the date of birth and of joining.
+        'dob_order_number',
+        'dob_order_date',
+        'joining_order_number',
+        'joining_order_date',
+        'service_record_undertaking_by',
+        'service_record_undertaking_at',
+
+        // Rule 2.3 and rule 4.4 — deputation without a sanctioned setup; promotion refused.
+        'unsanctioned_deputation',
+        'refused_promotion',
+        'refused_promotion_year',
+        'declarations_recorded_by',
+        'declarations_recorded_at',
     ];
 
     /**
@@ -106,7 +149,18 @@ class DpcEvaluationRow extends Model
             'ph_previously_availed' => 'boolean',
             'ph_claims_reservation' => 'boolean',
             'ph_recorded_at' => 'datetime',
+            'ph_verified_at' => 'datetime',
             'cr_channel_undertaking_at' => 'datetime',
+            'vigilance_pending' => 'boolean',
+            'vigilance_date' => 'date',
+            'vigilance_recorded_at' => 'datetime',
+            'dob_order_date' => 'date',
+            'joining_order_date' => 'date',
+            'service_record_undertaking_at' => 'datetime',
+            'unsanctioned_deputation' => 'boolean',
+            'refused_promotion' => 'boolean',
+            'refused_promotion_year' => 'integer',
+            'declarations_recorded_at' => 'datetime',
         ];
     }
 
@@ -116,6 +170,42 @@ class DpcEvaluationRow extends Model
     public function proposal(): BelongsTo
     {
         return $this->belongsTo(DpcProposal::class, 'dpc_proposal_id');
+    }
+
+    /**
+     * The pending departmental enquiry, charge-sheet, show-cause or suspension the
+     * Authorized Officer recorded (rule 2.2).
+     *
+     * @return BelongsTo<SealedCoverReason, $this>
+     */
+    public function sealedCoverReason(): BelongsTo
+    {
+        return $this->belongsTo(SealedCoverReason::class)->withTrashed();
+    }
+
+    /**
+     * Whether the DPC's finding on this officer is kept in a sealed cover (rule 2.2).
+     */
+    /**
+     * Rule 4.4: the officer refused promotion to this post in the year before the DPC
+     * year, which makes the officer unfit for it.
+     */
+    public function refusedPromotionLastYear(): bool
+    {
+        $year = $this->proposal?->dpc_year ?: $this->proposal?->proposal_date?->year;
+
+        return $this->refused_promotion === true && $year !== null && $this->refused_promotion_year === (int) $year - 1;
+    }
+
+    /** Rule 2.1: a PH claim the Administrative Head has verified — the officer competes for a PH seat. */
+    public function holdsVerifiedPhClaim(): bool
+    {
+        return $this->phOutcome()->isClaim() && $this->ph_verification_status === 'verified';
+    }
+
+    public function isUnderSealedCover(): bool
+    {
+        return $this->vigilance_pending === true && $this->sealedCoverReason?->sealsTheCover() === true;
     }
 
     /**

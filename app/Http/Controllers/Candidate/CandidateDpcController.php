@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Candidate;
 
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Eligibility\Enums\ListType;
+use App\Domain\Eligibility\Enums\RemarkCode;
 use App\Domain\Eligibility\Models\DpcCalculationResult;
 use App\Domain\Proceeding\Models\DpcProceeding;
 use App\Domain\Proceeding\Models\DpcProceedingDocument;
@@ -203,7 +204,7 @@ class CandidateDpcController extends Controller
         }
 
         return [
-            'promoted' => $result->list_type === ListType::Main,
+            'promoted' => $result->list_type === ListType::Main && $result->status() !== RemarkCode::SealedCover,
             'declared_at' => $published->published_at,
         ];
     }

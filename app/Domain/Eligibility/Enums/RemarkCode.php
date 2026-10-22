@@ -62,6 +62,14 @@ enum RemarkCode: string
      */
     case Rejected = 'RJ';
 
+    /**
+     * Sealed Cover — a departmental enquiry with a charge-sheet, or a police
+     * charge-sheet before a court, is pending (Coder Instructions rule 2.2). The
+     * officer is assessed, the finding is kept in a sealed cover, and the seat the
+     * officer would take is held. Not `SC`, which is a reservation category code.
+     */
+    case SealedCover = 'SCOVER';
+
     public function label(): string
     {
         return match ($this) {
@@ -70,6 +78,7 @@ enum RemarkCode: string
             self::SuperSeat => 'Super Seat',
             self::Circulation => 'CIR',
             self::Rejected => 'Rejected',
+            self::SealedCover => 'Sealed Cover',
         };
     }
 
@@ -81,6 +90,7 @@ enum RemarkCode: string
             self::SuperSeat => 'text-bg-primary',
             self::Circulation => 'text-bg-warning',
             self::Rejected => 'text-bg-danger',
+            self::SealedCover => 'text-bg-dark',
         };
     }
 
@@ -95,7 +105,8 @@ enum RemarkCode: string
     {
         return $this === self::Eligible
             || $this === self::SuperSeat
-            || $this === self::Circulation;
+            || $this === self::Circulation
+            || $this === self::SealedCover;
     }
 
     /**

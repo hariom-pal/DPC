@@ -27,6 +27,8 @@ final class ScoreBreakdown
         public readonly int $total,
         public readonly int $scoringYearsRequired,
         public readonly array $yearsWithoutGrade = [],
+        /** @var list<int> The years the tribal posting bonus was given for (a per-year rule). */
+        public readonly array $tribalBonusYears = [],
     ) {}
 
     /**
@@ -70,6 +72,6 @@ final class ScoreBreakdown
             'scoring_years_required' => $this->scoringYearsRequired,
             'years_without_grade' => $this->yearsWithoutGrade,
             'incomplete_window' => $this->hasIncompleteWindow(),
-        ];
+        ] + ($this->tribalBonusYears === [] ? [] : ['tribal_bonus_years' => $this->tribalBonusYears]);
     }
 }

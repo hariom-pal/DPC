@@ -45,6 +45,8 @@ class StoreVacancyEntryRequest extends FormRequest
 
             'higher_post_id' => [Rule::requiredIf($reasonIs(VacancyReason::HigherPostPromotion)), 'nullable', 'integer'],
             'higher_dpc_reference' => [Rule::requiredIf($reasonIs(VacancyReason::HigherPostPromotion)), 'nullable', 'string', 'max:60'],
+            // Rule 1.2: the undertaking that the higher post's DPC is forwarded or the promotion finalized.
+            'higher_post_undertaking' => ['accepted_if:reason,'.VacancyReason::HigherPostPromotion->value],
             'promotion_order_number' => ['nullable', 'string', 'max:120'],
             'promotion_order_date' => ['nullable', 'date', 'before_or_equal:today'],
 
@@ -75,6 +77,7 @@ class StoreVacancyEntryRequest extends FormRequest
             'reconciliation' => __('vacancymaster.entries.reconciliation'),
             'higher_post_id' => __('vacancymaster.entries.higher_post'),
             'higher_dpc_reference' => __('vacancymaster.entries.higher_dpc_reference'),
+            'higher_post_undertaking' => __('vacancymaster.entries.higher_undertaking'),
             'promotion_order_number' => __('vacancymaster.entries.promotion_order_number'),
             'promotion_order_date' => __('vacancymaster.entries.promotion_order_date'),
             'deputation_to' => __('vacancymaster.entries.deputation_to'),

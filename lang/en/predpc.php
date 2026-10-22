@@ -103,6 +103,7 @@ return [
     'validation' => [
         'only_a_draft_can_be_deleted' => 'Only a draft Pre-DPC can be deleted. Cancel it instead — a proposal that has been submitted stays on the record.',
         'qualification_required' => 'Choose at least one qualification this feeder accepts.',
+        'year_before_earliest' => 'Reservation in promotion ended in 2019 (rule 1.4): a DPC for a year before :year is not taken in this software.',
         'feeder_not_below_post' => ':from cannot feed :to. A promotion goes from a lower grade to a higher one. :reason',
     ],
 ];

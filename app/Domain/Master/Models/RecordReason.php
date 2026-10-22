@@ -64,6 +64,11 @@ class RecordReason extends Model implements Auditable
         'name_hi',
         'requires_remarks',
         'sort_order',
+        // Rule 3.2: the document this reason is justified with, and a second where it needs two.
+        'document_label_en',
+        'document_label_hi',
+        'second_document_label_en',
+        'second_document_label_hi',
     ];
 
     /**
@@ -102,6 +107,22 @@ class RecordReason extends Model implements Auditable
      * does the same: a reason issued in English first should still be usable rather
      * than showing an empty option.
      */
+    /** Rule 3.2: whether a gap with this reason needs a second document (e.g. the reinstatement order). */
+    public function requiresSecondDocument(): bool
+    {
+        return $this->second_document_label_en !== null && $this->second_document_label_en !== '';
+    }
+
+    public function documentLabel(): ?string
+    {
+        return app()->getLocale() === 'hi' && ($this->document_label_hi ?? '') !== '' ? $this->document_label_hi : $this->document_label_en;
+    }
+
+    public function secondDocumentLabel(): ?string
+    {
+        return app()->getLocale() === 'hi' && ($this->second_document_label_hi ?? '') !== '' ? $this->second_document_label_hi : $this->second_document_label_en;
+    }
+
     public function label(): string
     {
         if (app()->getLocale() === 'hi' && $this->name_hi !== '') {

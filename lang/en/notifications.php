@@ -24,6 +24,10 @@ return [
         'notifications_are_also_sent_by_sms_and_e_mail_on' => 'Notifications are also sent by SMS and e-mail once those gateways are
                 connected. This list does not depend on them.',
     ],
+    'promotion_order' => [
+        'subject' => 'Promotion order :number issued',
+        'message' => 'Promotion order :number dated :date for the post of :post has been issued. Open the order: :link',
+    ],
     'sitting' => [
         // Business clarification of 2026-09-05: the message the committee and the
         // candidates receive when the DPC Allottee fixes or moves the sitting.

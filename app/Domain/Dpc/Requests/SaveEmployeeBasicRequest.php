@@ -35,6 +35,12 @@ class SaveEmployeeBasicRequest extends FormRequest
             'qualification' => ['nullable', 'string', 'max:255'],
             'mobile' => ['nullable', 'string', 'regex:/^[6-9]\d{9}$/'],
             'date_of_posting_on_promotion_from_post' => ['nullable', 'date', 'before_or_equal:today'],
+            // Rule 4.4: the orders behind the date of birth and of joining, and the undertaking.
+            'dob_order_number' => ['nullable', 'string', 'max:120'],
+            'dob_order_date' => ['nullable', 'date', 'before_or_equal:today'],
+            'joining_order_number' => ['nullable', 'string', 'max:120'],
+            'joining_order_date' => ['nullable', 'date', 'before_or_equal:today'],
+            'service_record_undertaking' => ['nullable', 'boolean'],
         ];
     }
 }

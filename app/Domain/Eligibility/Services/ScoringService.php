@@ -25,9 +25,7 @@ class ScoringService
 
         $baseTotal = array_sum($marksByYear);
 
-        // §5.2 — a single bonus for having served in a tribal area, not one
-        // per year. "+1 (else NO CHANGE)".
-        $bonus = $officer->hasTribalAreaService() ? $rules->tribalAreaBonus : 0;
+        [$bonus, $bonusYears] = $this->tribalBonus($officer, $rules, $marksByYear);
 
         return new ScoreBreakdown(
             yearsUsed: $yearsUsed,
@@ -37,7 +35,44 @@ class ScoringService
             total: $baseTotal + $bonus,
             scoringYearsRequired: $rules->scoringYears,
             yearsWithoutGrade: $yearsWithoutGrade,
+            tribalBonusYears: $bonusYears,
         );
+    }
+
+    /**
+     * The tribal posting bonus.
+     *
+     * PPT §5.2: a single bonus for having served in a tribal area, not one per year —
+     * "+1 (else NO CHANGE)". A Class Master rule on the per-year basis (2026-10-21)
+     * gives it for each scored CR year served in a tribal area, and, when the rule
+     * says so, not for a year whose points are the highest or the lowest grade's.
+     *
+     * @param  array<int, int>  $marksByYear
+     * @return array{0: int, 1: list<int>}
+     */
+    private function tribalBonus(OfficerRecord $officer, RuleSet $rules, array $marksByYear): array
+    {
+        $rule = $rules->classRule;
+
+        if ($rule === null || $rule['tribal_bonus_basis'] !== 'year') {
+            return [$officer->hasTribalAreaService() ? $rules->tribalAreaBonus : 0, []];
+        }
+
+        $years = [];
+
+        foreach ($marksByYear as $year => $mark) {
+            if (($officer->tribalAreaByYear[$year] ?? null) !== true) {
+                continue;
+            }
+
+            if ($rule['tribal_bonus_skips_extremes'] && ($mark === $rule['highest_points'] || $mark === $rule['lowest_points'])) {
+                continue;
+            }
+
+            $years[] = (int) $year;
+        }
+
+        return [$rules->tribalAreaBonus * count($years), $years];
     }
 
     /**
@@ -62,7 +97,9 @@ class ScoringService
         $ungraded = [];
 
         foreach ($officer->crGrades as $year => $grade) {
-            $mark = $rules->markFor($grade);
+            // Under a Class Master rule a year's points come from its CRs, so a year
+            // of several CRs scores their average even where no single grade has it.
+            $mark = $officer->crPoints[$year] ?? $rules->markFor($grade);
 
             if ($mark === null) {
                 $ungraded[] = (int) $year;

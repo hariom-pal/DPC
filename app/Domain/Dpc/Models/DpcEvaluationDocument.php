@@ -65,6 +65,11 @@ class DpcEvaluationDocument extends Model implements Auditable
         'uploaded_at',
         'superseded_at',
         'superseded_by_id',
+        // Rule 4.4: two verifications — the AO's on upload, the AH's before approval.
+        'ao_verified_by',
+        'ao_verified_at',
+        'ah_verified_by',
+        'ah_verified_at',
     ];
 
     /**
@@ -89,6 +94,8 @@ class DpcEvaluationDocument extends Model implements Auditable
             'undertaking_confirmed_at' => 'datetime',
             'uploaded_at' => 'datetime',
             'superseded_at' => 'datetime',
+            'ao_verified_at' => 'datetime',
+            'ah_verified_at' => 'datetime',
         ];
     }
 

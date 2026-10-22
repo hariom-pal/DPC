@@ -112,10 +112,10 @@
             <div class="card-header bg-white"><strong>4. {{ __('admin.promotion_rules.step_marks') }}</strong></div>
             <div class="card-body row g-3">
                 <div class="col-md-3">
-                    <label class="form-label" for="qualifying_average">{{ __('admin.promotion_rules.qualifying_average') }}</label>
-                    <input type="number" step="0.01" min="0" class="form-control @error('qualifying_average') is-invalid @enderror" id="qualifying_average" name="qualifying_average"
-                           value="{{ $val('qualifying_average', $current ? rtrim(rtrim((string) $current->qualifying_average, '0'), '.') : '') }}" required>
-                    @error('qualifying_average')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    <label class="form-label" for="qualifying_total">{{ __('admin.promotion_rules.qualifying_total') }}</label>
+                    <input type="number" step="1" min="1" class="form-control @error('qualifying_total') is-invalid @enderror" id="qualifying_total" name="qualifying_total"
+                           value="{{ $val('qualifying_total', $current?->qualifying_total ?? '') }}" required>
+                    @error('qualifying_total')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     <div class="form-text">{{ __('admin.promotion_rules.qualifying_help') }}</div>
                 </div>
                 <div class="col-md-4">
@@ -134,6 +134,15 @@
                     <input type="number" min="0" max="10" class="form-control @error('tribal_bonus') is-invalid @enderror" id="tribal_bonus" name="tribal_bonus" value="{{ $val('tribal_bonus', $current?->tribal_bonus ?? 0) }}" required>
                     @error('tribal_bonus')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     <div class="form-text">{{ __('admin.promotion_rules.tribal_help') }}</div>
+                </div>
+                <div class="col-md-6">
+                    <input type="hidden" name="tribal_bonus_skips_extremes" value="0">
+                    <div class="form-check mt-md-4">
+                        <input class="form-check-input" type="checkbox" id="tribal_bonus_skips_extremes" name="tribal_bonus_skips_extremes" value="1"
+                               @checked((bool) $val('tribal_bonus_skips_extremes', $current?->tribal_bonus_skips_extremes ?? true))>
+                        <label class="form-check-label" for="tribal_bonus_skips_extremes">{{ __('admin.promotion_rules.tribal_skips_extremes') }}</label>
+                    </div>
+                    <div class="form-text">{{ __('admin.promotion_rules.tribal_skips_extremes_help') }}</div>
                 </div>
                 <div class="col-12">
                     <label class="form-label" for="remarks">{{ __('ui.remarks') }}</label>

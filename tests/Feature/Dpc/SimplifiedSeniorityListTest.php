@@ -300,7 +300,7 @@ class SimplifiedSeniorityListTest extends TestCase
             'record_reason_id' => RecordReason::query()->value('id'),
             'disk' => 'local', 'path' => 'x.pdf', 'original_name' => 'x.pdf', 'size_bytes' => 1, 'sha256' => str_repeat('a', 64),
         ]);
-        $details->upload($three, EvaluationDocumentKind::Other, null, UploadedFile::fake()->create('note.pdf', 10, 'application/pdf'), false, 'A note', $this->ao);
+        $details->upload($three, EvaluationDocumentKind::Other, null, UploadedFile::fake()->create('note.pdf', 10, 'application/pdf'), false, 'A note', $this->ao, true);
 
         // Re-ordered: E-2 moves to 1, E-3 is dropped, E-4 joins.
         $batch = $this->upload([

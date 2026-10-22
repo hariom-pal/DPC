@@ -28,6 +28,7 @@ use RuntimeException;
 use Tests\Concerns\RaisesDpcProposals;
 use Tests\Concerns\SanctionsVacancies;
 use Tests\Concerns\SeedsEvaluationCharts;
+use Tests\Concerns\UsesPptPromotionRules;
 use Tests\TestCase;
 
 /**
@@ -40,6 +41,7 @@ class DpcCalculationTest extends TestCase
     use RefreshDatabase;
     use SanctionsVacancies;
     use SeedsEvaluationCharts;
+    use UsesPptPromotionRules;
 
     private Department $department;
 

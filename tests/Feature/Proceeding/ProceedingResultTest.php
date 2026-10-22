@@ -36,6 +36,7 @@ use Illuminate\Support\Facades\Event;
 use OwenIt\Auditing\Models\Audit;
 use RuntimeException;
 use Tests\Concerns\SeatsDpcCommittees;
+use Tests\Concerns\UsesPptPromotionRules;
 use Tests\TestCase;
 
 /**
@@ -52,6 +53,7 @@ class ProceedingResultTest extends TestCase
 {
     use RefreshDatabase;
     use SeatsDpcCommittees;
+    use UsesPptPromotionRules;
 
     private User $chairman;
 

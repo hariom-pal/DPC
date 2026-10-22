@@ -32,6 +32,7 @@ use Illuminate\Support\Facades\Config;
 use Tests\Concerns\RecordsSanctionedStrength;
 use Tests\Concerns\SeatsDpcCommittees;
 use Tests\Concerns\SeedsEvaluationCharts;
+use Tests\Concerns\UsesPptPromotionRules;
 
 /**
  * A department, a Commission, an approved proposal and an open sitting —
@@ -47,6 +48,7 @@ trait BuildsProceedings
     use RefreshDatabase;
     use SeatsDpcCommittees;
     use SeedsEvaluationCharts;
+    use UsesPptPromotionRules;
 
     protected Department $department;
 

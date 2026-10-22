@@ -7,8 +7,11 @@ namespace App\Http\Controllers\Dpc;
 use App\Domain\Dpc\Enums\PreviousDpcBasis;
 use App\Domain\Dpc\Enums\ProposalVerificationItem;
 use App\Domain\Dpc\Models\DpcProposal;
+use App\Domain\Dpc\Models\DpcProposalRepresentation;
 use App\Domain\Dpc\Models\DpcProposalVerification;
 use App\Domain\Dpc\Requests\ConfirmProposalVerificationRequest;
+use App\Domain\Dpc\Requests\UploadRepresentationRequest;
+use App\Domain\Dpc\Services\ProposalRepresentationService;
 use App\Domain\Dpc\Services\ProposalVerificationService;
 use App\Domain\Dpc\Services\VacancyCalculationService;
 use App\Domain\Dpc\Services\VacancyEngine;
@@ -50,9 +53,34 @@ class DpcProposalVerificationController extends Controller
             'summary' => $this->vacancies->summary($dpcProposal),
             'rule' => $this->engine->recruitmentRule($dpcProposal),
             'previousCandidates' => $this->verification->previousDpcCandidates($dpcProposal),
+            // Rule 1.1: offline DPCs the Commission's staff recorded for this post.
+            'previousRecords' => $this->verification->previousDpcRecords($dpcProposal),
             'bases' => PreviousDpcBasis::cases(),
             'canEdit' => $request->user()->can('update', $dpcProposal),
+            // Rule 4.4: representations and complaints received about the DPC.
+            'representations' => DpcProposalRepresentation::query()->where('dpc_proposal_id', $dpcProposal->id)
+                ->with('uploader')->orderBy('id')->get(),
         ]);
+    }
+
+    public function storeRepresentation(UploadRepresentationRequest $request, DpcProposal $dpcProposal, ProposalRepresentationService $representations): RedirectResponse
+    {
+        try {
+            $representations->upload($dpcProposal, $request->safe()->except('document'), $request->file('document'), $request->user());
+        } catch (WorkflowException $e) {
+            return redirect()->route('dpc-proposals.verification', $dpcProposal)->withErrors(['representation' => $e->getMessage()]);
+        }
+
+        return redirect()->to(route('dpc-proposals.verification', $dpcProposal).'#verification-representations')
+            ->with('status', __('dpc.representations.uploaded'));
+    }
+
+    public function downloadRepresentation(DpcProposal $dpcProposal, DpcProposalRepresentation $representation): StreamedResponse
+    {
+        $this->authorize('view', $dpcProposal);
+        abort_unless($representation->dpc_proposal_id === $dpcProposal->id, 404);
+
+        return Storage::disk($representation->disk)->download($representation->path, $representation->original_name);
     }
 
     public function store(ConfirmProposalVerificationRequest $request, DpcProposal $dpcProposal, string $item): RedirectResponse
@@ -71,8 +99,10 @@ class DpcProposalVerificationController extends Controller
                     'proposal_id' => $request->filled('previous_dpc_proposal_id') ? $request->integer('previous_dpc_proposal_id') : null,
                     'reference' => $request->input('previous_dpc_reference'),
                     'held_on' => $request->input('previous_dpc_held_on'),
+                    'record_id' => $request->filled('previous_dpc_record_id') ? $request->integer('previous_dpc_record_id') : null,
                 ],
                 $request->file('minutes'),
+                $request->input('rr_notified_on'),
             );
         } catch (WorkflowException $e) {
             return redirect()->route('dpc-proposals.verification', $dpcProposal)

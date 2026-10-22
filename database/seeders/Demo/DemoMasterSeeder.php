@@ -20,6 +20,7 @@ use App\Domain\PreDpc\Services\PreDpcProposalService;
 use App\Enums\MasterStatus;
 use App\Enums\Role;
 use App\Enums\ServiceClass;
+use Database\Seeders\Support\PptPromotionRules;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -128,6 +129,11 @@ class DemoMasterSeeder extends Seeder
     {
         $this->reservationPolicies();
         $this->cgpscChairman();
+
+        // The PPT's rules as Class Master promotion rules, on the Eligible CR Grades'
+        // 9/7/5/3/1: each PPT total (on 4/3/2/1/0) doubled plus five, the tribal
+        // bonus doubled — the same officers qualify (points = 2 × marks + 1).
+        PptPromotionRules::record(['I-I' => 35, 'II-I' => 31, 'II-II' => 27, 'default' => 25], tribalBonus: 2, superSeatPoints: 9);
 
         $department = Department::query()->where('code', 'SE')->firstOrFail();
 

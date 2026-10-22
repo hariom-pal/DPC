@@ -67,6 +67,19 @@
                     </div>
                 </div>
 
+                {{-- Rule 3.2: the document(s) this reason is justified with. --}}
+                <div class="row">
+                    @foreach (['document_label_en', 'document_label_hi', 'second_document_label_en', 'second_document_label_hi'] as $documentField)
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="{{ $documentField }}">{{ __('admin.record_reasons.'.$documentField) }}</label>
+                            <input type="text" maxlength="255" class="form-control @error($documentField) is-invalid @enderror"
+                                   id="{{ $documentField }}" name="{{ $documentField }}" value="{{ old($documentField, $reason->{$documentField}) }}">
+                            @error($documentField)<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                    @endforeach
+                    <div class="col-12 form-text mb-3">{{ __('admin.record_reasons.documents_help') }}</div>
+                </div>
+
                 <button type="submit" class="btn btn-success">{{ __('ui.save') }}</button>
                 <a href="{{ route('admin.record-reasons.index') }}"
                    class="btn btn-outline-secondary">{{ __('ui.cancel') }}</a>

@@ -27,6 +27,7 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Testing\TestResponse;
 use Tests\Concerns\RaisesDpcProposals;
 use Tests\Concerns\RecordsSanctionedStrength;
+use Tests\Concerns\UsesPptPromotionRules;
 use Tests\TestCase;
 
 /**
@@ -53,6 +54,7 @@ class DpcVacancyCalculationTest extends TestCase
     use RaisesDpcProposals;
     use RecordsSanctionedStrength;
     use RefreshDatabase;
+    use UsesPptPromotionRules;
 
     private Department $department;
 

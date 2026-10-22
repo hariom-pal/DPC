@@ -68,6 +68,16 @@ final class OfficerRecord
         public readonly ?int $serviceMonthsOnFeederPost = null,
         public readonly ?int $requiredExperienceMonths = null,
         public readonly ?int $requiredPromotionDurationMonths = null,
+        /** @var array<int, int> Each CR year's points on the Eligible CR Grades (Class Master rule runs). */
+        public readonly array $crPoints = [],
+        /** Why the finding is kept in a sealed cover (rule 2.2), or null. */
+        public readonly ?string $sealedCover = null,
+        /** Rule 2.3: on deputation without a sanctioned setup. */
+        public readonly bool $unsanctionedDeputation = false,
+        /** Rule 4.4: refused promotion to this post in the year before the DPC year. */
+        public readonly bool $refusedPromotionLastYear = false,
+        /** Rule 2.1: a PH claim verified by the Administrative Head — competes for a PH seat. */
+        public readonly bool $phSeat = false,
     ) {}
 
     /**
@@ -79,18 +89,29 @@ final class OfficerRecord
      * when the proposal records no rule — in which case those gates have nothing to
      * check and are skipped, rather than failing everybody.
      */
-    public static function fromEvaluationRow(DpcEvaluationRow $row, ?RecruitmentRuleSource $source = null): self
+    /**
+     * @param  array<string, int>|null  $gradePoints  grade code => points; given, each CR year also
+     *                                                carries its points (several CRs averaged, rule 3.1)
+     */
+    public static function fromEvaluationRow(DpcEvaluationRow $row, ?RecruitmentRuleSource $source = null, ?array $gradePoints = null): self
     {
         $row->loadMissing(
             'crGrades', 'reservationCategory', 'loyaltyFlags', 'propertyFlags',
-            'recordGaps.reason',
+            'recordGaps.reason', 'sealedCoverReason',
         );
 
         $grades = [];
+        $points = [];
         $tribalByYear = [];
 
         foreach ($row->crGrades as $crGrade) {
             $grades[$crGrade->year] = $crGrade->grade;
+
+            $yearPoints = $gradePoints === null ? null : $crGrade->pointsOn($gradePoints);
+
+            if ($yearPoints !== null) {
+                $points[$crGrade->year] = $yearPoints;
+            }
 
             if ($crGrade->tribal_area !== null) {
                 $tribalByYear[$crGrade->year] = (bool) $crGrade->tribal_area;
@@ -119,7 +140,7 @@ final class OfficerRecord
         $loyaltyGaps = [];
 
         foreach ($row->recordGaps as $gap) {
-            if (! $gap->hasDocument()) {
+            if (! $gap->isJustified()) {
                 continue;
             }
 
@@ -165,6 +186,13 @@ final class OfficerRecord
              */
             requiredExperienceMonths: $source?->minExperienceInMonths(),
             requiredPromotionDurationMonths: self::promotionDurationMonths($row),
+            crPoints: $points,
+            sealedCover: $row->isUnderSealedCover()
+                ? trim($row->sealedCoverReason?->name_en.($row->vigilance_date ? ' ('.$row->vigilance_date->format('d-m-Y').')' : ''))
+                : null,
+            unsanctionedDeputation: $row->unsanctioned_deputation === true,
+            refusedPromotionLastYear: $row->refusedPromotionLastYear(),
+            phSeat: $row->holdsVerifiedPhClaim(),
         );
     }
 

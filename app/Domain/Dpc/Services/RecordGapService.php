@@ -60,6 +60,7 @@ class RecordGapService
         ?string $remarks,
         ?UploadedFile $file,
         User $actor,
+        ?UploadedFile $secondFile = null,
     ): DpcEvaluationRecordGap {
         if (! in_array($kind, DpcEvaluationRecordGap::kinds(), true)) {
             throw new RuntimeException("Unknown record kind [{$kind}].");
@@ -79,11 +80,16 @@ class RecordGapService
             );
         }
 
+        // Rule 3.2: a reason that needs two documents (a suspension) needs both.
+        if ($reason->requiresSecondDocument() && $secondFile === null) {
+            throw new RuntimeException("The reason [{$reason->code}] requires a second document.");
+        }
+
         if ($reason->requires_remarks && trim((string) $remarks) === '') {
             throw new RuntimeException("The reason [{$reason->code}] requires remarks.");
         }
 
-        return DB::transaction(function () use ($row, $kind, $year, $reason, $remarks, $file, $actor): DpcEvaluationRecordGap {
+        return DB::transaction(function () use ($row, $kind, $year, $reason, $remarks, $file, $actor, $secondFile): DpcEvaluationRecordGap {
             $disk = (string) config('dpc.documents.disk', 'local');
             $contents = (string) file_get_contents($file->getRealPath());
 
@@ -94,6 +100,24 @@ class RecordGapService
 
             if ($path === false) {
                 throw new RuntimeException('The supporting document could not be stored.');
+            }
+
+            $second = ['second_disk' => null, 'second_path' => null, 'second_original_name' => null, 'second_size_bytes' => null, 'second_sha256' => null];
+
+            if ($reason->requiresSecondDocument() && $secondFile !== null) {
+                $secondPath = Storage::disk($disk)->putFile(sprintf('private/record-gaps/%d', $row->dpc_proposal_id), $secondFile);
+
+                if ($secondPath === false) {
+                    throw new RuntimeException('The second supporting document could not be stored.');
+                }
+
+                $second = [
+                    'second_disk' => $disk,
+                    'second_path' => $secondPath,
+                    'second_original_name' => mb_substr((string) $secondFile->getClientOriginalName(), 0, 255),
+                    'second_size_bytes' => $secondFile->getSize() ?: 0,
+                    'second_sha256' => hash('sha256', (string) file_get_contents($secondFile->getRealPath())),
+                ];
             }
 
             $gap = DpcEvaluationRecordGap::query()->updateOrCreate(
@@ -115,6 +139,7 @@ class RecordGapService
                     'size_bytes' => $file->getSize() ?: 0,
                     'sha256' => hash('sha256', $contents),
                     'recorded_by' => $actor->id,
+                    ...$second,
                 ],
             );
 

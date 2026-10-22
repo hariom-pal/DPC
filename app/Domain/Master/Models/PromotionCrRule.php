@@ -27,6 +27,9 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property int $loyalty_years
  * @property int $property_years
  * @property string $qualifying_average
+ * @property int|null $qualifying_total
+ * @property string $tribal_bonus_basis `year` (each tribal CR year) or `officer` (one bonus, the PPT's)
+ * @property bool $tribal_bonus_skips_extremes no bonus for a year at the highest or the lowest grade
  * @property int|null $super_seat_grade
  * @property int $tribal_bonus
  * @property string|null $remarks
@@ -40,7 +43,7 @@ class PromotionCrRule extends Model implements Auditable
 
     protected $fillable = [
         'to_class', 'from_class', 'effective_from_year', 'cr_years', 'loyalty_years', 'property_years',
-        'qualifying_average', 'super_seat_grade', 'tribal_bonus', 'remarks', 'recorded_by',
+        'qualifying_average', 'qualifying_total', 'super_seat_grade', 'tribal_bonus', 'tribal_bonus_basis', 'tribal_bonus_skips_extremes', 'remarks', 'recorded_by',
     ];
 
     /**
@@ -67,6 +70,8 @@ class PromotionCrRule extends Model implements Auditable
             'loyalty_years' => 'integer',
             'property_years' => 'integer',
             'qualifying_average' => 'decimal:2',
+            'qualifying_total' => 'integer',
+            'tribal_bonus_skips_extremes' => 'boolean',
             'super_seat_grade' => 'integer',
             'tribal_bonus' => 'integer',
         ];

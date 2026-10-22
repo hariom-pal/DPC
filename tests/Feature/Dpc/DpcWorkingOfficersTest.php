@@ -25,6 +25,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use RuntimeException;
 use Tests\Concerns\CompletesDpcProposals;
 use Tests\Concerns\RaisesDpcProposals;
+use Tests\Concerns\UsesPptPromotionRules;
 use Tests\TestCase;
 
 class DpcWorkingOfficersTest extends TestCase
@@ -32,6 +33,7 @@ class DpcWorkingOfficersTest extends TestCase
     use CompletesDpcProposals;
     use RaisesDpcProposals;
     use RefreshDatabase;
+    use UsesPptPromotionRules;
 
     private Department $department;
 

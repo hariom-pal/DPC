@@ -20,6 +20,7 @@ use App\Domain\Dpc\Services\PromotionRuleCheck;
 use App\Domain\Master\Models\CrGradeValue;
 use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\PromotionCrRule;
+use App\Domain\Master\Models\PromotionCrRuleYear;
 use App\Domain\Master\Models\RecordReason;
 use App\Domain\Master\Models\ReservationCategory;
 use App\Domain\Master\Models\ReservationPolicy;
@@ -93,7 +94,7 @@ class EmployeeDetailsTest extends TestCase
 
     private function upload(EvaluationDocumentKind $kind, ?int $year = null, bool $undertaking = true, array $extra = []): TestResponse
     {
-        return $this->actingAs($this->ao)->post($this->route('documents.store'), array_merge([
+        return $this->actingAs($this->ao)->post($this->route('documents.store'), array_merge(['verified' => '1',
             'kind' => $kind->value,
             'year' => $year,
             'undertaking' => $undertaking ? '1' : '0',
@@ -162,6 +163,10 @@ class EmployeeDetailsTest extends TestCase
         $this->actingAs($this->ao)->put($this->route('basic'), [
             'reservation_category_id' => $category->id,
             'date_of_posting_on_promotion_from_post' => '2015-06-01',
+            // Rule 4.4: the service-record orders and the undertaking.
+            'dob_order_number' => 'SR/1', 'dob_order_date' => '1995-07-01',
+            'joining_order_number' => 'APPT/1', 'joining_order_date' => '1995-07-01',
+            'service_record_undertaking' => '1',
         ])->assertSessionHasNoErrors();
 
         $this->saveCr(2023, [self::report('क')])->assertSessionHasNoErrors();
@@ -387,11 +392,11 @@ class EmployeeDetailsTest extends TestCase
         }
 
         $file = UploadedFile::fake()->createWithContent('ipr.pdf', '%PDF-1.4 same bytes');
-        $this->actingAs($this->ao)->post($this->route('documents.store'), ['kind' => 'property_return', 'year' => 2022, 'document' => $file])
+        $this->actingAs($this->ao)->post($this->route('documents.store'), ['verified' => '1', 'kind' => 'property_return', 'year' => 2022, 'document' => $file])
             ->assertSessionHasNoErrors();
 
         $again = UploadedFile::fake()->createWithContent('ipr-copy.pdf', '%PDF-1.4 same bytes');
-        $this->actingAs($this->ao)->post($this->route('documents.store'), ['kind' => 'property_return', 'year' => 2023, 'document' => $again])
+        $this->actingAs($this->ao)->post($this->route('documents.store'), ['verified' => '1', 'kind' => 'property_return', 'year' => 2023, 'document' => $again])
             ->assertSessionHasErrors('property');
     }
 
@@ -544,12 +549,12 @@ class EmployeeDetailsTest extends TestCase
     {
         $this->answerPh(['is_ph' => '1', 'ph_previously_availed' => '0', 'ph_claims_reservation' => '1']);
 
-        $this->actingAs($this->ao)->post($this->route('documents.store'), [
+        $this->actingAs($this->ao)->post($this->route('documents.store'), ['verified' => '1',
             'kind' => 'ph_undertaking', 'undertaking' => '1',
             'document' => UploadedFile::fake()->create('undertaking.exe', 10, 'application/x-msdownload'),
         ])->assertSessionHasErrors('document');
 
-        $this->actingAs($this->ao)->post($this->route('documents.store'), [
+        $this->actingAs($this->ao)->post($this->route('documents.store'), ['verified' => '1',
             'kind' => 'ph_undertaking', 'undertaking' => '1',
             'document' => $this->pdf('big.pdf', (int) config('dpc.documents.max_kb') + 1),
         ])->assertSessionHasErrors('document');
@@ -603,7 +608,7 @@ class EmployeeDetailsTest extends TestCase
         $this->actingAs($this->ah)->put($this->route('ph'), ['is_ph' => '0'])->assertForbidden();
         $this->actingAs($this->ah)->post($this->route('cr.save'), ['year' => 2023, 'put_up' => '0'])->assertForbidden();
         $this->actingAs($this->ah)->post($this->route('property.save'), ['year' => 2023, 'submitted' => '0'])->assertForbidden();
-        $this->actingAs($this->ah)->post($this->route('documents.store'), ['kind' => 'other', 'remarks' => 'x', 'document' => $this->pdf()])->assertForbidden();
+        $this->actingAs($this->ah)->post($this->route('documents.store'), ['verified' => '1', 'kind' => 'other', 'remarks' => 'x', 'document' => $this->pdf()])->assertForbidden();
 
         $this->assertNull($this->row->refresh()->is_ph);
     }
@@ -616,7 +621,7 @@ class EmployeeDetailsTest extends TestCase
         $this->actingAs($intruder)->get(route('dpc-proposals.employees.index', $this->proposal))->assertForbidden();
         $this->actingAs($intruder)->get($this->route('show'))->assertForbidden();
         $this->actingAs($intruder)->put($this->route('ph'), ['is_ph' => '0'])->assertForbidden();
-        $this->actingAs($intruder)->post($this->route('documents.store'), ['kind' => 'other', 'remarks' => 'x', 'document' => $this->pdf()])->assertForbidden();
+        $this->actingAs($intruder)->post($this->route('documents.store'), ['verified' => '1', 'kind' => 'other', 'remarks' => 'x', 'document' => $this->pdf()])->assertForbidden();
     }
 
     public function test_other_roles_and_guests_are_refused(): void
@@ -677,6 +682,84 @@ class EmployeeDetailsTest extends TestCase
         $this->assertSame(DpcProposalStatus::Approved, $this->proposal->refresh()->status, 'The Administrative Head\'s stage is unchanged.');
     }
 
+    public function test_the_ao_verifies_each_document_on_upload(): void
+    {
+        // Rule 4.4: the first of two verifications.
+        $this->actingAs($this->ao)->post($this->route('documents.store'), [
+            'kind' => 'other', 'remarks' => 'Service book extract', 'document' => $this->pdf(),
+        ])->assertSessionHasErrors('verified');
+
+        $this->upload(EvaluationDocumentKind::Other, null, true, ['remarks' => 'Service book extract'])->assertSessionHasNoErrors();
+
+        $document = DpcEvaluationDocument::query()->sole();
+        $this->assertSame($this->ao->id, $document->ao_verified_by);
+        $this->assertNull($document->ah_verified_at, 'The Administrative Head\'s verification comes later.');
+    }
+
+    public function test_the_administrative_head_verifies_every_document_before_approving(): void
+    {
+        $this->makeProposalSubmittable($this->proposal, $this->ao);
+        $this->actingAs($this->ao)->post(route('dpc-proposals.submit', $this->proposal))->assertSessionHasNoErrors();
+
+        // One document still waits for the AH.
+        $document = DpcEvaluationDocument::query()->where('dpc_proposal_id', $this->proposal->id)->current()->firstOrFail();
+        $document->forceFill(['ah_verified_at' => null, 'ah_verified_by' => null])->save();
+        $row = $document->row;
+        $route = fn (string $name, array $extra = []): string => route("dpc-proposals.employees.{$name}", [$this->proposal, $row, ...$extra]);
+
+        $this->actingAs($this->ah)->post(route('dpc-proposals.approve', $this->proposal))
+            ->assertSessionHasErrors();
+        $this->assertSame(DpcProposalStatus::Submitted, $this->proposal->refresh()->status);
+
+        // The AO cannot give the second verification.
+        $this->actingAs($this->ao)->post($route('documents.verify', [$document]))->assertForbidden();
+
+        $this->actingAs($this->ah)->get($route('show'))
+            ->assertOk()
+            ->assertSee('id="verify-all-documents"', false);
+        $this->actingAs($this->ah)->post($route('documents.verify-all'))->assertSessionHasNoErrors();
+        $this->assertSame($this->ah->id, $document->refresh()->ah_verified_by);
+
+        $this->actingAs($this->ah)->post(route('dpc-proposals.approve', $this->proposal))->assertSessionHasNoErrors();
+        $this->assertSame(DpcProposalStatus::Approved, $this->proposal->refresh()->status);
+    }
+
+    public function test_the_administrative_head_decides_every_ph_claim_before_approving(): void
+    {
+        $this->makeProposalSubmittable($this->proposal, $this->ao);
+        $row = $this->proposal->evaluationRows()->orderBy('sn')->firstOrFail();
+        $row->forceFill([
+            'is_ph' => true, 'ph_previously_availed' => false, 'ph_claims_reservation' => true,
+            'ph_verification_status' => 'pending', 'ph_final_decision' => null,
+        ])->save();
+        // The PH declaration every PH employee needs, verified twice.
+        DpcEvaluationDocument::query()->create([
+            'dpc_proposal_id' => $this->proposal->id, 'dpc_evaluation_row_id' => $row->id, 'employee_number' => $row->employee_number,
+            'kind' => EvaluationDocumentKind::PhUndertaking->value, 'undertaking_confirmed_at' => now(),
+            'disk' => 'local', 'path' => 'ph.pdf', 'original_name' => 'ph.pdf', 'size_bytes' => 1, 'sha256' => str_repeat('b', 64),
+            'uploaded_by' => $this->ao->id, 'uploaded_at' => now(), 'ao_verified_at' => now(), 'ah_verified_at' => now(),
+        ]);
+        // A new document makes the original-documents undertaking stale; it is given again.
+        $this->makeProposalSubmittable($this->proposal, $this->ao);
+        $this->actingAs($this->ao)->post(route('dpc-proposals.submit', $this->proposal))->assertSessionHasNoErrors();
+
+        // Rule 2.1: not approved while a claim waits.
+        $this->actingAs($this->ah)->post(route('dpc-proposals.approve', $this->proposal))->assertSessionHasErrors();
+        $this->assertSame(DpcProposalStatus::Submitted, $this->proposal->refresh()->status);
+
+        $verify = route('dpc-proposals.employees.ph.verify', [$this->proposal, $row]);
+        $this->actingAs($this->ao)->post($verify, ['decision' => 'verified'])->assertForbidden();
+        $this->actingAs($this->ah)->post($verify, ['decision' => 'not_verified'])->assertSessionHasErrors('remarks');
+        $this->actingAs($this->ah)->post($verify, ['decision' => 'verified', 'remarks' => 'Certificate checked.'])->assertSessionHasNoErrors();
+
+        $row->refresh();
+        $this->assertSame(['verified', 'benefit', $this->ah->id], [$row->ph_verification_status, $row->ph_final_decision, $row->ph_verified_by]);
+        $this->assertTrue($row->holdsVerifiedPhClaim());
+
+        $this->actingAs($this->ah)->post(route('dpc-proposals.approve', $this->proposal))->assertSessionHasNoErrors();
+        $this->assertSame(DpcProposalStatus::Approved, $this->proposal->refresh()->status);
+    }
+
     public function test_the_section_can_be_stood_down(): void
     {
         config(['dpc.employee_details.required_for_submission' => false]);
@@ -692,12 +775,12 @@ class EmployeeDetailsTest extends TestCase
      * A Class I → Class I rule in force for the 2026 DPC: the two CR years 2025 and
      * 2024, each mandatory with a minimum.
      */
-    private function promotionRule(int $min = 5, string $average = '6', int $loyaltyYears = 0, int $propertyYears = 0): PromotionCrRule
+    private function promotionRule(int $min = 5, int $total = 12, int $loyaltyYears = 0, int $propertyYears = 0): PromotionCrRule
     {
         $rule = PromotionCrRule::query()->create([
             'to_class' => 'I', 'from_class' => 'I', 'effective_from_year' => 2026,
             'cr_years' => 2, 'loyalty_years' => $loyaltyYears, 'property_years' => $propertyYears,
-            'qualifying_average' => $average, 'super_seat_grade' => 9, 'tribal_bonus' => 1,
+            'qualifying_total' => $total, 'qualifying_average' => $total / 2, 'super_seat_grade' => 9, 'tribal_bonus' => 1,
         ]);
 
         foreach ([1, 2] as $before) {
@@ -706,6 +789,9 @@ class EmployeeDetailsTest extends TestCase
                 'loyalty_mandatory' => $before <= $loyaltyYears, 'property_mandatory' => $before <= $propertyYears,
             ]);
         }
+
+        // The proposal is held to the rule fixed on it.
+        $this->proposal->forceFill(['promotion_cr_rule_id' => $rule->id])->save();
 
         return $rule;
     }
@@ -742,7 +828,7 @@ class EmployeeDetailsTest extends TestCase
         $check = $this->ruleCheck();
         $this->assertSame('meets', $check['status']);
         $this->assertSame([7, 9], array_column($check['years'], 'points'));
-        $this->assertSame(8.0, $check['average']);
+        $this->assertSame(16, $check['total']);
 
         $this->actingAs($this->ao)->get($this->route('show'))
             ->assertOk()
@@ -756,7 +842,7 @@ class EmployeeDetailsTest extends TestCase
 
     public function test_the_highest_available_authority_counts_within_a_cr(): void
     {
-        $this->promotionRule(min: 1, average: '1');
+        $this->promotionRule(min: 1, total: 2);
         // Accepting क+ over a Reporting घ; without an Accepting remark the Reviewing one.
         $this->saveCr(2025, [array_merge(self::report('घ'), ['accepting_grade' => 'क+'])])->assertSessionHasNoErrors();
         $this->saveCr(2024, [array_merge(self::report('घ'), ['reviewer_grade' => 'ख', 'accepting_designation' => null, 'accepting_grade' => null])]);
@@ -766,7 +852,7 @@ class EmployeeDetailsTest extends TestCase
 
     public function test_several_crs_in_a_year_are_averaged_with_the_decimal_dropped(): void
     {
-        $this->promotionRule(min: 1, average: '1');
+        $this->promotionRule(min: 1, total: 2);
         // क+ (9) and ग (3): 6. क+ (9) and क (7) and ग (3): 19 / 3 → 6.
         $this->saveCr(2025, [self::report('क+'), self::report('ग')])->assertSessionHasNoErrors();
         $this->saveCr(2024, [self::report('क+'), self::report('क'), self::report('ग')])->assertSessionHasNoErrors();
@@ -776,7 +862,7 @@ class EmployeeDetailsTest extends TestCase
 
     public function test_a_cr_below_the_years_minimum_does_not_meet_the_rule(): void
     {
-        $this->promotionRule(min: 7, average: '1');
+        $this->promotionRule(min: 7, total: 2);
         $this->saveCr(2025, [self::report('ख')])->assertSessionHasNoErrors();
         $this->saveCr(2024, [self::report('क')])->assertSessionHasNoErrors();
 
@@ -798,20 +884,20 @@ class EmployeeDetailsTest extends TestCase
         $this->assertContains(__('dpc.employee_details.rule.cr_missing', ['year' => 2024]), $check['findings']);
     }
 
-    public function test_an_average_below_the_qualifying_average_does_not_meet_the_rule(): void
+    public function test_a_total_below_the_qualifying_total_does_not_meet_the_rule(): void
     {
-        $this->promotionRule(min: 1, average: '8');
+        $this->promotionRule(min: 1, total: 16);
         $this->saveCr(2025, [self::report('क')])->assertSessionHasNoErrors();
         $this->saveCr(2024, [self::report('क')])->assertSessionHasNoErrors();
 
         $check = $this->ruleCheck();
         $this->assertSame('does_not_meet', $check['status']);
-        $this->assertContains(__('dpc.employee_details.rule.average_below', ['average' => '7.00', 'required' => '8.00']), $check['findings']);
+        $this->assertContains(__('dpc.employee_details.rule.total_below', ['total' => 14, 'required' => 16]), $check['findings']);
     }
 
     public function test_a_mandatory_property_return_is_checked(): void
     {
-        $this->promotionRule(min: 1, average: '1', propertyYears: 1);
+        $this->promotionRule(min: 1, total: 2, propertyYears: 1);
         $this->saveCr(2025, [self::report('क')])->assertSessionHasNoErrors();
         $this->saveCr(2024, [self::report('क')])->assertSessionHasNoErrors();
 
@@ -820,6 +906,11 @@ class EmployeeDetailsTest extends TestCase
 
     public function test_without_a_class_master_rule_the_check_says_so(): void
     {
+        // A proposal raised before rules were fixed on it, with no rule in force.
+        $this->proposal->forceFill(['promotion_cr_rule_id' => null])->save();
+        PromotionCrRuleYear::query()->delete();
+        PromotionCrRule::query()->delete();
+
         $check = $this->ruleCheck();
         $this->assertSame('no_rule', $check['status']);
         $this->assertNull($check['rule']);

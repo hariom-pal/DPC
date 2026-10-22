@@ -63,7 +63,7 @@ class PromotionCrRuleTest extends TestCase
             'cr_years' => '5',
             'loyalty_years' => '5',
             'property_years' => '3',
-            'qualifying_average' => '6',
+            'qualifying_total' => '30',
             'super_seat_grade' => '9',
             'tribal_bonus' => '1',
             'years' => $years,
@@ -94,13 +94,18 @@ class PromotionCrRuleTest extends TestCase
             ->assertOk()
             ->assertSee(__('admin.promotion_rules.year_label', ['n' => 1, 'year' => 2025]))
             ->assertSee('name="years[1][cr_min_marks]"', false)
-            ->assertSee('name="tribal_bonus"', false);
+            ->assertSee('name="tribal_bonus"', false)
+            ->assertSee('name="tribal_bonus_skips_extremes"', false);
 
         $this->record()->assertSessionHasNoErrors()->assertRedirect(route('admin.service-classes.promotion-rules.index', $this->classOne));
 
         $rule = PromotionCrRule::query()->with('years')->sole();
         $this->assertSame(['I', 'I', 2026, 5, 5, 3], [$rule->to_class, $rule->from_class, $rule->effective_from_year, $rule->cr_years, $rule->loyalty_years, $rule->property_years]);
-        $this->assertSame([9, 1, '6.00'], [$rule->super_seat_grade, $rule->tribal_bonus, (string) $rule->qualifying_average]);
+        // The tribal bonus is per tribal CR year, not at the highest or lowest grade by default.
+        $this->assertSame(['year', true], [$rule->tribal_bonus_basis, $rule->tribal_bonus_skips_extremes]);
+
+        // Qualifying is on the total; the average is the total over the CR years.
+        $this->assertSame([9, 1, 30, '6.00'], [$rule->super_seat_grade, $rule->tribal_bonus, $rule->qualifying_total, (string) $rule->qualifying_average]);
         $this->assertCount(5, $rule->years);
 
         $last = $rule->years->firstWhere('years_before', 1);
@@ -118,12 +123,13 @@ class PromotionCrRuleTest extends TestCase
     public function test_a_rule_applies_from_its_year_until_a_newer_one(): void
     {
         $this->record()->assertSessionHasNoErrors();
-        $this->record(['effective_from_year' => '2028', 'qualifying_average' => '7'])->assertSessionHasNoErrors();
+        $this->record(['effective_from_year' => '2028', 'qualifying_total' => '35', 'tribal_bonus_skips_extremes' => '0'])->assertSessionHasNoErrors();
 
         $rules = app(PromotionCrRules::class);
         $this->assertNull($rules->ruleFor('I', 'I', 2025));
-        $this->assertSame('6.00', (string) $rules->ruleFor('I', 'I', 2027)?->qualifying_average);
-        $this->assertSame('7.00', (string) $rules->ruleFor('I', 'I', 2030)?->qualifying_average);
+        $this->assertSame(30, $rules->ruleFor('I', 'I', 2027)?->qualifying_total);
+        $this->assertSame(35, $rules->ruleFor('I', 'I', 2030)?->qualifying_total);
+        $this->assertFalse($rules->ruleFor('I', 'I', 2030)?->tribal_bonus_skips_extremes, 'Unticked, every tribal year earns the bonus.');
         $this->assertNull($rules->ruleFor('I', 'II', 2027), 'Each promotion has its own rule.');
     }
 

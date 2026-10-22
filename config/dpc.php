@@ -217,6 +217,13 @@ return [
     ],
 
     /*
+     | Coder Instructions rule 1.4: reservation in promotion ended in 2019, and a
+     | proposal for an earlier year is not taken in this software (a separate module
+     | is to handle those). The earliest DPC year a Pre-DPC may be raised for.
+     */
+    'earliest_dpc_year' => (int) env('DPC_EARLIEST_DPC_YEAR', 2019),
+
+    /*
     |--------------------------------------------------------------------------
     | Seniority List "as on" date (Coder Instructions, rule 1.6)
     |--------------------------------------------------------------------------
@@ -1097,6 +1104,14 @@ return [
             'dpc_proceeding_holds' => [
                 // A hold is released. Nothing else about it moves.
                 'update' => ['released_at', 'updated_at'],
+            ],
+            'dpc_promotion_orders' => [
+                // Rule 4.3: an issued order is rendered, superseded and notified;
+                // its number, date, officers and version never move.
+                'update' => [
+                    'status', 'superseded_at', 'disk', 'path', 'content_hash', 'signature_id',
+                    'failure_reason', 'notified_at', 'updated_at',
+                ],
             ],
             'dpc_proceeding_documents' => [
                 // Generation writes the bytes, the hash and the signature;

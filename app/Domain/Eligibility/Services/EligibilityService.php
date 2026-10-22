@@ -36,6 +36,7 @@ class EligibilityService
 
         $this->applyDisqualifyingGradeGate($officer, $score, $rules, $reasons);
         $this->applyLastYearGate($officer, $score, $fromClass, $toClass, $rules, $reasons);
+        $this->applyYearMinimumGate($score, $rules, $reasons);
 
         $failedOnScoreOnly = $reasons === [] && $score->total < $required;
 
@@ -97,6 +98,24 @@ class EligibilityService
             sort($failing);
             $reasons[] = "CR grade {$rules->disqualifyingGrade} recorded in ".implode(', ', $failing)
                 .' — an officer with this grade in the scoring window is not eligible.';
+        }
+    }
+
+    /**
+     * The Class Master rule's minimum points for a CR year (2026-10-21): a year in
+     * the scoring window below it is not eligible, whatever the total.
+     *
+     * @param  list<string>  $reasons
+     */
+    private function applyYearMinimumGate(ScoreBreakdown $score, RuleSet $rules, array &$reasons): void
+    {
+        foreach ($score->yearsUsed as $year) {
+            $minimum = $rules->minimumFor($year);
+            $mark = $score->marksByYear[$year] ?? null;
+
+            if ($minimum !== null && $mark !== null && $mark < $minimum) {
+                $reasons[] = "CR {$year} scored {$mark}, below the minimum of {$minimum} the promotion rule sets for that year.";
+            }
         }
     }
 

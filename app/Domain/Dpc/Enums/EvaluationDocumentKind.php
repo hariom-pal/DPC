@@ -31,6 +31,18 @@ enum EvaluationDocumentKind: string
     /** The employee's signed PH undertaking, uploaded by the Authorized Officer. */
     case PhUndertaking = 'ph_undertaking';
 
+    /** The order behind a pending departmental enquiry, charge-sheet, show-cause or suspension (rule 2.2). */
+    case VigilanceOrder = 'vigilance_order';
+
+    /** Rule 2.3: the order of an officer on deputation without a sanctioned setup. */
+    case DeputationOrder = 'deputation_order';
+
+    /** Rule 4.4: the officer's letter refusing promotion to this post. */
+    case RefusalLetter = 'refusal_letter';
+
+    /** Rule 4.4: the order of the DPC whose promotion the officer refused. */
+    case RefusalDpcOrder = 'refusal_dpc_order';
+
     /** Any other supporting document the Authorized Officer attaches. */
     case Other = 'other';
 

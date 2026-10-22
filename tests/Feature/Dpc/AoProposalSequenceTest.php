@@ -263,18 +263,21 @@ class AoProposalSequenceTest extends TestCase
 
     // ===================================== 3. CR against the Class Master promotion rule
 
-    private function classRule(int $min, string $average): void
+    private function classRule(int $min, int $total): void
     {
         $rule = PromotionCrRule::query()->create([
             'to_class' => 'I', 'from_class' => 'II', 'effective_from_year' => self::YEAR,
             'cr_years' => 3, 'loyalty_years' => 0, 'property_years' => 0,
-            'qualifying_average' => $average, 'super_seat_grade' => 9, 'tribal_bonus' => 0,
+            'qualifying_total' => $total, 'qualifying_average' => round($total / 3, 2), 'super_seat_grade' => 9, 'tribal_bonus' => 0,
         ]);
 
         // Years 1 and 2 mandatory, year 3 not.
         foreach ([1 => true, 2 => true, 3 => false] as $before => $mandatory) {
             $rule->years()->create(['years_before' => $before, 'cr_min_marks' => $min, 'cr_mandatory' => $mandatory, 'loyalty_mandatory' => false, 'property_mandatory' => false]);
         }
+
+        // The proposal is held to the rule fixed on it.
+        $this->proposal->forceFill(['promotion_cr_rule_id' => $rule->id])->save();
     }
 
     private function saveCr(DpcEvaluationRow $row, int $year, string $grade): void
@@ -290,7 +293,7 @@ class AoProposalSequenceTest extends TestCase
 
     public function test_the_rules_mandatory_cr_years_are_required_and_its_grades_are_verified(): void
     {
-        $this->classRule(min: 7, average: '7');
+        $this->classRule(min: 7, total: 21);
         $row = $this->throughSeniority();
 
         $this->assertSame([2025, 2024], app(EmployeeDetailsService::class)->ruleCrYears($row));
@@ -306,18 +309,18 @@ class AoProposalSequenceTest extends TestCase
         $this->saveCr($row, 2024, 'क');
         $this->assertSame([], array_filter($this->crMissing($row), fn (string $m): bool => str_contains($m, 'promotion rule')));
 
-        // ख (5) is below the minimum 7 and the average 6 below 7: verified and shown,
-        // for the committee; the officer is not removed from the list.
+        // ख (5) is below the minimum 7 and the total 12 below 21: shown while the
+        // details are entered; the calculation applies the rule.
         $this->actingAs($this->ao)->get(route('dpc-proposals.employees.show', [$this->proposal, $row]))
             ->assertOk()
             ->assertSee('id="rule-required-years"', false)
             ->assertSee('data-rule-status="does_not_meet"', false)
             ->assertSee(__('dpc.employee_details.rule.cr_below_min', ['year' => 2025, 'points' => 5, 'min' => 7]))
-            ->assertSee(__('dpc.employee_details.rule.average_below', ['average' => '6.00', 'required' => '7.00']));
+            ->assertSee(__('dpc.employee_details.rule.total_below', ['total' => 12, 'required' => 21]));
         $this->assertSame(2, $this->proposal->evaluationRows()->count());
     }
 
-    public function test_without_a_rule_no_cr_year_is_added_to_the_existing_requirements(): void
+    public function test_a_rule_with_no_mandatory_year_adds_none_to_the_existing_requirements(): void
     {
         $row = $this->throughSeniority();
 
@@ -352,7 +355,7 @@ class AoProposalSequenceTest extends TestCase
         $this->assertSame(PhReservationOutcome::Claimed, $answer(['is_ph' => '1', 'ph_previously_availed' => '0', 'ph_claims_reservation' => '1']));
         $this->assertSame($needsDocument, $ph());
 
-        $this->actingAs($this->ao)->post(route('dpc-proposals.employees.documents.store', [$this->proposal, $row]), [
+        $this->actingAs($this->ao)->post(route('dpc-proposals.employees.documents.store', ['verified' => '1', $this->proposal, $row]), [
             'kind' => EvaluationDocumentKind::PhUndertaking->value, 'undertaking' => '1',
             'document' => UploadedFile::fake()->create('ph.pdf', 20, 'application/pdf'),
         ])->assertSessionHasNoErrors();

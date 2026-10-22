@@ -461,6 +461,7 @@ class ReviewDpcService
             'class_level' => $original->class_level?->value,
             'promotion_duration_years' => $original->promotion_duration_years,
             'recruitment_rule_id' => $original->recruitment_rule_id,
+            'promotion_cr_rule_id' => $original->promotion_cr_rule_id,
 
             'dpc_type_id' => DpcType::query()->where('code', 'review')->firstOrFail()->id,
             'promotion_to_post_id' => $original->promotion_to_post_id,

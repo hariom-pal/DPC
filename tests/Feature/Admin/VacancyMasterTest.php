@@ -688,14 +688,17 @@ class VacancyMasterTest extends TestCase
         $this->saveWorking()->assertSessionHasNoErrors();
 
         $higher = ['reason' => 'higher_post_promotion', 'vacancy_count' => '3', 'higher_post_id' => (string) $lecturer->id,
-            'higher_dpc_reference' => 'DPC-2026-SE-0007', 'order_number' => 'SE/HP/2026/1'];
+            'higher_dpc_reference' => 'DPC-2026-SE-0007', 'order_number' => 'SE/HP/2026/1', 'higher_post_undertaking' => '1'];
 
+        // Rule 1.2: not without the undertaking.
+        $this->addEntry([...$higher, 'higher_post_undertaking' => null])->assertSessionHasErrors('higher_post_undertaking');
         $this->addEntry([...$higher, 'higher_dpc_reference' => ''])->assertSessionHasErrors('higher_dpc_reference');
         $this->addEntry([...$higher, 'higher_post_id' => (string) $this->principal->id])->assertSessionHasErrors('higher_post_id');
         $this->addEntry($higher)->assertSessionHasNoErrors();
         $this->addEntry([...$higher, 'order_number' => 'SE/HP/2026/2'])->assertSessionHasErrors('higher_dpc_reference');
 
         $entry = VacancyPositionEntry::query()->sole();
+        $this->assertNotNull($entry->higher_post_undertaking_at, 'When the undertaking was given is recorded.');
         $this->assertSame(VacancyEntryEligibility::PendingVerification, $entry->eligibility);
         $this->assertSame(0, $this->breakdown()['anticipated_counted_promotion']);
         $this->assertContains('pending_entries', array_column($this->breakdown()['issues'], 'key'));

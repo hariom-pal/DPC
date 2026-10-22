@@ -10,6 +10,7 @@ use App\Domain\Dpc\Enums\DpcProposalStatus;
 use App\Domain\Dpc\Enums\PreviousDpcBasis;
 use App\Domain\Dpc\Enums\ProposalVerificationItem;
 use App\Domain\Dpc\Models\DpcProposal;
+use App\Domain\Dpc\Models\DpcProposalRepresentation;
 use App\Domain\Dpc\Models\DpcProposalVerification;
 use App\Domain\Dpc\Models\DpcWorkingOfficer;
 use App\Domain\Dpc\Services\DpcProposalCompletenessService;
@@ -147,7 +148,7 @@ class ProposalVerificationTest extends TestCase
         app(DpcProposalService::class)->submit($this->proposal, $this->ao, request());
     }
 
-    public function test_submission_is_allowed_once_all_four_are_confirmed(): void
+    public function test_submission_is_allowed_once_every_item_is_confirmed(): void
     {
         $this->sectionsCompleteButUnverified();
 
@@ -163,6 +164,16 @@ class ProposalVerificationTest extends TestCase
                 'previous_dpc_basis' => 'none',
                 'remarks' => 'First DPC for this post since the cadre was created.',
             ])
+            ->assertSessionHasNoErrors();
+
+        // Rule 4.4's undertakings.
+        foreach (['representations', 'original_documents'] as $item) {
+            $this->actingAs($this->ao)
+                ->post(route('dpc-proposals.verification.store', [$this->proposal, $item]), ['confirm' => '1'])
+                ->assertSessionHasNoErrors();
+        }
+        $this->actingAs($this->ao)
+            ->post(route('dpc-proposals.verification.store', [$this->proposal, 'recruitment_rule_conformity']), ['confirm' => '1', 'rr_notified_on' => '2020-01-01'])
             ->assertSessionHasNoErrors();
 
         $this->actingAs($this->ao)
@@ -441,6 +452,57 @@ class ProposalVerificationTest extends TestCase
         $this->service()->confirm($this->proposal->refresh(), ProposalVerificationItem::SanctionedStrength, $this->ao);
     }
 
+    // ------------------------------------------------- rule 4.4 undertakings
+
+    public function test_the_recruitment_rule_undertaking_records_the_notification_date(): void
+    {
+        $this->sectionsCompleteButUnverified();
+
+        $this->actingAs($this->ao)
+            ->post(route('dpc-proposals.verification.store', [$this->proposal, 'recruitment_rule_conformity']), ['confirm' => '1'])
+            ->assertSessionHasErrors('rr_notified_on');
+
+        $this->actingAs($this->ao)
+            ->post(route('dpc-proposals.verification.store', [$this->proposal, 'recruitment_rule_conformity']), ['confirm' => '1', 'rr_notified_on' => '2021-03-15'])
+            ->assertSessionHasNoErrors();
+
+        $row = $this->proposal->verifications()->where('item', 'recruitment_rule_conformity')->sole();
+        $this->assertSame('2021-03-15', $row->rr_notified_on?->toDateString());
+
+        $this->actingAs($this->ao)->get(route('dpc-proposals.verification', $this->proposal))
+            ->assertOk()
+            ->assertSee(__('dpc.verification.figures.rr_notified_on', ['date' => '15-03-2021']));
+    }
+
+    public function test_representations_are_uploaded_with_a_summary_and_a_new_one_reopens_the_undertaking(): void
+    {
+        $this->sectionsCompleteButUnverified();
+
+        $this->actingAs($this->ao)
+            ->post(route('dpc-proposals.verification.store', [$this->proposal, 'representations']), ['confirm' => '1'])
+            ->assertSessionHasNoErrors();
+        $complete = fn (): bool => collect($this->service()->status($this->proposal->refresh()))
+            ->firstWhere('item', ProposalVerificationItem::Representations)['complete'];
+        $this->assertTrue($complete(), 'None received is a valid undertaking.');
+
+        $this->actingAs($this->ao)->post(route('dpc-proposals.representations.store', $this->proposal), [
+            'received_from' => 'Shri A. Kumar', 'received_on' => '2026-02-01', 'summary' => 'Seeks inclusion of 2025 CR.',
+        ])->assertSessionHasErrors('document');
+
+        $this->actingAs($this->ao)->post(route('dpc-proposals.representations.store', $this->proposal), [
+            'received_from' => 'Shri A. Kumar', 'received_on' => '2026-02-01', 'summary' => 'Seeks inclusion of 2025 CR.',
+            'document' => UploadedFile::fake()->create('representation.pdf', 20, 'application/pdf'),
+        ])->assertSessionHasNoErrors();
+
+        $this->assertFalse($complete(), 'A representation received after the undertaking reopens it.');
+
+        $representation = DpcProposalRepresentation::query()->sole();
+        $this->actingAs($this->ao)->get(route('dpc-proposals.verification', $this->proposal))
+            ->assertOk()
+            ->assertSee('Seeks inclusion of 2025 CR.');
+        $this->actingAs($this->ao)->get(route('dpc-proposals.representations.download', [$this->proposal, $representation]))->assertOk();
+    }
+
     // ------------------------------------------------------ revisions & history
 
     public function test_a_return_opens_a_revision_that_must_be_confirmed_again(): void
@@ -453,7 +515,7 @@ class ProposalVerificationTest extends TestCase
         $this->assertFalse($this->service()->isComplete($this->proposal));
 
         // The earlier revision's confirmations are still on record.
-        $this->assertSame(4, $this->proposal->verifications()->where('revision_number', 1)->count());
+        $this->assertSame(count(ProposalVerificationItem::cases()), $this->proposal->verifications()->where('revision_number', 1)->count());
         $this->assertSame(2, $this->proposal->revision_number);
     }
 

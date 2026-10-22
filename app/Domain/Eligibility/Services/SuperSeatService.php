@@ -34,11 +34,29 @@ class SuperSeatService
         $required = $rules->superSeatGrade;
         $yearsRequired = $rules->scoringYears;
 
+        // Under a Class Master rule: points at or above the rule's super-seat points;
+        // a rule without them has no Super Seat.
+        $points = $rules->classRule === null ? null : $rules->classRule['super_seat_points'];
+
         $atRequiredGrade = 0;
         foreach ($score->yearsUsed as $year) {
-            if (($officer->crGrades[$year] ?? null) === $required) {
+            $atGrade = $rules->classRule === null
+                ? ($officer->crGrades[$year] ?? null) === $required
+                : $points !== null && ($score->marksByYear[$year] ?? -1) >= $points;
+
+            if ($atGrade) {
                 $atRequiredGrade++;
             }
+        }
+
+        if ($rules->classRule !== null && $points === null) {
+            return new SuperSeatVerdict(
+                qualifies: false,
+                requiredGrade: $required,
+                yearsRequired: $yearsRequired,
+                yearsAtRequiredGrade: 0,
+                explanation: 'The promotion rule sets no Super Seat.',
+            );
         }
 
         if ($score->hasIncompleteWindow()) {

@@ -20,6 +20,7 @@ use OwenIt\Auditing\Contracts\Auditable;
  * Rows are never updated after they are written; see the migration for why the table
  * is append-only.
  *
+ * @property Carbon|null $rr_notified_on the latest Recruitment Rule's notification date (rule 4.4)
  * @property int $id
  * @property string $uuid
  * @property int $dpc_proposal_id
@@ -62,6 +63,8 @@ class DpcProposalVerification extends Model implements Auditable
         'previous_dpc_proposal_id',
         'previous_dpc_reference',
         'previous_dpc_held_on',
+        'rr_notified_on',
+        'previous_dpc_record_id',
         'disk',
         'path',
         'original_name',
@@ -99,6 +102,7 @@ class DpcProposalVerification extends Model implements Auditable
             'revision_number' => 'integer',
             'size_bytes' => 'integer',
             'previous_dpc_held_on' => 'date',
+            'rr_notified_on' => 'date',
             'verified_at' => 'datetime',
         ];
     }

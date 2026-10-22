@@ -8,9 +8,12 @@ use App\Domain\Authentication\Models\User;
 use App\Domain\Dpc\Enums\DpcProposalStatus;
 use App\Domain\Dpc\Enums\PreviousDpcBasis;
 use App\Domain\Dpc\Enums\ProposalVerificationItem;
+use App\Domain\Dpc\Models\DpcEvaluationDocument;
 use App\Domain\Dpc\Models\DpcProposal;
+use App\Domain\Dpc\Models\DpcProposalRepresentation;
 use App\Domain\Dpc\Models\DpcProposalVerification;
 use App\Domain\Dpc\Models\DpcSeniorityEntry;
+use App\Domain\PreviousDpc\Models\PreviousDpcRecord;
 use App\Domain\Shared\Services\ActivityTimelineService;
 use App\Domain\Shared\Workflow\WorkflowException;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
@@ -147,6 +150,21 @@ class ProposalVerificationService
     }
 
     /**
+     * Rule 1.1: the offline DPCs the Commission's staff recorded for this department
+     * and promotion post, newest first.
+     *
+     * @return EloquentCollection<int, PreviousDpcRecord>
+     */
+    public function previousDpcRecords(DpcProposal $proposal): EloquentCollection
+    {
+        return PreviousDpcRecord::query()
+            ->where('department_id', $proposal->department_id)
+            ->whereHas('promotionToPost', fn ($query) => $query->where('name', $proposal->promotionToPost?->name))
+            ->orderByDesc('held_on')
+            ->get();
+    }
+
+    /**
      * Previous DPCs for the same post that the portal itself holds.
      *
      * Approved proposals of the same department for the same Promotion To Post — the
@@ -169,7 +187,7 @@ class ProposalVerificationService
     /**
      * Record one confirmation.
      *
-     * @param  array{basis?: string|null, proposal_id?: int|null, reference?: string|null, held_on?: string|null}  $previousDpc
+     * @param  array{basis?: string|null, proposal_id?: int|null, reference?: string|null, held_on?: string|null, record_id?: int|null}  $previousDpc
      *
      * @throws WorkflowException when the proposal is locked or the item cannot be confirmed yet
      */
@@ -180,20 +198,37 @@ class ProposalVerificationService
         ?string $remarks = null,
         array $previousDpc = [],
         ?UploadedFile $minutes = null,
+        ?string $rrNotifiedOn = null,
     ): DpcProposalVerification {
         $this->assertEditable($proposal);
         $this->assertConfirmable($proposal, $item);
+
+        // Rule 4.4: the date the latest Recruitment Rule was notified is part of the undertaking.
+        if ($item === ProposalVerificationItem::RecruitmentRuleConformity && ($rrNotifiedOn === null || trim($rrNotifiedOn) === '')) {
+            throw new WorkflowException(__('dpc.verification.items.recruitment_rule_conformity.date_required'));
+        }
 
         $remarks = $remarks === null || trim($remarks) === '' ? null : trim($remarks);
         $reference = $item === ProposalVerificationItem::PreviousDpcReconciliation
             ? $this->previousDpcReference($proposal, $previousDpc, $remarks, $minutes)
             : [];
 
-        return DB::transaction(function () use ($proposal, $item, $actor, $remarks, $reference, $minutes): DpcProposalVerification {
+        return DB::transaction(function () use ($proposal, $item, $actor, $remarks, $reference, $minutes, $rrNotifiedOn): DpcProposalVerification {
             $basis = $this->basisFor($proposal, $item);
 
             $document = [];
-            if ($minutes !== null && ($reference['previous_dpc_basis'] ?? null) === PreviousDpcBasis::Offline->value) {
+            $record = isset($reference['previous_dpc_record_id']) ? PreviousDpcRecord::query()->find($reference['previous_dpc_record_id']) : null;
+
+            if ($record !== null && $record->hasFile('minutes')) {
+                // The staff's record carries the minutes; they are cited, not copied.
+                $document = [
+                    'disk' => $record->minutes_disk,
+                    'path' => $record->minutes_path,
+                    'original_name' => $record->minutes_original_name,
+                    'size_bytes' => null,
+                    'sha256' => $record->minutes_sha256,
+                ];
+            } elseif ($minutes !== null && ($reference['previous_dpc_basis'] ?? null) === PreviousDpcBasis::Offline->value) {
                 $document = $this->storeMinutes($proposal, $minutes);
             }
 
@@ -207,6 +242,7 @@ class ProposalVerificationService
                 'basis_hash' => $this->hash($basis),
                 ...$reference,
                 ...$document,
+                'rr_notified_on' => $item === ProposalVerificationItem::RecruitmentRuleConformity ? $rrNotifiedOn : null,
                 'verified_by' => $actor->id,
                 'verified_at' => now(),
             ]);
@@ -304,6 +340,19 @@ class ProposalVerificationService
             ProposalVerificationItem::PreviousDpcReconciliation => [
                 'working' => $this->vacancies->breakdown($proposal)->workingStrength,
             ],
+            // A representation uploaded after the undertaking makes it stale.
+            ProposalVerificationItem::Representations => [
+                'representations' => DpcProposalRepresentation::query()
+                    ->where('dpc_proposal_id', $proposal->id)->orderBy('id')->pluck('sha256')->all(),
+            ],
+            // A document uploaded after the undertaking makes it stale.
+            ProposalVerificationItem::OriginalDocuments => [
+                'documents' => DpcEvaluationDocument::query()->where('dpc_proposal_id', $proposal->id)->count(),
+            ],
+            ProposalVerificationItem::RecruitmentRuleConformity => [
+                'recruitment_rule_id' => $this->engine->recruitmentRule($proposal)?->id,
+                'officers' => $proposal->evaluationRows()->count(),
+            ],
         };
     }
 
@@ -318,7 +367,10 @@ class ProposalVerificationService
             ProposalVerificationItem::SanctionedStrength => $basis['sanctioned'] === null,
             ProposalVerificationItem::RecruitmentRule => $basis['recruitment_rule_id'] === null,
             ProposalVerificationItem::SeniorityList => $basis['entries'] === 0,
-            ProposalVerificationItem::PreviousDpcReconciliation => false,
+            ProposalVerificationItem::PreviousDpcReconciliation,
+            ProposalVerificationItem::Representations,
+            ProposalVerificationItem::OriginalDocuments => false,
+            ProposalVerificationItem::RecruitmentRuleConformity => $basis['recruitment_rule_id'] === null || $basis['officers'] === 0,
         };
 
         if ($missing) {
@@ -332,7 +384,7 @@ class ProposalVerificationService
      * Enforced here as well as in the form request, because this is the last point
      * before the row exists.
      *
-     * @param  array{basis?: string|null, proposal_id?: int|null, reference?: string|null, held_on?: string|null}  $input
+     * @param  array{basis?: string|null, proposal_id?: int|null, reference?: string|null, held_on?: string|null, record_id?: int|null}  $input
      * @return array<string, mixed>
      */
     private function previousDpcReference(DpcProposal $proposal, array $input, ?string $remarks, ?UploadedFile $minutes): array
@@ -354,7 +406,24 @@ class ProposalVerificationService
                     'previous_dpc_held_on' => null,
                 ];
             })(),
-            PreviousDpcBasis::Offline => (function () use ($basis, $input, $minutes): array {
+            PreviousDpcBasis::Offline => (function () use ($basis, $input, $minutes, $proposal): array {
+                // Rule 1.1: a previous DPC the Commission's staff recorded stands for the upload.
+                if (($input['record_id'] ?? null) !== null) {
+                    $record = $this->previousDpcRecords($proposal)->firstWhere('id', (int) $input['record_id']);
+
+                    if ($record === null) {
+                        throw new WorkflowException(__('previous_dpc.verification.invalid'));
+                    }
+
+                    return [
+                        'previous_dpc_basis' => $basis->value,
+                        'previous_dpc_proposal_id' => null,
+                        'previous_dpc_record_id' => $record->id,
+                        'previous_dpc_reference' => mb_substr($record->reference, 0, 120),
+                        'previous_dpc_held_on' => $record->held_on->toDateString(),
+                    ];
+                }
+
                 $reference = trim((string) ($input['reference'] ?? ''));
                 $heldOn = trim((string) ($input['held_on'] ?? ''));
 

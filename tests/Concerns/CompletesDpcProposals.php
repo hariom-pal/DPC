@@ -289,6 +289,25 @@ trait CompletesDpcProposals
                 $row->forceFill(['reservation_category_id' => $categoryId])->save();
             }
 
+            // No departmental matter pending (rule 2.2), unless a test recorded one.
+            if ($row->vigilance_pending === null) {
+                $row->forceFill(['vigilance_pending' => false])->save();
+            }
+
+            // Rule 4.4's service-record orders and undertaking, and rules 2.3 and 4.4's
+            // declarations, unless a test recorded its own.
+            if ($row->service_record_undertaking_at === null) {
+                $row->forceFill([
+                    'dob_order_number' => 'SR/DOB/1', 'dob_order_date' => '1995-07-01',
+                    'joining_order_number' => 'SR/JOIN/1', 'joining_order_date' => '1995-07-01',
+                    'service_record_undertaking_at' => now(),
+                ])->save();
+            }
+
+            if ($row->unsanctioned_deputation === null) {
+                $row->forceFill(['unsanctioned_deputation' => false])->save();
+            }
+
             foreach ($row->crGrades as $cr) {
                 if ($cr->put_up !== null) {
                     continue;
@@ -349,6 +368,9 @@ trait CompletesDpcProposals
             'sha256' => hash('sha256', $kind->value.$row->id.($year ?? '')),
             'uploaded_by' => $actor->id,
             'uploaded_at' => now(),
+            // Rule 4.4: verified by the AO on upload and by the AH before approval.
+            'ao_verified_at' => now(),
+            'ah_verified_at' => now(),
         ]);
     }
 
@@ -367,6 +389,9 @@ trait CompletesDpcProposals
                 $actor,
                 'Fixture: no previous DPC for this post.',
                 ['basis' => PreviousDpcBasis::None->value],
+                null,
+                // Rule 4.4: the latest Recruitment Rule's notification date.
+                '2020-01-01',
             );
         }
     }

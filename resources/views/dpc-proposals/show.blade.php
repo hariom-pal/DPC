@@ -99,6 +99,17 @@
             @include('dpc-proposals.sections.evaluation')
             @include('dpc-proposals.sections.verification')
 
+            {{-- Rule 4.3: the promotion order, once the CGPSC has approved the result. --}}
+            <div class="card border-0 shadow-sm mb-3" id="section-promotion-order">
+                <div class="card-body d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                    <div>
+                        <h2 class="h6 mb-1">{{ __('dpc.promotion_orders.title') }}</h2>
+                        <div class="small text-muted">{{ __('dpc.promotion_orders.section_lead') }}</div>
+                    </div>
+                    <a class="btn btn-outline-primary btn-sm" href="{{ route('dpc-proposals.promotion-orders.index', $proposal) }}">{{ __('dpc.promotion_orders.open') }}</a>
+                </div>
+            </div>
+
             {{-- M5: CALCULATE. The only addition this milestone makes to an M4
                  screen — presentation only, changing no M4 logic. A calculation
                  writes separate immutable evidence and never touches the

@@ -10,6 +10,7 @@ use App\Domain\Dpc\Enums\DpcProposalStatus;
 use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\DpcType;
 use App\Domain\Master\Models\PayScale;
+use App\Domain\Master\Models\PromotionCrRule;
 use App\Domain\Master\Models\RecruitmentRule;
 use App\Domain\Master\Models\ReviewReason;
 use App\Domain\PreDpc\Models\PreDpcProposal;
@@ -60,6 +61,7 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property ServiceClass|null $class_level
  * @property int|null $promotion_duration_years
  * @property int|null $recruitment_rule_id
+ * @property int|null $promotion_cr_rule_id the Class Master promotion rule fixed when the proposal was raised
  * @property bool $legal_stay
  * @property Carbon $proposal_date
  * @property int|null $sanctioned_post_count
@@ -188,6 +190,7 @@ class DpcProposal extends Model implements Auditable
         'class_level',
         'promotion_duration_years',
         'recruitment_rule_id',
+        'promotion_cr_rule_id',
         'legal_stay',
         'proposal_date',
         'sanctioned_post_count',
@@ -332,6 +335,26 @@ class DpcProposal extends Model implements Auditable
     }
 
     /**
+     * Representations and complaints received about the DPC (rule 4.4).
+     *
+     * @return HasMany<DpcProposalRepresentation, $this>
+     */
+    public function representations(): HasMany
+    {
+        return $this->hasMany(DpcProposalRepresentation::class);
+    }
+
+    /**
+     * The Class Master promotion rule fixed on the proposal when it was raised.
+     *
+     * @return BelongsTo<PromotionCrRule, $this>
+     */
+    public function promotionCrRule(): BelongsTo
+    {
+        return $this->belongsTo(PromotionCrRule::class);
+    }
+
+    /**
      * Every round trip this proposal has been through (change item 18), oldest
      * first — which is the order a reader wants: "submitted, returned because X,
      * resubmitted, returned because Y".
@@ -449,6 +472,15 @@ class DpcProposal extends Model implements Auditable
      * date its list was drawn up as on (`seniority_list_as_on`) when it saves the
      * list, and the statement is refused unless it is this date.
      */
+    /**
+     * Coder Instructions rule 1.5: the proposal is effective on the first day of its
+     * DPC year (vacancies are reckoned to 31 December of that year).
+     */
+    public function effectiveDate(): Carbon
+    {
+        return Carbon::create((int) ($this->dpc_year ?: $this->proposal_date->year), 1, 1)->startOfDay();
+    }
+
     public function seniorityReferenceDate(): Carbon
     {
         $year = $this->dpc_year ?: $this->proposal_date->year;

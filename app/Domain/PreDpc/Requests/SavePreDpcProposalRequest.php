@@ -67,7 +67,8 @@ class SavePreDpcProposalRequest extends FormRequest
              | legitimately prepares the coming year's exercise in advance, and no
              | further, because there is nothing to prepare beyond that.
              */
-            'dpc_year' => ['required', 'integer', 'min:2000', 'max:'.((int) now()->addYear()->format('Y'))],
+            // Rule 1.4: nothing before 2019 is taken in this software.
+            'dpc_year' => ['required', 'integer', 'min:'.(int) config('dpc.earliest_dpc_year', 2019), 'max:'.((int) now()->addYear()->format('Y'))],
 
             'promotion_to_post_id' => ['required', 'integer', $inDepartment()],
 
@@ -363,6 +364,7 @@ class SavePreDpcProposalRequest extends FormRequest
          | quietly gets worse.
          */
         return [
+            'dpc_year.min' => __('predpc.validation.year_before_earliest', ['year' => (int) config('dpc.earliest_dpc_year', 2019)]),
             'promotion_sources.required' => 'Name at least one Promotion From Post. An order that names none sanctions nobody\'s promotion.',
             'promotion_sources.*.promotion_from_post_id.required' => 'Choose the Promotion From Post — the post officers are promoted out of.',
             'promotion_sources.*.promotion_from_post_id.different' => 'A post cannot be promoted into itself. Choose a different Promotion From Post.',

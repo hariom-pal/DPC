@@ -1010,6 +1010,11 @@ class VacancyMasterService
             throw new WorkflowException(__('vacancymaster.errors.higher_dpc_reference_required'), 'higher_dpc_reference');
         }
 
+        // Rule 1.2: counted only with the department's undertaking.
+        if (! filter_var($data['higher_post_undertaking'] ?? false, FILTER_VALIDATE_BOOL)) {
+            throw new WorkflowException(__('vacancymaster.errors.higher_undertaking_required'), 'higher_post_undertaking');
+        }
+
         // Linked when the reference is a DPC this portal holds, so its status can be read.
         $proposal = DpcProposal::query()->where('dpc_code', $reference)->first();
 
@@ -1019,6 +1024,7 @@ class VacancyMasterService
             'higher_dpc_proposal_id' => $proposal?->id,
             'promotion_order_number' => $this->clean($data['promotion_order_number'] ?? null),
             'promotion_order_date' => empty($data['promotion_order_date']) ? null : Carbon::parse((string) $data['promotion_order_date'])->toDateString(),
+            'higher_post_undertaking_at' => now(),
         ];
     }
 

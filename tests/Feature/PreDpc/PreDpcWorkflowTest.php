@@ -19,6 +19,7 @@ use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Route;
 use Tests\Concerns\PrescribesQualifications;
+use Tests\Concerns\UsesPptPromotionRules;
 use Tests\TestCase;
 
 /**
@@ -34,6 +35,7 @@ class PreDpcWorkflowTest extends TestCase
 {
     use PrescribesQualifications;
     use RefreshDatabase;
+    use UsesPptPromotionRules;
 
     private Department $department;
 

@@ -24,6 +24,7 @@ use Tests\Concerns\CompletesDpcProposals;
 use Tests\Concerns\RaisesDpcProposals;
 use Tests\Concerns\SanctionsVacancies;
 use Tests\Concerns\SeedsEvaluationCharts;
+use Tests\Concerns\UsesPptPromotionRules;
 use Tests\TestCase;
 
 /**
@@ -37,6 +38,7 @@ class CalculationUiTest extends TestCase
     use RefreshDatabase;
     use SanctionsVacancies;
     use SeedsEvaluationCharts;
+    use UsesPptPromotionRules;
 
     private Department $department;
 
@@ -216,6 +218,8 @@ class CalculationUiTest extends TestCase
             $verification->confirm(
                 $this->proposal->refresh(), $item, $this->ao, 'No previous DPC for this post.',
                 ['basis' => PreviousDpcBasis::None->value],
+                null,
+                '2020-01-01',
             );
         }
 

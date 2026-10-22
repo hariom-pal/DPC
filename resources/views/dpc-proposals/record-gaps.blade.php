@@ -106,6 +106,11 @@
                                     </a>
                                     {{-- The hash is what makes the file evidence rather than a copy. --}}
                                     <div class="text-muted small font-monospace">{{ Str::limit($gap->sha256, 16, '…') }}</div>
+                                    @if ($gap->hasSecondDocument())
+                                        <a href="{{ route('dpc-proposals.record-gaps.download', [$proposal, $row, $gap, 'part' => 'second']) }}">{{ $gap->second_original_name }}</a>
+                                    @elseif ($gap->reason?->requiresSecondDocument())
+                                        <span class="badge text-bg-danger">{{ __('dpc.record_gaps.second_document_missing', ['document' => $gap->reason->secondDocumentLabel()]) }}</span>
+                                    @endif
                                 @else
                                     <span class="badge text-bg-danger">{{ __('dpc.record_gaps.no_document') }}</span>
                                 @endif
@@ -174,7 +179,7 @@
                                     <option value="{{ $reason->id }}"
                                             data-requires-remarks="{{ $reason->requires_remarks ? '1' : '0' }}"
                                             @selected((int) old('record_reason_id') === $reason->id)>
-                                        {{ $reason->label() }}
+                                        {{ $reason->label() }}@if ($reason->documentLabel()) — {{ $reason->documentLabel() }}@if ($reason->requiresSecondDocument()) + {{ $reason->secondDocumentLabel() }}@endif @endif
                                     </option>
                                 @endforeach
                             </select>
@@ -200,6 +205,16 @@
                                id="document" name="document" required>
                         <div class="form-text">{{ __('dpc.record_gaps.document_help') }}</div>
                         @error('document')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+
+                    {{-- Rule 3.2: a reason that needs two documents (a suspension's reinstatement order). --}}
+                    <div class="mb-3">
+                        <label class="form-label" for="second_document">{{ __('dpc.record_gaps.second_document') }}</label>
+                        <input type="file" accept="application/pdf"
+                               class="form-control @error('second_document') is-invalid @enderror"
+                               id="second_document" name="second_document">
+                        <div class="form-text">{{ __('dpc.record_gaps.second_document_help') }}</div>
+                        @error('second_document')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
 
                     <button type="submit" class="btn btn-success">{{ __('dpc.record_gaps.save') }}</button>

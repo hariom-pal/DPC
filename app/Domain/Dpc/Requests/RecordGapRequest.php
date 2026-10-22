@@ -73,6 +73,15 @@ class RecordGapRequest extends FormRequest
                 'mimes:pdf',
                 'max:'.(int) config('dpc.documents.max_kb', 10240),
             ],
+
+            // Rule 3.2: the second document a reason may need (a suspension's reinstatement order).
+            'second_document' => [
+                Rule::requiredIf(fn (): bool => RecordReason::query()->find($this->input('record_reason_id'))?->requiresSecondDocument() === true),
+                'nullable',
+                'file',
+                'mimes:pdf',
+                'max:'.(int) config('dpc.documents.max_kb', 10240),
+            ],
         ];
     }
 

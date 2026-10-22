@@ -13,9 +13,12 @@ use App\Domain\Eligibility\Models\DpcCalculationRun;
 use App\Domain\Eligibility\RuleSet;
 use App\Domain\Eligibility\ValueObjects\OfficerRecord;
 use App\Domain\Master\Models\RecruitmentRuleSource;
+use App\Domain\Master\Services\PhReservationPolicy;
+use App\Domain\Master\Services\PromotionCrRules;
 use App\Domain\Master\Support\ReservationMode;
 use App\Domain\Shared\Services\ActivityTimelineService;
 use App\Domain\Shared\Workflow\WorkflowException;
+use App\Enums\ServiceClass;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -45,7 +48,37 @@ class DpcCalculationService
         private readonly SuperSeatService $superSeat,
         private readonly ActivityTimelineService $timeline,
         private readonly ReservationMode $reservation,
+        private readonly PromotionCrRules $promotionRules,
+        private readonly PhReservationPolicy $phPolicy,
     ) {}
+
+    /**
+     * The rules this DPC is calculated under (business decision, 2026-10-21): the
+     * Class Master promotion rule for its class pair in force in its DPC year, on
+     * the Eligible CR Grades' points valid on 1 January of that year. Without either
+     * the calculation is refused — the Administrator records them first.
+     */
+    private function rulesFor(DpcProposal $proposal, ServiceClass $fromClass, ServiceClass $toClass): RuleSet
+    {
+        $year = (int) ($proposal->dpc_year ?: $proposal->proposal_date->year);
+        $rule = $this->promotionRules->ruleForProposal($proposal);
+
+        if ($rule === null) {
+            throw new WorkflowException(__('dpc.calculation_rules.no_promotion_rule', [
+                'from' => $fromClass->value, 'to' => $toClass->value, 'year' => $year,
+            ]));
+        }
+
+        $points = $this->promotionRules->pointsForYear($year);
+
+        if ($points === []) {
+            throw new WorkflowException(__('dpc.calculation_rules.no_grade_points', ['year' => $year]));
+        }
+
+        $base = RuleSet::fromConfig();
+
+        return RuleSet::forPromotionRule($base, $rule, $points, $year, $base->pairKey($fromClass, $toClass));
+    }
 
     public function calculate(DpcProposal $proposal, ?User $actor = null): DpcCalculationRun
     {
@@ -56,6 +89,8 @@ class DpcCalculationService
             // What the merit gates of 2026-08-27 read (items 12 to 19).
             'evaluationRows.loyaltyFlags', 'evaluationRows.propertyFlags',
             'evaluationRows.recordGaps.reason',
+            // Rule 2.2 — the sealed cover.
+            'evaluationRows.sealedCoverReason',
 
             'vacancies.reservationCategory',
         );
@@ -64,9 +99,10 @@ class DpcCalculationService
             throw new WorkflowException('This proposal has no evaluation chart entries, so there is nothing to calculate.');
         }
 
-        $rules = RuleSet::fromConfig();
         $fromClass = $proposal->promotionFromPost->class_level;
         $toClass = $proposal->promotionToPost->class_level;
+        $rules = $this->rulesFor($proposal, $fromClass, $toClass);
+        $gradePoints = $rules->crGradeMarks;
 
         /*
          | Item 11, once per proposal.
@@ -86,7 +122,9 @@ class DpcCalculationService
         $source = $this->promotionSourceFor($proposal);
 
         $propertyYears = (int) config('dpc.merit.property_return_years', 5);
-        $requiredCrs = (int) config('dpc.merit.required_cr_count', 5);
+        // The Class Master rule's CR count and the years it makes mandatory.
+        $requiredCrs = $rules->scoringYears;
+        $mandatoryCrYears = $rules->mandatoryCrYears();
         /*
          | Whether an unmatched qualification refuses a candidate or is merely
          | reported — BD-39, and `advise` by default.
@@ -103,16 +141,19 @@ class DpcCalculationService
             ?? RemarkCode::NotEligible;
 
         // ---- pure engines ------------------------------------------------
+        // Every row is the proposal's: what a row reads off its proposal is read once.
+        $proposal->evaluationRows->each(fn ($row) => $row->setRelation('proposal', $proposal));
+
         $officers = $proposal->evaluationRows
             ->map(fn ($row): array => [
                 'row' => $row,
-                'record' => OfficerRecord::fromEvaluationRow($row, $source),
+                'record' => OfficerRecord::fromEvaluationRow($row, $source, $gradePoints),
             ])
             ->values();
 
         $assessed = $officers->map(function (array $entry) use (
             $rules, $fromClass, $toClass, $hierarchyFailures, $propertyYears, $requiredCrs,
-            $ruleFailureStatus, $enforceQualification
+            $ruleFailureStatus, $enforceQualification, $mandatoryCrYears
         ): array {
             $record = $entry['record'];
 
@@ -127,7 +168,7 @@ class DpcCalculationService
              */
             $gate = $this->gates->assess(
                 $record, $hierarchyFailures, $propertyYears, $requiredCrs, $ruleFailureStatus,
-                $enforceQualification,
+                $enforceQualification, $mandatoryCrYears,
             );
 
             $score = $this->scoring->score($record, $rules);
@@ -178,7 +219,11 @@ class DpcCalculationService
 
         // ---- ranking and lists -------------------------------------------
         $ranked = $this->rank($assessed->all(), $zone->effectiveSize);
-        $placed = $this->placeOnLists($ranked, $vacanciesByCategory);
+        // Rule 2.1: the PH seats, set aside first for verified PH claims.
+        $phTerms = $this->phPolicy->termsFor($proposal);
+        $phSeats = $this->phPolicy->posts($totalVacancies, $phTerms['percentage'], $phTerms['rounding']);
+
+        $placed = $this->placeOnLists($ranked, $vacanciesByCategory, $phSeats);
 
         $pending = $this->collectPendingDecisions($placed, $zone->pendingDecisions);
 
@@ -219,7 +264,8 @@ class DpcCalculationService
                     'employee_number' => $entry['row']->employee_number,
                     'reservation_category_code' => $entry['record']->reservationCategoryCode ?? 'UNKNOWN',
                     'score_breakdown' => $entry['score']->toArray(),
-                    'verdict' => $entry['verdict']->toArray(),
+                    'verdict' => $entry['verdict']->toArray()
+                        + ($entry['record']->sealedCover === null ? [] : ['sealed_cover' => $entry['record']->sealedCover]),
                     'super_seat' => $entry['superSeat']->toArray(),
                     'is_eligible' => $entry['verdict']->eligible,
                     'is_super_seat' => $entry['superSeat']->qualifies,
@@ -367,7 +413,7 @@ class DpcCalculationService
      * @param  array<string, int>  $vacanciesByCategory
      * @return list<array<string, mixed>>
      */
-    private function placeOnLists(array $entries, array $vacanciesByCategory): array
+    private function placeOnLists(array $entries, array $vacanciesByCategory, int $phSeats = 0): array
     {
         $ranked = array_values(array_filter($entries, static fn (array $e): bool => $e['rank'] !== null));
         usort($ranked, static fn (array $a, array $b): int => $a['rank'] <=> $b['rank']);
@@ -376,12 +422,45 @@ class DpcCalculationService
         $mainPosition = 0;
         $waitingPosition = 0;
         $placement = [];
+        $codeOf = fn (array $entry): string => $this->reservation->categoryWise()
+            ? ($entry['record']->reservationCategoryCode ?? 'UNKNOWN')
+            : $this->reservation->poolCode();
+
+        /*
+         | Rule 2.1 (business decision, 2026-10-21): the PH seats are filled first, in
+         | rank order, from the selectable officers whose PH claim the Administrative
+         | Head verified; the remaining seats go by rank as before. A PH seat counts
+         | against the vacancies of the officer's list.
+         */
+        $phPicked = [];
+
+        foreach ($ranked as $entry) {
+            if (count($phPicked) >= $phSeats) {
+                break;
+            }
+
+            $code = $codeOf($entry);
+
+            if ($entry['record']->phSeat && ($filled[$code] ?? 0) < ($vacanciesByCategory[$code] ?? 0)) {
+                $phPicked[$entry['record']->serialNumber] = true;
+                $filled[$code] = ($filled[$code] ?? 0) + 1;
+            }
+        }
 
         foreach ($ranked as $entry) {
             // No category-wise reservation: one pool, one list.
-            $code = $this->reservation->categoryWise()
-                ? ($entry['record']->reservationCategoryCode ?? 'UNKNOWN')
-                : $this->reservation->poolCode();
+            $code = $codeOf($entry);
+
+            if (isset($phPicked[$entry['record']->serialNumber])) {
+                $placement[$entry['record']->serialNumber] = [
+                    'list_type' => ListType::Main,
+                    'list_position' => ++$mainPosition,
+                    'remark' => (string) config('dpc.reservation.ph_category', 'PH'),
+                ];
+
+                continue;
+            }
+
             $vacancies = $vacanciesByCategory[$code] ?? 0;
             $used = $filled[$code] ?? 0;
 
@@ -435,6 +514,16 @@ class DpcCalculationService
             $entries[$index]['remark'] = $placement[$sn]['remark'] ?? ($gated
                 ? $entry['verdict']->remark->value
                 : ($entry['verdict']->eligible ? 'EL' : 'NE'));
+
+            /*
+             | Rule 2.2: the finding on an officer with a charge-sheet pending is kept
+             | in a sealed cover. The officer keeps the seat their merit gives — the
+             | post is held, not passed to the next officer — and is shown as
+             | "Sealed Cover" whatever the finding.
+             */
+            if ($entry['record']->sealedCover !== null) {
+                $entries[$index]['remark'] = RemarkCode::SealedCover->value;
+            }
         }
 
         return $entries;
@@ -514,6 +603,10 @@ class DpcCalculationService
             'dob' => $row->dob->toDateString(),
             'category' => $row->reservationCategory?->code,
             'tribal_years' => $row->tribal_area_service_years,
+            'sealed_cover' => $row->isUnderSealedCover(),
+            'ph_seat' => $row->holdsVerifiedPhClaim(),
+            'unsanctioned_deputation' => $row->unsanctioned_deputation === true,
+            'refused_last_year' => $row->refusedPromotionLastYear(),
             'cr' => $row->crGrades->mapWithKeys(fn ($g): array => [$g->year => $g->grade])->sortKeys()->all(),
         ])->sortBy('sn')->values()->all();
 

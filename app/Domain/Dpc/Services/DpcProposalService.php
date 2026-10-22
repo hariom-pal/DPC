@@ -9,7 +9,9 @@ use App\Domain\Dpc\Enums\DpcProposalStatus;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Models\DpcWorkingOfficer;
 use App\Domain\Master\Models\DepartmentPost;
+use App\Domain\Master\Models\PromotionCrRule;
 use App\Domain\Master\Models\RecruitmentRule;
+use App\Domain\Master\Services\PromotionCrRules;
 use App\Domain\PreDpc\Models\PreDpcPromotionSource;
 use App\Domain\PreDpc\Models\PreDpcProposal;
 use App\Domain\Shared\Services\ActivityTimelineService;
@@ -61,7 +63,27 @@ class DpcProposalService
         private readonly EvaluationCandidateService $candidates,
         private readonly VacancyEngine $vacancyEngine,
         private readonly VacancyCalculationRecorder $vacancyCalculations,
+        private readonly PromotionCrRules $promotionRules,
     ) {}
+
+    /**
+     * The Class Master promotion rule for the feeder's class into the post's class in
+     * force in the DPC year (business decision, 2026-10-21). Without one no DPC is
+     * raised: its CR could be neither checked nor calculated.
+     */
+    private function promotionRuleFor(PreDpcProposal $preDpc, PreDpcPromotionSource $source): PromotionCrRule
+    {
+        $year = (int) ($preDpc->dpc_year ?? now()->format('Y'));
+        $from = PromotionCrRules::classCode(DepartmentPost::query()->find($source->promotion_from_post_id)?->class_level);
+        $to = PromotionCrRules::classCode(DepartmentPost::query()->find($preDpc->promotion_to_post_id)?->class_level);
+        $rule = $from === null || $to === null ? null : $this->promotionRules->ruleFor($to, $from, $year);
+
+        if ($rule === null) {
+            throw new WorkflowException(__('dpc.calculation_rules.no_rule_to_raise', ['from' => $from ?? '—', 'to' => $to ?? '—', 'year' => $year]));
+        }
+
+        return $rule;
+    }
 
     /**
      * Raise a DPC from an active approved Pre-DPC (change items 11, 12, 18).
@@ -96,6 +118,7 @@ class DpcProposalService
         return DB::transaction(function () use ($preDpc, $actor, $data): DpcProposal {
             $department = $preDpc->department()->firstOrFail();
             $source = $this->sourceFor($preDpc, $data);
+            $promotionRule = $this->promotionRuleFor($preDpc, $source);
 
             $proposal = new DpcProposal([
                 'department_id' => $department->id,
@@ -112,6 +135,8 @@ class DpcProposalService
                 // Research Officer.
                 'promotion_duration_years' => $source->promotion_duration_years,
                 'recruitment_rule_id' => $this->ruleInForce($preDpc),
+                // The Class Master rule in force now is the one this DPC is held to.
+                'promotion_cr_rule_id' => $promotionRule->id,
                 'legal_stay' => $data['legal_stay'] ?? false,
 
                 /*
@@ -614,6 +639,20 @@ class DpcProposalService
     public function approve(DpcProposal $proposal, User $actor, Request $request): void
     {
         $this->assertSignatureAvailable();
+
+        // Rule 4.4: every current document carries the Administrative Head's verification.
+        $awaiting = app(EmployeeDetailsService::class)->documentsAwaitingHead($proposal);
+
+        if ($awaiting > 0) {
+            throw new WorkflowException(__('dpc.employee_details.verification.ah_pending', ['count' => $awaiting]));
+        }
+
+        // Rule 2.1: every PH claim is decided by the Administrative Head.
+        $claims = app(EmployeeDetailsService::class)->phClaimsAwaitingHead($proposal);
+
+        if ($claims > 0) {
+            throw new WorkflowException(__('dpc.employee_details.ph.claims_pending', ['count' => $claims]));
+        }
 
         DB::transaction(function () use ($proposal, $actor, $request): void {
             $locked = $this->lock($proposal);

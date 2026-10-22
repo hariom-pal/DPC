@@ -21,6 +21,10 @@ return [
         'new' => 'नया',
         'notifications_are_also_sent_by_sms_and_e_mail_on' => 'इन गेटवे के जुड़ने पर सूचनाएँ एस.एम.एस. एवं ईमेल द्वारा भी भेजी जाएँगी। यह सूची उन पर निर्भर नहीं है।',
     ],
+    'promotion_order' => [
+        'subject' => 'पदोन्नति आदेश :number जारी',
+        'message' => ':post पद हेतु पदोन्नति आदेश :number दिनांक :date जारी किया गया है। आदेश देखें: :link',
+    ],
     'sitting' => [
         // Business clarification of 2026-09-05: the message the committee and the
         // candidates receive when the DPC Allottee fixes or moves the sitting.

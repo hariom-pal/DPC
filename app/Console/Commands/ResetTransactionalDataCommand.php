@@ -78,6 +78,10 @@ class ResetTransactionalDataCommand extends Command
         // The rest of a proposal.
         // Rule 1.1 confirmations, with the offline-minutes evidence they cite.
         'dpc_proposal_verifications',
+        'dpc_proposal_representations',
+        // Rule 1.1: offline DPCs entered by the Commission's staff; after the
+        // verifications that cite them.
+        'previous_dpc_records',
         // Vacancy Master: year-wise positions, their sanctioned and working strengths
         // and entries. Transactional because entries cite DPC proposals, which go too.
         'vacancy_position_entries',
@@ -116,6 +120,8 @@ class ResetTransactionalDataCommand extends Command
         // sitting — as transactional as the sitting itself, and meaningless without
         // the proceeding it hangs off.
         'dpc_candidate_calls',
+        // Rule 4.3: promotion orders, before the proceedings and proposals they cite.
+        'dpc_promotion_orders',
         'dpc_proceeding_documents',
         'dpc_proceeding_holds',
         'dpc_proceeding_overrides',
@@ -193,6 +199,10 @@ class ResetTransactionalDataCommand extends Command
          | recorded afterwards.
          */
         'record_reasons',
+
+        // The Sealed Cover reasons (Coder Instructions rule 2.2): a master the
+        // Administrator maintains, cited by the officers it was recorded for.
+        'sealed_cover_reasons',
 
         /*
          | The Government Orders behind a Department Post Mapping, and their PDFs

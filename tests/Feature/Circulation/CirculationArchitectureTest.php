@@ -12,6 +12,7 @@ use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use ReflectionClass;
 use SplFileInfo;
+use Tests\Concerns\UsesPptPromotionRules;
 
 /**
  * **AD-23 and AD-24, enforced.** M9 Phase 1.
@@ -39,6 +40,8 @@ use SplFileInfo;
  */
 class CirculationArchitectureTest extends TestCase
 {
+    use UsesPptPromotionRules;
+
     /**
      * @return list<string>
      */

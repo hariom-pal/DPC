@@ -80,6 +80,7 @@ class DpcRecordGapController extends Controller
             $request->input('remarks'),
             $request->file('document'),
             $request->user(),
+            $request->file('second_document'),
         );
 
         return redirect()
@@ -112,6 +113,7 @@ class DpcRecordGapController extends Controller
      * publish it.
      */
     public function download(
+        Request $request,
         DpcProposal $dpcProposal,
         DpcEvaluationRow $evaluationRow,
         DpcEvaluationRecordGap $recordGap,
@@ -119,13 +121,17 @@ class DpcRecordGapController extends Controller
         $this->authorize('view', $dpcProposal);
         $this->assertRowBelongsToProposal($dpcProposal, $evaluationRow);
         abort_unless($recordGap->dpc_evaluation_row_id === $evaluationRow->id, 404);
-        abort_unless($recordGap->hasDocument(), 404);
 
-        $disk = Storage::disk((string) $recordGap->disk);
+        // Rule 3.2: `?part=second` is the second document a reason needs.
+        $second = $request->query('part') === 'second';
+        abort_unless($second ? $recordGap->hasSecondDocument() : $recordGap->hasDocument(), 404);
 
-        abort_unless($disk->exists((string) $recordGap->path), 404);
+        $disk = Storage::disk((string) ($second ? $recordGap->second_disk : $recordGap->disk));
+        $path = (string) ($second ? $recordGap->second_path : $recordGap->path);
 
-        return $disk->download((string) $recordGap->path, (string) $recordGap->original_name, [
+        abort_unless($disk->exists($path), 404);
+
+        return $disk->download($path, (string) ($second ? $recordGap->second_original_name : $recordGap->original_name), [
             'Content-Type' => 'application/pdf',
         ]);
     }

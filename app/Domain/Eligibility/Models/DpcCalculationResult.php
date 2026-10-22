@@ -122,6 +122,11 @@ class DpcCalculationResult extends Model
      */
     public function status(): RemarkCode
     {
+        // Rule 2.2: the finding is in a sealed cover, whatever it was.
+        if (($this->verdict['sealed_cover'] ?? null) !== null) {
+            return RemarkCode::SealedCover;
+        }
+
         $stored = $this->verdict['remark'] ?? null;
 
         if (is_string($stored)) {

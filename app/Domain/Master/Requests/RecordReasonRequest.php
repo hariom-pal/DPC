@@ -55,6 +55,11 @@ class RecordReasonRequest extends FormRequest
             'name_hi' => ['required', 'string', 'max:255'],
             'requires_remarks' => ['required', 'boolean'],
             'sort_order' => ['required', 'integer', 'min:0', 'max:9999'],
+            // Rule 3.2: the document(s) a gap with this reason is justified with.
+            'document_label_en' => ['nullable', 'string', 'max:255'],
+            'document_label_hi' => ['nullable', 'string', 'max:255'],
+            'second_document_label_en' => ['nullable', 'string', 'max:255'],
+            'second_document_label_hi' => ['nullable', 'string', 'max:255'],
             'status' => ['required', new Enum(MasterStatus::class)],
         ];
     }

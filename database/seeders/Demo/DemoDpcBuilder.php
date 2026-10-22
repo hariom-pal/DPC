@@ -221,6 +221,9 @@ final class DemoDpcBuilder
                 'sha256' => hash('sha256', $bytes),
                 'uploaded_by' => $ao->id,
                 'uploaded_at' => now(),
+                // Rule 4.4: verified by the AO on upload and by the AH before approval.
+                'ao_verified_at' => now(),
+                'ah_verified_at' => now(),
             ]);
         };
 
@@ -274,6 +277,22 @@ final class DemoDpcBuilder
                 'ph_final_decision' => 'no_benefit',
                 'ph_recorded_by' => $ao->id,
                 'ph_recorded_at' => now(),
+                // Rule 2.2: no departmental matter pending.
+                'vigilance_pending' => false,
+                // Rule 4.4: the service-record orders and the undertaking; rules 2.3 and
+                // 4.4: not on unsanctioned deputation, no promotion refused.
+                'dob_order_number' => 'SR/DOB/'.$row->sn,
+                'dob_order_date' => $row->date_of_joining_service ?? now()->toDateString(),
+                'joining_order_number' => 'SR/JOIN/'.$row->sn,
+                'joining_order_date' => $row->date_of_joining_service ?? now()->toDateString(),
+                'service_record_undertaking_by' => $ao->id,
+                'service_record_undertaking_at' => now(),
+                'unsanctioned_deputation' => false,
+                'refused_promotion' => false,
+                'declarations_recorded_by' => $ao->id,
+                'declarations_recorded_at' => now(),
+                'vigilance_recorded_by' => $ao->id,
+                'vigilance_recorded_at' => now(),
             ])->save();
         }
     }
@@ -299,6 +318,9 @@ final class DemoDpcBuilder
                 $ao,
                 'No earlier DPC has been held for this post.',
                 ['basis' => PreviousDpcBasis::None->value],
+                null,
+                // Rule 4.4: the latest Recruitment Rule's notification date.
+                '2026-01-01',
             );
         }
     }

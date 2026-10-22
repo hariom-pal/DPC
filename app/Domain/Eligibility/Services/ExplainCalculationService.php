@@ -51,7 +51,10 @@ class ExplainCalculationService
             $lines[] = 'CR years scored ('.count($years).'): '.implode(', ', $parts).'. Base total '.$score['base_total'].'.';
         }
 
-        if (($score['tribal_area_bonus'] ?? 0) > 0) {
+        if (($score['tribal_bonus_years'] ?? []) !== []) {
+            $lines[] = 'Tribal posting bonus of '.$score['tribal_area_bonus'].' for the tribal CR year(s) '
+                .implode(', ', (array) $score['tribal_bonus_years']).', giving a total of '.$score['total'].'.';
+        } elseif (($score['tribal_area_bonus'] ?? 0) > 0) {
             $lines[] = 'Tribal-area service bonus of '.$score['tribal_area_bonus'].' applied, giving a total of '.$score['total'].'.';
         }
 
@@ -90,6 +93,10 @@ class ExplainCalculationService
                 .'marks were.',
 
             RemarkCode::NotEligible => 'Not eligible.',
+
+            RemarkCode::SealedCover => 'Sealed Cover — '.($verdict['sealed_cover'] ?? '').'. The committee\'s '
+                .'finding is kept in a sealed cover and the post the officer would take is held (Coder '
+                .'Instructions rule 2.2).',
         };
 
         foreach ($verdict['failure_reasons'] ?? [] as $reason) {

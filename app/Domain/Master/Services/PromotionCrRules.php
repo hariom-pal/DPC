@@ -31,11 +31,23 @@ final class PromotionCrRules
     public function __construct(private readonly ActivityTimelineService $timeline) {}
 
     /**
-     * The rule a DPC proposal is held to: its Promotion From Post's class into its
-     * Promotion To Post's class, in force in its DPC year. Asked once per pair and year.
+     * The rule a DPC proposal is held to: the one fixed on it when it was raised; for
+     * a proposal raised before that, its Promotion From Post's class into its Promotion
+     * To Post's class, in force in its DPC year. Asked once per rule.
      */
     public function ruleForProposal(DpcProposal $proposal): ?PromotionCrRule
     {
+        // Fixed on the proposal when it was raised (2026-10-21).
+        if ($proposal->promotion_cr_rule_id !== null) {
+            $key = 'id|'.$proposal->promotion_cr_rule_id;
+
+            if (! array_key_exists($key, $this->resolved)) {
+                $this->resolved[$key] = PromotionCrRule::query()->with('years')->find($proposal->promotion_cr_rule_id);
+            }
+
+            return $this->resolved[$key];
+        }
+
         $year = (int) ($proposal->dpc_year ?: $proposal->proposal_date->year);
         $from = self::classCode($proposal->promotionFromPost?->class_level);
         $to = self::classCode($proposal->promotionToPost?->class_level);
@@ -173,9 +185,15 @@ final class PromotionCrRules
                 'cr_years' => (int) $data['cr_years'],
                 'loyalty_years' => (int) $data['loyalty_years'],
                 'property_years' => (int) $data['property_years'],
-                'qualifying_average' => $data['qualifying_average'],
+                // Qualifying is on the total of the CR years' points; the average is
+                // that total over the CR years, kept for reading.
+                'qualifying_total' => (int) $data['qualifying_total'],
+                'qualifying_average' => round((int) $data['qualifying_total'] / max(1, (int) $data['cr_years']), 2),
                 'super_seat_grade' => ($data['super_seat_grade'] ?? '') === '' ? null : (int) $data['super_seat_grade'],
                 'tribal_bonus' => (int) ($data['tribal_bonus'] ?? 0),
+                // Given for each CR year served in a tribal area (2026-10-21).
+                'tribal_bonus_basis' => 'year',
+                'tribal_bonus_skips_extremes' => (bool) ($data['tribal_bonus_skips_extremes'] ?? true),
                 'remarks' => $data['remarks'] ?? null,
                 'recorded_by' => $actor->id,
             ]);

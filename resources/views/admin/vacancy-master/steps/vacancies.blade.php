@@ -214,6 +214,13 @@
                                 <input type="date" class="form-control form-control-sm @error('promotion_order_date') is-invalid @enderror" id="promotion_order_date" name="promotion_order_date" value="{{ $addOld('promotion_order_date') }}" @if ($addFocus === 'promotion_order_date') autofocus @endif>
 @include('admin.vacancy-master.partials.field-error', ['field' => 'promotion_order_date'])
                             </div>
+                            <div class="col-12">
+                                <label class="form-check small">
+                                    <input class="form-check-input @error('higher_post_undertaking') is-invalid @enderror" type="checkbox" name="higher_post_undertaking" value="1" @checked($addOld('higher_post_undertaking'))>
+                                    {{ __('vacancymaster.entries.higher_undertaking') }}
+                                </label>
+@include('admin.vacancy-master.partials.field-error', ['field' => 'higher_post_undertaking'])
+                            </div>
                         </div>
                     </details>
 

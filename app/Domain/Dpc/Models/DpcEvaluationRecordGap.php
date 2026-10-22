@@ -98,6 +98,11 @@ class DpcEvaluationRecordGap extends Model implements Auditable
         'size_bytes',
         'sha256',
         'recorded_by',
+        'second_disk',
+        'second_path',
+        'second_original_name',
+        'second_size_bytes',
+        'second_sha256',
     ];
 
     /**
@@ -155,6 +160,20 @@ class DpcEvaluationRecordGap extends Model implements Auditable
     public function hasDocument(): bool
     {
         return $this->path !== null && $this->disk !== null;
+    }
+
+    public function hasSecondDocument(): bool
+    {
+        return $this->second_path !== null && $this->second_disk !== null;
+    }
+
+    /**
+     * Justified: the reason and its document — and, where the reason needs two (rule
+     * 3.2, a suspension's suspension and reinstatement orders), both.
+     */
+    public function isJustified(): bool
+    {
+        return $this->hasDocument() && ($this->reason?->requiresSecondDocument() !== true || $this->hasSecondDocument());
     }
 
     /**

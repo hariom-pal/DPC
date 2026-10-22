@@ -476,22 +476,22 @@ complete.
 
 | List | # | SN | Officer | Cat | Score | |
 |---|---|---|---|---|---|---|
-| Main | 1 | 1 | Shri Ramesh Chandra Verma | UR | **20** | **Super Seat** — क+ in all five years |
-| Main | 2 | 2 | Smt. Sunita Rani Patel | OBC | 18 | |
-| Main | 3 | 3 | Shri Jagdish Prasad Netam | ST | 18 | 17 on CR, **+1 tribal area** |
-| Main | 4 | 4 | Smt. Kavita Bhaskar | SC | 15 | |
-| Waiting | 1 | 5 | Shri Prakash Kumar Yadav | OBC | 13 | |
-| Waiting | 2 | 6 | Shri Naresh Kumar Markam | ST | 13 | 12 on CR, **+1 tribal area** |
-| Waiting | 3 | 7 | Smt. Anjali Shrivastava | UR | 14 | |
+| Main | 1 | 1 | Shri Ramesh Chandra Verma | UR | **45** | **Super Seat** — क+ in all five years |
+| Main | 2 | 2 | Smt. Sunita Rani Patel | OBC | 41 | |
+| Main | 3 | 3 | Shri Jagdish Prasad Netam | ST | 41 | 39 on CR, **+2 tribal area** |
+| Main | 4 | 4 | Smt. Kavita Bhaskar | SC | 35 | |
+| Waiting | 1 | 5 | Shri Prakash Kumar Yadav | OBC | 31 | |
+| Waiting | 2 | 6 | Shri Naresh Kumar Markam | ST | 31 | 29 on CR, **+2 tribal area** |
+| Waiting | 3 | 7 | Smt. Anjali Shrivastava | UR | 33 | |
 
 **The three who are not listed, each refused for a different reason** — which is the
 point of showing them:
 
 | SN | Officer | Score | Why |
 |---|---|---|---|
-| 8 | Shri Suresh Kumar Sahu | 7 | Below the qualifying mark — **13** for a Class-II to Class-I promotion |
-| 9 | Shri Dinesh Kumar Kashyap | 12 | **`घ` in 2023** — an adverse grade inside the window refuses outright |
-| 10 | Smt. Priya Dubey | 15 | **Under five years** on the feeder post, so the Recruitment Rule is not satisfied. Note the score: she out-scores three officers on the lists and is still refused, because merit is assessed *after* the gates |
+| 8 | Shri Suresh Kumar Sahu | 19 | Below the qualifying total — **31** for a Class-II to Class-I promotion |
+| 9 | Shri Dinesh Kumar Kashyap | 29 | **`घ` in 2023** — an adverse grade inside the window refuses outright |
+| 10 | Smt. Priya Dubey | 35 | **Under five years** on the feeder post, so the Recruitment Rule is not satisfied. Note the score: she out-scores three officers on the lists and is still refused, because merit is assessed *after* the gates |
 
 **Not Listed — 4.** SN 5 and SN 10 on a **disqualifying grade**; SN 6 and SN 9 on
 score.
@@ -987,9 +987,10 @@ item ever raised, is `docs/uat/TERMINAL_SUGGESTIONS.md`.
 - `Total Vacancy = Sanctioned − chairs substantively held`; deputation consumes no
   quota. The split follows the Recruitment Rule's percentage.
 - Vacancy period **01-01 to 30-11 of the DPC Year**, derived from the year, not today.
-- Score = the **five most recent available CR years** (क+ 4 · क 3 · ख 2 · ग 1 · घ 0)
-  **+1** for any tribal-area service. Qualifying score for Class-III → Class-II is
-  **10**.
+- Score = the Class Master promotion rule's CR years (the **five most recent available**
+  in the demo) on the Eligible CR Grades' points (क+ 9 · क 7 · ख 5 · ग 3 · घ 1), **+2**
+  for any tribal-area service. Qualifying total for Class-III → Class-II is **25**. No
+  rule for the class pair, no calculation.
 - **Any `घ` in the scoring window fails outright**, whatever the total.
 - Reserved-category relaxation is **not applied** — it awaits a business decision
   (Q5/Q6); affected officers are flagged rather than silently decided.

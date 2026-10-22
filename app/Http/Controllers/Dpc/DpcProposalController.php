@@ -132,7 +132,12 @@ class DpcProposalController extends Controller
             ->where('department_id', $request->user()->department_id)
             ->findOrFail($request->integer('pre_dpc_proposal_id'));
 
-        $proposal = $this->service->createFromPreDpc($preDpc, $request->user(), $request->validated());
+        try {
+            $proposal = $this->service->createFromPreDpc($preDpc, $request->user(), $request->validated());
+        } catch (WorkflowException $e) {
+            // No Class Master promotion rule for the promotion: said beside the order.
+            return back()->withInput()->withErrors(['pre_dpc_proposal_id' => $e->getMessage()]);
+        }
 
         return redirect()->route('dpc-proposals.show', $proposal)
             ->with('status', "Draft raised as {$proposal->citation()} from {$preDpc->pre_dpc_number}.");

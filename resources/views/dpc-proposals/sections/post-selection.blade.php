@@ -24,6 +24,9 @@
                             @if ($proposal->payScale) — {{ $proposal->payScale->label }} @endif
                         </dd>
                         <dt class="col-sm-3">{{ __('ui.dpc_year') }}</dt><dd class="col-sm-9">{{ $proposal->dpc_year ?? '—' }}</dd>
+                        {{-- Rule 1.5: effective from 1 January of the DPC year. --}}
+                        <dt class="col-sm-3">{{ __('dpc.sections.post_selection.effective_date') }}</dt>
+                        <dd class="col-sm-9" id="proposal-effective-date">{{ __('dpc.sections.post_selection.effective_date_value', ['date' => $proposal->effectiveDate()->format('d-m-Y'), 'end' => '31-12-'.$proposal->effectiveDate()->year]) }}</dd>
                         <dt class="col-sm-3">{{ __('ui.promotion_duration') }}</dt>
                         <dd class="col-sm-9">{{ $proposal->promotion_duration_years === null ? '—' : __('ui.n_years', ['count' => $proposal->promotion_duration_years]) }}</dd>
                         @if ($proposal->preDpcProposal)
@@ -31,6 +34,21 @@
                             <dd class="col-sm-9">
                                 {{ $proposal->preDpcProposal->pre_dpc_number }}
                                 {{ __('dpc.sections.post_selection.pre_dpc_go', ['go' => $proposal->preDpcProposal->government_order_number ?? __('dpc.sections.post_selection.go_not_recorded')]) }}
+                            </dd>
+                        @endif
+                        @if ($proposal->promotionCrRule)
+                            @php
+                                $crRule = $proposal->promotionCrRule;
+                            @endphp
+                            <dt class="col-sm-3">{{ __('dpc.calculation_rules.fixed_rule_label') }}</dt>
+                            <dd class="col-sm-9" id="fixed-promotion-rule" data-rule-id="{{ $crRule->id }}">
+                                {{ __('dpc.calculation_rules.fixed_rule', [
+                                    'from' => $crRule->from_class, 'to' => $crRule->to_class, 'since' => $crRule->effective_from_year,
+                                    'cr' => $crRule->cr_years, 'total' => $crRule->qualifying_total ?? '—', 'bonus' => $crRule->tribal_bonus,
+                                ]) }}
+                                @if ($crRule->tribal_bonus > 0 && $crRule->tribal_bonus_basis !== 'officer' && $crRule->tribal_bonus_skips_extremes)
+                                    ({{ __('admin.promotion_rules.tribal_value_skips') }})
+                                @endif
                             </dd>
                         @endif
                         {{-- Generated, never typed (change item 12). --}}

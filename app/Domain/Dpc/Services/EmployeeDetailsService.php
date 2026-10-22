@@ -72,9 +72,20 @@ class EmployeeDetailsService
             'qualification' => $this->blankToNull($data['qualification'] ?? null),
             'mobile' => $this->blankToNull($data['mobile'] ?? null),
             'date_of_posting_on_promotion_from_post' => $data['date_of_posting_on_promotion_from_post'] ?? null,
+            'dob_order_number' => $this->blankToNull($data['dob_order_number'] ?? null),
+            'dob_order_date' => $data['dob_order_date'] ?? null,
+            'joining_order_number' => $this->blankToNull($data['joining_order_number'] ?? null),
+            'joining_order_date' => $data['joining_order_date'] ?? null,
         ])->save();
 
-        $this->log($row, 'basic_saved', 'Basic information saved', [], $actor);
+        // Rule 4.4: the undertaking stands while it is ticked; unticked, it is withdrawn.
+        $undertaking = (bool) ($data['service_record_undertaking'] ?? false);
+        $row->forceFill([
+            'service_record_undertaking_by' => $undertaking ? ($row->service_record_undertaking_by ?? $actor->id) : null,
+            'service_record_undertaking_at' => $undertaking ? ($row->service_record_undertaking_at ?? now()) : null,
+        ])->save();
+
+        $this->log($row, 'basic_saved', 'Basic information saved', ['service_record_undertaking' => $undertaking], $actor);
     }
 
     // ------------------------------------------------------------------
@@ -198,7 +209,7 @@ class EmployeeDetailsService
      */
     public function finalGrade(array $report): ?string
     {
-        return $report['accepting_grade'] ?? $report['reviewer_grade'] ?? $report['reporter_grade'] ?? null;
+        return DpcEvaluationCrGrade::finalGradeOf($report);
     }
 
     /**
@@ -340,6 +351,67 @@ class EmployeeDetailsService
         return $outcome;
     }
 
+    /**
+     * Rule 2.3: whether the officer is on deputation without a sanctioned setup; rule
+     * 4.4: whether the officer refused promotion to this post, and in which year. The
+     * year is kept only for a refusal.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    public function saveDeclarations(DpcEvaluationRow $row, array $data, User $actor): void
+    {
+        $this->assertEditable($row);
+
+        $refused = (bool) $data['refused_promotion'];
+
+        $row->forceFill([
+            'unsanctioned_deputation' => (bool) $data['unsanctioned_deputation'],
+            'refused_promotion' => $refused,
+            'refused_promotion_year' => $refused ? (int) $data['refused_promotion_year'] : null,
+            'declarations_recorded_by' => $actor->id,
+            'declarations_recorded_at' => now(),
+        ])->save();
+
+        $this->log($row, 'declarations_recorded', 'Deputation and promotion-refusal declarations recorded', [
+            'unsanctioned_deputation' => $row->unsanctioned_deputation,
+            'refused_promotion' => $refused,
+            'refused_promotion_year' => $row->refused_promotion_year,
+        ], $actor);
+    }
+
+    /**
+     * Rule 2.2: whether a departmental enquiry, charge-sheet, show-cause notice or
+     * suspension is pending against the officer; if so the reason (from the Sealed
+     * Cover Reason master), its date and remarks. Nothing pending clears them.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    public function saveVigilance(DpcEvaluationRow $row, array $data, User $actor): void
+    {
+        $this->assertEditable($row);
+
+        $pending = (bool) $data['vigilance_pending'];
+
+        $row->forceFill([
+            'vigilance_pending' => $pending,
+            'sealed_cover_reason_id' => $pending ? (int) $data['sealed_cover_reason_id'] : null,
+            'vigilance_date' => $pending ? $data['vigilance_date'] : null,
+            'vigilance_remarks' => $pending ? $this->blankToNull($data['vigilance_remarks'] ?? null) : null,
+            'vigilance_recorded_by' => $actor->id,
+            'vigilance_recorded_at' => now(),
+        ])->save();
+
+        $row->unsetRelation('sealedCoverReason');
+
+        $this->log($row, 'vigilance_recorded', $pending
+            ? 'Departmental matter pending: '.($row->sealedCoverReason->code ?? '—')
+            : 'No departmental matter pending', [
+                'pending' => $pending,
+                'reason' => $row->sealedCoverReason?->code,
+                'sealed_cover' => $row->isUnderSealedCover(),
+            ], $actor);
+    }
+
     // ------------------------------------------------------------------
     // F. Documents
     // ------------------------------------------------------------------
@@ -356,8 +428,14 @@ class EmployeeDetailsService
         bool $undertaking,
         ?string $remarks,
         User $actor,
+        bool $verified = false,
     ): DpcEvaluationDocument {
         $this->assertEditable($row);
+
+        // Rule 4.4: the AO's verification of the document against its original is the first of two.
+        if (! $verified) {
+            throw new WorkflowException(__('dpc.employee_details.verification.ao_required'));
+        }
 
         if ($kind === EvaluationDocumentKind::CrChannel) {
             // The document is the evidence for the undertaking; neither stands alone.
@@ -369,6 +447,75 @@ class EmployeeDetailsService
         }
 
         return $this->storeDocument($row, $kind, $year, $file, $undertaking, $remarks, $actor);
+    }
+
+    /**
+     * Rule 4.4's second verification: the Administrative Head's, on a current document
+     * of a submitted proposal. Verifying again changes nothing.
+     */
+    public function verifyByHead(DpcEvaluationDocument $document, User $actor): void
+    {
+        if ($document->ah_verified_at !== null || ! $document->isCurrent()) {
+            return;
+        }
+
+        $document->forceFill(['ah_verified_by' => $actor->id, 'ah_verified_at' => now()])->save();
+
+        $row = $document->row;
+
+        if ($row !== null) {
+            $this->log($row, 'document_verified_by_head', 'Document verified by the Administrative Head: '.$document->kind->value, [
+                'document' => $document->uuid,
+            ], $actor);
+        }
+    }
+
+    /**
+     * Rule 2.1: the Administrative Head verifies a PH claim of a submitted proposal —
+     * verified, the officer competes for a PH seat; not verified, no benefit.
+     */
+    public function verifyPhClaim(DpcEvaluationRow $row, bool $verified, ?string $remarks, User $actor): void
+    {
+        if (! $row->phOutcome()->isClaim()) {
+            throw new WorkflowException(__('dpc.employee_details.ph.not_a_claim'));
+        }
+
+        $row->forceFill([
+            'ph_verification_status' => $verified ? 'verified' : 'not_verified',
+            'ph_final_decision' => $verified ? 'benefit' : 'no_benefit',
+            'ph_verified_by' => $actor->id,
+            'ph_verified_at' => now(),
+            'ph_verification_remarks' => $this->blankToNull($remarks),
+        ])->save();
+
+        $this->log($row, 'ph_claim_verified', 'PH claim '.($verified ? 'verified' : 'not verified').' by the Administrative Head', [
+            'verified' => $verified,
+            'remarks' => $row->ph_verification_remarks,
+        ], $actor);
+    }
+
+    /** Rule 2.1: PH claims of a proposal still waiting for the Administrative Head. */
+    public function phClaimsAwaitingHead(DpcProposal $proposal): int
+    {
+        return $proposal->evaluationRows()
+            ->where('is_ph', true)
+            ->where('ph_previously_availed', false)
+            ->where('ph_claims_reservation', true)
+            ->where('ph_verification_status', 'pending')
+            ->count();
+    }
+
+    /**
+     * The current documents of a proposal still waiting for the Administrative Head's
+     * verification (rule 4.4).
+     */
+    public function documentsAwaitingHead(DpcProposal $proposal): int
+    {
+        return DpcEvaluationDocument::query()
+            ->where('dpc_proposal_id', $proposal->id)
+            ->current()
+            ->whereNull('ah_verified_at')
+            ->count();
     }
 
     // ------------------------------------------------------------------
@@ -387,13 +534,15 @@ class EmployeeDetailsService
      */
     public function status(DpcEvaluationRow $row): array
     {
-        $row->loadMissing(['crGrades', 'propertyFlags', 'recordGaps', 'currentDocuments']);
+        $row->loadMissing(['crGrades', 'propertyFlags', 'recordGaps.reason', 'currentDocuments', 'sealedCoverReason']);
 
         $sections = [
             'basic' => $this->basicMissing($row),
             'cr' => $this->crMissing($row),
             'property' => $this->propertyMissing($row),
             'ph' => $this->phMissing($row),
+            'vigilance' => $this->vigilanceMissing($row),
+            'declarations' => $this->declarationsMissing($row),
         ];
 
         $complete = array_merge(...array_values($sections)) === [];
@@ -418,7 +567,7 @@ class EmployeeDetailsService
         $proposal->loadMissing(['promotionFromPost', 'promotionToPost']);
 
         return $proposal->evaluationRows()
-            ->with(['crGrades', 'propertyFlags', 'recordGaps', 'currentDocuments', 'reservationCategory'])
+            ->with(['crGrades', 'propertyFlags', 'recordGaps.reason', 'currentDocuments', 'reservationCategory', 'sealedCoverReason'])
             ->get()
             // The proposal is the same for every row: its promotion rule is read once.
             ->each(fn (DpcEvaluationRow $row) => $row->setRelation('proposal', $proposal))
@@ -498,6 +647,19 @@ class EmployeeDetailsService
         if (app(ReservationMode::class)->categoryWise()
             && (bool) config('dpc.employee_details.require_category', true) && $row->reservation_category_id === null) {
             $missing[] = (string) __('dpc.employee_details.missing.category');
+        }
+
+        // Rule 4.4: the orders behind the date of birth and of joining, and the undertaking.
+        if ($row->dob_order_number === null || $row->dob_order_date === null) {
+            $missing[] = (string) __('dpc.employee_details.missing.dob_order');
+        }
+
+        if ($row->joining_order_number === null || $row->joining_order_date === null) {
+            $missing[] = (string) __('dpc.employee_details.missing.joining_order');
+        }
+
+        if ($row->service_record_undertaking_at === null) {
+            $missing[] = (string) __('dpc.employee_details.missing.service_record_undertaking');
         }
 
         return $missing;
@@ -639,6 +801,60 @@ class EmployeeDetailsService
     /**
      * @return list<string>
      */
+    private function declarationsMissing(DpcEvaluationRow $row): array
+    {
+        if ($row->unsanctioned_deputation === null) {
+            return [(string) __('dpc.employee_details.missing.declarations_unanswered')];
+        }
+
+        $missing = [];
+
+        if ($row->unsanctioned_deputation && ! $this->hasDocument($row, EvaluationDocumentKind::DeputationOrder, null)) {
+            $missing[] = (string) __('dpc.employee_details.missing.deputation_order');
+        }
+
+        if ($row->refused_promotion) {
+            if (! $this->hasDocument($row, EvaluationDocumentKind::RefusalLetter, null)) {
+                $missing[] = (string) __('dpc.employee_details.missing.refusal_letter');
+            }
+
+            if (! $this->hasDocument($row, EvaluationDocumentKind::RefusalDpcOrder, null)) {
+                $missing[] = (string) __('dpc.employee_details.missing.refusal_dpc_order');
+            }
+        }
+
+        return $missing;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function vigilanceMissing(DpcEvaluationRow $row): array
+    {
+        if ($row->vigilance_pending === null) {
+            return [(string) __('dpc.employee_details.missing.vigilance_unanswered')];
+        }
+
+        if ($row->vigilance_pending === false) {
+            return [];
+        }
+
+        $reason = $row->sealedCoverReason;
+
+        if ($reason === null) {
+            return [(string) __('dpc.employee_details.missing.vigilance_reason')];
+        }
+
+        if ($reason->requires_document && ! $this->hasDocument($row, EvaluationDocumentKind::VigilanceOrder, null)) {
+            return [(string) __('dpc.employee_details.missing.vigilance_order')];
+        }
+
+        return [];
+    }
+
+    /**
+     * @return list<string>
+     */
     private function phMissing(DpcEvaluationRow $row): array
     {
         $outcome = $row->phOutcome();
@@ -666,7 +882,7 @@ class EmployeeDetailsService
         return $row->recordGaps->contains(
             fn (DpcEvaluationRecordGap $gap): bool => $gap->kind === DpcEvaluationRecordGap::KIND_CR
                 && $gap->year === $year
-                && $gap->hasDocument(),
+                && $gap->isJustified(),
         );
     }
 
@@ -693,6 +909,18 @@ class EmployeeDetailsService
 
         if ($kind === EvaluationDocumentKind::Other && trim((string) $remarks) === '') {
             throw new WorkflowException(__('dpc.employee_details.documents.remarks_required'));
+        }
+
+        if ($kind === EvaluationDocumentKind::VigilanceOrder && $row->vigilance_pending !== true) {
+            throw new WorkflowException(__('dpc.employee_details.vigilance.order_not_applicable'));
+        }
+
+        if ($kind === EvaluationDocumentKind::DeputationOrder && $row->unsanctioned_deputation !== true) {
+            throw new WorkflowException(__('dpc.employee_details.declarations.document_not_applicable'));
+        }
+
+        if (in_array($kind, [EvaluationDocumentKind::RefusalLetter, EvaluationDocumentKind::RefusalDpcOrder], true) && $row->refused_promotion !== true) {
+            throw new WorkflowException(__('dpc.employee_details.declarations.document_not_applicable'));
         }
 
         if ($kind === EvaluationDocumentKind::PhUndertaking && ! $row->phOutcome()->requiresUndertaking()) {
@@ -739,6 +967,9 @@ class EmployeeDetailsService
                 'sha256' => $sha256,
                 'uploaded_by' => $actor->id,
                 'uploaded_at' => now(),
+                // The first verification (rule 4.4): the AO's, made on uploading.
+                'ao_verified_by' => $actor->id,
+                'ao_verified_at' => now(),
             ]);
 
             if ($kind !== EvaluationDocumentKind::Other) {

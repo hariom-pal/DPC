@@ -7,6 +7,9 @@ namespace App\Domain\Dpc\Services;
 use App\Domain\Dpc\Models\DpcEvaluationCrGrade;
 use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\Dpc\Models\DpcProposal;
+use App\Domain\Eligibility\RuleSet;
+use App\Domain\Eligibility\Services\ScoringService;
+use App\Domain\Eligibility\ValueObjects\OfficerRecord;
 use App\Domain\Master\Models\PromotionCrRule;
 use App\Domain\Master\Services\PromotionCrRules;
 
@@ -21,9 +24,9 @@ use App\Domain\Master\Services\PromotionCrRules;
  * (Accepting, else Reviewing, else Reporting); several CRs in a year are averaged and
  * the decimal dropped (rule 3.1).
  *
- * The result is reported on the candidate's details; it does not change the scoring
- * engine or stop a proposal from being submitted — a candidate who does not meet the
- * rule is still a candidate the committee considers.
+ * The same rule decides the DPC calculation (DpcCalculationService, since 2026-10-21);
+ * here it is shown per candidate while the details are entered. It does not stop a
+ * proposal from being submitted — the calculation records the outcome.
  */
 final class PromotionRuleCheck
 {
@@ -32,7 +35,7 @@ final class PromotionRuleCheck
 
     public function __construct(
         private readonly PromotionCrRules $rules,
-        private readonly EmployeeDetailsService $details,
+        private readonly ScoringService $scoring,
     ) {}
 
     /**
@@ -40,7 +43,8 @@ final class PromotionRuleCheck
      *     rule: PromotionCrRule|null,
      *     status: 'meets'|'does_not_meet'|'no_rule',
      *     years: list<array{year: int, points: int|null, min: int|null, cr_required: bool, cr_ok: bool, property_required: bool, property_ok: bool, loyalty_required: bool, loyalty_ok: bool}>,
-     *     average: float|null,
+     *     total: int|null,
+     *     required_total: int|null,
      *     findings: list<string>
      * }
      */
@@ -53,7 +57,7 @@ final class PromotionRuleCheck
         $rule = $this->rules->ruleForProposal($proposal);
 
         if ($rule === null) {
-            return ['rule' => null, 'status' => 'no_rule', 'years' => [], 'average' => null, 'findings' => [
+            return ['rule' => null, 'status' => 'no_rule', 'years' => [], 'total' => null, 'required_total' => null, 'findings' => [
                 (string) __('dpc.employee_details.rule.no_rule', ['from' => $from ?? '—', 'to' => $to ?? '—', 'year' => $year]),
             ]];
         }
@@ -63,7 +67,6 @@ final class PromotionRuleCheck
         $byYear = $rule->years->keyBy('years_before');
         $findings = [];
         $years = [];
-        $scored = [];
 
         for ($before = 1; $before <= $rule->span(); $before++) {
             $calendar = $year - $before;
@@ -75,10 +78,6 @@ final class PromotionRuleCheck
 
             $cr = $row->crGrades->firstWhere('year', $calendar);
             $yearPoints = $cr instanceof DpcEvaluationCrGrade ? $this->pointsOf($cr, $points, $findings) : null;
-
-            if ($crInWindow && $yearPoints !== null) {
-                $scored[] = $yearPoints;
-            }
 
             $crOk = true;
 
@@ -117,59 +116,46 @@ final class PromotionRuleCheck
             ];
         }
 
-        $average = $scored === [] ? null : (float) array_sum($scored) / count($scored);
+        // The total exactly as the DPC calculation scores it: the rule's CR years (the
+        // most recent graded), plus the tribal bonus.
+        $base = RuleSet::fromConfig();
+        $score = $this->scoring->score(
+            OfficerRecord::fromEvaluationRow($row, null, $points),
+            RuleSet::forPromotionRule($base, $rule, $points, $year, $from.'-'.$to),
+        );
+        $required = (int) ($rule->qualifying_total ?? round((float) $rule->qualifying_average * $rule->cr_years));
 
-        if ($average !== null && $average < (float) $rule->qualifying_average) {
-            $findings[] = (string) __('dpc.employee_details.rule.average_below', [
-                'average' => number_format($average, 2),
-                'required' => number_format((float) $rule->qualifying_average, 2),
-            ]);
+        if ($score->yearsUsed !== [] && $score->total < $required) {
+            $findings[] = (string) __('dpc.employee_details.rule.total_below', ['total' => $score->total, 'required' => $required]);
         }
 
         return [
             'rule' => $rule,
             'status' => $findings === [] ? 'meets' : 'does_not_meet',
             'years' => $years,
-            'average' => $average,
+            'total' => $score->yearsUsed === [] ? null : $score->total,
+            'required_total' => $required,
             'findings' => array_values(array_unique($findings)),
         ];
     }
 
     /**
-     * A CR year's points: each CR's highest available authority's grade, averaged over
-     * the year's CRs with the decimal dropped. Null when the year carries no grade.
+     * A CR year's points (DpcEvaluationCrGrade::pointsOn), noting a grade that has
+     * no points in the Eligible CR Grades.
      *
      * @param  array<string, int>  $points
      * @param  list<string>  $findings
      */
     private function pointsOf(DpcEvaluationCrGrade $cr, array $points, array &$findings): ?int
     {
-        $grades = array_values(array_filter(array_map(
-            fn (array $report): ?string => $this->details->finalGrade($report),
-            (array) $cr->reports,
-        )));
-
-        // A year entered on the Evaluation Chart carries its grade without reports.
-        if ($grades === [] && $cr->grade !== null) {
-            $grades = [$cr->grade];
-        }
-
-        if ($grades === []) {
-            return null;
-        }
-
-        $values = [];
-
-        foreach ($grades as $grade) {
+        foreach ($cr->finalGrades() as $grade) {
             if (! isset($points[$grade])) {
                 $findings[] = (string) __('dpc.employee_details.rule.grade_without_points', ['grade' => $grade]);
 
                 return null;
             }
-
-            $values[] = $points[$grade];
         }
 
-        return intdiv(array_sum($values), count($values));
+        return $cr->pointsOn($points);
     }
 }

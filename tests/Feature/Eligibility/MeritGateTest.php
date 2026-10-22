@@ -25,6 +25,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Concerns\RaisesDpcProposals;
 use Tests\Concerns\SanctionsVacancies;
 use Tests\Concerns\SeedsEvaluationCharts;
+use Tests\Concerns\UsesPptPromotionRules;
 use Tests\TestCase;
 use Tests\Unit\Eligibility\CandidateGateServiceTest;
 
@@ -48,6 +49,7 @@ class MeritGateTest extends TestCase
     use RefreshDatabase;
     use SanctionsVacancies;
     use SeedsEvaluationCharts;
+    use UsesPptPromotionRules;
 
     private const YEARS = [2013, 2014, 2015, 2016, 2017];
 

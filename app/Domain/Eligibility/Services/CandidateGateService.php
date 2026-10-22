@@ -77,6 +77,7 @@ class CandidateGateService
      * has.
      *
      * @param  list<string>  $hierarchyFailures
+     * @param  list<int>  $mandatoryCrYears  the CR years the Class Master rule makes mandatory
      */
     public function assess(
         OfficerRecord $officer,
@@ -85,6 +86,7 @@ class CandidateGateService
         int $requiredCrCount,
         RemarkCode $ruleFailureStatus,
         bool $enforceQualification = false,
+        array $mandatoryCrYears = [],
     ): CandidateGateVerdict {
         /*
          | The qualification comparison is **advisory by default** — BD-39.
@@ -133,12 +135,21 @@ class CandidateGateService
         // ---- 2. The recruitment rule (item 12) ---------------------------
         $ruleFailures = $this->recruitmentRuleFailures($officer, $enforceQualification);
 
+        // The department's declarations (Coder Instructions rules 2.3 and 4.4).
+        if ($officer->unsanctionedDeputation) {
+            $ruleFailures[] = 'On deputation without a sanctioned setup, so not considered (Coder Instructions rule 2.3).';
+        }
+
+        if ($officer->refusedPromotionLastYear) {
+            $ruleFailures[] = 'Refused promotion to this post last year, so unfit for it (Coder Instructions rule 4.4).';
+        }
+
         if ($ruleFailures !== []) {
             return CandidateGateVerdict::ruleNotSatisfied($ruleFailures, $ruleFailureStatus)->with($advisories);
         }
 
         // ---- 3. Justified gaps (items 14, 15, 17, 19) --------------------
-        $gapReasons = $this->gapFindings($officer, $requiredCrCount);
+        $gapReasons = $this->gapFindings($officer, $requiredCrCount, $mandatoryCrYears);
 
         if ($gapReasons['citations'] !== []) {
             return CandidateGateVerdict::circulation($gapReasons['reasons'], $gapReasons['citations'])
@@ -267,9 +278,10 @@ class CandidateGateService
      * **A Loyalty Certificate belongs to a CR year** (item 15), so it is checked
      * against the years that carry a CR rather than against a calendar.
      *
+     * @param  list<int>  $mandatoryCrYears
      * @return array{reasons: list<string>, citations: list<string>, unjustified: list<string>}
      */
-    public function gapFindings(OfficerRecord $officer, int $requiredCrCount): array
+    public function gapFindings(OfficerRecord $officer, int $requiredCrCount, array $mandatoryCrYears = []): array
     {
         $reasons = [];
         $citations = [];
@@ -305,6 +317,24 @@ class CandidateGateService
                     $requiredCrCount,
                     $shortfall - count($justifiedCrYears),
                 );
+            }
+        }
+
+        // ---- CR years the Class Master rule makes mandatory (2026-10-21) --
+        // Each is recorded, or justified with its reason and document (rule 3.2):
+        // a justified year holds the promotion (CIR), an unexplained one refuses it.
+        foreach ($mandatoryCrYears as $year) {
+            if (in_array($year, $gradedYears, true)) {
+                continue;
+            }
+
+            $citation = $officer->justifiedCrGapYears[$year] ?? null;
+
+            if ($citation !== null) {
+                $reasons[] = sprintf('The CR for %d, mandatory under the promotion rule, is unavailable and has been justified with a reason and a supporting document, so the promotion is held rather than refused.', $year);
+                $citations[] = $citation;
+            } else {
+                $unjustified[] = sprintf('The CR for %d is mandatory under the promotion rule and is not recorded, with no reason or supporting document.', $year);
             }
         }
 

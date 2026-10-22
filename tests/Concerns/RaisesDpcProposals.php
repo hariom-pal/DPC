@@ -10,6 +10,7 @@ use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\DpcType;
 use App\Domain\PreDpc\Enums\PreDpcStatus;
 use App\Domain\PreDpc\Models\PreDpcProposal;
+use Database\Seeders\Support\PptPromotionRules;
 
 /**
  * Raising a DPC in a fixture, now that a DPC comes from a Pre-DPC (change item
@@ -48,6 +49,11 @@ trait RaisesDpcProposals
         // Ids are accepted as readily as models: most fixtures already hold the id
         // because that is what the old payload sent.
         $from = $from instanceof DepartmentPost ? $from : DepartmentPost::query()->findOrFail($from);
+
+        // A DPC is raised only under a Class Master promotion rule (2026-10-21). A
+        // test that records its own rules has them already; any other gets the PPT's,
+        // on the Eligible CR Grades' points, none of whose years is mandatory.
+        PptPromotionRules::record(['I-I' => 35, 'II-I' => 31, 'II-II' => 27, 'default' => 25], tribalBonus: 2, superSeatPoints: 9);
         $to = $to instanceof DepartmentPost ? $to : DepartmentPost::query()->findOrFail($to);
 
         /*

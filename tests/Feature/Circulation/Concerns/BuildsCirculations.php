@@ -10,6 +10,7 @@ use App\Domain\Proceeding\Models\DpcProceedingHold;
 use App\Domain\Proceeding\Services\HoldService;
 use App\Domain\Proceeding\Services\ResultApprovalService;
 use App\Enums\Role;
+use Tests\Concerns\UsesPptPromotionRules;
 use Tests\Feature\Proceeding\Concerns\BuildsProceedings;
 
 /**
@@ -29,6 +30,7 @@ use Tests\Feature\Proceeding\Concerns\BuildsProceedings;
 trait BuildsCirculations
 {
     use BuildsProceedings;
+    use UsesPptPromotionRules;
 
     protected User $administrativeHead;
 
