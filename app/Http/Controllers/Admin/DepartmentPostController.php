@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Admin;
 
+use App\Domain\Authentication\Models\User;
 use App\Domain\Department\Models\Department;
 use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\DepartmentPostOrder;
@@ -13,7 +14,9 @@ use App\Domain\Master\Requests\DepartmentPostRequest;
 use App\Domain\Master\Requests\SupersedeDepartmentPostRequest;
 use App\Domain\Master\Services\DepartmentPostMappingService;
 use App\Domain\Master\Services\MasterCrudService;
+use App\Domain\UserManagement\Services\DepartmentUserAuthority;
 use App\Enums\MasterStatus;
+use App\Enums\Role;
 use App\Enums\ServiceClass;
 use App\Http\Controllers\Admin\Concerns\ListsAMaster;
 use App\Http\Controllers\Controller;
@@ -53,11 +56,14 @@ class DepartmentPostController extends Controller
 
     public function index(Request $request): View
     {
-        return view('admin.department-posts.index', [
+        $scope = $this->scope($request);
+
+        return $this->page($request, 'admin.department-posts.index', [
             // Mappings in force first, then the superseded ones beneath them, so
             // the screen reads as "what applies now, and what applied before".
             'posts' => $this->searched($request, DepartmentPost::query()
                 ->with(['department', 'payScale', 'orders'])
+                ->when($scope !== null, fn ($q) => $q->where('department_id', $scope))
                 ->orderByRaw('active_flag IS NULL')
                 ->orderBy('name')
                 ->orderByDesc('effective_from'), 'department-posts')
@@ -65,18 +71,21 @@ class DepartmentPostController extends Controller
         ]);
     }
 
-    public function create(): View
+    public function create(Request $request): View
     {
-        return view('admin.department-posts.form', $this->formData(new DepartmentPost));
+        return $this->page($request, 'admin.department-posts.form', $this->formData(new DepartmentPost, $this->scope($request)));
     }
 
     public function store(DepartmentPostRequest $request): RedirectResponse
     {
+        $scope = $this->scope($request);
+        abort_if($scope !== null && $request->integer('department_id') !== $scope, 403);
+
         $post = $this->crud->create(new DepartmentPost, $request->safe()->except(self::ORDER_FIELDS));
 
         $this->recordOrders($request, $post);
 
-        return redirect()->route('admin.department-posts.show', $post)
+        return redirect()->route($this->prefix($request).'.show', $post)
             ->with('status', __('admin.department_posts.created'));
     }
 
@@ -84,11 +93,12 @@ class DepartmentPostController extends Controller
      * The mapping in full — its terms, and every Government Order that bears on
      * it (change register of 2026-08-26, item 10).
      */
-    public function show(DepartmentPost $post): View
+    public function show(Request $request, DepartmentPost $post): View
     {
+        $this->assertManages($request, $post);
         $post->load(['department', 'payScale', 'orders.uploader']);
 
-        return view('admin.department-posts.show', [
+        return $this->page($request, 'admin.department-posts.show', [
             'post' => $post,
 
             // The chain this mapping belongs to: the same post in the same
@@ -102,18 +112,24 @@ class DepartmentPostController extends Controller
         ]);
     }
 
-    public function edit(DepartmentPost $post): View
+    public function edit(Request $request, DepartmentPost $post): View
     {
-        return view('admin.department-posts.form', $this->formData($post));
+        $this->assertManages($request, $post);
+
+        return $this->page($request, 'admin.department-posts.form', $this->formData($post, $this->scope($request)));
     }
 
     public function update(DepartmentPostRequest $request, DepartmentPost $post): RedirectResponse
     {
+        $this->assertManages($request, $post);
+        $scope = $this->scope($request);
+        abort_if($scope !== null && $request->integer('department_id') !== $scope, 403);
+
         $this->crud->update($post, $request->safe()->except(self::ORDER_FIELDS));
 
         $this->recordOrders($request, $post);
 
-        return redirect()->route('admin.department-posts.show', $post)
+        return redirect()->route($this->prefix($request).'.show', $post)
             ->with('status', __('admin.department_posts.updated'));
     }
 
@@ -121,13 +137,17 @@ class DepartmentPostController extends Controller
      * A new Government Order for the same post: close this mapping, open its
      * successor.
      */
-    public function supersedeForm(DepartmentPost $post): View
+    public function supersedeForm(Request $request, DepartmentPost $post): View
     {
-        return view('admin.department-posts.supersede', $this->formData($post));
+        $this->assertManages($request, $post);
+
+        return $this->page($request, 'admin.department-posts.supersede', $this->formData($post, $this->scope($request)));
     }
 
     public function supersede(SupersedeDepartmentPostRequest $request, DepartmentPost $post): RedirectResponse
     {
+        $this->assertManages($request, $post);
+
         try {
             $replacement = $this->mappings->supersede(
                 $post,
@@ -141,15 +161,16 @@ class DepartmentPostController extends Controller
             return back()->withInput()->withErrors(['effective_from' => $e->getMessage()]);
         }
 
-        return redirect()->route('admin.department-posts.show', $replacement)
+        return redirect()->route($this->prefix($request).'.show', $replacement)
             ->with('status', __('admin.department_posts.superseded'));
     }
 
-    public function destroy(DepartmentPost $post): RedirectResponse
+    public function destroy(Request $request, DepartmentPost $post): RedirectResponse
     {
+        $this->assertManages($request, $post);
         $this->crud->delete($post);
 
-        return redirect()->route('admin.department-posts.index')
+        return redirect()->route($this->prefix($request).'.index')
             ->with('status', __('admin.department_posts.deleted'));
     }
 
@@ -160,8 +181,9 @@ class DepartmentPostController extends Controller
      * the public root deliberately, and the route is the only way in — which is
      * what keeps them behind the Administrator's role.
      */
-    public function downloadDocument(DepartmentPost $post, DepartmentPostOrder $order): StreamedResponse
+    public function downloadDocument(Request $request, DepartmentPost $post, DepartmentPostOrder $order): StreamedResponse
     {
+        $this->assertManages($request, $post);
         abort_unless($order->department_post_id === $post->id, 404);
         abort_unless($order->hasDocument(), 404);
 
@@ -199,11 +221,12 @@ class DepartmentPostController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function formData(DepartmentPost $post): array
+    private function formData(DepartmentPost $post, ?int $scope = null): array
     {
         return [
             'post' => $post,
-            'departments' => Department::query()->orderBy('name')->get(),
+            // A Department Admin maps posts for their own department only.
+            'departments' => Department::query()->when($scope !== null, fn ($q) => $q->whereKey($scope))->orderBy('name')->get(),
             'payScales' => PayScale::query()->where('status', MasterStatus::Active->value)->orderBy('label')->get(),
             'classes' => ServiceClass::cases(),
             'statuses' => MasterStatus::cases(),
@@ -216,5 +239,50 @@ class DepartmentPostController extends Controller
                 ->orderBy('name')
                 ->get(),
         ];
+    }
+
+    /**
+     * Whose mappings this request may touch (2026-10-28): every department's for
+     * the CGPSC Administrator (null), the own department's for its Department
+     * Admin, and nobody else's.
+     */
+    private function scope(Request $request): ?int
+    {
+        $user = $request->user();
+
+        if ($user instanceof User && $user->hasRole(Role::Admin->value) && ! $request->routeIs('department.*')) {
+            return null;
+        }
+
+        abort_unless($user instanceof User && app(DepartmentUserAuthority::class)->isDepartmentAdmin($user), 403);
+
+        return (int) $user->department_id;
+    }
+
+    private function assertManages(Request $request, DepartmentPost $post): void
+    {
+        $scope = $this->scope($request);
+        abort_if($scope !== null && $post->department_id !== $scope, 403);
+    }
+
+    private function prefix(Request $request): string
+    {
+        return $request->routeIs('department.*') ? 'department.posts' : 'admin.department-posts';
+    }
+
+    /**
+     * The same screens under the Administration layout or the Department
+     * Dashboard's, with that side's route names.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function page(Request $request, string $view, array $data): View
+    {
+        $department = $request->routeIs('department.*');
+
+        return view($view, $data + [
+            'routePrefix' => $this->prefix($request),
+            'layout' => $department ? 'layouts.app' : 'layouts.admin',
+        ]);
     }
 }

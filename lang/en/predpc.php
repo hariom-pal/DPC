@@ -19,6 +19,11 @@ declare(strict_types=1);
 */
 
 return [
+    'summary' => [
+        'title_edit' => 'Edit Pre-DPC Proposal',
+        'title_new' => 'New Pre-DPC Proposal',
+        'number' => 'Pre-DPC No.',
+    ],
     'form' => [
         '1_the_promotion_exercise' => '1. The promotion exercise',
         '2_taken_from_the_posts' => '2. Taken from the posts',

@@ -61,13 +61,15 @@ return [
     | Application Timezone
     |--------------------------------------------------------------------------
     |
-    | Here you may specify the default timezone for your application, which
-    | will be used by the PHP date and date-time functions. The timezone
-    | is set to "UTC" by default as it is suitable for most use cases.
+    | Indian Standard Time (2026-10-26): every date and time the portal records
+    | and shows is IST, as its users read it, and "today" turns over at IST
+    | midnight. Was UTC, which showed every time 5 h 30 min behind. Timestamps
+    | are stored as written, without conversion, so rows written before the
+    | change are UTC wall-clock times.
     |
     */
 
-    'timezone' => 'UTC',
+    'timezone' => env('APP_TIMEZONE', 'Asia/Kolkata'),
 
     /*
     |--------------------------------------------------------------------------

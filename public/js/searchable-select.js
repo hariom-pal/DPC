@@ -1,7 +1,10 @@
 /*
  * Searchable dropdown, as a progressive enhancement over a native <select>.
  *
- * Mark any <select> with `data-searchable` and it gains a type-to-filter box.
+ * Every single-choice <select> gains a type-to-filter box (2026-10-26: every
+ * dropdown on the portal is searchable). A select opts out with
+ * `data-searchable="off"`; a `multiple` or list-box (`size` > 1) select is left
+ * alone — `multiselect-dropdown.js` owns `select[multiple][data-multiselect]`.
  * The native <select> stays the source of truth — it keeps its name, its value
  * and its validation — so if this script fails to load, or is blocked, the field
  * degrades to an ordinary dropdown that still works and still submits. That
@@ -19,20 +22,43 @@
  *
  * Applies to selects present at load and to any added later (the feeder grid adds
  * rows), via a MutationObserver.
+ *
+ * Page scripts keep driving the native select as before, and the box follows:
+ * a value set in code (`select.value = …`, which fires no event), options
+ * replaced, the select disabled, hidden or marked `is-invalid` by validation.
  */
 (function () {
     'use strict';
 
     var idSeed = 0;
 
+    var hindi = (document.documentElement.lang || '').toLowerCase().indexOf('hi') === 0;
+    var TEXT = hindi
+        ? { search: 'खोजें…', none: 'कोई मेल नहीं' }
+        : { search: 'Search…', none: 'No match' };
+
+    var valueProperty = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value');
+    var indexProperty = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'selectedIndex');
+
+    function eligible(select) {
+        return !select.multiple
+            && !(select.size > 1)
+            && select.dataset.searchable !== 'off'
+            && !select.closest('template');
+    }
+
     function enhance(select) {
-        if (select.dataset.searchableReady === '1') {
+        if (select.dataset.searchableReady === '1' || !eligible(select)) {
             return;
         }
         select.dataset.searchableReady = '1';
 
         var id = 'ss-' + (++idSeed);
-        var placeholder = select.dataset.searchablePlaceholder || 'Search…';
+        // The select's own prompt ("Select department") reads better than a bare
+        // "Search…", so its empty option is the placeholder when there is one.
+        var prompt = Array.prototype.find.call(select.options, function (o) { return o.value === ''; });
+        var placeholder = select.dataset.searchablePlaceholder
+            || (prompt && prompt.text.trim() !== '' ? prompt.text.trim() : TEXT.search);
 
         var wrap = document.createElement('div');
         wrap.className = 'ss-wrap';
@@ -67,6 +93,15 @@
         list.className = 'ss-list d-none';
         list.id = id;
         list.setAttribute('role', 'listbox');
+
+        // Spacing and width classes describe the field's place in the layout, so
+        // they move to the wrapper the user now sees; hooks (`js-*`) stay put.
+        Array.prototype.slice.call(select.classList).forEach(function (c) {
+            if (/^(w-|col|m[setbxy]?-)/.test(c)) {
+                wrap.classList.add(c);
+                select.classList.remove(c);
+            }
+        });
 
         select.parentNode.insertBefore(wrap, select);
         wrap.appendChild(select);
@@ -110,7 +145,7 @@
             if (matches.length === 0) {
                 var none = document.createElement('div');
                 none.className = 'ss-empty';
-                none.textContent = 'No match';
+                none.textContent = TEXT.none;
                 list.appendChild(none);
                 return;
             }
@@ -203,19 +238,61 @@
             window.setTimeout(close, 120);
         });
 
+        // Mirror the select's state onto the box: disabled, hidden, and Bootstrap's
+        // `is-invalid` — the wrapper carries it too, so the `.invalid-feedback`
+        // after the field is still shown (`.is-invalid ~ .invalid-feedback`).
+        function syncState() {
+            input.disabled = select.disabled;
+            wrap.hidden = select.hidden || select.classList.contains('d-none');
+            var invalid = select.classList.contains('is-invalid');
+            input.classList.toggle('is-invalid', invalid);
+            wrap.classList.toggle('is-invalid', invalid);
+            if (select.required) {
+                input.setAttribute('aria-required', 'true');
+            } else {
+                input.removeAttribute('aria-required');
+            }
+        }
+
+        function refresh() {
+            syncState();
+            syncInputFromSelect();
+        }
+
         // Keep the box in step when something else sets the select (repopulating
         // after a validation failure, or the grid disabling a row).
         select.addEventListener('change', syncInputFromSelect);
-        select.addEventListener('ss:refresh', function () {
-            input.disabled = select.disabled;
-            syncInputFromSelect();
+        select.addEventListener('ss:refresh', refresh);
+
+        // A value set in code fires no event and changes no attribute, so the
+        // setters are wrapped on this element only.
+        Object.defineProperty(select, 'value', {
+            configurable: true,
+            get: function () { return valueProperty.get.call(select); },
+            set: function (v) { valueProperty.set.call(select, v); syncInputFromSelect(); }
+        });
+        Object.defineProperty(select, 'selectedIndex', {
+            configurable: true,
+            get: function () { return indexProperty.get.call(select); },
+            set: function (v) { indexProperty.set.call(select, v); syncInputFromSelect(); }
         });
 
-        syncInputFromSelect();
+        new MutationObserver(refresh).observe(select, {
+            attributes: true,
+            attributeFilter: ['disabled', 'hidden', 'class', 'required'],
+            childList: true,
+            subtree: true
+        });
+
+        if (select.form) {
+            select.form.addEventListener('reset', function () { window.setTimeout(refresh, 0); });
+        }
+
+        refresh();
     }
 
     function scan(root) {
-        (root || document).querySelectorAll('select[data-searchable]').forEach(enhance);
+        (root || document).querySelectorAll('select').forEach(enhance);
     }
 
     document.addEventListener('DOMContentLoaded', function () {
@@ -227,7 +304,7 @@
                     if (node.nodeType !== 1) {
                         return;
                     }
-                    if (node.matches && node.matches('select[data-searchable]')) {
+                    if (node.matches && node.matches('select')) {
                         enhance(node);
                     }
                     scan(node);

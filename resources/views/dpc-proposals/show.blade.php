@@ -2,13 +2,15 @@
 
 @section('title', 'DPC ' . ($proposal->dpc_code ?? 'Proposal'))
 
-@php($isAO = auth()->user()->hasRole(\App\Enums\Role::AuthorizedOfficer->value))
-@php($isAH = auth()->user()->hasRole(\App\Enums\Role::AdministrativeHead->value))
+{{-- The allotted AO / AH of this proposal, not any officer holding the role (2026-10-26). --}}
+@php($isAO = app(\App\Domain\Allotment\Services\ProposalAllotmentService::class)->isAllotted(auth()->user(), $proposal, \App\Enums\Role::AuthorizedOfficer))
+@php($isAH = app(\App\Domain\Allotment\Services\ProposalAllotmentService::class)->isAllotted(auth()->user(), $proposal, \App\Enums\Role::AdministrativeHead))
 
 @section('content')
     <div class="row justify-content-center">
         <div class="col-lg-9">
             @include('partials.alerts')
+            @include('partials.esign-issue', ['proposal' => $proposal])
             @include('dpc-proposals.sections._candidate-accounts')
 
             {{-- Suggestion 9. Stated, not enforced: the proposal keeps the rule that
@@ -152,7 +154,7 @@
                     @endif
 
                     @if ($proposal->status->value === 'submitted' && $isAH)
-                        <form method="POST" action="{{ route('dpc-proposals.approve', $proposal) }}" data-confirm="{{ __('ui.approve_digitally_sign_and_forward_this_proposal') }}">@csrf<button class="btn btn-success btn-sm">{{ __('ui.approve_sign_amp_forward_to_cgpsc') }}</button></form>
+                        <a href="{{ route('esign.show', ['kind' => 'dpc-approve', 'uuid' => $proposal->uuid]) }}" class="btn btn-success btn-sm" data-esign>{{ __('esign.button.approve_dpc') }}</a>
                     @endif
 
                     @if ($proposal->status->isTerminal())

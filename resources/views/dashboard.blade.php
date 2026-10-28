@@ -69,6 +69,15 @@
 
                     $tiles = [];
 
+                    // Department Admin (2026-10-28): the department's posts and its DPCs.
+                    if ($user->hasRole(\App\Enums\Role::DepartmentAdmin->value)) {
+                        $tiles[] = ['paperless', __('allotments.open'), __('allotments.open_lead'), route('department.allotments.pre-dpc.create')];
+                        $tiles[] = ['workflow', __('allotments.list.pre-dpc.title'), __('allotments.list.pre-dpc.lead'), route('department.allotments.index', ['view' => 'pre-dpc'])];
+                        $tiles[] = ['workflow', __('allotments.list.running.title'), __('allotments.list.running.lead'), route('department.allotments.index')];
+                        $tiles[] = ['workflow', __('allotments.list.closed.title'), __('allotments.list.closed.lead'), route('department.allotments.index', ['view' => 'closed'])];
+                        $tiles[] = ['workflow', __('ui.layouts.admin.nav.department_posts'), __('allotments.posts_tile'), route('department.posts.index')];
+                    }
+
                     if ($isAO || $isAH) {
                         $tiles[] = ['paperless', __('ui.dashboard.tiles.pre_dpc.title'),
                             $isAO

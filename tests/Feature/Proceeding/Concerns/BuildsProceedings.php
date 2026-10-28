@@ -29,6 +29,7 @@ use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Config;
+use Tests\Concerns\AllotsProposals;
 use Tests\Concerns\RecordsSanctionedStrength;
 use Tests\Concerns\SeatsDpcCommittees;
 use Tests\Concerns\SeedsEvaluationCharts;
@@ -44,6 +45,7 @@ use Tests\Concerns\UsesPptPromotionRules;
  */
 trait BuildsProceedings
 {
+    use AllotsProposals;
     use RecordsSanctionedStrength;
     use RefreshDatabase;
     use SeatsDpcCommittees;
@@ -124,6 +126,10 @@ trait BuildsProceedings
                 ->next($this->department, IdentifierSequenceService::SERIES_DPC, 2026),
             'forwarded_at' => now(),
         ]);
+
+        // The DPC is allotted to this AO and AH (2026-10-26), as the Department
+        // Admin would; nobody else in the department acts on it.
+        $this->allot($this->proposal, $this->authorizedOfficer, $this->administrativeHead);
 
         /*
          * **The Seniority-List-must-match-the-Zone rule is stood down for these

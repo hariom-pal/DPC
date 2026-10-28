@@ -53,6 +53,13 @@ enum Role: string
      */
     case CgpscStaff = 'cgpsc_staff';
 
+    /**
+     * The department's own administrator (business decision, 2026-10-26): registers
+     * the department by invitation and manages its Authorized Officers and
+     * Administrative Heads. Holds no DPC authority of its own.
+     */
+    case DepartmentAdmin = 'department_admin';
+
     public function label(): string
     {
         return match ($this) {
@@ -64,6 +71,7 @@ enum Role: string
             self::Individual => 'Individual under Consideration',
             self::PromotionCandidate => 'Promotion Candidate',
             self::CgpscStaff => 'CGPSC Staff',
+            self::DepartmentAdmin => 'Department Admin',
         };
     }
 
@@ -87,7 +95,7 @@ enum Role: string
      */
     public static function departmental(): array
     {
-        return [self::AuthorizedOfficer, self::AdministrativeHead, self::PromotionCandidate];
+        return [self::AuthorizedOfficer, self::AdministrativeHead, self::PromotionCandidate, self::DepartmentAdmin];
     }
 
     /**
@@ -119,7 +127,37 @@ enum Role: string
      */
     public static function provisionable(): array
     {
-        return [self::Admin, self::Chairman, self::Member, self::CgpscStaff, self::AuthorizedOfficer, self::AdministrativeHead];
+        return [self::Admin, self::Chairman, self::Member, self::CgpscStaff, self::DepartmentAdmin, self::AuthorizedOfficer, self::AdministrativeHead];
+    }
+
+    /**
+     * The roles a Department Admin may give (business decision, 2026-10-26): its
+     * department's officers, and nothing that carries Commission or administrative
+     * authority.
+     *
+     * @return list<self>
+     */
+    public static function departmentManageable(): array
+    {
+        return [self::AuthorizedOfficer, self::AdministrativeHead];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function departmentManageableValues(): array
+    {
+        return array_map(static fn (self $role): string => $role->value, self::departmentManageable());
+    }
+
+    /**
+     * The Commission's own accounts (2026-10-27): never an AO or AH of a DPC.
+     *
+     * @return list<self>
+     */
+    public static function commission(): array
+    {
+        return [self::Admin, self::Chairman, self::Member, self::CgpscStaff];
     }
 
     /**

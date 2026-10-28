@@ -62,20 +62,14 @@
                                 @error('password')<div class="invalid-feedback">{{ $message }}</div>@enderror
                             </div>
 
-                            <div class="form-check mb-4">
-                                <input class="form-check-input" type="checkbox" name="remember" id="remember">
-                                <label class="form-check-label small" for="remember">{{ __('authui.login.remember_me_on_this_device') }}</label>
-                            </div>
+                            {{-- No "remember me" (Phase 1, 2026-10-27): every sign-in passes the OTP
+                                 challenge, and a remembered session would skip it. --}}
+                            <div class="mb-4"></div>
 
                             <button type="submit" class="btn btn-primary btn-lg w-100">{{ __('ui.login') }}</button>
                         </form>
 
                         <hr class="my-4">
-
-                        <p class="text-center text-body-secondary small mb-2">
-{{ __('authui.login.new_department') }}
-                            <a href="{{ route('register') }}" class="fw-semibold">{{ __('authui.login.register_here') }}</a>
-                        </p>
 
                         {{-- S49/S50. An officer under consideration has no account
                              here and will otherwise try to log in with one. --}}

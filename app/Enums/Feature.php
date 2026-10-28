@@ -27,6 +27,8 @@ enum Feature: string
     case S3Storage = 's3_storage';
     case LgdSync = 'lgd_sync';
     case Notifications = 'notifications';
+    case UidaiAadhaarOtp = 'uidai_aadhaar_otp';
+    case DigiLocker = 'digilocker';
 
     public function enabled(): bool
     {
@@ -57,6 +59,8 @@ enum Feature: string
             self::S3Storage => 'S3 Object Storage',
             self::LgdSync => 'LGD Directory Sync',
             self::Notifications => 'Notifications',
+            self::UidaiAadhaarOtp => 'UIDAI Aadhaar OTP',
+            self::DigiLocker => 'DigiLocker identity verification',
         };
     }
 
@@ -75,6 +79,8 @@ enum Feature: string
             self::S3Storage => 'Signed documents and uploaded imports are stored on the local filesystem disk.',
             self::LgdSync => 'The seeded Chhattisgarh district list is served.',
             self::Notifications => 'No workflow or OTP notifications are dispatched.',
+            self::UidaiAadhaarOtp => 'Department registration authenticates Aadhaar against the mock provider: no code is sent, and the configured mock code is accepted.',
+            self::DigiLocker => 'Officer identity is checked against the simulated DigiLocker (local and testing only; refused in production).',
         };
     }
 
@@ -86,7 +92,7 @@ enum Feature: string
     public function awaitingExternalApi(): bool
     {
         return match ($this) {
-            self::Hrms, self::CscDigiSign => true,
+            self::Hrms, self::CscDigiSign, self::DigiLocker => true,
             default => false,
         };
     }

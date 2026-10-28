@@ -27,12 +27,15 @@ class UserManagementTest extends TestCase
     {
         $this->actingAs($this->admin())
             ->post(route('admin.users.store'), [
+                'date_of_birth' => '1979-09-09', 'gender' => 'M', // checked against DigiLocker (2026-10-27)
                 'name' => 'Hon. Member One',
                 'email' => 'member1@cgpsc.gov.in',
                 'mobile' => '9812345678',
                 'role' => Role::Member->value,
             ])
-            ->assertRedirect(route('admin.users.index'));
+            // The temporary password is shown on the page that answers the POST (2026-10-26).
+            ->assertOk()
+            ->assertSee('id="issued-password"', false);
 
         $member = User::query()->where('email', 'member1@cgpsc.gov.in')->firstOrFail();
         $this->assertTrue($member->hasRole(Role::Member->value));
@@ -45,6 +48,7 @@ class UserManagementTest extends TestCase
     {
         $this->actingAs($this->admin())
             ->post(route('admin.users.store'), [
+                'date_of_birth' => '1979-09-09', 'gender' => 'M', // checked against DigiLocker (2026-10-27)
                 'name' => 'X', 'email' => 'x@gmail.com', 'mobile' => '9812345678', 'role' => Role::Member->value,
             ])
             ->assertSessionHasErrors('email');
@@ -67,6 +71,7 @@ class UserManagementTest extends TestCase
         foreach ([Role::Individual, Role::PromotionCandidate] as $index => $role) {
             $this->actingAs($this->admin())
                 ->post(route('admin.users.store'), [
+                    'date_of_birth' => '1979-09-09', 'gender' => 'M', // checked against DigiLocker (2026-10-27)
                     'name' => 'X',
                     'email' => "x{$index}@cgpsc.gov.in",
                     'mobile' => '981234567'.$index,

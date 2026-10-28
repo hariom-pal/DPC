@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Domain\Dpc\Services;
 
+use App\Domain\Allotment\Services\ProposalAllotmentService;
 use App\Domain\Authentication\Models\User;
+use App\Domain\Authentication\Services\SecurityLog;
 use App\Domain\Dpc\Enums\DpcProposalStatus;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Models\DpcWorkingOfficer;
@@ -18,10 +20,13 @@ use App\Domain\Shared\Services\ActivityTimelineService;
 use App\Domain\Shared\Services\IdentifierSequenceService;
 use App\Domain\Shared\Workflow\WorkflowEngine;
 use App\Domain\Shared\Workflow\WorkflowException;
+use App\Domain\Signature\Exceptions\SignatureVerificationFailed;
+use App\Domain\Signature\Services\SignatureAttemptLog;
 use App\Domain\Signature\Services\SignatureService;
 use App\Domain\UserManagement\Services\PromotionCandidateProvisioner;
 use App\Enums\Feature;
 use App\Enums\MasterStatus;
+use App\Enums\Role;
 use Carbon\CarbonInterface;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -64,6 +69,7 @@ class DpcProposalService
         private readonly VacancyEngine $vacancyEngine,
         private readonly VacancyCalculationRecorder $vacancyCalculations,
         private readonly PromotionCrRules $promotionRules,
+        private readonly ProposalAllotmentService $allotments,
     ) {}
 
     /**
@@ -162,6 +168,10 @@ class DpcProposalService
             $proposal->save();
 
             $this->revisions->open($proposal, $actor);
+
+            // A DPC goes to the officers its Pre-DPC is allotted to (A2); the
+            // Department Admin may reassign it on its own afterwards.
+            $this->allotments->inherit($proposal, $preDpc, $actor);
 
             return $proposal;
         });
@@ -654,36 +664,58 @@ class DpcProposalService
             throw new WorkflowException(__('dpc.employee_details.ph.claims_pending', ['count' => $claims]));
         }
 
-        DB::transaction(function () use ($proposal, $actor, $request): void {
-            $locked = $this->lock($proposal);
-            $from = $locked->status->value;
-            $def = $this->engine->assertAllowed('dpc_proposal', 'approve', $from, $actor);
+        try {
+            DB::transaction(function () use ($proposal, $actor, $request): void {
+                $this->approveSigned($proposal, $actor, $request);
+            });
+        } catch (SignatureVerificationFailed $e) {
+            // After the rollback, so the event survives it (2026-10-27).
+            app(SecurityLog::class)->record('esign.'.$e->reason, $actor, context: ['subject' => 'dpc_proposal', 'id' => $proposal->id, 'action' => 'approve']);
+            app(SignatureAttemptLog::class)->record($actor, $proposal, 'approve', $e->reason, $e->assertedName);
 
-            $signature = $this->signatures->sign(
-                $actor,
-                $locked,
-                $this->renderDocument($locked),
-                "dpc-proposal-{$locked->id}.txt",
-            );
-
-            // The DPC Number is **not** minted here any more (change item 18): it
-            // was issued when the proposal was created, and it is the same string
-            // through every return and resubmission. Minting at approval would
-            // have meant a returned proposal had no number to be discussed by.
-            $locked->forceFill([
-                'status' => DpcProposalStatus::Approved->value,
-                'approved_by' => $actor->id,
-                'approved_at' => now(),
-                'signature_id' => $signature->id,
-                'forwarded_at' => now(),
-            ])->save();
-
-            $this->revisions->recordApproval($locked);
-
-            $this->engine->record($locked, 'dpc_proposal', 'approve', $from, $def, $actor, $request, null, $signature->id, $locked->department_id);
-        });
+            throw new WorkflowException($e->getMessage());
+        }
 
         $proposal->refresh();
+    }
+
+    /**
+     * The AH's approval, inside the caller's transaction: re-checks the current
+     * allotment under the lock and signs with a verified eSign (2026-10-27).
+     */
+    private function approveSigned(DpcProposal $proposal, User $actor, Request $request): void
+    {
+        $locked = $this->lock($proposal);
+        $from = $locked->status->value;
+        $def = $this->engine->assertAllowed('dpc_proposal', 'approve', $from, $actor);
+
+        if (! $this->allotments->isAllotted($actor, $locked, Role::AdministrativeHead)) {
+            throw new WorkflowException((string) __('esign.errors.not_current_officer'));
+        }
+
+        $signature = $this->signatures->signVerified(
+            $actor,
+            $locked,
+            $this->renderDocument($locked),
+            "dpc-proposal-{$locked->id}.txt",
+            ['action' => 'approve'],
+        );
+
+        // The DPC Number is **not** minted here any more (change item 18): it
+        // was issued when the proposal was created, and it is the same string
+        // through every return and resubmission. Minting at approval would
+        // have meant a returned proposal had no number to be discussed by.
+        $locked->forceFill([
+            'status' => DpcProposalStatus::Approved->value,
+            'approved_by' => $actor->id,
+            'approved_at' => now(),
+            'signature_id' => $signature->id,
+            'forwarded_at' => now(),
+        ])->save();
+
+        $this->revisions->recordApproval($locked);
+
+        $this->engine->record($locked, 'dpc_proposal', 'approve', $from, $def, $actor, $request, null, $signature->id, $locked->department_id);
     }
 
     public function return(DpcProposal $proposal, User $actor, string $remarks, Request $request): void

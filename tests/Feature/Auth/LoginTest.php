@@ -46,7 +46,9 @@ class LoginTest extends TestCase
         $this->post(route('login.store'), [
             'login' => $user->{$identifier},
             'password' => 'password',
-        ])->assertRedirect(route('dashboard'));
+        ])->assertRedirect(route('verify.show'));
+        // Every sign-in is challenged (Phase 1, 2026-10-27).
+        $this->passSignInChallenge()->assertRedirect(route('dashboard'));
 
         $this->assertAuthenticatedAs($user);
     }
@@ -78,6 +80,7 @@ class LoginTest extends TestCase
 
     public function test_unverified_account_is_redirected_to_verification(): void
     {
+        config(['dpc.otp.fixed.mobile' => true]); // a mobile the portal can reach
         $user = User::factory()->unverified()->create();
         $user->assignRole(Role::AuthorizedOfficer->value);
 

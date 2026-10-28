@@ -1,4 +1,4 @@
-@extends('layouts.admin')
+@extends($layout)
 
 @section('title', __('admin.department_posts.show.title'))
 
@@ -15,14 +15,14 @@
         <div class="d-flex flex-wrap gap-2">
             @if ($post->isInForce())
                 <span class="badge text-bg-success align-self-center">{{ __('admin.department_posts.show.in_force') }}</span>
-                <a href="{{ route('admin.department-posts.edit', $post) }}" class="btn btn-outline-primary btn-sm">{{ __('ui.edit') }}</a>
-                <a href="{{ route('admin.department-posts.supersede.form', $post) }}" class="btn btn-warning btn-sm">
+                <a href="{{ route($routePrefix.'.edit', $post) }}" class="btn btn-outline-primary btn-sm">{{ __('ui.edit') }}</a>
+                <a href="{{ route($routePrefix.'.supersede.form', $post) }}" class="btn btn-warning btn-sm">
                     {{ __('admin.department_posts.show.supersede') }}
                 </a>
             @else
                 <span class="badge text-bg-secondary align-self-center">{{ __('admin.department_posts.show.superseded') }}</span>
             @endif
-            <a href="{{ route('admin.department-posts.index') }}" class="btn btn-outline-secondary btn-sm">{{ __('ui.back_to_list') }}</a>
+            <a href="{{ route($routePrefix.'.index') }}" class="btn btn-outline-secondary btn-sm">{{ __('ui.back_to_list') }}</a>
         </div>
     </div>
 
@@ -51,7 +51,9 @@
                 <dd class="col-sm-9">
                     {{ __('admin.department_posts.show.strength_in_vacancy_master') }}
                     @if ($post->department)
-                        <a href="{{ route('admin.departments.vacancy-master.index', $post->department) }}">{{ __('admin.department_posts.show.open_vacancy_master') }}</a>
+                        @if ($routePrefix === 'admin.department-posts')
+                            <a href="{{ route('admin.departments.vacancy-master.index', $post->department) }}">{{ __('admin.department_posts.show.open_vacancy_master') }}</a>
+                        @endif
                     @endif
                 </dd>
                 <dt class="col-sm-3 fw-normal">{{ __('admin.department_posts.form.effective_from') }}</dt>
@@ -125,7 +127,7 @@
                                     <td class="text-end">
                                         @if ($order->hasDocument())
                                             <a class="btn btn-outline-primary btn-sm"
-                                               href="{{ route('admin.department-posts.documents.download', [$post, $order]) }}">
+                                               href="{{ route($routePrefix.'.documents.download', [$post, $order]) }}">
                                                 {{ __('admin.department_posts.show.download') }}
                                             </a>
                                         @endif
@@ -171,7 +173,7 @@
                                     {{ $version->promotion_duration_years === null ? '—' : __('ui.n_years', ['count' => $version->promotion_duration_years]) }}
                                 </td>
                                 <td class="text-end">
-                                    <a class="btn btn-outline-secondary btn-sm" href="{{ route('admin.department-posts.show', $version) }}">
+                                    <a class="btn btn-outline-secondary btn-sm" href="{{ route($routePrefix.'.show', $version) }}">
                                         {{ __('ui.view') }}
                                     </a>
                                 </td>

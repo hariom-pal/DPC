@@ -79,6 +79,18 @@ class AuthorizationCoverageTest extends TestCase
             .'What an account may switch *to* is the set it has been granted, and '
             .'ActiveRoleService::switchTo() refuses anything else — so this route can only ever narrow '
             .'or restore permissions the account already holds, never add one.',
+        // 2026-10-28: the eSign step; every action is authorised by the proposal's policy.
+        'esign.show' => 'EsignController::proposal() authorises the proposal\'s own submit/approve ability.',
+        'esign.start' => 'As above; the workflow service re-checks the current allotment and the eSign name.',
+        'esign.simulator' => 'Non-production with the mock provider only; bound to this session\'s own pending eSign.',
+        'esign.simulator.submit' => 'As above; the pending eSign is single-use and expires in ten minutes.',
+        // 2026-10-28: the AO's / AH's own profile; ProfileController refuses anyone else.
+        'profile.show' => 'An AO or AH sees only their own profile; ProfileController::officer() refuses every other account.',
+        'profile.confirm' => 'As above; the only change it makes is the officer\'s own department.',
+        // Phase 6, 2026-10-27.
+        'acting-department' => 'The department an officer with several assignments acts in. ActingAssignmentService::switchTo() '
+            .'accepts only one of the account\'s own current assignments, and ResolveActiveRole re-checks it against the '
+            .'database on every request — so it can only choose among access already approved, never add any.',
     ];
 
     public function test_every_authenticated_route_is_role_gated_or_deliberately_open(): void

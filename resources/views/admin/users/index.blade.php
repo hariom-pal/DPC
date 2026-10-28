@@ -9,8 +9,6 @@
     </div>
 
     <div class="card border-0 shadow-sm">
-        @include('admin.users._issued-password')
-
         <div class="table-responsive">
             <table class="table table-striped mb-0 align-middle">
                 <thead>
@@ -44,6 +42,7 @@
                                     <a href="{{ route('admin.users.edit', $user) }}" class="btn btn-outline-primary btn-sm">{{ __('ui.edit') }}</a>
                                 @endif
                                 <a href="{{ route('admin.users.assignments.index', $user) }}" class="btn btn-outline-info btn-sm">{{ __('admin.users.index.assignments') }}</a>
+                                <a href="{{ route('admin.users.identity', $user) }}" class="btn btn-outline-secondary btn-sm">{{ __('identity.field_status') }}</a>
                                 <form method="POST" action="{{ route('admin.users.toggle-active', $user) }}" class="d-inline">
                                     @csrf
                                     <button class="btn btn-outline-secondary btn-sm">{{ $user->is_active ? 'Deactivate' : 'Activate' }}</button>

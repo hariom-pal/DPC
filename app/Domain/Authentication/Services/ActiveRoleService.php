@@ -70,6 +70,7 @@ class ActiveRoleService
     private const PRECEDENCE = [
         Role::AuthorizedOfficer,
         Role::AdministrativeHead,
+        Role::DepartmentAdmin,
         Role::Chairman,
         Role::Member,
         Role::CgpscStaff,

@@ -9,7 +9,6 @@ use App\Domain\PromotionOrder\Models\DpcPromotionOrder;
 use App\Domain\PromotionOrder\Requests\IssuePromotionOrderRequest;
 use App\Domain\PromotionOrder\Services\PromotionOrderService;
 use App\Domain\Shared\Workflow\WorkflowException;
-use App\Enums\Role;
 use App\Http\Controllers\Controller;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -37,8 +36,7 @@ class DpcPromotionOrderController extends Controller
             'proceeding' => $proceeding,
             'promoted' => $proceeding === null ? collect() : $this->orders->promoted($proceeding),
             'orders' => DpcPromotionOrder::query()->where('dpc_proposal_id', $dpcProposal->id)->with('issuer')->orderByDesc('id')->get(),
-            'canIssue' => $proceeding !== null && $user !== null && $user->hasRole(Role::AdministrativeHead->value)
-                && (int) $user->department_id === (int) $dpcProposal->department_id,
+            'canIssue' => $proceeding !== null && $user !== null && $user->can('issueOrder', $dpcProposal),
         ]);
     }
 

@@ -1,11 +1,11 @@
-@extends('layouts.admin')
+@extends($layout)
 
 @section('title', __('admin.department_posts.index.department_posts'))
 
 @section('content')
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h1 class="h4 mb-0">{{ __('admin.department_posts.index.department_posts') }}</h1>
-        <a href="{{ route('admin.department-posts.create') }}" class="btn btn-success btn-sm">{{ __('admin.department_posts.index.new_department_post') }}</a>
+        <a href="{{ route($routePrefix.'.create') }}" class="btn btn-success btn-sm">{{ __('admin.department_posts.index.new_department_post') }}</a>
     </div>
 
     <div class="card border-0 shadow-sm">
@@ -32,7 +32,7 @@
                              on the screen — just visibly behind the one in force. --}}
                         <tr @class(['table-light text-body-secondary' => ! $post->isInForce()])>
                             <td>
-                                <a href="{{ route('admin.department-posts.show', $post) }}" class="fw-semibold text-decoration-none">{{ $post->name }}</a>
+                                <a href="{{ route($routePrefix.'.show', $post) }}" class="fw-semibold text-decoration-none">{{ $post->name }}</a>
                                 <div class="small text-muted">{{ $post->department?->name }}</div>
                             </td>
                             <td class="small">
@@ -47,10 +47,10 @@
                                 @endif
                             </td>
                             <td class="text-end text-nowrap">
-                                <a href="{{ route('admin.department-posts.show', $post) }}" class="btn btn-outline-secondary btn-sm">{{ __('ui.view') }}</a>
+                                <a href="{{ route($routePrefix.'.show', $post) }}" class="btn btn-outline-secondary btn-sm">{{ __('ui.view') }}</a>
                                 @if ($post->isInForce())
-                                    <a href="{{ route('admin.department-posts.edit', $post) }}" class="btn btn-outline-primary btn-sm">{{ __('ui.edit') }}</a>
-                                    <form method="POST" action="{{ route('admin.department-posts.destroy', $post) }}" class="d-inline"
+                                    <a href="{{ route($routePrefix.'.edit', $post) }}" class="btn btn-outline-primary btn-sm">{{ __('ui.edit') }}</a>
+                                    <form method="POST" action="{{ route($routePrefix.'.destroy', $post) }}" class="d-inline"
                                           data-confirm="{{ __('admin.department_posts.index.delete_this_post') }}">
                                         @csrf @method('DELETE')
                                         <button class="btn btn-outline-danger btn-sm">{{ __('ui.delete') }}</button>

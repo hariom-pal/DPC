@@ -51,11 +51,9 @@
                                 <button type="submit" class="btn btn-outline-light btn-lg">{{ __('ui.logout') }}</button>
                             </form>
                         @else
-                            <a href="{{ route('register') }}" class="btn btn-accent btn-lg d-inline-flex align-items-center gap-2">
-                                @include('partials.icon', ['name' => 'user-plus', 'size' => 20])
-                                {{ __('ui.new_registration') }}
-                            </a>
-                            <a href="{{ route('login') }}" class="btn btn-outline-light btn-lg d-inline-flex align-items-center gap-2">
+                            {{-- Login only (2026-10-26): a department registers by the
+                                 invitation link it is sent, never from a public menu. --}}
+                            <a href="{{ route('login') }}" class="btn btn-accent btn-lg d-inline-flex align-items-center gap-2">
                                 @include('partials.icon', ['name' => 'login', 'size' => 20])
                                 {{ __('ui.department_login') }}
                             </a>
@@ -107,7 +105,6 @@
                 // no account — so a screen nobody can reach is a screen that was
                 // not delivered.
                 $quickActions = [
-                    'register' => ['user-plus', route('register')],
                     'department' => ['login', route('login')],
                     'administrator' => ['admin', route('login')],
                     'self_inspection' => ['eye', route('self-inspection.landing')],
@@ -122,7 +119,7 @@
                    re-pointed, because "New Registration" retitled to something else
                    is a different tile, and the hero above already carries the one
                    destination a signed-in officer wants (2026-09-06). */
-                $signedOutOnly = ['register', 'department', 'administrator'];
+                $signedOutOnly = ['department', 'administrator'];
             @endphp
 
             <div class="row g-3 g-lg-4">
@@ -403,8 +400,7 @@
                 @auth
                     <a href="{{ route('dashboard') }}" class="btn btn-accent btn-lg">{{ __('ui.dashboard_link') }}</a>
                 @else
-                    <a href="{{ route('register') }}" class="btn btn-accent btn-lg">{{ __('ui.new_registration') }}</a>
-                    <a href="{{ route('login') }}" class="btn btn-outline-light btn-lg">{{ __('ui.department_login') }}</a>
+                    <a href="{{ route('login') }}" class="btn btn-accent btn-lg">{{ __('ui.department_login') }}</a>
                 @endauth
             </div>
         </div>

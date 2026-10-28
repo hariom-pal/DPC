@@ -1,4 +1,4 @@
-@extends('layouts.admin')
+@extends($layout)
 
 @section('title', __($post->exists ? 'admin.department_posts.form.title_edit' : 'admin.department_posts.form.title_new'))
 
@@ -8,7 +8,7 @@
     <div class="card border-0 shadow-sm">
         <div class="card-body">
             <form method="POST" enctype="multipart/form-data"
-                  action="{{ $post->exists ? route('admin.department-posts.update', $post) : route('admin.department-posts.store') }}">
+                  action="{{ $post->exists ? route($routePrefix.'.update', $post) : route($routePrefix.'.store') }}">
                 @csrf
                 @if ($post->exists) @method('PUT') @endif
 
@@ -151,7 +151,7 @@
                 </div>
 
                 <button type="submit" class="btn btn-success">{{ __('ui.save') }}</button>
-                <a href="{{ route('admin.department-posts.index') }}" class="btn btn-outline-secondary">{{ __('ui.cancel') }}</a>
+                <a href="{{ route($routePrefix.'.index') }}" class="btn btn-outline-secondary">{{ __('ui.cancel') }}</a>
             </form>
         </div>
     </div>

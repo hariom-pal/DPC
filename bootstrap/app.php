@@ -40,6 +40,14 @@ return Application::configure(basePath: dirname(__DIR__))
             SecurityHeaders::class,
         ]);
 
+        /*
+         | Every other session of an account ends when its password changes
+         | (business decision, 2026-10-26): `AuthenticateSession` keeps the password
+         | hash in the session and logs the session out at its next request once
+         | the stored hash no longer matches — a reset by an administrator included.
+         */
+        $middleware->authenticateSessions();
+
         $middleware->alias([
             'role' => RoleMiddleware::class,
             'permission' => PermissionMiddleware::class,

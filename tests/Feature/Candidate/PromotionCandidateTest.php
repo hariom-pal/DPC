@@ -345,6 +345,10 @@ class PromotionCandidateTest extends TestCase
 
     public function test_a_candidate_can_sign_in_with_their_employee_number(): void
     {
+        // A candidate account has no e-mail or mobile to challenge; its password-only
+        // sign-in exists only while the project owner keeps it switched on (2026-10-27).
+        config(['dpc.auth.candidate_password_only' => true]);
+
         $candidate = $this->provisionedCandidate('EMP-001');
 
         // The account has no email and no mobile, which is why the employee number

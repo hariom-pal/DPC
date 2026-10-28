@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\PreDpc;
 
+use App\Domain\Allotment\Services\ProposalAllotmentService;
 use App\Domain\Master\Enums\ExperienceUnit;
 use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\Qualification;
@@ -26,6 +27,7 @@ class PreDpcProposalController extends Controller
     public function __construct(
         private readonly PreDpcProposalService $service,
         private readonly PostAttributeResolver $postAttributes,
+        private readonly ProposalAllotmentService $allotments,
     ) {}
 
     public function index(Request $request): View
@@ -33,35 +35,16 @@ class PreDpcProposalController extends Controller
         $this->authorize('viewAny', PreDpcProposal::class);
 
         return view('pre-dpc.index', [
-            'proposals' => PreDpcProposal::query()
+            // Only what this officer is allotted (A3, 2026-10-26).
+            // Any department's (2026-10-27): the allotment is the scope.
+            'proposals' => $this->allotments->scopeTo(PreDpcProposal::query(), $request->user())
                 ->with(['promotionToPost', 'promotionSources.promotionFromPost'])
-                ->where('department_id', $this->departmentId($request))
                 // Newest exercise first, then newest version within it: the list
                 // is read to find "the current 2026 proposal for this pair".
                 ->orderByDesc('dpc_year')
                 ->orderByDesc('id')
                 ->paginate(20),
         ]);
-    }
-
-    public function create(Request $request): View
-    {
-        $this->authorize('create', PreDpcProposal::class);
-
-        return view('pre-dpc.form', $this->formData($request, new PreDpcProposal));
-    }
-
-    public function store(SavePreDpcProposalRequest $request): RedirectResponse
-    {
-        $this->authorize('create', PreDpcProposal::class);
-
-        $department = $request->user()->department;
-        abort_if($department === null, 403);
-
-        $proposal = $this->service->createDraft($department, $request->user(), $request->validated());
-
-        return redirect()->route('pre-dpc.show', $proposal)
-            ->with('status', "Draft saved as {$proposal->pre_dpc_number}.");
     }
 
     public function edit(Request $request, PreDpcProposal $preDpc): View|RedirectResponse
@@ -86,6 +69,12 @@ class PreDpcProposalController extends Controller
         $this->authorize('update', $preDpc);
 
         $this->service->updateDraft($preDpc, $request->validated());
+
+        // The Department Admin goes on to the last step — the AO and AH — while the
+        // Pre-DPC has none (2026-10-28).
+        if (! $this->allotments->isAllottedInAnyRole($request->user(), $preDpc) && $this->allotments->current($preDpc) === null) {
+            return redirect()->route('department.allotments.pre-dpc.edit', $preDpc)->with('status', __('allotments.saved_assign_next'));
+        }
 
         return redirect()->route('pre-dpc.show', $preDpc)->with('status', 'Draft updated.');
     }
@@ -193,6 +182,28 @@ class PreDpcProposalController extends Controller
     }
 
     /**
+     * @return list<int>
+     */
+    private function allottedDepartments(Request $request): array
+    {
+        // The officer's own department as before, and every department whose
+        // Pre-DPC they are the AO of.
+        $own = $this->departmentId($request);
+
+        return collect($own === null ? [] : [$own])->merge($this->allotments->scopeTo(PreDpcProposal::query(), $request->user())
+            ->whereExists(fn ($q) => $q->selectRaw('1')->from('proposal_allotments')
+                ->whereColumn('proposal_allotments.pre_dpc_proposal_id', 'pre_dpc_proposals.id')
+                ->whereNull('proposal_allotments.ended_at')
+                ->where('proposal_allotments.ao_user_id', $request->user()->id))
+            ->distinct()
+            ->pluck('department_id'))
+            ->map(fn ($id): int => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
      * Pay Scale, Class and Promotion Duration for the posts asked about
      * (change item 5).
      *
@@ -214,10 +225,7 @@ class PreDpcProposalController extends Controller
      */
     public function derivedAttributes(Request $request): JsonResponse
     {
-        $this->authorize('create', PreDpcProposal::class);
-
-        $departmentId = $this->departmentId($request);
-        abort_if($departmentId === null, 403);
+        $this->authorize('derive', PreDpcProposal::class);
 
         $ids = array_map('intval', (array) $request->input('post_ids', []));
 
@@ -227,12 +235,15 @@ class PreDpcProposalController extends Controller
             $ids[] = $request->integer('post_id');
         }
 
+        // Posts of the departments whose Pre-DPC this officer is allotted to as AO
+        // (2026-10-27) — never another department's establishment.
+        $posts = collect();
+        foreach ($this->allottedDepartments($request) as $departmentId) {
+            $posts = $posts->merge($this->postAttributes->resolveMany($departmentId, array_values(array_filter($ids))));
+        }
+
         return response()->json([
-            'posts' => $this->postAttributes
-                ->resolveMany($departmentId, array_values(array_filter($ids)))
-                ->map(fn (PostAttributes $attributes): array => $attributes->toArray())
-                ->values()
-                ->all(),
+            'posts' => $posts->map(fn (PostAttributes $attributes): array => $attributes->toArray())->values()->all(),
         ]);
     }
 
@@ -241,7 +252,8 @@ class PreDpcProposalController extends Controller
      */
     private function formData(Request $request, PreDpcProposal $proposal): array
     {
-        $departmentId = $this->departmentId($request);
+        // The proposal's department, whichever the officer belongs to (2026-10-27).
+        $departmentId = $proposal->exists ? (int) $proposal->department_id : $this->departmentId($request);
 
         return [
             'proposal' => $proposal,

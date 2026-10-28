@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Database\Seeders;
 
+use App\Domain\Allotment\Services\ProposalAllotmentService;
 use App\Domain\Authentication\Events\CredentialsIssued;
 use App\Domain\Authentication\Models\User;
-use App\Domain\Authentication\Services\RegistrationService;
 use App\Domain\Department\Models\Department;
 use App\Domain\Dpc\Models\VacancyPosition;
 use App\Domain\Dpc\Services\VacancyMasterService;
@@ -19,10 +19,14 @@ use App\Domain\Master\Models\Qualification;
 use App\Domain\Master\Services\PromotionCrRules;
 use App\Domain\PreDpc\Models\PreDpcProposal;
 use App\Domain\PreDpc\Services\PreDpcProposalService;
+use App\Domain\UserManagement\Services\UserProvisioningService;
+use App\Enums\DepartmentStatus;
+use App\Enums\Role;
 use Database\Seeders\Demo\DemoActor;
 use Illuminate\Database\Seeder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Str;
 
 /**
  * Everything one department needs to start one DPC (2026-10-19): School Education
@@ -90,29 +94,47 @@ class ReadyDpcSeeder extends Seeder
             $designation = fn (string $name): int => (int) Designation::query()->where('name', $name)->value('id');
 
             // The credentials notice would mail a random password this seeder replaces.
-            Event::fakeFor(fn () => app(RegistrationService::class)->register([
-                'department_id' => $department->id,
+            // The address is the Administrator's master data; registration reads it.
+            $department->forceFill([
                 'district_id' => (int) District::query()->where('name_en', 'Raipur')->value('id'),
-                'place' => 'Mahanadi Bhawan, Nava Raipur Atal Nagar',
-                'pin' => '492002',
-                'department_email' => 'schooleducation@cg.gov.in',
-                'ao_name' => 'Shri Anil Kumar Verma',
-                'ao_designation_id' => $designation('Under Secretary'),
-                'ao_mobile' => '9000001101',
-                'ao_email' => self::AO_EMAIL,
-                'ah_name' => 'Smt. Sunita Rathore',
-                'ah_designation_id' => $designation('Secretary, School Education'),
-                'ah_mobile' => '9000001102',
-                'ah_email' => self::AH_EMAIL,
-            ]), [CredentialsIssued::class]);
+                'place' => $department->place ?? 'Mahanadi Bhawan, Nava Raipur Atal Nagar',
+                'pin' => $department->pin ?? '492002',
+                'email' => $department->email ?? 'schooleducation@cg.gov.in',
+            ])->save();
+
+            // Created as the Department Admin or Portal Admin would create them; the
+            // credentials notice is suppressed because this seeder sets the password.
+            Event::fakeFor(function () use ($department, $designation): void {
+                $provisioning = app(UserProvisioningService::class);
+
+                foreach ([
+                    [Role::AdministrativeHead, 'Smt. Sunita Rathore', 'Secretary, School Education', '9000001102', self::AH_EMAIL],
+                    [Role::AuthorizedOfficer, 'Shri Anil Kumar Verma', 'Under Secretary', '9000001101', self::AO_EMAIL],
+                ] as [$role, $name, $designationName, $mobile, $email]) {
+                    $provisioning->provision([
+                        'name' => $name, 'email' => $email, 'mobile' => $mobile,
+                        'designation_id' => $designation($designationName),
+                        'role' => $role->value, 'department_id' => $department->id,
+                        // Demonstration identity (2026-10-27): verified through the
+                        // simulated DigiLocker at first sign-in, like any officer.
+                        'date_of_birth' => '1976-03-15', 'gender' => str_starts_with($name, 'Smt') ? 'F' : 'M',
+                    ]);
+                }
+
+                if ($department->status === DepartmentStatus::Unregistered) {
+                    $department->forceFill(['status' => DepartmentStatus::Registered->value, 'registered_at' => now()])->save();
+                }
+            }, [CredentialsIssued::class]);
         }
 
         $ao = User::query()->where('email', self::AO_EMAIL)->firstOrFail();
         $ah = User::query()->where('email', self::AH_EMAIL)->firstOrFail();
 
+        $password = $this->demonstrationPassword();
+
         foreach ([$ao, $ah] as $user) {
             $user->forceFill([
-                'password' => (string) config('dpc.ready_department.password'),
+                'password' => $password,
                 'must_change_password' => false,
                 'email_verified_at' => $user->email_verified_at ?? now(),
                 'mobile_verified_at' => $user->mobile_verified_at ?? now(),
@@ -151,6 +173,10 @@ class ReadyDpcSeeder extends Seeder
                     'qualification_ids' => Qualification::query()->where('name_en', 'Post-Graduate')->pluck('id')->all(),
                 ]],
             ]);
+
+            // Allotted to this AO and AH, as the Department Admin would (2026-10-26):
+            // the DPC the AO raises from it inherits the allotment.
+            app(ProposalAllotmentService::class)->allot($proposal, $ao, $ah, null);
 
             $service->submit($proposal, $ao, DemoActor::request());
 
@@ -202,7 +228,7 @@ class ReadyDpcSeeder extends Seeder
     private function promotionRule(): void
     {
         $to = ClassMaster::query()->where('code', 'I')->first();
-        $admin = User::query()->where('email', (string) config('dpc.admin.email'))->first();
+        $admin = User::role(Role::Admin->value)->orderBy('id')->first();
 
         if ($to === null || $admin === null
             || PromotionCrRule::query()->where('to_class', 'I')->where('from_class', 'II')->exists()) {
@@ -238,5 +264,24 @@ class ReadyDpcSeeder extends Seeder
         file_put_contents($path, "%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 595 842]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n");
 
         return new UploadedFile($path, $name, 'application/pdf', null, true);
+    }
+
+    /**
+     * The officers' password on a demonstration machine: `DPC_DEPARTMENT_PASSWORD`
+     * when set, else a random one printed once (2026-10-26: no shared default).
+     */
+    private function demonstrationPassword(): string
+    {
+        $configured = (string) config('dpc.ready_department.password', '');
+
+        if ($configured !== '') {
+            return $configured;
+        }
+
+        static $generated = null;
+        $generated ??= Str::password(16);
+        $this->command->warn('ReadyDpcSeeder: the AO and AH password is '.$generated.' (shown once; set DPC_DEPARTMENT_PASSWORD to choose it).');
+
+        return $generated;
     }
 }

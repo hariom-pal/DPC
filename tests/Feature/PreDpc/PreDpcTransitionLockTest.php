@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\PreDpc;
 
+use App\Domain\Allotment\Services\ProposalAllotmentService;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Department\Models\Department;
 use App\Domain\Master\Models\DepartmentPost;
@@ -209,6 +210,8 @@ class PreDpcTransitionLockTest extends TestCase
             'government_order_number' => 'GO/2026/SE/1',
             'effective_from' => '2026-01-01',
         ]);
+        // Only the allotted AO submits and the allotted AH approves (2026-10-27).
+        app(ProposalAllotmentService::class)->allot($proposal, $this->ao, $this->ah, null);
 
         return $proposal->refresh();
     }

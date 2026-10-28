@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Domain\Review\Listeners;
 
+use App\Domain\Allotment\Services\ProposalAllotmentService;
+use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Notification\Services\NotificationRecipientResolver;
 use App\Domain\Review\Events\DpcSupersededByReview;
 use App\Enums\Role;
@@ -56,9 +58,12 @@ class SendSupersessionNotification implements ShouldQueue
         // repointed at it. Behaviour is identical — same roles, same department
         // scope, same exclusion of deactivated accounts — which is why this could be
         // done inside a freeze at all.
+        // The review's allotted AO and AH (2026-10-26), not the whole department.
+        $review = DpcProposal::query()->where('uuid', $event->reviewProposalUuid)->first();
         $recipients = $this->recipients->resolve(
-            $event->departmentId,
-            [Role::AuthorizedOfficer->value, Role::AdministrativeHead->value],
+            null,
+            [],
+            $review === null ? [] : app(ProposalAllotmentService::class)->recipientIds($review, [Role::AuthorizedOfficer->value, Role::AdministrativeHead->value]),
         );
 
         foreach ($recipients as $recipient) {

@@ -470,3 +470,50 @@ a.gov-card:hover { color: inherit; }
     min-height: calc(1.5em + .75rem + 2px);  /* .form-control height, so the row aligns */
     display: flex; align-items: center; flex-wrap: wrap; gap: .25rem;
 }
+
+/* ----------------------------------------- forms: sections, summary, actions
+   2026-10-28: the Pre-DPC form and the invitation screen. */
+
+.form-section { border-left: 4px solid var(--gov-blue) !important; border-radius: var(--radius-sm); }
+.form-section > .card-header { background: var(--gov-blue-light) !important; color: var(--gov-blue-dark); border-bottom: 1px solid var(--gov-line); }
+
+.summary-strip {
+    display: flex; flex-wrap: wrap; gap: .75rem 1.5rem;
+    background: var(--gov-surface); border: 1px solid var(--gov-line); border-radius: var(--radius-sm);
+    padding: .75rem 1rem; margin-bottom: 1rem;
+}
+.summary-strip .summary-item { min-width: 8rem; }
+.summary-strip .summary-label { display: block; font-size: .75rem; color: var(--gov-muted); text-transform: uppercase; letter-spacing: .02em; }
+.summary-strip .summary-value { font-weight: 600; color: var(--gov-ink); }
+
+.form-actions-sticky {
+    position: sticky; bottom: 0; z-index: 10;
+    display: flex; gap: .5rem; align-items: center;
+    background: rgba(255, 255, 255, .96); border-top: 1px solid var(--gov-line);
+    padding: .75rem 0; margin-top: 1rem;
+}
+
+.steps-list { counter-reset: step; list-style: none; padding-left: 0; margin-bottom: 0; }
+.steps-list li { counter-increment: step; position: relative; padding-left: 2rem; margin-bottom: .5rem; }
+.steps-list li::before {
+    content: counter(step); position: absolute; left: 0; top: 0;
+    width: 1.4rem; height: 1.4rem; border-radius: 50%;
+    background: var(--gov-blue); color: #fff; font-size: .75rem; font-weight: 600;
+    display: flex; align-items: center; justify-content: center;
+}
+
+/* Pre-DPC feeder table (2026-10-28): one line per control, aligned at the top. */
+#promotion-sources-table td { vertical-align: top; padding-top: .65rem; padding-bottom: .65rem; }
+#promotion-sources-table .input-group { flex-wrap: nowrap; }
+#promotion-sources-table .input-group > .form-control { min-width: 3.5rem; }
+#promotion-sources-table .input-group > .form-select { flex: 0 0 auto; width: auto; max-width: 7.5rem; }
+#promotion-sources-table .source-attributes { padding-top: .9rem; }
+#promotion-sources-table .btn-outline-danger { margin-top: .1rem; }
+.form-control[readonly] { background-color: var(--gov-surface); color: var(--gov-muted); }
+#promotion-sources-table .form-control,
+#promotion-sources-table .form-select,
+#promotion-sources-table .input-group-text,
+#promotion-sources-table .ss-wrap input,
+#promotion-sources-table .ms-toggle {
+    height: 2.4rem; min-height: 2.4rem; font-size: .9rem; padding-top: .35rem; padding-bottom: .35rem;
+}

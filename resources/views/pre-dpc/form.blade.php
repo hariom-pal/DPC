@@ -26,16 +26,34 @@
         $required = ' <span class="text-danger" aria-hidden="true">*</span>';
     @endphp
 
-    <div class="d-flex justify-content-between align-items-center mb-3">
+    @if ($proposal->exists)
+        @include('partials.esign-issue', ['proposal' => $proposal])
+    @endif
+    @php
+        // The Department Admin returns to the department's Pre-DPCs; an AO to their own list.
+        $backTo = auth()->user()->can('viewAny', \App\Domain\PreDpc\Models\PreDpcProposal::class)
+            ? route('pre-dpc.index')
+            : route('department.allotments.index', ['view' => 'pre-dpc']);
+        $allotted = $proposal->exists ? $proposal->currentAllotment()->with(['ao', 'ah'])->first() : null;
+    @endphp
+    <div class="d-flex justify-content-between align-items-center mb-2">
         <div>
-            <h1 class="h4 mb-0">{{ $proposal->exists ? 'Edit Pre-DPC Proposal' : 'New Pre-DPC Proposal' }}</h1>
+            <h1 class="h4 mb-0">{{ $proposal->exists ? __('predpc.summary.title_edit') : __('predpc.summary.title_new') }}</h1>
             <div class="text-muted small">{{ __('predpc.form.all_fields_required') }}</div>
-            @if ($proposal->pre_dpc_number)
-                <div class="text-muted small">{{ $proposal->pre_dpc_number }} — {{ __('ui.version_n', ['number' => $proposal->version]) }}</div>
-            @endif
         </div>
-        <a href="{{ route('pre-dpc.index') }}" class="btn btn-outline-secondary btn-sm">{{ __('predpc.form.back_to_list') }}</a>
+        <a href="{{ $backTo }}" class="btn btn-outline-secondary btn-sm">{{ __('predpc.form.back_to_list') }}</a>
     </div>
+
+    @if ($proposal->exists)
+        {{-- At a glance (2026-10-28): which exercise, where it stands, who has it. --}}
+        <div class="summary-strip small" id="pre-dpc-summary">
+            <div class="summary-item"><span class="summary-label">{{ __('predpc.summary.number') }}</span><span class="summary-value">{{ $proposal->pre_dpc_number }} · {{ __('ui.version_n', ['number' => $proposal->version]) }}</span></div>
+            <div class="summary-item"><span class="summary-label">{{ __('allotments.field.dpc_year') }}</span><span class="summary-value">{{ $proposal->dpc_year }}</span></div>
+            <div class="summary-item"><span class="summary-label">{{ __('ui.status') }}</span><span class="summary-value"><span class="badge {{ $proposal->status->badgeClass() }}">{{ $proposal->status->label() }}</span></span></div>
+            <div class="summary-item"><span class="summary-label">{{ __('allotments.column.ao') }}</span><span class="summary-value">{{ $allotted?->ao?->name ?? '—' }}</span></div>
+            <div class="summary-item"><span class="summary-label">{{ __('allotments.column.ah') }}</span><span class="summary-value">{{ $allotted?->ah?->name ?? '—' }}</span></div>
+        </div>
+    @endif
 
     @if ($posts->isEmpty())
         <div class="alert alert-warning">
@@ -44,20 +62,20 @@
         </div>
     @endif
 
-    <form method="POST" action="{{ $proposal->exists ? route('pre-dpc.update', $proposal) : route('pre-dpc.store') }}">
+    <form method="POST" action="{{ route('pre-dpc.update', $proposal) }}">
         @csrf
         @if ($proposal->exists) @method('PUT') @endif
 
-        <div class="card border-0 shadow-sm mb-3">
-            <div class="card-header bg-white"><strong>{{ __('predpc.form.1_the_promotion_exercise') }}</strong></div>
+        <div class="card border-0 shadow-sm mb-3 form-section">
+            <div class="card-header"><strong>{{ __('predpc.form.1_the_promotion_exercise') }}</strong></div>
             <div class="card-body">
                 <div class="row">
                     <div class="col-md-3 mb-3">
                         {!! __('predpc.form.dpc_year_label') !!}
                         <input type="number" min="2000" max="{{ (int) now()->addYear()->format('Y') }}" step="1"
                                class="form-control @error('dpc_year') is-invalid @enderror"
-                               id="dpc_year" name="dpc_year"
-                               value="{{ old('dpc_year', $proposal->dpc_year ?? (int) now()->format('Y')) }}" required>
+                               id="dpc_year" name="dpc_year" readonly
+                               value="{{ $proposal->dpc_year }}" required>
                         @error('dpc_year')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
                     @php
@@ -71,8 +89,11 @@
                     @endphp
                     <div class="col-md-9 mb-3">
                         {!! __('predpc.form.promotion_to_post_label') !!}
+                        {{-- The year and post are the Department Admin's choice (A1,
+                             2026-10-26): shown, not changeable here. --}}
+                        <input type="hidden" name="promotion_to_post_id" value="{{ $proposal->promotion_to_post_id }}">
                         <select class="form-select @error('promotion_to_post_id') is-invalid @enderror"
-                                id="promotion_to_post_id" name="promotion_to_post_id" required
+                                id="promotion_to_post_id" disabled
                                 data-attributes-url="{{ route('pre-dpc.post-attributes') }}">
                             <option value="">{{ __('ui.select') }}</option>
                             @foreach ($posts as $post)
@@ -82,7 +103,7 @@
                             @endforeach
                         </select>
                         @error('promotion_to_post_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                        {!! __('predpc.form.hint_to_post') !!}
+                        <div class="form-text">{!! __('predpc.form.hint_to_post') !!}</div>
                         <div class="form-text" id="to_post_attributes">
                             {{ __('predpc.form.to_post_attributes', [
                                 'scale' => $toPostAttributes?->payScaleLabel ?? '—',
@@ -100,24 +121,24 @@
              recruitment and promotion shares say how much of the post is filled by
              promotion at all, and the feeder rows below divide *that* share between
              the feeders. The reader needs the whole before the parts. --}}
-        <div class="card border-0 shadow-sm mb-3">
-            <div class="card-header bg-white"><strong>{{ __('predpc.form.2_terms_this_exercise_sanctions') }}</strong></div>
+        <div class="card border-0 shadow-sm mb-3 form-section">
+            <div class="card-header"><strong>{{ __('predpc.form.2_terms_this_exercise_sanctions') }}</strong></div>
             <div class="card-body">
                 <div class="row">
                     <div class="col-md-3 mb-3">
                         {!! __('predpc.form.direct_recruitment_label') !!}
-                        <input type="number" min="0" max="100" step="0.01"
+                        <input type="number" min="0" max="100" step="1" inputmode="numeric" data-whole-number
                                class="form-control @error('direct_recruitment_pct') is-invalid @enderror"
                                id="direct_recruitment_pct" name="direct_recruitment_pct"
-                               value="{{ old('direct_recruitment_pct', $proposal->direct_recruitment_pct ?? '0') }}" required>
+                               value="{{ (fn ($v) => is_numeric($v) && (float) $v == (int) $v ? (int) $v : $v)(old('direct_recruitment_pct', $proposal->direct_recruitment_pct ?? '0')) }}" required>
                         @error('direct_recruitment_pct')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
                     <div class="col-md-3 mb-3">
                         {!! __('predpc.form.promotion_label') !!}
-                        <input type="number" min="0" max="100" step="0.01"
+                        <input type="number" min="0" max="100" step="1" inputmode="numeric" data-whole-number
                                class="form-control @error('promotion_recruitment_pct') is-invalid @enderror"
                                id="promotion_recruitment_pct" name="promotion_recruitment_pct"
-                               value="{{ old('promotion_recruitment_pct', $proposal->promotion_recruitment_pct ?? '100') }}" required>
+                               value="{{ (fn ($v) => is_numeric($v) && (float) $v == (int) $v ? (int) $v : $v)(old('promotion_recruitment_pct', $proposal->promotion_recruitment_pct ?? '100')) }}" required>
                         @error('promotion_recruitment_pct')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         <div class="form-text">{{ __('predpc.form.hint_shares_total') }}</div>
                     </div>
@@ -134,8 +155,8 @@
 
              **Each row shows that post's own Pay Scale and Class**, because that is
              what promotion eligibility is judged on: the officer's current post. --}}
-        <div class="card border-0 shadow-sm mb-3">
-            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <div class="card border-0 shadow-sm mb-3 form-section">
+            <div class="card-header d-flex justify-content-between align-items-center">
                 <div>
                     <strong>{{ __('predpc.form.3_promotion_from_posts') }}</strong>
                     <div class="small text-body-secondary">{{ __('predpc.form.sources_lead') }}</div>
@@ -184,12 +205,12 @@
                                      all fields"*). Pay Scale & Class carries none
                                      because nobody enters it — it is read off the
                                      post. --}}
-                                <th style="width:30%">{{ __('predpc.form.promotion_from_post') }}{!! $required !!}</th>
-                                <th style="width:20%">{{ __('predpc.form.its_pay_scale_and_class') }}</th>
-                                <th style="width:12%">{{ __('predpc.form.share') }}{!! $required !!}</th>
-                                <th style="width:16%">{{ __('predpc.form.min_experience') }}{!! $required !!}</th>
-                                <th style="width:17%">{{ __('predpc.form.min_qualification') }}{!! $required !!}</th>
-                                <th style="width:5%"></th>
+                                <th style="width:26%">{{ __('predpc.form.promotion_from_post') }}{!! $required !!}</th>
+                                <th style="width:16%">{{ __('predpc.form.its_pay_scale_and_class') }}</th>
+                                <th style="width:11%">{{ __('predpc.form.share') }}{!! $required !!}</th>
+                                <th style="width:19%">{{ __('predpc.form.min_experience') }}{!! $required !!}</th>
+                                <th style="width:22%">{{ __('predpc.form.min_qualification') }}{!! $required !!}</th>
+                                <th style="width:6%"></th>
                             </tr>
                         </thead>
                         <tbody data-next-index="{{ $sourceRows->count() }}">
@@ -225,8 +246,8 @@
             </div>
         </div>
 
-        <div class="card border-0 shadow-sm mb-3">
-            <div class="card-header bg-white"><strong>{{ __('predpc.form.4_government_order') }}</strong></div>
+        <div class="card border-0 shadow-sm mb-3 form-section">
+            <div class="card-header"><strong>{{ __('predpc.form.4_government_order') }}</strong></div>
             <div class="card-body">
                 <div class="row">
                     <div class="col-md-6 mb-3">
@@ -253,9 +274,11 @@
         {{-- `data-no-posts` tells pre-dpc-exercise.js to leave this button alone.
              It governs Save on the share total, and would otherwise *enable* a
              button that is disabled because the department has no posts at all. --}}
-        <button type="submit" class="btn btn-success" id="save-pre-dpc"
-                @disabled($posts->isEmpty()) @if ($posts->isEmpty()) data-no-posts @endif>{{ __('predpc.form.save_draft') }}</button>
-        <a href="{{ route('pre-dpc.index') }}" class="btn btn-outline-secondary">{{ __('ui.cancel') }}</a>
+        <div class="form-actions-sticky">
+            <button type="submit" class="btn btn-success" id="save-pre-dpc"
+                    @disabled($posts->isEmpty()) @if ($posts->isEmpty()) data-no-posts @endif>{{ __('predpc.form.save_draft') }}</button>
+            <a href="{{ $backTo }}" class="btn btn-outline-secondary">{{ __('ui.cancel') }}</a>
+        </div>
     </form>
 
     @push('scripts')

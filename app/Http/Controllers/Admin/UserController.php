@@ -12,12 +12,17 @@ use App\Domain\UserManagement\Requests\UpdateUserRequest;
 use App\Domain\UserManagement\Services\UserProvisioningService;
 use App\Enums\MasterStatus;
 use App\Enums\Role;
+use App\Http\Controllers\Concerns\ShowsIssuedPassword;
 use App\Http\Controllers\Controller;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 
 class UserController extends Controller
 {
+    use ShowsIssuedPassword;
+
     public function __construct(private readonly UserProvisioningService $provisioning) {}
 
     public function index(): View
@@ -39,13 +44,17 @@ class UserController extends Controller
         return view('admin.users.form', $this->formData(new User));
     }
 
-    public function store(StoreUserRequest $request): RedirectResponse
+    /**
+     * Provision an account and show its temporary password once (business decision,
+     * 2026-10-26): never mailed, never flashed.
+     */
+    public function store(StoreUserRequest $request): Response
     {
         /** @var array{name:string,email:string,mobile:string,designation_id:?int,role:string,department_id?:int|null} $data */
         $data = $request->validated();
-        $this->provisioning->provision($data);
+        $issued = $this->provisioning->provision($data, $request->user());
 
-        return redirect()->route('admin.users.index')->with('status', 'Account provisioned. Credentials have been issued.');
+        return $this->showIssuedPassword($issued->user, $issued->temporaryPassword, 'created', 'layouts.admin', route('admin.users.index'));
     }
 
     public function edit(User $user): View
@@ -57,41 +66,29 @@ class UserController extends Controller
     {
         /** @var array{name:string,email:string,mobile:string,designation_id:?int,role:string,department_id?:int|null} $data */
         $data = $request->validated();
-        $this->provisioning->update($user, $data);
+        $this->provisioning->update($user, $data, $request->user());
 
         return redirect()->route('admin.users.index')->with('status', 'Account updated.');
     }
 
-    public function toggleActive(User $user): RedirectResponse
+    public function toggleActive(Request $request, User $user): RedirectResponse
     {
-        $this->provisioning->setActive($user, ! $user->is_active);
+        $this->provisioning->setActive($user, ! $user->is_active, $request->user());
 
         return redirect()->route('admin.users.index')
             ->with('status', $user->is_active ? 'Account deactivated.' : 'Account activated.');
     }
 
-    public function resetPassword(User $user): RedirectResponse
+    /**
+     * Issue a NEW temporary password and show it once (business decision,
+     * 2026-10-26). The previous password stops working; it is never shown, because
+     * it is never stored. Rate limited per administrator and per account.
+     */
+    public function resetPassword(Request $request, User $user): Response
     {
-        $password = $this->provisioning->resetPassword($user);
+        $password = $this->provisioning->resetPassword($user, $request->user());
 
-        /*
-         | **Shown once, on the screen the Administrator is standing at.**
-         |
-         | It is also sent to the user by SMS and e-mail, and until 2026-09-07 that
-         | was the only copy — which on a deployment whose gateways are in log mode
-         | means nobody could read it. Pressing Reset Password locked the account
-         | out instead of recovering it, and there was no second attempt that would
-         | help, because each one issues a different password.
-         |
-         | Flashed rather than rendered inline because this redirects, and not
-         | persisted anywhere: it is a temporary password, the user must change it on
-         | first use, and a copy left in a database or a log is a copy that outlives
-         | its purpose.
-         */
-        return redirect()
-            ->route('admin.users.index')
-            ->with('status', __('admin.users.password_reset'))
-            ->with('issuedPassword', ['name' => $user->name, 'password' => $password]);
+        return $this->showIssuedPassword($user, $password, 'reset', 'layouts.admin', route('admin.users.index'));
     }
 
     /**

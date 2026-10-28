@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 use App\Enums\Role;
 use App\Http\Controllers\Admin\AdminDashboardController;
+use App\Http\Controllers\Admin\AssignmentRequestController;
 use App\Http\Controllers\Admin\AuditTrailController;
 use App\Http\Controllers\Admin\CgpscChairmanController;
 use App\Http\Controllers\Admin\ClassMasterController;
 use App\Http\Controllers\Admin\CommitteeConfigurationController;
 use App\Http\Controllers\Admin\CrGradeValueController;
 use App\Http\Controllers\Admin\DepartmentController;
+use App\Http\Controllers\Admin\DepartmentInvitationController;
 use App\Http\Controllers\Admin\DepartmentPostController;
 use App\Http\Controllers\Admin\DesignationController;
 use App\Http\Controllers\Admin\DistrictController;
@@ -30,10 +32,14 @@ use App\Http\Controllers\Admin\ReviewReasonController;
 use App\Http\Controllers\Admin\SealedCoverReasonController;
 use App\Http\Controllers\Admin\UserAssignmentController;
 use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Admin\UserIdentityController;
 use App\Http\Controllers\Admin\VacancyManagementController;
 use App\Http\Controllers\Admin\VacancyMasterController;
+use App\Http\Controllers\Auth\ActingDepartmentController;
+use App\Http\Controllers\Auth\IdentityController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\PasswordChangeController;
+use App\Http\Controllers\Auth\ProfileController;
 use App\Http\Controllers\Auth\RegistrationController;
 use App\Http\Controllers\Auth\RoleSwitchController;
 use App\Http\Controllers\Auth\VerificationController;
@@ -49,6 +55,8 @@ use App\Http\Controllers\Cgpsc\ProceedingHoldController;
 use App\Http\Controllers\Cgpsc\ProceedingResultController;
 use App\Http\Controllers\Cgpsc\SchedulingController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\Department\DepartmentOfficerController;
+use App\Http\Controllers\Department\ProposalAllotmentController;
 use App\Http\Controllers\Dpc\CirculationController;
 use App\Http\Controllers\Dpc\DpcCalculationController;
 use App\Http\Controllers\Dpc\DpcCommitteeMemberController;
@@ -60,14 +68,15 @@ use App\Http\Controllers\Dpc\DpcProposalVerificationController;
 use App\Http\Controllers\Dpc\DpcRecordGapController;
 use App\Http\Controllers\Dpc\ImportTemplateController;
 use App\Http\Controllers\Dpc\ReviewProposalController;
+use App\Http\Controllers\EsignController;
 use App\Http\Controllers\HealthController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PreDpc\PreDpcProposalController;
 use App\Http\Controllers\Proceeding\CommitteeSittingController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SelfInspection\SelfInspectionController;
+use App\Http\Middleware\EnsureAccountReady;
 use App\Http\Middleware\EnsureCanWorkAnAllotment;
-use App\Http\Middleware\EnsurePasswordChanged;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', fn () => view('welcome'))->name('home');
@@ -88,11 +97,39 @@ Route::get('/lang/{locale}', function (string $locale) {
 Route::get('/login', [LoginController::class, 'create'])->name('login');
 Route::post('/login', [LoginController::class, 'store'])->middleware('throttle:login')->name('login.store');
 
+/*
+ | Department Admin registration by invitation (business decision, 2026-10-26).
+ | `/register` only explains that registration is by invitation; the invitation
+ | link carries a one-time token whose SHA-256 alone is stored.
+ */
 Route::get('/register', [RegistrationController::class, 'create'])->name('register');
-Route::post('/register', [RegistrationController::class, 'store'])->name('register.store');
+Route::middleware('throttle:registration')->group(function (): void {
+    Route::get('/register/{token}', [RegistrationController::class, 'show'])->name('register.invitation');
+    Route::post('/register/{token}', [RegistrationController::class, 'start'])->name('register.invitation.start');
+    Route::get('/register/{token}/verify', [RegistrationController::class, 'verifyForm'])->name('register.invitation.verify');
+    Route::post('/register/{token}/verify', [RegistrationController::class, 'verify'])
+        ->middleware('throttle:otp-verify')->name('register.invitation.verify.store');
+    Route::post('/register/{token}/resend', [RegistrationController::class, 'resend'])->name('register.invitation.resend');
+    // DigiLocker, then the password (2026-10-27). DigiLocker answers on the one
+    // registered callback, `identity.callback`.
+    Route::get('/register/{token}/identity', [RegistrationController::class, 'identityForm'])->name('register.invitation.identity');
+    Route::post('/register/{token}/identity', [RegistrationController::class, 'identityStart'])->middleware('throttle:otp-verify')->name('register.invitation.identity.start');
+    Route::get('/register/{token}/password', [RegistrationController::class, 'passwordForm'])->name('register.invitation.password');
+    Route::post('/register/{token}/password', [RegistrationController::class, 'complete'])->name('register.invitation.complete');
+});
+
+// Sign-in steps before the OTP (2026-10-27): DigiLocker identity, then the
+// Aadhaar-linked-mobile declaration. They act on the pending sign-in only.
+Route::post('/sign-in/cancel', [LoginController::class, 'cancel'])->name('login.cancel');
+Route::get('/sign-in/identity', [IdentityController::class, 'show'])->name('identity.show');
+Route::post('/sign-in/identity', [IdentityController::class, 'start'])->middleware('throttle:otp-verify')->name('identity.start');
+Route::get('/sign-in/identity/callback', [IdentityController::class, 'callback'])->middleware('throttle:otp-verify')->name('identity.callback');
+Route::get('/sign-in/identity/simulator', [IdentityController::class, 'simulator'])->name('identity.simulator');
+Route::post('/sign-in/identity/simulator', [IdentityController::class, 'simulate'])->name('identity.simulator.submit');
 
 Route::get('/verify', [VerificationController::class, 'show'])->name('verify.show');
 Route::post('/verify', [VerificationController::class, 'store'])->middleware('throttle:otp-verify')->name('verify.store');
+Route::post('/verify/resend', [VerificationController::class, 'resend'])->middleware('throttle:registration')->name('verify.resend');
 
 /*
  | Self-Inspection & Assessment (PPT S49–S51) — M10.
@@ -125,7 +162,10 @@ Route::get('/promotion-orders/{order}', [DpcPromotionOrderController::class, 'pu
     ->middleware(['signed', 'throttle:60,1'])
     ->name('promotion-orders.public');
 
-Route::middleware('auth')->group(function (): void {
+// Every authenticated route passes the account gate (Phase 1, 2026-10-27): an
+// active account, a session that passed the sign-in challenge, and a changed
+// system-issued password.
+Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void {
     // Coder Instructions rule 1.1: DPCs held offline, entered by the Commission's staff;
     // the Administrator reads them.
     Route::middleware('role:cgpsc_staff|admin')->prefix('previous-dpcs')->name('previous-dpcs.')->group(function (): void {
@@ -142,9 +182,56 @@ Route::middleware('auth')->group(function (): void {
     Route::post('/password/change', [PasswordChangeController::class, 'update'])->name('password.change.update');
     Route::post('/logout', [LoginController::class, 'destroy'])->name('logout');
 
-    // Application screens require the system-issued password to be changed.
-    Route::middleware(EnsurePasswordChanged::class)->group(function (): void {
+    // Application screens. The pending password change is enforced by
+    // EnsureAccountReady on the whole authenticated group.
+    Route::group([], function (): void {
+        /*
+         | Department Dashboard → User Management (business decision, 2026-10-26).
+         | The Department Admin's own department's Authorized Officers and
+         | Administrative Heads; every action is re-checked by
+         | DepartmentUserAuthority, so the role alone opens nothing outside it.
+         */
+        Route::middleware('role:'.Role::DepartmentAdmin->value)
+            ->prefix('department')
+            ->name('department.')
+            ->group(function (): void {
+                // Department Post Mapping for the own department (2026-10-28); the
+                // controller scopes every action to the Department Admin's department.
+                Route::get('/posts/{post}/supersede', [DepartmentPostController::class, 'supersedeForm'])->name('posts.supersede.form');
+                Route::post('/posts/{post}/supersede', [DepartmentPostController::class, 'supersede'])->name('posts.supersede');
+                Route::get('/posts/{post}/orders/{order}', [DepartmentPostController::class, 'downloadDocument'])->name('posts.documents.download');
+                Route::resource('posts', DepartmentPostController::class)->parameters(['posts' => 'post']);
+
+                // The AO / AH picker (2026-10-28): find by e-mail, or add with both OTPs.
+                Route::get('/officers/lookup', [DepartmentOfficerController::class, 'lookup'])->middleware('throttle:30,1')->name('officers.lookup');
+                Route::post('/officers/otp', [DepartmentOfficerController::class, 'sendOtp'])->middleware('throttle:registration')->name('officers.otp');
+                Route::post('/officers', [DepartmentOfficerController::class, 'store'])->middleware('throttle:otp-verify')->name('officers.store');
+                Route::put('/officers/{officer}/details', [DepartmentOfficerController::class, 'updateDetails'])->name('officers.details');
+
+                // Pre-DPC / DPC allotment to an AO and an AH (2026-10-26).
+                Route::get('/allotments', [ProposalAllotmentController::class, 'index'])->name('allotments.index');
+                Route::get('/allotments/pre-dpc/create', [ProposalAllotmentController::class, 'create'])->name('allotments.pre-dpc.create');
+                Route::post('/allotments/pre-dpc', [ProposalAllotmentController::class, 'store'])->name('allotments.pre-dpc.store');
+                Route::get('/allotments/pre-dpc/{preDpc}/edit', [ProposalAllotmentController::class, 'editPreDpc'])->name('allotments.pre-dpc.edit');
+                Route::put('/allotments/pre-dpc/{preDpc}', [ProposalAllotmentController::class, 'updatePreDpc'])->name('allotments.pre-dpc.update');
+                Route::get('/allotments/pre-dpc/{preDpc}/history', [ProposalAllotmentController::class, 'historyPreDpc'])->name('allotments.pre-dpc.history');
+                Route::get('/allotments/dpc/{dpcProposal}/edit', [ProposalAllotmentController::class, 'editDpc'])->name('allotments.dpc.edit');
+                Route::put('/allotments/dpc/{dpcProposal}', [ProposalAllotmentController::class, 'updateDpc'])->name('allotments.dpc.update');
+                Route::get('/allotments/dpc/{dpcProposal}/history', [ProposalAllotmentController::class, 'historyDpc'])->name('allotments.dpc.history');
+
+            });
+
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+        // The eSign step before every submission and approval (2026-10-28). Each
+        // action is authorised by the proposal's own policy in EsignController.
+        Route::get('/esign/simulator', [EsignController::class, 'simulator'])->name('esign.simulator');
+        Route::post('/esign/simulator', [EsignController::class, 'simulate'])->middleware('throttle:otp-verify')->name('esign.simulator.submit');
+        Route::get('/esign/{kind}/{uuid}', [EsignController::class, 'show'])->name('esign.show');
+        Route::post('/esign/{kind}/{uuid}', [EsignController::class, 'start'])->middleware('throttle:otp-verify')->name('esign.start');
+
+        // The AO's and AH's profile at every sign-in (2026-10-28).
+        Route::get('/profile', [ProfileController::class, 'show'])->name('profile.show');
+        Route::post('/profile', [ProfileController::class, 'confirm'])->name('profile.confirm');
 
         /*
          | The sitting, from a committee member's side (business instruction,
@@ -182,6 +269,8 @@ Route::middleware('auth')->group(function (): void {
          | controller.
          */
         Route::post('/acting-as', RoleSwitchController::class)->name('acting-as');
+        // The department an officer with several assignments acts in (Phase 6, 2026-10-27).
+        Route::post('/acting-department', [ActingDepartmentController::class, 'store'])->name('acting-department');
 
         /*
          | In-app notifications (M11). Every role, no role middleware: the feed
@@ -254,8 +343,10 @@ Route::middleware('auth')->group(function (): void {
                 Route::get('/{dpcProposal}', [CandidateDpcController::class, 'show'])->name('show');
             });
 
-        // Pre-DPC Proposal workflow (department Authorized Officer / Administrative Head).
-        Route::middleware('role:'.Role::AuthorizedOfficer->value.'|'.Role::AdministrativeHead->value)
+        // Pre-DPC Proposal workflow (department Authorized Officer / Administrative Head;
+        // the Department Admin fills in and reads its department's, 2026-10-28 —
+        // every action is the policy's to allow).
+        Route::middleware('role:'.Role::AuthorizedOfficer->value.'|'.Role::AdministrativeHead->value.'|'.Role::DepartmentAdmin->value)
             ->prefix('pre-dpc')
             ->name('pre-dpc.')
             ->group(function (): void {
@@ -272,8 +363,8 @@ Route::middleware('auth')->group(function (): void {
                 Route::get('/post-attributes', [PreDpcProposalController::class, 'derivedAttributes'])
                     ->name('post-attributes');
 
-                Route::get('/create', [PreDpcProposalController::class, 'create'])->name('create');
-                Route::post('/', [PreDpcProposalController::class, 'store'])->name('store');
+                // Opened by the Department Admin with its AO and AH (A1, 2026-10-26):
+                // see department.allotments.pre-dpc.*. The AO fills it in via edit.
                 Route::get('/{preDpc}', [PreDpcProposalController::class, 'show'])->name('show');
                 Route::get('/{preDpc}/edit', [PreDpcProposalController::class, 'edit'])->name('edit');
                 Route::put('/{preDpc}', [PreDpcProposalController::class, 'update'])->name('update');
@@ -667,6 +758,11 @@ Route::middleware('auth')->group(function (): void {
                 // Department Master — the catalogue registration (S6) draws
                 // from. Registration still owns the registration transition.
                 Route::resource('departments', DepartmentController::class)->except(['show']);
+                // Department Admin invitations (business decision, 2026-10-26).
+                Route::get('department-invitations', [DepartmentInvitationController::class, 'index'])->name('department-invitations.index');
+                Route::post('department-invitations', [DepartmentInvitationController::class, 'store'])->name('department-invitations.store');
+                Route::post('department-invitations/{invitation}/resend', [DepartmentInvitationController::class, 'resend'])->name('department-invitations.resend');
+                Route::post('department-invitations/{invitation}/revoke', [DepartmentInvitationController::class, 'revoke'])->name('department-invitations.revoke');
 
                 /*
                  | Vacancy Master — inside Department Management, for the department
@@ -828,7 +924,7 @@ Route::middleware('auth')->group(function (): void {
 
                 Route::resource('users', UserController::class)->only(['index', 'create', 'store', 'edit', 'update']);
                 Route::post('users/{user}/toggle-active', [UserController::class, 'toggleActive'])->name('users.toggle-active');
-                Route::post('users/{user}/reset-password', [UserController::class, 'resetPassword'])->name('users.reset-password');
+                Route::post('users/{user}/reset-password', [UserController::class, 'resetPassword'])->middleware('throttle:password-reset')->name('users.reset-password');
 
                 /*
                  | Role Assignments and transfers (change items 1 and 2).
@@ -845,6 +941,19 @@ Route::middleware('auth')->group(function (): void {
                     ->name('users.assignments.store');
                 Route::delete('users/{user}/assignments', [UserAssignmentController::class, 'release'])
                     ->name('users.assignments.release');
+
+                // Transfer and additional-charge requests (Phases 7–8, 2026-10-27).
+                Route::get('assignment-requests', [AssignmentRequestController::class, 'index'])->name('assignment-requests.index');
+                Route::post('assignment-requests/{assignmentRequest}/decide', [AssignmentRequestController::class, 'decide'])->name('assignment-requests.decide');
+                Route::get('assignment-requests/{assignmentRequest}/order', [AssignmentRequestController::class, 'document'])->name('assignment-requests.document');
+
+                // Identity: status, correction, manual and forced re-verification (2026-10-27).
+                Route::get('users/{user}/identity', [UserIdentityController::class, 'show'])->name('users.identity');
+                Route::post('users/{user}/identity/correct', [UserIdentityController::class, 'correct'])->name('users.identity.correct');
+                Route::post('users/{user}/identity/manual', [UserIdentityController::class, 'manual'])->name('users.identity.manual');
+                Route::post('users/{user}/identity/force', [UserIdentityController::class, 'force'])->name('users.identity.force');
+                Route::get('users/{user}/identity/verifications/{verification}/document', [UserIdentityController::class, 'verificationDocument'])->name('users.identity.verification-document');
+                Route::get('users/{user}/identity/corrections/{correction}/document', [UserIdentityController::class, 'correctionDocument'])->name('users.identity.correction-document');
             });
     });
 });

@@ -1,4 +1,4 @@
-@extends('layouts.admin')
+@extends($layout)
 
 @section('title', __('admin.department_posts.supersede.title'))
 
@@ -24,7 +24,7 @@
 
     <div class="card border-0 shadow-sm">
         <div class="card-body">
-            <form method="POST" enctype="multipart/form-data" action="{{ route('admin.department-posts.supersede', $post) }}">
+            <form method="POST" enctype="multipart/form-data" action="{{ route($routePrefix.'.supersede', $post) }}">
                 @csrf
 
                 {{-- Department and post name are deliberately absent: a supersession
@@ -100,7 +100,7 @@
                 <div class="alert alert-warning small">{{ __('admin.department_posts.supersede.what_happens') }}</div>
 
                 <button type="submit" class="btn btn-warning">{{ __('admin.department_posts.supersede.confirm') }}</button>
-                <a href="{{ route('admin.department-posts.show', $post) }}" class="btn btn-outline-secondary">{{ __('ui.cancel') }}</a>
+                <a href="{{ route($routePrefix.'.show', $post) }}" class="btn btn-outline-secondary">{{ __('ui.cancel') }}</a>
             </form>
         </div>
     </div>

@@ -146,7 +146,11 @@ class DepartmentMasterTest extends TestCase
         $this->assertSame('SE', $department->refresh()->code);
     }
 
-    public function test_registration_offers_only_unregistered_departments_from_the_master(): void
+    /**
+     * Since 2026-10-26 registration is by invitation only: the public page lists no
+     * department, so nobody can claim one they were not invited to.
+     */
+    public function test_registration_lists_no_department(): void
     {
         $this->seed(RolesAndPermissionsSeeder::class);
 
@@ -158,8 +162,9 @@ class DepartmentMasterTest extends TestCase
 
         $this->get(route('register'))
             ->assertOk()
-            ->assertSee('School Education Department')
-            ->assertDontSee('Finance Department');
+            ->assertDontSee('School Education Department')
+            ->assertDontSee('Finance Department')
+            ->assertSee(__('invitations.register.by_invitation'));
     }
 
     public function test_non_admin_cannot_reach_the_department_master(): void

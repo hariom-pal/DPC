@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Shared\Services;
 
+use App\Domain\Allotment\Services\ProposalAllotmentService;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Cgpsc\Enums\AllotmentStatus;
 use App\Domain\Cgpsc\Models\DpcAllotment;
@@ -101,14 +102,17 @@ class DashboardSummaryService
         $isHead = $user->hasRole(Role::AdministrativeHead->value);
         $departmentName = Department::query()->whereKey($departmentId)->value('name');
 
-        $proposals = fn (): Builder => DpcProposal::query()->where('department_id', $departmentId);
+        // Every count is of what this officer is allotted (A3, 2026-10-26): an AH's
+        // "awaiting your approval" is the proposals waiting for *them*.
+        $allotments = app(ProposalAllotmentService::class);
+        $proposals = fn (): Builder => $allotments->scopeTo(DpcProposal::query(), $user)->where('department_id', $departmentId);
 
         $awaitingHead = $proposals()->where('status', DpcProposalStatus::Submitted->value)->count();
 
         $heldOfficers = DpcProceedingHold::query()
             ->whereNull('released_at')
             ->whereIn('dpc_proceeding_id', DpcProceeding::query()
-                ->whereIn('dpc_proposal_id', $proposals()->select('id'))
+                ->whereIn('dpc_proposal_id', $proposals()->select('dpc_proposals.id'))
                 ->select('id'))
             ->count();
 
@@ -118,7 +122,7 @@ class DashboardSummaryService
             'cards' => [
                 [
                     'label' => 'Pre-DPC in preparation',
-                    'value' => PreDpcProposal::query()
+                    'value' => $allotments->scopeTo(PreDpcProposal::query(), $user)
                         ->where('department_id', $departmentId)
                         ->whereIn('status', [PreDpcStatus::Draft->value, PreDpcStatus::Returned->value, PreDpcStatus::Submitted->value])
                         ->count(),
@@ -160,6 +164,7 @@ class DashboardSummaryService
                     'label' => 'Circulations in progress',
                     'value' => DpcCirculation::query()
                         ->where('department_id', $departmentId)
+                        ->whereIn('origin_dpc_proposal_id', $proposals()->select('dpc_proposals.id'))
                         ->whereNotIn('status', [CirculationStatus::Signed->value, CirculationStatus::Cancelled->value])
                         ->count(),
                     'hint' => 'Raised but not yet signed by the Commission',

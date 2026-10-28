@@ -24,5 +24,11 @@ final class SignatureResult
         public readonly ?string $certificateSerial = null,
         public readonly ?string $certificateIssuer = null,
         public readonly array $meta = [],
+        // From the provider's authenticated eSign response (2026-10-27): the name
+        // the signer was authenticated as, the request reference echoed back,
+        // and the digest of the document actually signed. Never from the browser.
+        public readonly ?string $signerName = null,
+        public readonly ?string $requestReference = null,
+        public readonly ?string $documentDigest = null,
     ) {}
 }

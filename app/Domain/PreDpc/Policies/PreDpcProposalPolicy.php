@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Domain\PreDpc\Policies;
 
+use App\Domain\Allotment\Services\ProposalAllotmentService;
 use App\Domain\Authentication\Models\User;
 use App\Domain\PreDpc\Enums\PreDpcStatus;
 use App\Domain\PreDpc\Models\PreDpcProposal;
+use App\Domain\UserManagement\Services\DepartmentUserAuthority;
 use App\Enums\Role;
 
 /**
@@ -39,95 +41,94 @@ use App\Enums\Role;
  * refused by `WorkflowEngine::assertAllowed()` with a message that says which
  * transition was attempted from which state, which is more use to the user than
  * a bare 403.
+ *
+ * 3. **The allotment (2026-10-26, docs/plans/PROPOSAL-ALLOTMENT-PLAN.md).** A
+ *    Pre-DPC is the work of the one AO and one AH the Department Admin allotted
+ *    to it — not of every AO and AH of the department. An officer who is not
+ *    allotted does not see it at all (A3); a proposal with no allotment waits for
+ *    the Department Admin (A4). The Department Admin opens a Pre-DPC (A1), and
+ *    reads every one of the department's proposals, but never prepares or
+ *    approves one.
  */
 class PreDpcProposalPolicy
 {
+    public function __construct(private readonly ProposalAllotmentService $allotments) {}
+
     public function viewAny(User $user): bool
     {
-        return $this->inDepartment($user)
-            && $user->hasAnyRole([Role::AuthorizedOfficer->value, Role::AdministrativeHead->value]);
-    }
-
-    public function view(User $user, PreDpcProposal $proposal): bool
-    {
-        return $this->sameDepartment($user, $proposal);
+        // The list is scoped by allotment, in any department (2026-10-27).
+        return $user->hasAnyRole([Role::AuthorizedOfficer->value, Role::AdministrativeHead->value]);
     }
 
     /**
-     * Authoring — creating a draft, and editing one.
-     *
-     * The Authorized Officer's alone (S7). This is the ability whose absence
-     * used to let an AH create a draft they could then neither edit, submit nor
-     * cancel, because all three of those are the AO's: a dead-end record.
+     * The allotted AO or AH (A3). The Department Admin reads the department's
+     * proposals on the allotment screen, which is not this ability.
+     */
+    public function view(User $user, PreDpcProposal $proposal): bool
+    {
+        // The allotted AO or AH, or the department's Department Admin (2026-10-28).
+        return $this->allotments->isAllottedInAnyRole($user, $proposal) || $this->isItsDepartmentAdmin($user, $proposal);
+    }
+
+    /**
+     * Opening a Pre-DPC is the Department Admin's (A1): the DPC year and the
+     * promotion-to post, with the AO and AH allotted in the same step.
      */
     public function create(User $user): bool
     {
-        return $this->inDepartment($user) && $user->hasRole(Role::AuthorizedOfficer->value);
+        return app(DepartmentUserAuthority::class)->isDepartmentAdmin($user);
     }
 
+    /**
+     * The derived pay scale, class and qualifying service the form fills in — asked
+     * by the AO preparing a Pre-DPC.
+     */
+    public function derive(User $user): bool
+    {
+        // The endpoint answers only for departments the officer is allotted in, or
+        // the Department Admin's own.
+        return $user->hasRole(Role::AuthorizedOfficer->value) || app(DepartmentUserAuthority::class)->isDepartmentAdmin($user);
+    }
+
+    /**
+     * Filling the Pre-DPC in (2026-10-28): the Department Admin builds the whole of
+     * it; the allotted AO reads it and may change it before signing.
+     */
     public function update(User $user, PreDpcProposal $proposal): bool
     {
-        return $this->create($user)
-            && $this->sameDepartment($user, $proposal)
-            && $proposal->status->isEditable();
+        return $proposal->status->isEditable()
+            && ($this->allotments->isAllotted($user, $proposal, Role::AuthorizedOfficer) || $this->isItsDepartmentAdmin($user, $proposal));
     }
 
+    /**
+     * Only the allotted AO signs and submits; the Department Admin never does.
+     */
     public function submit(User $user, PreDpcProposal $proposal): bool
     {
-        return $this->update($user, $proposal);
+        return $this->allotments->isAllotted($user, $proposal, Role::AuthorizedOfficer)
+            && $proposal->status->isEditable();
     }
 
     public function cancel(User $user, PreDpcProposal $proposal): bool
     {
-        return $this->update($user, $proposal);
+        return $this->submit($user, $proposal);
     }
 
-    /**
-     * Deleting a draft (business instruction, 2026-09-06).
-     *
-     * **Draft only, and strictly.** `update()` would also permit a *returned*
-     * proposal, and a returned one has been seen by the Administrative Head and
-     * carries their remarks — deleting it would erase a decision somebody made.
-     * A draft has been seen by nobody, which is what makes it disposable.
-     *
-     * Everything past draft has its own ending already: {@see cancel()} for a
-     * proposal the officer has abandoned, and a cancelled row stays on the record
-     * with its status, because "this exercise was proposed and then dropped" is
-     * itself worth being able to answer.
-     *
-     * The deletion is a **soft** one either way — see
-     * `PreDpcProposalService::delete()` — so this is about who may put a draft out
-     * of sight, not about who may destroy a record.
-     */
     public function delete(User $user, PreDpcProposal $proposal): bool
     {
-        return $this->create($user)
-            && $this->sameDepartment($user, $proposal)
+        return $this->allotments->isAllotted($user, $proposal, Role::AuthorizedOfficer)
             && $proposal->status === PreDpcStatus::Draft;
     }
 
-    /**
-     * Amending an approved proposal into a fresh draft version.
-     *
-     * The AO's, like every other authoring action — but on an **approved**
-     * proposal, which `update()` deliberately refuses, so it cannot be
-     * expressed in terms of it.
-     */
     public function amend(User $user, PreDpcProposal $proposal): bool
     {
-        return $this->create($user)
-            && $this->sameDepartment($user, $proposal)
+        return $this->allotments->isAllotted($user, $proposal, Role::AuthorizedOfficer)
             && $proposal->status->value === 'approved';
     }
 
-    /**
-     * Approving, and returning for correction — the Administrative Head's,
-     * and only while the proposal is actually with them.
-     */
     public function approve(User $user, PreDpcProposal $proposal): bool
     {
-        return $user->hasRole(Role::AdministrativeHead->value)
-            && $this->sameDepartment($user, $proposal)
+        return $this->allotments->isAllotted($user, $proposal, Role::AdministrativeHead)
             && $proposal->status->value === 'submitted';
     }
 
@@ -136,22 +137,14 @@ class PreDpcProposalPolicy
         return $this->approve($user, $proposal);
     }
 
-    /**
-     * The signed document behind an approval. Readable by anyone who may read
-     * the proposal — it is evidence of what was approved, not a further action.
-     */
     public function downloadSignature(User $user, PreDpcProposal $proposal): bool
     {
         return $this->view($user, $proposal);
     }
 
-    private function sameDepartment(User $user, PreDpcProposal $proposal): bool
+    private function isItsDepartmentAdmin(User $user, PreDpcProposal $proposal): bool
     {
-        return $user->department_id !== null && $user->department_id === $proposal->department_id;
-    }
-
-    private function inDepartment(User $user): bool
-    {
-        return $user->department_id !== null;
+        return app(DepartmentUserAuthority::class)->isDepartmentAdmin($user)
+            && $user->department_id === $proposal->department_id;
     }
 }

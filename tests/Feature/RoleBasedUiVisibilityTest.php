@@ -16,6 +16,7 @@ use App\Enums\Role;
 use Database\Seeders\LookupMasterSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\OpensPreDpcs;
 use Tests\Concerns\PrescribesQualifications;
 use Tests\Concerns\SeatsDpcCommittees;
 use Tests\TestCase;
@@ -34,6 +35,7 @@ use Tests\TestCase;
  */
 class RoleBasedUiVisibilityTest extends TestCase
 {
+    use OpensPreDpcs;
     use PrescribesQualifications;
     use RefreshDatabase;
     use SeatsDpcCommittees;
@@ -88,44 +90,38 @@ class RoleBasedUiVisibilityTest extends TestCase
     // Pre-DPC — authoring is the Authorized Officer's (PPT S7)
     // ------------------------------------------------------------------
 
-    public function test_the_ao_is_offered_a_new_pre_dpc_proposal(): void
+    /**
+     * Opening a Pre-DPC is the Department Admin's (A1, 2026-10-26): neither the AO
+     * nor the AH is offered it, and the Department Admin's screen is.
+     */
+    public function test_no_officer_is_offered_a_new_pre_dpc_and_the_department_admin_is(): void
     {
-        $this->actingAs($this->ao)->get(route('pre-dpc.index'))
-            ->assertOk()
-            ->assertSee(route('pre-dpc.create'), escape: false);
+        $open = route('department.allotments.pre-dpc.create');
 
-        $this->actingAs($this->ao)->get(route('pre-dpc.create'))->assertOk();
+        foreach ([$this->ao, $this->ah] as $officer) {
+            $this->actingAs($officer)->get(route('pre-dpc.index'))
+                ->assertOk()
+                ->assertDontSee($open, escape: false);
+        }
+
+        $this->actingAs($this->departmentAdminOf($this->ao->department_id))->get(route('department.allotments.index', ['view' => 'pre-dpc']))
+            ->assertOk()
+            ->assertSee($open, escape: false);
     }
 
-    public function test_the_ah_is_not_offered_a_new_pre_dpc_proposal(): void
+    public function test_officers_are_refused_opening_a_pre_dpc_by_the_backend(): void
     {
-        // The AH still reaches the list — approving is done from it.
-        $this->actingAs($this->ah)->get(route('pre-dpc.index'))
-            ->assertOk()
-            ->assertDontSee(route('pre-dpc.create'), escape: false);
-    }
+        foreach ([$this->ao, $this->ah] as $officer) {
+            $this->actingAs($officer)->get(route('department.allotments.pre-dpc.create'))->assertForbidden();
+            $this->actingAs($officer)->post(route('department.allotments.pre-dpc.store'), [
+                'dpc_year' => 2026,
+                'promotion_to_post_id' => $this->postTo->id,
+                'ao_user_id' => $this->ao->id,
+                'ah_user_id' => $this->ah->id,
+            ])->assertForbidden();
+        }
 
-    public function test_the_ah_is_refused_pre_dpc_authoring_by_the_backend(): void
-    {
-        $this->actingAs($this->ah)->get(route('pre-dpc.create'))->assertForbidden();
-
-        $this->actingAs($this->ah)->post(route('pre-dpc.store'), [
-            'dpc_year' => 2026,
-            'promotion_to_post_id' => $this->postTo->id,
-            'direct_recruitment_pct' => 0,
-            'promotion_recruitment_pct' => 100,
-            'promotion_sources' => [
-                [
-                    'promotion_from_post_id' => $this->postFrom->id,
-                    'promotion_percentage' => 100,
-                    'min_experience_years' => 5,
-                    'experience_unit' => 'years',
-                    'qualification_ids' => $this->qualificationIds(),
-                ],
-            ],
-            'government_order_number' => 'GO/1',
-            'effective_from' => '2026-01-01',
-        ])->assertForbidden();
+        $this->assertSame(0, PreDpcProposal::query()->count());
     }
 
     /**
@@ -140,7 +136,7 @@ class RoleBasedUiVisibilityTest extends TestCase
      */
     public function test_the_ah_cannot_author_a_pre_dpc_through_any_entry_point(): void
     {
-        $this->actingAs($this->ao)->post(route('pre-dpc.store'), [
+        $this->storePreDpc($this->ao, [
             'dpc_year' => 2026,
             'promotion_to_post_id' => $this->postTo->id,
             'direct_recruitment_pct' => 0,
@@ -189,7 +185,7 @@ class RoleBasedUiVisibilityTest extends TestCase
     /** The Pre-DPC show screen offers each role only what the Policy allows it. */
     public function test_the_pre_dpc_screen_offers_each_role_only_its_own_actions(): void
     {
-        $this->actingAs($this->ao)->post(route('pre-dpc.store'), [
+        $this->storePreDpc($this->ao, [
             'dpc_year' => 2026,
             'promotion_to_post_id' => $this->postTo->id,
             'direct_recruitment_pct' => 0,
@@ -213,12 +209,12 @@ class RoleBasedUiVisibilityTest extends TestCase
         $this->actingAs($this->ao)->get(route('pre-dpc.show', $draft))
             ->assertOk()
             ->assertSee(route('pre-dpc.edit', $draft), escape: false)
-            ->assertSee(route('pre-dpc.submit', $draft), escape: false);
+            ->assertSee(route('esign.show', ['kind' => 'pre-dpc-submit', 'uuid' => $draft->uuid]), escape: false);
 
         $this->actingAs($this->ah)->get(route('pre-dpc.show', $draft))
             ->assertOk()
             ->assertDontSee(route('pre-dpc.edit', $draft), escape: false)
-            ->assertDontSee(route('pre-dpc.approve', $draft), escape: false);
+            ->assertDontSee(route('esign.show', ['kind' => 'pre-dpc-approve', 'uuid' => $draft->uuid]), escape: false);
 
         // SUBMITTED: it flips — approval and return appear for the AH, and the
         // AO's authoring actions go away.
@@ -226,13 +222,13 @@ class RoleBasedUiVisibilityTest extends TestCase
 
         $this->actingAs($this->ah)->get(route('pre-dpc.show', $draft->fresh()))
             ->assertOk()
-            ->assertSee(route('pre-dpc.approve', $draft), escape: false)
+            ->assertSee(route('esign.show', ['kind' => 'pre-dpc-approve', 'uuid' => $draft->uuid]), escape: false)
             ->assertSee(route('pre-dpc.return', $draft), escape: false);
 
         $this->actingAs($this->ao)->get(route('pre-dpc.show', $draft->fresh()))
             ->assertOk()
             ->assertDontSee(route('pre-dpc.edit', $draft), escape: false)
-            ->assertDontSee(route('pre-dpc.approve', $draft), escape: false);
+            ->assertDontSee(route('esign.show', ['kind' => 'pre-dpc-approve', 'uuid' => $draft->uuid]), escape: false);
     }
 
     // ------------------------------------------------------------------

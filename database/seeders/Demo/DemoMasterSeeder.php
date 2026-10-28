@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Database\Seeders\Demo;
 
+use App\Domain\Allotment\Services\ProposalAllotmentService;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Committee\Models\CgpscChairman;
 use App\Domain\Committee\Services\CgpscChairmanService;
@@ -405,6 +406,8 @@ class DemoMasterSeeder extends Seeder
 
             DemoActor::as($ao, function () use ($preDpc, $department, $ao, $ah, $payload): void {
                 $proposal = DemoClock::at('2026-01-05 10:20', fn () => $preDpc->createDraft($department, $ao, $payload));
+                // Only the allotted AO submits and the allotted AH approves (2026-10-27).
+                app(ProposalAllotmentService::class)->allot($proposal, $ao, $ah, null);
 
                 DemoClock::at('2026-01-08 15:45', fn () => $preDpc->submit($proposal, $ao, DemoActor::request()));
 

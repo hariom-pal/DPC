@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'OTP Verification — ' . __('messages.app_name'))
+@section('title', __('authui.verify.otp_verification').' — '.__('messages.app_name'))
 
 @section('content')
     <div class="row justify-content-center">
@@ -13,23 +13,32 @@
 
                     <form method="POST" action="{{ route('verify.store') }}">
                         @csrf
-                        @if ($user->email)
+                        @if ($needsEmail)
                             <div class="mb-3">
                                 <label for="email_code" class="form-label">
                                     {{ __('authui.verify.email_otp_sent_to', ['email' => $user->email]) }}
                                 </label>
                                 <input type="text" class="form-control" id="email_code" name="email_code"
-                                       inputmode="numeric" maxlength="{{ config('dpc.otp.length') }}" required>
+                                       inputmode="numeric" maxlength="{{ config('dpc.otp.length') }}" required autofocus>
                             </div>
                         @endif
-                        <div class="mb-3">
-                            <label for="mobile_code" class="form-label">
-                                {{ __('authui.verify.mobile_otp_sent_to', ['mobile' => $user->mobile]) }}
-                            </label>
-                            <input type="text" class="form-control" id="mobile_code" name="mobile_code"
-                                   inputmode="numeric" maxlength="{{ config('dpc.otp.length') }}" required autofocus>
-                        </div>
+                        @if ($needsMobile)
+                            <div class="mb-3">
+                                <label for="mobile_code" class="form-label">
+                                    {{ __('authui.verify.mobile_otp_sent_to', ['mobile' => $user->mobile]) }}
+                                </label>
+                                <input type="text" class="form-control" id="mobile_code" name="mobile_code"
+                                       inputmode="numeric" maxlength="{{ config('dpc.otp.length') }}" required>
+                            </div>
+                        @elseif ($user->hasMobileWaiver())
+                            <p class="small text-body-secondary">{{ __('authui.verify.mobile_waived') }}</p>
+                        @endif
                         <button type="submit" class="btn btn-success w-100">{{ __('authui.verify.verify') }}</button>
+                    </form>
+
+                    <form method="POST" action="{{ route('verify.resend') }}" class="mt-2 text-center">
+                        @csrf
+                        <button type="submit" class="btn btn-link btn-sm">{{ __('authui.verify.resend') }}</button>
                     </form>
                 </div>
             </div>

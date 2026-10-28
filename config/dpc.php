@@ -17,39 +17,159 @@ return [
 
     'otp' => [
         'length' => (int) env('DPC_OTP_LENGTH', 6),
-        'ttl_seconds' => (int) env('DPC_OTP_TTL', 600),
-        'max_attempts' => (int) env('DPC_OTP_MAX_ATTEMPTS', 5),
-
-        // When set (test/dev only), the generated code is forced to this
-        // value so flows can be asserted deterministically. Never set in prod.
-        'fake_code' => env('DPC_OTP_FAKE_CODE'),
+        // Phase 1 (2026-10-27): a code lives 5 minutes, and a sign-in challenge
+        // allows 3 wrong submissions in all — a resend does not reset the count.
+        'ttl_seconds' => (int) env('DPC_OTP_TTL', 300),
+        'max_attempts' => (int) env('DPC_OTP_MAX_ATTEMPTS', 3),
 
         /*
-        | The demonstration OTP, used **only when `APP_ENV=local`**.
+        | Fixed OTP for local development and automated tests (business decision,
+        | 2026-10-26). Replaces `DPC_OTP_FAKE_CODE` and `DEMO_OTP`.
         |
-        | On a demonstration machine there is no SMS gateway and no mail
-        | transport, so an OTP is written to `storage/logs/laravel.log` by a
-        | queued listener — and if no queue worker happens to be running it is
-        | written nowhere at all. Registration then cannot be completed in front
-        | of a customer, which is a property of the environment rather than of
-        | the workflow.
-        |
-        | So in `local` the generated code **is** this value. Nothing else about
-        | OTP changes: the row is still written, the expiry still applies, the
-        | attempt counter still counts, and the code is still consumed on use.
-        | Only its randomness is removed, and only where randomness was buying
-        | nothing.
-        |
-        | **The environment gate is in `OtpService`, not here**, and that is
-        | deliberate: a value read from configuration can be set in any
-        | environment by accident, whereas `app()->environment('local')` cannot
-        | be true on a UAT or production host. `DEMO_OTP` present in a production
-        | `.env` therefore does nothing at all.
-        |
-        | Defaulted rather than left null, so a demonstration works out of the box
-        | on a checkout with no `DEMO_OTP` line.
+        | Honoured only when BOTH hold:
+        |   - the environment is `local`, `testing` or `uat` (UAT added 2026-10-26)
+        |     — checked in `OtpService`, because a configuration value can be set
+        |     anywhere by accident while the environment names the host; never
+        |     `production`; and
+        |   - `DPC_OTP_FIXED_ENABLED=true` (default off).
+        | `DPC_OTP_FIXED_MOBILE=true` extends it to the mobile (SMS) code.
+        | Anywhere else a configured fixed code is ignored and every code is random.
+        | Switching the flag off turns the feature off once real SMS/e-mail work.
         */
-        'demo_code' => (string) env('DEMO_OTP', '123456'),
+        'fixed' => [
+            'enabled' => filter_var(env('DPC_OTP_FIXED_ENABLED', false), FILTER_VALIDATE_BOOL),
+            'code' => (string) env('DPC_OTP_FIXED_CODE', ''),
+            // The fixed code also proves the mobile number (registration and
+            // first login ask for the mobile code instead of recording a waiver).
+            'mobile' => filter_var(env('DPC_OTP_FIXED_MOBILE', false), FILTER_VALIDATE_BOOL),
+        ],
+
+        // Resend: a new code no sooner than `resend_cooldown_seconds` after the
+        // last one, and at most `max_sends_per_hour` codes per identifier.
+        'resend_cooldown_seconds' => (int) env('DPC_OTP_RESEND_COOLDOWN', 60),
+        'max_sends_per_hour' => (int) env('DPC_OTP_MAX_SENDS_PER_HOUR', 5),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Aadhaar OTP at department registration (business decision, 2026-10-22)
+    |--------------------------------------------------------------------------
+    |
+    | Every officer registered (AH and AO) proves their Aadhaar with a UIDAI OTP
+    | and their e-mail with an e-mail OTP. The Aadhaar number is never stored.
+    | Which provider answers is FEATURE_UIDAI_AADHAAR_OTP; with it off the mock
+    | accepts `mock_code`. `uidai` holds the CSC authentication API settings the
+    | real provider reads.
+    |
+    */
+
+    /*
+    |--------------------------------------------------------------------------
+    | Department Admin onboarding and account management (2026-10-26)
+    |--------------------------------------------------------------------------
+    |
+    | `invitation_ttl_hours`: how long a Department Admin invitation link stays
+    | usable. `password_length`: the length of every system-issued temporary
+    | password (CSPRNG, shown once on screen, never sent). The rate limits apply to
+    | password resets, per administrator and per target account.
+    |
+    */
+
+    'accounts' => [
+        'invitation_ttl_hours' => (int) env('DPC_INVITATION_TTL_HOURS', 72),
+        'password_length' => (int) env('DPC_TEMPORARY_PASSWORD_LENGTH', 16),
+        'reset_limit_per_actor_per_minute' => (int) env('DPC_PASSWORD_RESET_LIMIT_ACTOR', 10),
+        'reset_limit_per_target_per_10_minutes' => (int) env('DPC_PASSWORD_RESET_LIMIT_TARGET', 3),
+    ],
+
+    'aadhaar_otp' => [
+        'mock_code' => (string) env('DPC_AADHAAR_OTP_MOCK_CODE', '123456'),
+
+        // How long an officer's verified OTPs stay valid for the Register
+        // button. After this both OTPs must be taken again.
+        'verification_ttl_minutes' => (int) env('DPC_REGISTRATION_VERIFICATION_TTL', 15),
+
+        /*
+        | The live provider (App\Integrations\Uidai\UidaiAadhaarOtpProvider),
+        | read only when FEATURE_UIDAI_AADHAAR_OTP=true. UIDAI OTP Request API 2.5
+        | and Authentication API 2.5 over the CSC authentication REST API — the
+        | same transport and the same CSC_AUTH_* names as the CGMFPFED Welfare
+        | Platform. A blank value in .env counts as unset (UidaiSettings puts the
+        | default back), and nothing here is validated until a request is sent.
+        */
+        'uidai' => [
+            // CSC authentication API. UAT: https://cscauths.csccloud.in,
+            // production: https://cscuidai.csccloud.in.
+            'base_url' => env('CSC_AUTH_BASE_URL', 'https://cscauths.csccloud.in'),
+            'endpoint' => env('CSC_AUTH_ENDPOINT', 'aua/springboot/auth/req'),
+            // Issued by CSC for this application. The token is also the AES key of
+            // req_hash, so it must be 16 or 32 characters.
+            'client_id' => env('CSC_AUTH_CLIENT_ID', ''),
+            'auth_token' => env('CSC_AUTH_TOKEN', ''),
+            'timeout_seconds' => env('CSC_AUTH_TIMEOUT_SECONDS', 30),
+            // Re-sends of a request whose response was never seen. 0: a re-sent OTP
+            // request can text the officer twice, a re-sent Auth is UIDAI error 563.
+            'retry_attempts' => env('CSC_AUTH_RETRY_ATTEMPTS', 0),
+            // Refuse a response whose res_hash does not match res_data. Blank = true.
+            'verify_response_hash' => ! in_array(env('CSC_AUTH_VERIFY_RESPONSE_HASH'), [false, 0, '0', 'false', 'off', 'no'], true),
+
+            // UIDAI envelope: ac / sa / lk. Left blank until CSC confirms what to send
+            // (guessing yields 530 / 531 / 543); blank goes out as blank.
+            'aua_code' => env('DPC_UIDAI_AUA_CODE', ''),
+            'sub_aua_code' => env('DPC_UIDAI_SUB_AUA_CODE', ''),
+            'licence_key' => env('DPC_UIDAI_LICENCE_KEY', ''),
+
+            // UIDAI's public ENCRYPTION certificate (PEM) for the environment — needed
+            // to encrypt the OTP. NOT the signing certificate inside UIDAI responses.
+            'encryption_certificate' => env('DPC_UIDAI_ENCRYPTION_CERTIFICATE', ''),
+
+            // Prefix of every UIDAI txn. Letters/digits, never starting with "U" (587).
+            'txn_prefix' => env('DPC_UIDAI_TXN_PREFIX', 'DPC'),
+            'api_version' => env('DPC_UIDAI_API_VERSION', '2.5'),
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Officer identity verification (Phases 2–5, 2026-10-27)
+    |--------------------------------------------------------------------------
+    |
+    | Every Department Admin, Authorized Officer and Administrative Head verifies
+    | name, date of birth and gender through DigiLocker (or is manually verified by
+    | the CGPSC Super Admin) before reaching any screen, and declares that the
+    | account mobile is the one linked to their Aadhaar. Three mismatches in 24
+    | hours lock DigiLocker verification for the rest of the window.
+    */
+    'identity' => [
+        'required' => filter_var(env('DPC_IDENTITY_VERIFICATION_REQUIRED', true), FILTER_VALIDATE_BOOL),
+        // The invited administrator only (2026-10-27, simplified invitation): an
+        // AO or AH is not DigiLocker-verified — their eSign carries the identity.
+        'roles' => ['department_admin'],
+        'lock_attempts' => 3,
+        'lock_hours' => 24,
+    ],
+
+    /*
+    | DigiLocker Requester API (FEATURE_DIGILOCKER). Every value is issued at
+    | Requester onboarding; none is assumed. With the feature off, the simulated
+    | provider answers on local and testing and is refused in production.
+    */
+    'digilocker' => [
+        'authorize_url' => env('DIGILOCKER_AUTHORIZE_URL'),
+        'token_url' => env('DIGILOCKER_TOKEN_URL'),
+        'client_id' => env('DIGILOCKER_CLIENT_ID'),
+        'client_secret' => env('DIGILOCKER_CLIENT_SECRET'),
+        'redirect_uri' => env('DIGILOCKER_REDIRECT_URI'),
+        'timeout_seconds' => (int) env('DIGILOCKER_TIMEOUT', 15),
+    ],
+
+    /*
+    | A Promotion Candidate's read-only account with no reachable e-mail or mobile
+    | may sign in with its password alone only while this is on. Off by default:
+    | switching it on is a security decision for the project owner (2026-10-27).
+    */
+    'auth' => [
+        'candidate_password_only' => filter_var(env('DPC_CANDIDATE_PASSWORD_ONLY', false), FILTER_VALIDATE_BOOL),
     ],
 
     /*
@@ -106,6 +226,10 @@ return [
         'otp_verify' => [
             'max_attempts' => (int) env('DPC_RATE_LIMIT_OTP_VERIFY_MAX', 5),
             'decay_seconds' => (int) env('DPC_RATE_LIMIT_OTP_VERIFY_DECAY', 60),
+        ],
+        'registration' => [
+            'max_attempts' => (int) env('DPC_RATE_LIMIT_REGISTRATION_MAX', 20),
+            'decay_seconds' => (int) env('DPC_RATE_LIMIT_REGISTRATION_DECAY', 60),
         ],
 
         /*
@@ -279,29 +403,12 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Seeded CGPSC Admin
-    |--------------------------------------------------------------------------
-    |
-    | Bootstrap credentials for the CGPSC Admin account. Change the password
-    | immediately in any non-local environment.
-    |
-    */
-
-    'admin' => [
-        'name' => env('DPC_ADMIN_NAME', 'CGPSC Administrator'),
-        'email' => env('DPC_ADMIN_EMAIL', 'admin@cgpsc.gov.in'),
-        'mobile' => env('DPC_ADMIN_MOBILE', '9990000000'),
-        'password' => env('DPC_ADMIN_PASSWORD', 'ChangeMe@12345'),
-    ],
-
-    /*
-    |--------------------------------------------------------------------------
     | Seeded CGPSC Chairman
     |--------------------------------------------------------------------------
     |
-    | The Chairman's account and serving record. Every DPC committee needs a
-    | serving Chairman, so a freshly seeded portal cannot compose one without it.
-    | Change the password immediately in any non-local environment.
+    | The serving Chairman's record. Every DPC committee needs a serving Chairman,
+    | so a fresh installation seeds the record (no account, no password). The
+    | Portal Super Admin is created by `php artisan dpc:bootstrap-super-admin`.
     |
     */
 
@@ -310,14 +417,15 @@ return [
      | (ReadyDpcSeeder; never seeded in production).
      */
     'ready_department' => [
-        'password' => env('DPC_DEPARTMENT_PASSWORD', 'ChangeMe@12345'),
+        // No default (2026-10-26): set it for a demonstration machine, or the
+        // seeder generates a random one and prints it once.
+        'password' => (string) env('DPC_DEPARTMENT_PASSWORD', ''),
     ],
 
+    // The serving Chairman's master record on a fresh installation. No account
+    // and no password are seeded (2026-10-26).
     'chairman' => [
         'name' => env('DPC_CHAIRMAN_NAME', 'Dr. Ajay Kumar Shrivastava'),
-        'email' => env('DPC_CHAIRMAN_EMAIL', 'chairman@cgpsc.gov.in'),
-        'mobile' => env('DPC_CHAIRMAN_MOBILE', '9000000101'),
-        'password' => env('DPC_CHAIRMAN_PASSWORD', 'ChangeMe@12345'),
     ],
 
     /*
@@ -371,7 +479,7 @@ return [
     'workflows' => [
         'pre_dpc' => [
             'transitions' => [
-                'submit' => ['from' => ['draft', 'returned'], 'to' => 'submitted', 'role' => 'authorized_officer', 'signature' => false, 'notify' => ['administrative_head']],
+                'submit' => ['from' => ['draft', 'returned'], 'to' => 'submitted', 'role' => 'authorized_officer', 'signature' => true, 'notify' => ['administrative_head']],
                 'approve' => ['from' => ['submitted'], 'to' => 'approved', 'role' => 'administrative_head', 'signature' => true, 'notify' => ['authorized_officer']],
                 'return' => ['from' => ['submitted'], 'to' => 'returned', 'role' => 'administrative_head', 'signature' => false, 'notify' => ['authorized_officer']],
                 'cancel' => ['from' => ['draft', 'returned'], 'to' => 'cancelled', 'role' => 'authorized_officer', 'signature' => false, 'notify' => ['administrative_head']],

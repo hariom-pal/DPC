@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Domain\Authentication\Events\CredentialsIssued;
+use App\Domain\Authentication\Events\DepartmentSeatChanged;
 use App\Domain\Authentication\Events\OtpRequested;
 use App\Domain\Authentication\Listeners\SendCredentialNotification;
 use App\Domain\Authentication\Listeners\SendOtpNotification;
+use App\Domain\Authentication\Listeners\SendSeatChangeNotification;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Cgpsc\Events\DpcSittingScheduled;
 use App\Domain\Cgpsc\Listeners\AnnounceSittingToParticipants;
@@ -48,16 +50,22 @@ use App\Http\View\Composers\NotificationBellComposer;
 use App\Http\View\Composers\PortalNoticeComposer;
 use App\Http\View\Composers\PortalStatisticsComposer;
 use App\Http\View\Composers\ReviewDpcComposer;
+use App\Integrations\Contracts\AadhaarOtpProvider;
+use App\Integrations\Contracts\DigiLockerProvider;
 use App\Integrations\Contracts\DirectoryProvider;
 use App\Integrations\Contracts\HrmsProvider;
 use App\Integrations\Contracts\SignatureProvider;
 use App\Integrations\Contracts\SmsSender;
 use App\Integrations\CSC\CscDigiSignProvider;
+use App\Integrations\DigiLocker\DigiLockerOAuthProvider;
 use App\Integrations\HRMS\RealHrmsProvider;
 use App\Integrations\Mock\LogSmsSender;
+use App\Integrations\Mock\MockAadhaarOtpProvider;
 use App\Integrations\Mock\MockHrmsProvider;
 use App\Integrations\Mock\MockSignatureProvider;
 use App\Integrations\Mock\SeedDirectoryProvider;
+use App\Integrations\Mock\SimulatedDigiLockerProvider;
+use App\Integrations\Uidai\UidaiAadhaarOtpProvider;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -145,6 +153,34 @@ class AppServiceProvider extends ServiceProvider
                 : new MockHrmsProvider;
         });
 
+        $this->app->bind(AadhaarOtpProvider::class, function (): AadhaarOtpProvider {
+            if (Feature::UidaiAadhaarOtp->enabled()) {
+                return UidaiAadhaarOtpProvider::fromConfig();
+            }
+
+            // A simulated identity provider never answers in production (Phase 0,
+            // 2026-10-27): its fixed code would "prove" any Aadhaar number.
+            if ($this->app->environment('production')) {
+                throw new \RuntimeException('The mock Aadhaar OTP provider is refused in production. Enable FEATURE_UIDAI_AADHAAR_OTP with real credentials.');
+            }
+
+            return new MockAadhaarOtpProvider;
+        });
+
+        // Officer identity (2026-10-27). The simulator never answers in production:
+        // it would "verify" any identity the person typing chose.
+        $this->app->bind(DigiLockerProvider::class, function (): DigiLockerProvider {
+            if (Feature::DigiLocker->enabled()) {
+                return DigiLockerOAuthProvider::fromConfig();
+            }
+
+            if ($this->app->environment('production')) {
+                throw new \RuntimeException('The simulated DigiLocker provider is refused in production. Enable FEATURE_DIGILOCKER with the onboarding credentials.');
+            }
+
+            return new SimulatedDigiLockerProvider;
+        });
+
         $this->app->bind(DirectoryProvider::class, function (): DirectoryProvider {
             return Feature::LgdSync->enabled()
                 ? throw new \RuntimeException('FEATURE_LGD_SYNC is enabled but no LGD API provider is implemented. Set FEATURE_LGD_SYNC=false to use the seeded district list.')
@@ -186,6 +222,7 @@ class AppServiceProvider extends ServiceProvider
         // drivers rather than failing.
         Event::listen(OtpRequested::class, SendOtpNotification::class);
         Event::listen(CredentialsIssued::class, SendCredentialNotification::class);
+        Event::listen(DepartmentSeatChanged::class, SendSeatChangeNotification::class);
 
         // M11's in-app channel. A **second** listener on the same event rather
         // than a change to M6's — AD-20's pattern, applied to a subscriber.
@@ -276,6 +313,30 @@ class AppServiceProvider extends ServiceProvider
                 ->withInput($request->only('login'))
                 ->withErrors(['login' => __('Too many login attempts. Please try again in a minute.')])
                 ->withHeaders($headers));
+        });
+
+        // Department registration's lookup and OTP endpoints are public. Keyed
+        // by IP: each call either reveals an officer's name or spends an OTP.
+        // Password resets (business decision, 2026-10-26): per administrator and per
+        // target account, so neither a runaway script nor a targeted account can be
+        // reset in a loop.
+        RateLimiter::for('password-reset', function (Request $request): array {
+            $target = $request->route('user');
+            $targetKey = is_object($target) && method_exists($target, 'getKey') ? (string) $target->getKey() : (string) $target;
+
+            return [
+                Limit::perMinute(max(1, (int) config('dpc.accounts.reset_limit_per_actor_per_minute', 10)))
+                    ->by('password-reset|actor|'.($request->user()?->getAuthIdentifier() ?? $request->ip())),
+                Limit::perMinutes(10, max(1, (int) config('dpc.accounts.reset_limit_per_target_per_10_minutes', 3)))
+                    ->by('password-reset|target|'.$targetKey),
+            ];
+        });
+
+        RateLimiter::for('registration', function (Request $request): Limit {
+            return Limit::perMinutes(
+                max(1, (int) round(((int) config('dpc.rate_limiting.registration.decay_seconds')) / 60)),
+                (int) config('dpc.rate_limiting.registration.max_attempts'),
+            )->by('registration|'.$request->ip());
         });
 
         RateLimiter::for('otp-verify', function (Request $request): Limit {

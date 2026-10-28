@@ -54,7 +54,7 @@ final class SelfInspectionOtpTest extends TestCase
      */
     private function demoCode(): string
     {
-        return (string) config('dpc.otp.demo_code', '123456');
+        return (string) config('dpc.otp.fixed.code', '123456');
     }
 
     private function requestCode(string $mobile): TestResponse
@@ -220,5 +220,27 @@ final class SelfInspectionOtpTest extends TestCase
         $this->row->forceFill(['mobile' => null])->save();
 
         $this->enterCode($this->demoCode())->assertSessionHasErrors('self_inspection');
+    }
+
+    /**
+     * Without an SMS gateway, and outside local/testing (no fixed code), the screen
+     * says sign-in by OTP is unavailable instead of announcing a code that was never
+     * sent (2026-10-27). No fixed code is ever accepted there.
+     */
+    public function test_without_an_sms_gateway_the_screen_says_otp_is_unavailable(): void
+    {
+        // UAT: no SMS gateway, and no fixed code (the flag is off there).
+        config(['features.sms_gateway' => false, 'dpc.otp.fixed.enabled' => false]);
+
+        $this->requestCode(self::MOBILE)->assertSessionHasErrors(['self_inspection' => __('selfinspection.otp.sms_unavailable')]);
+        $this->assertSame(0, OtpVerification::query()->count(), 'No code is issued.');
+    }
+
+    public function test_asking_again_too_soon_is_refused_politely(): void
+    {
+        $this->requestCode(self::MOBILE)->assertSessionHasNoErrors();
+        $this->post(route('self-inspection.identify.store'), ['restart' => '1']);
+
+        $this->requestCode(self::MOBILE)->assertSessionHasErrors('self_inspection');
     }
 }

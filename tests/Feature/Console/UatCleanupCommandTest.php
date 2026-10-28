@@ -49,6 +49,8 @@ class UatCleanupCommandTest extends TestCase
         $this->chairman = User::factory()->create();
         $this->chairman->assignRole(Role::Chairman->value);
         $this->ao = User::factory()->assignedTo($this->department, Role::AuthorizedOfficer)->create();
+        // The AH the DPC is allotted to with the AO (2026-10-26).
+        User::factory()->assignedTo($this->department, Role::AdministrativeHead)->create();
         User::factory()->create()->assignRole(Role::Member->value);
 
         $this->raiseDpc($this->ao, $this->departmentPost('Under Secretary', 5), $this->departmentPost('Deputy Secretary'));
@@ -173,7 +175,7 @@ class UatCleanupCommandTest extends TestCase
             ->expectsOutputToContain('--apply is allowed only in uat')
             ->assertFailed();
 
-        $this->assertSame(4, User::query()->count());
+        $this->assertSame(5, User::query()->count());
     }
 
     public function test_apply_is_refused_in_production_whatever_the_allow_list_says(): void
@@ -183,7 +185,7 @@ class UatCleanupCommandTest extends TestCase
 
         $this->artisan('dpc:uat-cleanup', $this->applyOptions())->assertFailed();
 
-        $this->assertSame(4, User::query()->count());
+        $this->assertSame(5, User::query()->count());
     }
 
     public function test_apply_needs_the_right_database_and_confirmation(): void
@@ -198,7 +200,7 @@ class UatCleanupCommandTest extends TestCase
             ->expectsOutputToContain('confirmation did not match')
             ->assertFailed();
 
-        $this->assertSame(4, User::query()->count());
+        $this->assertSame(5, User::query()->count());
     }
 
     public function test_apply_needs_a_recent_complete_backup_of_this_database(): void
@@ -217,7 +219,7 @@ class UatCleanupCommandTest extends TestCase
         touch($this->backup, time() - 2 * 86400);
         $this->artisan('dpc:uat-cleanup', $this->applyOptions())->expectsOutputToContain('older than 24 hours')->assertFailed();
 
-        $this->assertSame(4, User::query()->count());
+        $this->assertSame(5, User::query()->count());
     }
 
     public function test_it_refuses_when_no_account_holds_the_admin_role(): void

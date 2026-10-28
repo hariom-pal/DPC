@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\UserManagement\Requests;
 
+use App\Domain\Authentication\Models\User;
 use App\Enums\Role;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -22,8 +23,16 @@ class UpdateUserRequest extends FormRequest
     {
         $id = $this->route('user')?->id;
 
+        $current = $this->route('user');
+
         return [
-            'name' => ['required', 'string', 'max:255'],
+            // The name is an identity field (2026-10-27): it changes on the Identity
+            // page, with a reason and a recorded history — never here.
+            'name' => ['required', 'string', 'max:255', function (string $attribute, mixed $value, \Closure $fail) use ($current): void {
+                if ($current instanceof User && trim((string) $value) !== (string) $current->name) {
+                    $fail((string) __('identity.name_via_identity'));
+                }
+            }],
             'email' => ['required', 'email', 'max:255', 'regex:/@([A-Za-z0-9\-]+\.)*gov\.in$/i', Rule::unique('users', 'email')->ignore($id)],
             'mobile' => ['required', 'digits:10', Rule::unique('users', 'mobile')->ignore($id)],
             'designation_id' => ['nullable', Rule::exists('designations', 'id')],

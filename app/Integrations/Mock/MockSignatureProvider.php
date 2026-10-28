@@ -16,6 +16,11 @@ use Illuminate\Support\Str;
  */
 class MockSignatureProvider implements SignatureProvider
 {
+    /**
+     * The container key the eSign simulator sets for one signing (2026-10-28).
+     */
+    public const SIMULATED_NAME = 'esign.simulated_signer_name';
+
     public function name(): string
     {
         return 'mock';
@@ -42,6 +47,12 @@ class MockSignatureProvider implements SignatureProvider
             certificateSerial: (string) Str::uuid(),
             certificateIssuer: 'CN=ODPC Development CA,O=CGPSC',
             meta: ['mock' => true],
+            // The mock asserts the portal name — or, from the eSign simulator
+            // (non-production only), the name the tester typed: it proves the
+            // wiring of the name check, never that a real eSign identity matched.
+            signerName: app()->bound(self::SIMULATED_NAME) ? (string) app(self::SIMULATED_NAME) : $request->signer->name,
+            requestReference: $request->reference,
+            documentDigest: $request->documentDigest(),
         );
     }
 }

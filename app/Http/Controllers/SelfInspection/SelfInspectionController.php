@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\SelfInspection;
 
+use App\Domain\Authentication\Exceptions\OtpThrottled;
 use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\SelfInspection\Enums\SelfInspectionAuthDriver;
 use App\Domain\SelfInspection\Enums\SelfInspectionFactor;
@@ -162,7 +163,15 @@ class SelfInspectionController extends Controller
         if (! $request->isCodeStep()) {
             $mobile = (string) $request->validated('mobile');
 
-            $this->authenticator->requestCode($mobile, $request);
+            if (! $this->authenticator->codesCanBeDelivered()) {
+                return back()->withErrors(['self_inspection' => __('selfinspection.otp.sms_unavailable')]);
+            }
+
+            try {
+                $this->authenticator->requestCode($mobile, $request);
+            } catch (OtpThrottled $e) {
+                return back()->withInput()->withErrors(['self_inspection' => $e->getMessage()]);
+            }
 
             $request->session()->put(self::SESSION_MOBILE, $mobile);
 

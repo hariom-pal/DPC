@@ -138,9 +138,6 @@
                         <li class="nav-item">
                             <a class="btn btn-sm btn-outline-light w-100" href="{{ route('login') }}">{{ __('ui.department_login') }}</a>
                         </li>
-                        <li class="nav-item">
-                            <a class="btn btn-sm btn-accent w-100" href="{{ route('register') }}">{{ __('ui.new_registration') }}</a>
-                        </li>
                     @endauth
                 </ul>
             </div>
@@ -225,6 +222,8 @@
 
 <script src="{{ asset('vendor/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
 <script src="{{ asset('js/portal.js') }}" defer></script>
+{{-- Every dropdown is searchable (2026-10-26), the public pages included. --}}
+<script src="{{ asset('js/searchable-select.js') }}" defer></script>
 <script src="{{ asset('js/table-hscroll.js') }}" defer></script>
 @stack('scripts')
 </body>

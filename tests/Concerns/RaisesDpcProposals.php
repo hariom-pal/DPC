@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Tests\Concerns;
 
+use App\Domain\Allotment\Services\ProposalAllotmentService;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\DpcType;
 use App\Domain\PreDpc\Enums\PreDpcStatus;
 use App\Domain\PreDpc\Models\PreDpcProposal;
+use App\Enums\Role;
 use Database\Seeders\Support\PptPromotionRules;
 
 /**
@@ -30,6 +32,8 @@ use Database\Seeders\Support\PptPromotionRules;
  */
 trait RaisesDpcProposals
 {
+    use AllotsProposals;
+
     /**
      * An approved, active Pre-DPC sanctioning promotion from `$from` into `$to`.
      *
@@ -135,6 +139,12 @@ trait RaisesDpcProposals
             ],
         );
 
+        // Allotted as the Department Admin would (2026-10-26) to the department's
+        // AO, when the test has created one; a test with several AOs re-allots.
+        if ($this->departmentHasOfficer($order->department_id, Role::AuthorizedOfficer) && app(ProposalAllotmentService::class)->current($order) === null) {
+            $this->allot($order);
+        }
+
         return $order->load('promotionSources');
     }
 
@@ -161,6 +171,9 @@ trait RaisesDpcProposals
     protected function raiseDpc(User $actor, DepartmentPost|int $from, DepartmentPost|int $to, array $overrides = [], int $year = 2026): DpcProposal
     {
         $preDpc = $this->sanctioningPreDpc($from, $to, $year);
+
+        // The order is allotted to this AO (2026-10-26), and the DPC inherits it.
+        $this->allot($preDpc, $actor);
 
         // Named explicitly rather than left to be inferred: the order may already
         // sanction several feeders, and the caller asked for this one.

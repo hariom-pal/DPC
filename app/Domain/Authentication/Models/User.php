@@ -6,6 +6,7 @@ namespace App\Domain\Authentication\Models;
 
 use App\Domain\Authentication\Services\ActiveRoleService;
 use App\Domain\Department\Models\Department;
+use App\Domain\Identity\Models\IdentityVerification;
 use App\Domain\Master\Models\Designation;
 use App\Domain\Signature\Models\Signature;
 use App\Domain\UserManagement\Models\UserDepartmentAssignment;
@@ -19,11 +20,19 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use OwenIt\Auditing\Auditable as AuditableTrait;
 use OwenIt\Auditing\Contracts\Auditable;
 use Spatie\Permission\Traits\HasRoles;
 
+/**
+ * @property Carbon|null $date_of_birth
+ * @property string|null $gender
+ * @property Carbon|null $identity_verified_at
+ * @property string|null $identity_verification_method
+ * @property int $session_epoch
+ */
 class User extends Authenticatable implements Auditable
 {
     use HasUuids;
@@ -86,6 +95,25 @@ class User extends Authenticatable implements Auditable
         'must_change_password',
         'email_verified_at',
         'mobile_verified_at',
+        'date_of_birth',
+        'gender',
+    ];
+
+    /**
+     * Never audited (business decision, 2026-10-26): a password hash and a
+     * remember-me token are credentials, and an audit trail is read by people who
+     * must not hold either.
+     *
+     * @var list<string>
+     */
+    protected $auditExclude = [
+        'password',
+        'remember_token',
+        // Personal identity data (2026-10-27): its history is kept, encrypted, in
+        // `identity_corrections` — not duplicated in clear in the audit trail.
+        'date_of_birth',
+        'gender',
+        'session_epoch',
     ];
 
     /**
@@ -181,7 +209,22 @@ class User extends Authenticatable implements Auditable
      */
     public function activeAssignment(): HasOne
     {
-        return $this->hasOne(UserDepartmentAssignment::class)->whereNotNull('active_flag');
+        // The primary posting by default; a request acting in an additional charge
+        // has this relation set to that assignment by ResolveActiveRole (Phase 6).
+        return $this->hasOne(UserDepartmentAssignment::class)
+            ->whereNotNull('active_flag')
+            ->orderByRaw('primary_flag IS NULL')
+            ->orderBy('id');
+    }
+
+    /**
+     * Every active assignment: the primary posting and any additional charge.
+     *
+     * @return HasMany<UserDepartmentAssignment, $this>
+     */
+    public function activeAssignments(): HasMany
+    {
+        return $this->hasMany(UserDepartmentAssignment::class)->whereNotNull('active_flag');
     }
 
     /**
@@ -196,6 +239,16 @@ class User extends Authenticatable implements Auditable
      * Not a relation, so it cannot be used in `with()` — load
      * `activeAssignment.department` instead, which is what this reads.
      */
+    /**
+     * The most recent identity-verification outcome (2026-10-27).
+     *
+     * @return HasOne<IdentityVerification, $this>
+     */
+    public function latestIdentityVerification(): HasOne
+    {
+        return $this->hasOne(IdentityVerification::class)->latestOfMany();
+    }
+
     public function getDepartmentAttribute(): ?Department
     {
         return $this->activeAssignment?->department;
@@ -243,11 +296,24 @@ class User extends Authenticatable implements Auditable
     }
 
     /**
-     * Both channels (email + mobile) verified per the registration policy.
+     * The account may be used: its e-mail proved by OTP, and its mobile either
+     * proved by OTP or covered by a recorded waiver (business decision,
+     * 2026-10-26 — the SMS gateway is not yet available). A waiver never sets
+     * `mobile_verified_at`.
      */
     public function isFullyVerified(): bool
     {
-        return $this->email_verified_at !== null && $this->mobile_verified_at !== null;
+        return $this->email_verified_at !== null && $this->mobileIsSatisfied();
+    }
+
+    public function mobileIsSatisfied(): bool
+    {
+        return $this->mobile_verified_at !== null || $this->hasMobileWaiver();
+    }
+
+    public function hasMobileWaiver(): bool
+    {
+        return $this->mobile_verified_at === null && $this->mobile_verification_waived_at !== null;
     }
 
     /**
@@ -258,6 +324,11 @@ class User extends Authenticatable implements Auditable
         return [
             'email_verified_at' => 'datetime',
             'mobile_verified_at' => 'datetime',
+            'mobile_verification_waived_at' => 'datetime',
+            'password_changed_at' => 'datetime',
+            'date_of_birth' => 'date',
+            'identity_verified_at' => 'datetime',
+            'session_epoch' => 'integer',
             'password' => 'hashed',
             'is_active' => 'boolean',
             'must_change_password' => 'boolean',

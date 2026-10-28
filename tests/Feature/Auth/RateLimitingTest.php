@@ -62,7 +62,9 @@ class RateLimitingTest extends TestCase
         $this->post(route('login.store'), [
             'login' => $userB->mobile,
             'password' => 'password',
-        ])->assertRedirect(route('dashboard'));
+        ])->assertRedirect(route('verify.show'));
+        // Every sign-in is challenged (Phase 1, 2026-10-27).
+        $this->passSignInChallenge()->assertRedirect(route('dashboard'));
 
         $this->assertAuthenticatedAs($userB);
     }

@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Domain\PreDpc\Services;
 
+use App\Domain\Allotment\Services\ProposalAllotmentService;
 use App\Domain\Authentication\Models\User;
+use App\Domain\Authentication\Services\SecurityLog;
 use App\Domain\Department\Models\Department;
 use App\Domain\Master\Enums\ExperienceUnit;
 use App\Domain\Master\Models\DepartmentPost;
@@ -17,9 +19,12 @@ use App\Domain\Shared\Services\ActivityTimelineService;
 use App\Domain\Shared\Services\IdentifierSequenceService;
 use App\Domain\Shared\Workflow\WorkflowEngine;
 use App\Domain\Shared\Workflow\WorkflowException;
+use App\Domain\Signature\Exceptions\SignatureVerificationFailed;
+use App\Domain\Signature\Services\SignatureAttemptLog;
 use App\Domain\Signature\Services\SignatureService;
 use App\Enums\Feature;
 use App\Enums\MasterStatus;
+use App\Enums\Role;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -50,6 +55,7 @@ class PreDpcProposalService
         private readonly PostAttributeResolver $postAttributes,
         private readonly IdentifierSequenceService $identifiers,
         private readonly ActivityTimelineService $timeline,
+        private readonly ProposalAllotmentService $allotments,
     ) {}
 
     /**
@@ -85,8 +91,12 @@ class PreDpcProposalService
             $this->applyExercise($proposal, $department, $data);
             $proposal->save();
 
-            // After the save: a source row needs the order's id.
-            $this->applySources($proposal, $department, $data['promotion_sources'] ?? []);
+            // After the save: a source row needs the order's id. A Pre-DPC the
+            // Department Admin opens carries none yet (A1, 2026-10-26): its AO adds
+            // them, and submission refuses an order without one (guardComplete).
+            if (($data['promotion_sources'] ?? []) !== []) {
+                $this->applySources($proposal, $department, $data['promotion_sources']);
+            }
 
             return $proposal->refresh();
         });
@@ -120,14 +130,29 @@ class PreDpcProposalService
         // Completeness is checked before the transaction because it refuses with a
         // message about the *form*, not about a race.
         $this->guardComplete($proposal);
+        $this->assertSignatureAvailable();
 
-        DB::transaction(function () use ($proposal, $actor, $request): void {
-            $locked = $this->lock($proposal);
-            $from = $locked->status->value;
-            $def = $this->engine->assertAllowed('pre_dpc', 'submit', $from, $actor);
+        // The AO signs what they submit (2026-10-27), verified against this eSign
+        // transaction every time. A failed or mismatched eSign rolls everything
+        // back: the draft stays a draft and no signature is recorded.
+        $this->signed($actor, $proposal, 'submit', function () use ($proposal, $actor, $request): void {
+            DB::transaction(function () use ($proposal, $actor, $request): void {
+                $locked = $this->lock($proposal);
+                $from = $locked->status->value;
+                $def = $this->engine->assertAllowed('pre_dpc', 'submit', $from, $actor);
+                $this->assertCurrentOfficer($actor, $locked, Role::AuthorizedOfficer);
 
-            $locked->forceFill(['status' => PreDpcStatus::Submitted->value, 'submitted_at' => now(), 'prepared_by' => $actor->id])->save();
-            $this->engine->record($locked, 'pre_dpc', 'submit', $from, $def, $actor, $request, null, null, $locked->department_id);
+                $signature = $this->signatures->signVerified(
+                    $actor,
+                    $locked,
+                    $this->renderDocument($locked),
+                    "pre-dpc-{$locked->pre_dpc_number}-v{$locked->version}-submission.txt",
+                    ['action' => 'submit'],
+                );
+
+                $locked->forceFill(['status' => PreDpcStatus::Submitted->value, 'submitted_at' => now(), 'prepared_by' => $actor->id])->save();
+                $this->engine->record($locked, 'pre_dpc', 'submit', $from, $def, $actor, $request, null, $signature->id, $locked->department_id);
+            });
         });
     }
 
@@ -138,16 +163,18 @@ class PreDpcProposalService
         // not hold a row lock while it says so.
         $this->assertSignatureAvailable();
 
-        DB::transaction(function () use ($proposal, $actor, $request): void {
+        $this->signed($actor, $proposal, 'approve', fn () => DB::transaction(function () use ($proposal, $actor, $request): void {
             $locked = $this->lock($proposal);
             $from = $locked->status->value;
             $def = $this->engine->assertAllowed('pre_dpc', 'approve', $from, $actor);
+            $this->assertCurrentOfficer($actor, $locked, Role::AdministrativeHead);
 
-            $signature = $this->signatures->sign(
+            $signature = $this->signatures->signVerified(
                 $actor,
                 $locked,
                 $this->renderDocument($locked),
                 "pre-dpc-{$locked->pre_dpc_number}-v{$locked->version}.txt",
+                ['action' => 'approve'],
             );
 
             $this->supersedeIncumbent($locked);
@@ -162,7 +189,7 @@ class PreDpcProposalService
 
             $this->projectToMasters($locked);
             $this->engine->record($locked, 'pre_dpc', 'approve', $from, $def, $actor, $request, null, $signature->id, $locked->department_id);
-        });
+        }));
     }
 
     public function return(PreDpcProposal $proposal, User $actor, string $remarks, Request $request): void
@@ -304,6 +331,9 @@ class PreDpcProposalService
             $draft->forceFill(['active_flag' => null]);
 
             $draft->save();
+
+            // The amendment stays with the officers the order was allotted to (A2).
+            $this->allotments->inherit($draft, $proposal, $actor);
 
             // Every feeder the approved order named, with its terms as sanctioned.
             // An amendment starts from what is in force and is edited from there.
@@ -493,6 +523,17 @@ class PreDpcProposalService
             ->max('version') + 1;
     }
 
+    /**
+     * Whether the Pre-DPC is complete enough to be allotted and submitted
+     * (2026-10-28): the Department Admin assigns its AO and AH only then.
+     *
+     * @throws WorkflowException naming what is missing
+     */
+    public function assertComplete(PreDpcProposal $proposal): void
+    {
+        $this->guardComplete($proposal);
+    }
+
     private function guardComplete(PreDpcProposal $proposal): void
     {
         if ($proposal->promotion_to_post_id === null) {
@@ -511,6 +552,33 @@ class PreDpcProposalService
 
         if (($proposal->government_order_number === null) || ($proposal->effective_from === null)) {
             throw new WorkflowException('Government Order number and effective date are required before submitting.');
+        }
+    }
+
+    /**
+     * Run a signed transition; on a failed or unverified eSign, record a security
+     * event (after the rollback, so it survives) and refuse (2026-10-27).
+     */
+    private function signed(User $actor, PreDpcProposal $proposal, string $action, callable $transition): void
+    {
+        try {
+            $transition();
+        } catch (SignatureVerificationFailed $e) {
+            app(SecurityLog::class)->record('esign.'.$e->reason, $actor, context: ['subject' => 'pre_dpc', 'id' => $proposal->id, 'action' => $action]);
+            app(SignatureAttemptLog::class)->record($actor, $proposal, $action, $e->reason, $e->assertedName);
+
+            throw new WorkflowException($e->getMessage());
+        }
+    }
+
+    /**
+     * Re-checked under the proposal's lock: a reassignment that landed after the
+     * screen was opened takes effect before anything is signed.
+     */
+    private function assertCurrentOfficer(User $actor, PreDpcProposal $proposal, Role $role): void
+    {
+        if (! $this->allotments->isAllotted($actor, $proposal, $role)) {
+            throw new WorkflowException((string) __('esign.errors.not_current_officer'));
         }
     }
 

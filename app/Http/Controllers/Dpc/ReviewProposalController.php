@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Dpc;
 
+use App\Domain\Allotment\Services\ProposalAllotmentService;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Master\Models\ReviewReason;
 use App\Domain\Review\Requests\CreateReviewProposalRequest;
 use App\Domain\Review\Services\ReviewDpcService;
 use App\Domain\Shared\Workflow\WorkflowException;
+use App\Enums\Role;
 use App\Http\Controllers\Controller;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -25,7 +27,10 @@ use Illuminate\Support\Carbon;
  */
 class ReviewProposalController extends Controller
 {
-    public function __construct(private readonly ReviewDpcService $reviews) {}
+    public function __construct(
+        private readonly ReviewDpcService $reviews,
+        private readonly ProposalAllotmentService $allotments,
+    ) {}
 
     /**
      * S37 — raise a Review against a concluded DPC.
@@ -35,7 +40,10 @@ class ReviewProposalController extends Controller
         $this->authorize('create', DpcProposal::class);
 
         return view('dpc.reviews.create', [
-            'originals' => $this->reviews->eligibleOriginals((int) $request->user()->department_id),
+            // Raised by the AO the original is allotted to (2026-10-26).
+            'originals' => $this->reviews->eligibleOriginals((int) $request->user()->department_id)
+                ->filter(fn (DpcProposal $original): bool => $this->allotments->isAllotted($request->user(), $original, Role::AuthorizedOfficer))
+                ->values(),
             'reasons' => ReviewReason::query()->orderBy('id')->get(),
         ]);
     }
@@ -47,6 +55,7 @@ class ReviewProposalController extends Controller
             ->firstOrFail();
 
         $this->authorize('create', DpcProposal::class);
+        abort_unless($this->allotments->isAllotted($request->user(), $original, Role::AuthorizedOfficer), 403);
 
         /** @var array<int, string> $details */
         $details = (array) $request->input('details', []);

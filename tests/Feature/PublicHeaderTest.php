@@ -26,7 +26,7 @@ final class PublicHeaderTest extends TestCase
     use RefreshDatabase;
 
     /**
-     * The public header offers the right two buttons for the visitor it has
+     * The public header offers the right buttons for the visitor it has
      * (reported 2026-09-06: *"if a department is already logged in it should not
      * show Login and Registration"*).
      *
@@ -34,13 +34,27 @@ final class PublicHeaderTest extends TestCase
      * all: offering "New Registration" to an officer with a session is how a
      * department comes to register itself twice.
      */
-    public function test_the_home_page_offers_login_and_registration_to_a_visitor(): void
+    public function test_the_home_page_offers_login_only_to_a_visitor(): void
     {
         $this->get('/')
             ->assertOk()
             ->assertSee(__('ui.department_login'))
-            ->assertSee(__('ui.new_registration'))
+            ->assertSee('href="'.route('login').'"', false)
             ->assertDontSee(__('ui.logout'));
+    }
+
+    /**
+     * No public menu offers registration (2026-10-26): a department registers only
+     * through the invitation link the Portal Super Admin sends it.
+     */
+    public function test_no_public_page_links_to_registration(): void
+    {
+        foreach (['/', route('login'), route('self-inspection.landing')] as $page) {
+            $this->get($page)
+                ->assertOk()
+                ->assertDontSee('href="'.route('register').'"', false)
+                ->assertDontSee(__('ui.new_registration'));
+        }
     }
 
     public function test_the_home_page_offers_the_dashboard_and_logout_to_a_signed_in_user(): void

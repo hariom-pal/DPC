@@ -10,6 +10,7 @@ use App\Domain\SelfInspection\Enums\SelfInspectionAuthDriver;
 use App\Domain\SelfInspection\Enums\SelfInspectionFactor;
 use App\Domain\SelfInspection\Models\SelfInspectionAccess;
 use App\Domain\Shared\ValueObjects\PendingBusinessDecision;
+use App\Enums\Feature;
 use App\Enums\OtpChannel;
 use App\Enums\OtpPurpose;
 use Illuminate\Database\Eloquent\Collection;
@@ -97,6 +98,17 @@ class SelfInspectionAuthenticator
      * and a match that depended on punctuation would fail for the officer rather
      * than for the attacker.
      */
+    /**
+     * Whether a code can actually reach the officer (2026-10-27): the SMS gateway
+     * is enabled, or a fixed development code is in force (local/testing only).
+     * When neither holds the screen says so, instead of announcing a code that was
+     * never sent.
+     */
+    public function codesCanBeDelivered(): bool
+    {
+        return Feature::SmsGateway->enabled() || $this->otp->fixedCodeInForce();
+    }
+
     public function requestCode(string $mobile, Request $request): void
     {
         $normalised = $this->normaliseMobile($mobile);

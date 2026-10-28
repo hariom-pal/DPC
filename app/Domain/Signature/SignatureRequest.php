@@ -14,6 +14,9 @@ use Illuminate\Database\Eloquent\Model;
 final class SignatureRequest
 {
     /**
+     * `$reference` is a one-time value the provider must echo back, so the result
+     * is tied to this request and no other (2026-10-27).
+     *
      * @param  array<string, mixed>  $context
      */
     public function __construct(
@@ -22,5 +25,11 @@ final class SignatureRequest
         public readonly string $documentContents,
         public readonly string $documentName,
         public readonly array $context = [],
+        public readonly ?string $reference = null,
     ) {}
+
+    public function documentDigest(): string
+    {
+        return hash('sha256', $this->documentContents);
+    }
 }

@@ -24,6 +24,16 @@ return [
         'notifications_are_also_sent_by_sms_and_e_mail_on' => 'Notifications are also sent by SMS and e-mail once those gateways are
                 connected. This list does not depend on them.',
     ],
+    'registration' => [
+        'posted' => [
+            'subject' => 'You are registered as :role of :department',
+            'message' => 'You have been registered on the ODPC Portal as the :role of :department. Sign in with your existing password.',
+        ],
+        'replaced' => [
+            'subject' => 'Your seat as :role of :department has been taken',
+            'message' => 'Another officer has been registered as the :role of :department on the ODPC Portal. You no longer hold that seat; you can still sign in, and a fresh registration posts you again.',
+        ],
+    ],
     'promotion_order' => [
         'subject' => 'Promotion order :number issued',
         'message' => 'Promotion order :number dated :date for the post of :post has been issued. Open the order: :link',

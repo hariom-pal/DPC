@@ -63,7 +63,7 @@ class NotificationRecipientResolver
                      | change `department_id`, and until then they were still being
                      | told about that department's proposals.
                      */
-                    $query->orWhereHas('activeAssignment', fn (Builder $assignment): Builder => $assignment
+                    $query->orWhereHas('activeAssignments', fn (Builder $assignment): Builder => $assignment
                         ->where('department_id', $departmentId)
                         ->whereIn('role', $roles));
                 }

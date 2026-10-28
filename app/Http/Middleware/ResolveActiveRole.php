@@ -6,6 +6,8 @@ namespace App\Http\Middleware;
 
 use App\Domain\Authentication\Models\User;
 use App\Domain\Authentication\Services\ActiveRoleService;
+use App\Domain\UserManagement\Services\ActingAssignmentService;
+use App\Enums\Role;
 use Closure;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\Request;
@@ -48,7 +50,10 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class ResolveActiveRole
 {
-    public function __construct(private readonly ActiveRoleService $roles) {}
+    public function __construct(
+        private readonly ActiveRoleService $roles,
+        private readonly ActingAssignmentService $acting,
+    ) {}
 
     public function handle(Request $request, Closure $next): Response
     {
@@ -79,6 +84,17 @@ class ResolveActiveRole
 
         if ($role !== null) {
             $user->setRelation('roles', new EloquentCollection([$role]));
+        }
+
+        /*
+         | The department the request acts in (Phase 6, 2026-10-27): for a
+         | departmental role, the officer's current assignment in that role — the
+         | one chosen with the department switcher, re-checked here against the
+         | database every request — and no other. With none current, the officer
+         | acts in no department, and every department-scoped check refuses.
+         */
+        if (in_array($active, Role::departmental(), true)) {
+            $user->setRelation('activeAssignment', $this->acting->resolve($user, $active));
         }
 
         // Read by the layout's switcher and by the dashboard, so neither has to

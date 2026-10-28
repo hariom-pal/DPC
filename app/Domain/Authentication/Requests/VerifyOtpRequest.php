@@ -22,7 +22,7 @@ class VerifyOtpRequest extends FormRequest
 
         return [
             'email_code' => ['nullable', $digits],
-            'mobile_code' => ['required', $digits],
+            'mobile_code' => ['nullable', $digits],
         ];
     }
 }

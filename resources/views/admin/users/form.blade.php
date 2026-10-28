@@ -18,9 +18,17 @@
                 <div class="row">
                     <div class="col-md-6 mb-3">
                         <label class="form-label" for="name">{{ __('ui.name') }}</label>
-                        <input type="text" class="form-control @error('name') is-invalid @enderror" id="name" name="name" value="{{ old('name', $user->name) }}" required>
+                        <input type="text" class="form-control @error('name') is-invalid @enderror" id="name" name="name" value="{{ old('name', $user->name) }}" required @if ($user->exists) readonly @endif>
+                        @if ($user->exists)
+                            <div class="form-text"><a href="{{ route('admin.users.identity', $user) }}">{{ __('identity.name_via_identity') }}</a></div>
+                        @endif
                         @error('name')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
+                    @unless ($user->exists)
+                        <div class="col-12">
+                            @include('partials.identity-fields', ['dob' => null, 'gender' => null, 'required' => false])
+                        </div>
+                    @endunless
                     <div class="col-md-6 mb-3">
                         <label class="form-label" for="role">{{ __('ui.role') }}</label>
                         <select class="form-select @error('role') is-invalid @enderror" id="role" name="role" required>

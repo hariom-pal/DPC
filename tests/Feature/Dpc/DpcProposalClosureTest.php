@@ -151,12 +151,12 @@ class DpcProposalClosureTest extends TestCase
         $this->actingAs($this->ah)
             ->get(route('dpc-proposals.review', [$this->proposal, 1]))
             ->assertOk()
-            ->assertDontSee('Approve, Sign &amp; Forward to CGPSC', false);
+            ->assertDontSee(__('esign.button.approve_dpc'));
 
         $this->actingAs($this->ah)
             ->get(route('dpc-proposals.review', [$this->proposal, 5]))
             ->assertOk()
-            ->assertSee('Approve, Sign &amp; Forward to CGPSC', false);
+            ->assertSee(__('esign.button.approve_dpc'));
     }
 
     public function test_an_out_of_range_review_step_redirects_to_the_first(): void
@@ -190,7 +190,7 @@ class DpcProposalClosureTest extends TestCase
         $this->actingAs($this->ao)
             ->get(route('dpc-proposals.review', [$this->proposal, 5]))
             ->assertOk()
-            ->assertDontSee('Approve, Sign &amp; Forward to CGPSC', false);
+            ->assertDontSee(__('esign.button.approve_dpc'));
     }
 
     // ------------------------------------------------------- single approval

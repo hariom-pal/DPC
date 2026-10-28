@@ -45,6 +45,10 @@ class UserDepartmentAssignment extends Model implements Auditable
     use AuditableTrait;
     use Blameable;
 
+    public const KIND_PRIMARY = 'primary';
+
+    public const KIND_ADDITIONAL_CHARGE = 'additional_charge';
+
     /**
      * @var list<string>
      */
@@ -55,6 +59,10 @@ class UserDepartmentAssignment extends Model implements Auditable
         'effective_from',
         'effective_to',
         'active_flag',
+        'kind',
+        'primary_flag',
+        'approved_by',
+        'approved_at',
         'remarks',
         'created_by',
         'updated_by',
@@ -70,6 +78,8 @@ class UserDepartmentAssignment extends Model implements Auditable
             'effective_from' => 'date',
             'effective_to' => 'date',
             'active_flag' => 'integer',
+            'primary_flag' => 'integer',
+            'approved_at' => 'datetime',
         ];
     }
 
@@ -104,6 +114,27 @@ class UserDepartmentAssignment extends Model implements Auditable
     }
 
     /**
+     * Active and within its dates today (Phase 6, 2026-10-27): an assignment whose
+     * end date has passed confers nothing, even before the scheduler closes it.
+     *
+     * @param  Builder<$this>  $query
+     * @return Builder<$this>
+     */
+    public function scopeCurrent(Builder $query): Builder
+    {
+        $today = now()->toDateString();
+
+        return $query->whereNotNull('active_flag')
+            ->whereDate('effective_from', '<=', $today)
+            ->where(fn (Builder $q) => $q->whereNull('effective_to')->orWhereDate('effective_to', '>=', $today));
+    }
+
+    public function isAdditionalCharge(): bool
+    {
+        return $this->kind === self::KIND_ADDITIONAL_CHARGE;
+    }
+
+    /**
      * Mark this the user's current posting.
      *
      * Does **not** deactivate whatever was active before, and does not touch the
@@ -128,6 +159,7 @@ class UserDepartmentAssignment extends Model implements Auditable
     public function deactivate(Carbon $on): void
     {
         $this->active_flag = null;
+        $this->primary_flag = null;
         $this->effective_to ??= $on;
     }
 }

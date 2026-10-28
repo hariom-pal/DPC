@@ -19,14 +19,20 @@ use App\Domain\PreDpc\Models\PreDpcProposal;
 use App\Enums\DepartmentStatus;
 use App\Enums\Role;
 use Database\Seeders\DatabaseSeeder;
+use Database\Seeders\DepartmentMasterSeeder;
+use Database\Seeders\DepartmentPostSeeder;
 use Database\Seeders\ReadyDpcSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
- * A fresh database — migrations, then `db:seed` — is ready for School Education's
+ * A demonstration machine — the master-only `db:seed`, a Portal Super Admin, then
+ * the School Education example seeders by class — is ready for School Education's
  * AO to raise the DPC for Additional Director, Education (2026-10-19).
+ *
+ * Since 2026-10-26 `db:seed` itself creates no department and no account
+ * (FreshInstallationTest); this example is opt-in.
  */
 class ReadyDpcSeederTest extends TestCase
 {
@@ -40,12 +46,25 @@ class ReadyDpcSeederTest extends TestCase
         config(['dpc.ready_department.password' => 'Ready@2026']);
 
         $this->seed(DatabaseSeeder::class);
+        $this->superAdmin();
+        $this->seedExample();
+    }
+
+    private function superAdmin(): void
+    {
+        User::factory()->create(['email' => 'admin@cgpsc.gov.in'])->assignRole(Role::Admin->value);
+    }
+
+    private function seedExample(): void
+    {
+        $this->seed([DepartmentMasterSeeder::class, DepartmentPostSeeder::class, ReadyDpcSeeder::class]);
     }
 
     public function test_one_department_is_registered_with_its_ao_and_ah_only(): void
     {
-        $this->assertSame(['SE'], Department::query()->pluck('code')->all());
-        $department = Department::query()->sole();
+        // The master holds every department; only School Education is registered.
+        $this->assertSame(['SE'], Department::query()->where('status', DepartmentStatus::Registered->value)->pluck('code')->all());
+        $department = Department::query()->where('code', 'SE')->sole();
         $this->assertSame(DepartmentStatus::Registered, $department->status);
 
         $ao = User::query()->where('email', ReadyDpcSeeder::AO_EMAIL)->sole();
@@ -56,11 +75,13 @@ class ReadyDpcSeederTest extends TestCase
         $this->assertSame($department->id, $ah->department_id);
         $this->assertSame(2, $department->users()->count());
 
-        // Admin, Chairman, AO, AH — nobody else.
-        $this->assertSame(4, User::query()->count());
+        // The Portal Super Admin, AO and AH — nobody else (no seeded Chairman account).
+        $this->assertSame(3, User::query()->count());
 
         $this->post(route('login.store'), ['login' => $ao->email, 'password' => 'Ready@2026'])
-            ->assertRedirect(route('dashboard'));
+            ->assertRedirect(route('verify.show')); // an AO is not DigiLocker-verified (2026-10-27)
+        // Every sign-in is challenged (Phase 1, 2026-10-27).
+        $this->passSignInChallenge()->assertRedirect(route('dashboard'));
         $this->assertAuthenticatedAs($ao);
     }
 
@@ -83,7 +104,7 @@ class ReadyDpcSeederTest extends TestCase
     public function test_the_ao_raises_the_dpc_and_reconciles_the_working_officers_list(): void
     {
         config(['dpc.reservation.category_wise' => false, 'dpc.vacancy_master.source_for_new_proposals' => 'vacancy_master']);
-        $ao = User::query()->where('email', ReadyDpcSeeder::AO_EMAIL)->sole();
+        $ao = $this->markIdentityVerified(User::query()->where('email', ReadyDpcSeeder::AO_EMAIL)->sole());
         $preDpc = PreDpcProposal::query()->activeApproved()->sole();
 
         $this->actingAs($ao)->post(route('dpc-proposals.store'), [
@@ -112,10 +133,11 @@ class ReadyDpcSeederTest extends TestCase
     public function test_seeding_again_changes_nothing(): void
     {
         $this->seed(DatabaseSeeder::class);
+        $this->seedExample();
 
-        $this->assertSame(1, Department::query()->count());
-        $this->assertSame(DepartmentStatus::Registered, Department::query()->sole()->status);
-        $this->assertSame(4, User::query()->count());
+        $this->assertSame(48, Department::query()->count());
+        $this->assertSame(['SE'], Department::query()->where('status', DepartmentStatus::Registered->value)->pluck('code')->all());
+        $this->assertSame(3, User::query()->count());
         $this->assertSame(1, PreDpcProposal::query()->count());
         $this->assertSame(1, VacancyPosition::query()->count());
         $this->assertSame(1, PromotionCrRule::query()->count());

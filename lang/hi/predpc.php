@@ -17,6 +17,11 @@ declare(strict_types=1);
 */
 
 return [
+    'summary' => [
+        'title_edit' => 'प्री-डीपीसी प्रस्ताव संपादित करें',
+        'title_new' => 'नया प्री-डीपीसी प्रस्ताव',
+        'number' => 'प्री-डीपीसी क्रमांक',
+    ],
     'form' => [
         '1_the_promotion_exercise' => '1. पदोन्नति प्रक्रिया',
         '2_taken_from_the_posts' => '2. पदों से प्राप्त',

@@ -29,6 +29,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Event;
 use OwenIt\Auditing\Models\Audit;
 use RuntimeException;
+use Tests\Concerns\AllotsProposals;
 use Tests\Concerns\SeatsDpcCommittees;
 use Tests\TestCase;
 
@@ -38,6 +39,7 @@ use Tests\TestCase;
  */
 class ProceedingLifecycleTest extends TestCase
 {
+    use AllotsProposals;
     use RefreshDatabase;
     use SeatsDpcCommittees;
 
@@ -383,13 +385,19 @@ class ProceedingLifecycleTest extends TestCase
     {
         Event::fake([WorkflowTransitioned::class]);
 
+        $allotment = $this->allot($this->proposal);
+
         $this->allottedAndScheduled();
         $this->open();
 
-        Event::assertDispatched(WorkflowTransitioned::class, function (WorkflowTransitioned $event): bool {
+        // The DPC's allotted AO and AH by name, not every officer of the
+        // department (2026-10-26).
+        Event::assertDispatched(WorkflowTransitioned::class, function (WorkflowTransitioned $event) use ($allotment): bool {
             return $event->event === 'open'
-                && in_array('authorized_officer', $event->notifyRoles, true)
-                && in_array('administrative_head', $event->notifyRoles, true);
+                && in_array($allotment->ao_user_id, $event->notifyUserIds, true)
+                && in_array($allotment->ah_user_id, $event->notifyUserIds, true)
+                && ! in_array('authorized_officer', $event->notifyRoles, true)
+                && ! in_array('administrative_head', $event->notifyRoles, true);
         });
     }
 

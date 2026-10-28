@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\PreDpc\Models;
 
+use App\Domain\Allotment\Models\ProposalAllotment;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Department\Models\Department;
 use App\Domain\Dpc\Models\DpcProposal;
@@ -18,6 +19,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 use OwenIt\Auditing\Auditable as AuditableTrait;
@@ -128,6 +130,27 @@ class PreDpcProposal extends Model implements Auditable
             'returned_at' => 'datetime',
             'cancelled_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Every allotment of this proposal to an AO and an AH, oldest first: its
+     * allotment history (2026-10-26).
+     *
+     * @return HasMany<ProposalAllotment, $this>
+     */
+    public function allotments(): HasMany
+    {
+        return $this->hasMany(ProposalAllotment::class, 'pre_dpc_proposal_id')->oldest('id');
+    }
+
+    /**
+     * The AO and AH this proposal is allotted to now, if any.
+     *
+     * @return HasOne<ProposalAllotment, $this>
+     */
+    public function currentAllotment(): HasOne
+    {
+        return $this->hasOne(ProposalAllotment::class, 'pre_dpc_proposal_id')->whereNull('ended_at')->latestOfMany();
     }
 
     /**

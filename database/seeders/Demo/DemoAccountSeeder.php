@@ -4,15 +4,17 @@ declare(strict_types=1);
 
 namespace Database\Seeders\Demo;
 
+use App\Domain\Authentication\Events\CredentialsIssued;
 use App\Domain\Authentication\Models\User;
-use App\Domain\Authentication\Services\RegistrationService;
 use App\Domain\Department\Models\Department;
 use App\Domain\Master\Models\Designation;
 use App\Domain\Master\Models\District;
+use App\Domain\UserManagement\Services\UserProvisioningService;
 use App\Enums\DepartmentStatus;
 use App\Enums\MasterStatus;
 use App\Enums\Role;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Event;
 
 /**
  * Demo accounts: the CGPSC side (Admin, Chairman, five Members) and the department
@@ -97,17 +99,13 @@ class DemoAccountSeeder extends Seeder
         ['name' => 'Smt. Anita Bhonsle', 'email' => 'member5@cgpsc.gov.in', 'mobile' => '9000000205', 'designation' => 'Member, CGPSC'],
     ];
 
-    public function run(RegistrationService $registration): void
+    public function run(UserProvisioningService $provisioning): void
     {
         $this->seedDesignations();
 
-        $this->cgpscAccount(
-            (string) config('dpc.admin.name'),
-            (string) config('dpc.admin.email'),
-            (string) config('dpc.admin.mobile'),
-            'System Administrator',
-            Role::Admin,
-        );
+        // The demonstration administrator (the real Portal Super Admin is created
+        // by `php artisan dpc:bootstrap-super-admin`).
+        $this->cgpscAccount('CGPSC Administrator', 'admin@cgpsc.gov.in', '9990000000', 'System Administrator', Role::Admin);
 
         foreach (self::CHAIRMEN as $chairman) {
             $this->cgpscAccount($chairman['name'], $chairman['email'], $chairman['mobile'], $chairman['designation'], Role::Chairman);
@@ -118,7 +116,7 @@ class DemoAccountSeeder extends Seeder
         }
 
         foreach (self::DEPARTMENTS as $code => $spec) {
-            $this->registerDepartment($registration, $code, $spec);
+            $this->registerDepartment($provisioning, $code, $spec);
         }
     }
 
@@ -181,7 +179,7 @@ class DemoAccountSeeder extends Seeder
     /**
      * @param  array<string, mixed>  $spec
      */
-    private function registerDepartment(RegistrationService $registration, string $code, array $spec): void
+    private function registerDepartment(UserProvisioningService $provisioning, string $code, array $spec): void
     {
         $department = Department::query()->firstOrCreate(
             ['code' => $code],
@@ -196,29 +194,41 @@ class DemoAccountSeeder extends Seeder
             return;
         }
 
-        $registration->register([
-            'department_id' => $department->id,
+        // The address is the Administrator's master data; registration reads it.
+        $department->forceFill([
             'district_id' => (int) District::query()->where('name_en', $spec['district'])->value('id'),
             'place' => $spec['place'],
             'pin' => $spec['pin'],
-            'department_email' => $spec['email'],
-            'ao_name' => $spec['ao']['name'],
-            'ao_designation_id' => (int) Designation::query()->where('name', $spec['ao']['designation'])->value('id'),
-            'ao_mobile' => $spec['ao']['mobile'],
-            'ao_email' => $spec['ao']['email'],
-            'ah_name' => $spec['ah']['name'],
-            'ah_designation_id' => (int) Designation::query()->where('name', $spec['ah']['designation'])->value('id'),
-            'ah_mobile' => $spec['ah']['mobile'],
-            'ah_email' => $spec['ah']['email'],
-        ]);
+            'email' => $spec['email'],
+        ])->save();
+
+        // The department's AH and AO, created as the Department Admin or Portal Admin
+        // would create them; the credentials notice is suppressed because
+        // demoCredentials() replaces the password.
+        Event::fakeFor(function () use ($provisioning, $department, $spec): void {
+            foreach (['ah' => Role::AdministrativeHead, 'ao' => Role::AuthorizedOfficer] as $seat => $role) {
+                $provisioning->provision([
+                    'name' => $spec[$seat]['name'],
+                    'email' => $spec[$seat]['email'],
+                    'mobile' => $spec[$seat]['mobile'],
+                    'designation_id' => (int) Designation::query()->where('name', $spec[$seat]['designation'])->value('id'),
+                    'role' => $role->value,
+                    'department_id' => $department->id,
+                    'date_of_birth' => '1976-03-15',
+                    'gender' => str_starts_with($spec[$seat]['name'], 'Smt') ? 'F' : 'M',
+                ]);
+            }
+        }, [CredentialsIssued::class]);
+
+        $department->forceFill(['status' => DepartmentStatus::Registered->value, 'registered_at' => now()])->save();
 
         $department->refresh()->load('users');
         $department->users->each(fn (User $user) => $this->demoCredentials($user));
     }
 
     /**
-     * Registration issues a random password and leaves the account unverified,
-     * which is right in production and useless on a projector. This replaces
+     * Provisioning issues a random password, which is right in production and
+     * useless on a projector. This replaces
      * the credentials with the shared demo password and marks both channels
      * verified so the account signs straight in.
      */

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Domain\PromotionOrder\Requests;
 
 use App\Domain\Dpc\Models\DpcProposal;
-use App\Enums\Role;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
@@ -19,9 +18,8 @@ class IssuePromotionOrderRequest extends FormRequest
         $proposal = $this->route('dpcProposal');
         $user = $this->user();
 
-        return $proposal instanceof DpcProposal && $user !== null
-            && $user->hasRole(Role::AdministrativeHead->value)
-            && (int) $user->department_id === (int) $proposal->department_id;
+        // The allotted AH (2026-10-26) — the policy, not a second copy of the rule.
+        return $proposal instanceof DpcProposal && $user !== null && $user->can('issueOrder', $proposal);
     }
 
     /**

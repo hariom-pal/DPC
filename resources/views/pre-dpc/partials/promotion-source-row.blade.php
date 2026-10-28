@@ -43,11 +43,11 @@
     <td>
         <label class="visually-hidden" for="source-{{ $index }}-share">{{ __('predpc.form.share') }}</label>
         <div class="input-group input-group-sm">
-            <input type="number" min="0" max="100" step="0.01"
+            <input type="number" min="0" max="100" step="1" inputmode="numeric" data-whole-number
                    class="form-control @error("promotion_sources.{$index}.promotion_percentage") is-invalid @enderror"
                    id="source-{{ $index }}-share"
                    name="promotion_sources[{{ $index }}][promotion_percentage]"
-                   value="{{ $row['promotion_percentage'] ?? '100' }}" required>
+                   value="{{ (fn ($v) => is_numeric($v) && (float) $v == (int) $v ? (int) $v : $v)($row['promotion_percentage'] ?? '100') }}" required>
             <span class="input-group-text">%</span>
         </div>
         @error("promotion_sources.{$index}.promotion_percentage")
@@ -58,7 +58,7 @@
     <td>
         <label class="visually-hidden" for="source-{{ $index }}-experience">{{ __('predpc.form.min_experience') }}</label>
         <div class="input-group input-group-sm">
-            <input type="number" min="0" max="40" step="1"
+            <input type="number" min="0" max="40" step="1" inputmode="numeric" data-whole-number
                    class="form-control @error("promotion_sources.{$index}.min_experience_years") is-invalid @enderror"
                    id="source-{{ $index }}-experience"
                    name="promotion_sources[{{ $index }}][min_experience_years]"

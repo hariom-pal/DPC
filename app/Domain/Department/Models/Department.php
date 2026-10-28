@@ -98,6 +98,19 @@ class Department extends Model implements Auditable
     }
 
     /**
+     * Department registration shows the address and contact e-mail from the
+     * Administrator's master read-only (business decision, 2026-10-22), so a
+     * department can be registered only once the master holds all four.
+     */
+    public function hasRegistrationDetails(): bool
+    {
+        return $this->district_id !== null
+            && filled($this->place)
+            && filled($this->pin)
+            && filled($this->email);
+    }
+
+    /**
      * @return HasMany<DepartmentPost, $this>
      */
     public function posts(): HasMany

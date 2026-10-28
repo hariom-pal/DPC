@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Dpc\Models;
 
+use App\Domain\Allotment\Models\ProposalAllotment;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Department\Models\Department;
 use App\Domain\Dpc\Enums\DpcProposalStatus;
@@ -232,6 +233,27 @@ class DpcProposal extends Model implements Auditable
             'cancelled_at' => 'datetime',
             'seniority_list_as_on' => 'date',
         ];
+    }
+
+    /**
+     * Every allotment of this proposal to an AO and an AH, oldest first: its
+     * allotment history (2026-10-26).
+     *
+     * @return HasMany<ProposalAllotment, $this>
+     */
+    public function allotments(): HasMany
+    {
+        return $this->hasMany(ProposalAllotment::class, 'dpc_proposal_id')->oldest('id');
+    }
+
+    /**
+     * The AO and AH this proposal is allotted to now, if any.
+     *
+     * @return HasOne<ProposalAllotment, $this>
+     */
+    public function currentAllotment(): HasOne
+    {
+        return $this->hasOne(ProposalAllotment::class, 'dpc_proposal_id')->whereNull('ended_at')->latestOfMany();
     }
 
     /**

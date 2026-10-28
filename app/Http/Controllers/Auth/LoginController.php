@@ -6,8 +6,8 @@ namespace App\Http\Controllers\Auth;
 
 use App\Domain\Authentication\Models\User;
 use App\Domain\Authentication\Requests\LoginRequest;
-use App\Domain\Authentication\Services\VerificationService;
-use App\Enums\OtpPurpose;
+use App\Domain\Authentication\Services\SecurityLog;
+use App\Domain\Authentication\Services\SignInFlow;
 use App\Http\Controllers\Controller;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -18,7 +18,10 @@ use Illuminate\Validation\ValidationException;
 
 class LoginController extends Controller
 {
-    public function __construct(private readonly VerificationService $verification) {}
+    public function __construct(
+        private readonly SignInFlow $flow,
+        private readonly SecurityLog $log,
+    ) {}
 
     public function create(): View|RedirectResponse
     {
@@ -55,37 +58,44 @@ class LoginController extends Controller
         $user = User::query()->where($field, $login)->first();
 
         if ($user === null || ! Hash::check((string) $credentials['password'], $user->password)) {
+            // Never the identifier typed: an unknown login is logged with no user.
+            $this->log->record('login.failed', $user, $request);
+
             throw ValidationException::withMessages([
                 'login' => __('auth.failed'),
             ]);
         }
 
         if (! $user->is_active) {
+            $this->log->record('login.refused_inactive', $user, $request);
+
             throw ValidationException::withMessages([
                 'login' => 'This account is deactivated. Please contact the CGPSC administrator.',
             ]);
         }
 
-        if (! $user->isFullyVerified()) {
-            $this->verification->start($user, OtpPurpose::Login);
-            $request->session()->put('pending_verification', [
-                'user_id' => $user->id,
-                'purpose' => OtpPurpose::Login->value,
-            ]);
+        // Identity (DigiLocker), the mobile declaration, then the OTP challenge
+        // (Phases 1–5, 2026-10-27): the password alone never signs anyone in.
+        return $this->flow->begin($request, $user);
+    }
 
-            return redirect()
-                ->route('verify.show')
-                ->with('status', 'Your account is not verified yet. Enter the OTPs just sent to complete verification.');
-        }
+    /**
+     * Abandon a pending sign-in (any step before the session is signed in).
+     */
+    public function cancel(Request $request): RedirectResponse
+    {
+        $request->session()->forget(SignInFlow::PENDING_KEY);
 
-        Auth::login($user, $request->boolean('remember'));
-        $request->session()->regenerate();
-
-        return redirect()->intended(route('dashboard'));
+        return redirect()->route('login');
     }
 
     public function destroy(Request $request): RedirectResponse
     {
+        $user = $request->user();
+        if ($user instanceof User) {
+            $this->log->record('logout', $user, $request);
+        }
+
         Auth::guard('web')->logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();

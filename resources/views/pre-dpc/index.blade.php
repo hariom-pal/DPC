@@ -9,13 +9,9 @@
 
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h1 class="h4 mb-0">{{ __('predpc.index.pre_dpc_proposals') }}</h1>
-                {{-- Authoring is the Authorized Officer's alone (PPT S7); the
-                     Administrative Head approves what the AO prepared. The
-                     controller refuses the same thing, so the button and the
-                     403 cannot disagree. --}}
-                @can('create', App\Domain\PreDpc\Models\PreDpcProposal::class)
-                    <a href="{{ route('pre-dpc.create') }}" class="btn btn-success btn-sm">{{ __('ui.new_proposal') }}</a>
-                @endcan
+                {{-- No "new" button: the Department Admin opens a Pre-DPC and
+                     allots it (A1, 2026-10-26); it then appears here for its AO
+                     and AH only. --}}
             </div>
 
             <div class="card border-0 shadow-sm">

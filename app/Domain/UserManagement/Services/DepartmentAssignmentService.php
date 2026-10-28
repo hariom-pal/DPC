@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Domain\UserManagement\Services;
 
+use App\Domain\Allotment\Models\ProposalAllotment;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Department\Models\Department;
 use App\Domain\Shared\Services\ActivityTimelineService;
+use App\Domain\UserManagement\Exceptions\AssignmentRefused;
 use App\Domain\UserManagement\Models\UserDepartmentAssignment;
 use App\Enums\Role;
 use Illuminate\Support\Carbon;
@@ -65,17 +67,23 @@ class DepartmentAssignmentService
 
             $previous = $this->retireIncumbent($user, $from);
 
+            // An additional charge in the department the officer is now posted to
+            // ends with the posting: one assignment per officer per department.
+            $this->endIn($user, $department, $from, 'Superseded by a primary posting to the same department.');
+
             $assignment = new UserDepartmentAssignment([
                 'user_id' => $user->id,
                 'department_id' => $department->id,
                 'role' => $role->value,
+                'kind' => UserDepartmentAssignment::KIND_PRIMARY,
                 'effective_from' => $from,
                 'active_flag' => 1,
+                'primary_flag' => 1,
                 'remarks' => $remarks,
             ]);
             $assignment->save();
 
-            $this->projectRole($user, $role);
+            $this->projectRoles($user);
 
             $this->timeline->record(
                 $previous === null ? 'user.assigned' : 'user.transferred',
@@ -118,10 +126,9 @@ class DepartmentAssignmentService
             }
 
             // Every role this user holds *because of* a posting goes with the
-            // posting. A Commission role is not removed, because no posting
-            // granted it — that would be this method silently demoting an
-            // administrator who also once held a departmental role.
-            $user->removeRole($retired->role->value);
+            // posting — unless another current assignment still grants it. A
+            // Commission role is not removed, because no posting granted it.
+            $this->projectRoles($user);
             $user->unsetRelation('activeAssignment');
 
             $this->timeline->record('user.released', $user, sprintf(
@@ -147,7 +154,7 @@ class DepartmentAssignmentService
         $incumbent = UserDepartmentAssignment::query()
             ->with('department')
             ->where('user_id', $user->id)
-            ->whereNotNull('active_flag')
+            ->whereNotNull('primary_flag')
             ->lockForUpdate()
             ->first();
 
@@ -177,16 +184,156 @@ class DepartmentAssignmentService
      * would strip it. So the departmental grants are cleared and the assignment's
      * role is added — which is the projection this service exists to keep honest.
      */
-    private function projectRole(User $user, Role $role): void
+    /**
+     * An additional charge (Phase 8, 2026-10-27): the officer keeps the primary
+     * posting and is assigned in a second department, in either departmental
+     * role, approved by the CGPSC Super Admin, optionally until an end date.
+     * Never a second assignment in a department the officer already holds one in
+     * — which is also what keeps one officer from being AO and AH of one department.
+     *
+     * @throws AssignmentRefused
+     */
+    public function addAdditionalCharge(
+        User $user,
+        Department $department,
+        Role $role,
+        Carbon $effectiveFrom,
+        ?Carbon $effectiveTo,
+        ?User $approvedBy,
+        ?string $remarks = null,
+    ): UserDepartmentAssignment {
+        if (! in_array($role, Role::departmentManageable(), true)) {
+            throw new AssignmentRefused((string) __('assignments.errors.role'));
+        }
+
+        return DB::transaction(function () use ($user, $department, $role, $effectiveFrom, $effectiveTo, $approvedBy, $remarks): UserDepartmentAssignment {
+            $held = UserDepartmentAssignment::query()
+                ->where('user_id', $user->id)
+                ->where('department_id', $department->id)
+                ->whereNotNull('active_flag')
+                ->lockForUpdate()
+                ->exists();
+
+            if ($held) {
+                throw new AssignmentRefused((string) __('assignments.errors.already_in_department'));
+            }
+
+            $assignment = UserDepartmentAssignment::query()->create([
+                'user_id' => $user->id,
+                'department_id' => $department->id,
+                'role' => $role->value,
+                'kind' => UserDepartmentAssignment::KIND_ADDITIONAL_CHARGE,
+                'effective_from' => $effectiveFrom->copy()->startOfDay(),
+                'effective_to' => $effectiveTo?->copy()->startOfDay(),
+                'active_flag' => 1,
+                'approved_by' => $approvedBy?->id,
+                'approved_at' => $approvedBy === null ? null : now(),
+                'remarks' => $remarks,
+            ]);
+
+            $this->projectRoles($user);
+            $this->timeline->record('user.additional_charge_started', $user, sprintf(
+                'Additional charge of %s as %s from %s%s.',
+                $department->name,
+                $role->label(),
+                $effectiveFrom->toDateString(),
+                $effectiveTo === null ? '' : ' until '.$effectiveTo->toDateString(),
+            ), causer: $approvedBy);
+
+            return $assignment;
+        });
+    }
+
+    /**
+     * End one assignment (an additional charge removed or expired).
+     */
+    public function end(UserDepartmentAssignment $assignment, Carbon $on, ?string $remarks = null, ?User $actor = null): void
     {
+        DB::transaction(function () use ($assignment, $on, $remarks, $actor): void {
+            $assignment = UserDepartmentAssignment::query()->with(['user', 'department'])->lockForUpdate()->findOrFail($assignment->id);
+
+            if ($assignment->active_flag === null) {
+                return;
+            }
+
+            $assignment->deactivate($on->copy()->startOfDay()->max($assignment->effective_from));
+            if ($remarks !== null) {
+                $assignment->remarks = $remarks;
+            }
+            $assignment->save();
+
+            $this->projectRoles($assignment->user);
+            $this->timeline->record('user.assignment_ended', $assignment->user, sprintf(
+                '%s assignment in %s ended%s.',
+                $assignment->isAdditionalCharge() ? 'Additional-charge' : 'Primary',
+                $assignment->department->name,
+                $remarks === null ? '' : ': '.$remarks,
+            ), causer: $actor);
+        });
+    }
+
+    private function endIn(User $user, Department $department, Carbon $on, string $remarks): void
+    {
+        UserDepartmentAssignment::query()
+            ->where('user_id', $user->id)
+            ->where('department_id', $department->id)
+            ->whereNotNull('active_flag')
+            ->lockForUpdate()
+            ->get()
+            ->each(function (UserDepartmentAssignment $held) use ($on, $remarks): void {
+                $held->deactivate($on->copy()->subDay()->max($held->effective_from));
+                $held->remarks = $remarks;
+                $held->save();
+            });
+    }
+
+    /**
+     * The departmental Spatie roles are a projection of the officer's active
+     * assignments: exactly the roles some active assignment grants (Phase 6). The
+     * department a role applies to is never read from Spatie — only from the
+     * acting assignment (ActingAssignmentService).
+     */
+    public function projectRoles(User $user): void
+    {
+        $granted = UserDepartmentAssignment::query()
+            ->where('user_id', $user->id)
+            ->whereNotNull('active_flag')
+            ->pluck('role')
+            ->map(fn ($role): string => $role instanceof Role ? $role->value : (string) $role)
+            ->unique()
+            ->all();
+
+        // A DPC allotment grants the role too (2026-10-27): the AO or AH of a
+        // current allotment that is not on hold. What the role reaches is still
+        // decided per DPC (ProposalAllotmentService::isAllotted).
+        $allotments = ProposalAllotment::query()->current()->whereNull('held_at');
+
+        if ((clone $allotments)->where('ao_user_id', $user->id)->exists()) {
+            $granted[] = Role::AuthorizedOfficer->value;
+        }
+
+        if ((clone $allotments)->where('ah_user_id', $user->id)->exists()) {
+            $granted[] = Role::AdministrativeHead->value;
+        }
+
+        // Read from the database, not the `roles` relation: during a request that
+        // relation is narrowed to the acting role (ResolveActiveRole).
+        $user->unsetRelation('roles');
+        $held = $user->grantedRoleNames();
+
         foreach (Role::departmental() as $departmental) {
-            if ($departmental !== $role && $user->hasRole($departmental->value)) {
+            $should = in_array($departmental->value, $granted, true);
+            $has = in_array($departmental->value, $held, true);
+
+            if ($should && ! $has) {
+                $user->assignRole($departmental->value);
+            } elseif (! $should && $has) {
                 $user->removeRole($departmental->value);
             }
         }
 
-        if (! $user->hasRole($role->value)) {
-            $user->assignRole($role->value);
-        }
+        $user->unsetRelation('roles');
+
+        $user->unsetRelation('activeAssignment');
     }
 }

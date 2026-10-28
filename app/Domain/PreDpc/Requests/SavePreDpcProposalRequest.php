@@ -34,6 +34,23 @@ class SavePreDpcProposalRequest extends FormRequest
     }
 
     /**
+     * The exercise — DPC year and promotion-to post — is the Department Admin's
+     * choice when the Pre-DPC is opened (A1, 2026-10-26). The AO fills in the
+     * rest, so whatever year or post a request carries, the proposal's own stand.
+     */
+    protected function prepareForValidation(): void
+    {
+        $proposal = $this->route('preDpc');
+
+        if ($proposal instanceof PreDpcProposal) {
+            $this->merge([
+                'dpc_year' => $proposal->dpc_year,
+                'promotion_to_post_id' => $proposal->promotion_to_post_id,
+            ]);
+        }
+    }
+
+    /**
      * @return array<string, array<int, mixed>>
      */
     public function rules(): array
@@ -86,7 +103,8 @@ class SavePreDpcProposalRequest extends FormRequest
             ],
 
             // Each feeder's share of the promotion quota. Validated as a set below.
-            'promotion_sources.*.promotion_percentage' => ['required', 'numeric', 'min:0', 'max:100'],
+            // Whole numbers, never negative (2026-10-28).
+            'promotion_sources.*.promotion_percentage' => ['required', 'integer', 'min:0', 'max:100'],
 
             // Per feeder, because Schedule-IV sets it per feeder: five years as an
             // Assistant Director is not five years as a Research Officer.
@@ -115,8 +133,8 @@ class SavePreDpcProposalRequest extends FormRequest
             ],
 
             // The Schedule-IV split. Validated as a pair below.
-            'direct_recruitment_pct' => ['required', 'numeric', 'min:0', 'max:100'],
-            'promotion_recruitment_pct' => ['required', 'numeric', 'min:0', 'max:100'],
+            'direct_recruitment_pct' => ['required', 'integer', 'min:0', 'max:100'],
+            'promotion_recruitment_pct' => ['required', 'integer', 'min:0', 'max:100'],
 
             'government_order_number' => ['nullable', 'string', 'max:255'],
             'effective_from' => ['nullable', 'date'],

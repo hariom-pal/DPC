@@ -38,7 +38,25 @@ class UserFactory extends Factory
             'password' => static::$password ??= Hash::make('password'),
             'is_active' => true,
             'remember_token' => Str::random(10),
+            'date_of_birth' => '1975-06-15',
+            'gender' => 'M',
+            // Verified by default (2026-10-27): a fixture that is not about identity
+            // signs in as an officer who completed it. `unverifiedIdentity()` for
+            // one that is.
+            'identity_verified_at' => now(),
+            'identity_verification_method' => 'digilocker_simulated',
         ];
+    }
+
+    /**
+     * Identity not yet verified (2026-10-27).
+     */
+    public function unverifiedIdentity(): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'identity_verified_at' => null,
+            'identity_verification_method' => null,
+        ]);
     }
 
     /**

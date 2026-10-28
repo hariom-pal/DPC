@@ -130,6 +130,8 @@ class ResetTransactionalDataCommand extends Command
         // The Commission's queue.
         'dpc_schedules',
         'dpc_allotments',
+        // AO/AH allotment of each Pre-DPC and DPC (2026-10-26).
+        'proposal_allotments',
 
         /*
          | The Pre-DPC's own children. A sanctioning order is transactional — it is
@@ -149,6 +151,7 @@ class ResetTransactionalDataCommand extends Command
         // Cross-cutting records of what happened.
         'workflow_transitions',
         'activity_timelines',
+        'signature_attempts',
         'signatures',
         'audits',
         'user_notifications',
@@ -160,6 +163,10 @@ class ResetTransactionalDataCommand extends Command
         // Transient authentication and queue state. Not DPC data, but a reset that
         // left a half-finished OTP or a queued notification behind would produce
         // behaviour nobody could explain.
+        // Department Admin invitations (2026-10-26): one-time, and transactional.
+        'department_invitations',
+        // Security log (Phase 1, 2026-10-27).
+        'security_events',
         'otp_verifications',
         'password_reset_tokens',
         'sessions',
@@ -178,7 +185,12 @@ class ResetTransactionalDataCommand extends Command
     private const PRESERVED = [
         // People and access.
         'users',
+        // Officer identity is account state, kept with the account (2026-10-27).
+        'identity_verifications',
+        'identity_corrections',
         'user_department_assignments',
+        // Transfer / additional-charge requests: the history behind postings (2026-10-27).
+        'assignment_requests',
         'roles',
         'permissions',
         'model_has_roles',

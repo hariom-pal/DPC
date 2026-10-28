@@ -59,4 +59,11 @@ return [
     // its transports are flagged separately above.
     'notifications' => (bool) env('FEATURE_NOTIFICATIONS', true),
 
+    // UIDAI Aadhaar OTP at department registration, over the CSC
+    // authentication API (credentials under `uidai` in config/dpc.php).
+    // Off: the mock provider accepts DPC_AADHAAR_OTP_MOCK_CODE.
+    'uidai_aadhaar_otp' => (bool) env('FEATURE_UIDAI_AADHAAR_OTP', false),
+    // Officer identity through DigiLocker (2026-10-27); off = the simulator (never in production).
+    'digilocker' => (bool) env('FEATURE_DIGILOCKER', false),
+
 ];

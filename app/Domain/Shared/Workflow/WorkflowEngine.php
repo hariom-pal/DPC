@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Shared\Workflow;
 
+use App\Domain\Allotment\Services\ProposalAllotmentService;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Shared\Events\WorkflowTransitioned;
 use App\Domain\Shared\Services\ActivityTimelineService;
@@ -150,7 +151,11 @@ class WorkflowEngine
         // mailer, a third-party subscriber — degrades to a logged warning
         // rather than rolling back a completed transition.
         try {
-            WorkflowTransitioned::dispatch($workflow, $event, $def['to'], $departmentId, $def['notify'], $remarks, $notifyUserIds);
+            // A proposal's AO and AH are its allotted officers, not the whole
+            // department (2026-10-26).
+            [$notifyRoles, $notifyUserIds] = app(ProposalAllotmentService::class)->narrowRecipients($subject, $def['notify'], $notifyUserIds);
+
+            WorkflowTransitioned::dispatch($workflow, $event, $def['to'], $departmentId, $notifyRoles, $remarks, $notifyUserIds);
         } catch (Throwable $e) {
             Log::warning('Workflow notification dispatch failed; the transition itself is unaffected.', [
                 'workflow' => $workflow,

@@ -51,6 +51,20 @@
                         @role(\App\Enums\Role::PromotionCandidate->value)
                             <a class="btn btn-sm btn-outline-light" href="{{ route('my-dpc.index') }}">{{ __('ui.my_promotion') }}</a>
                         @endrole
+                        @if (app(\App\Domain\UserManagement\Services\DepartmentUserAuthority::class)->isDepartmentAdmin(auth()->user()))
+                            {{-- The Department Admin's two menus (2026-10-28). --}}
+                            <a class="btn btn-sm btn-outline-light" href="{{ route('department.posts.index') }}">{{ __('ui.layouts.admin.nav.department_posts') }}</a>
+                            <div class="dropdown m-0">
+                                <button class="btn btn-sm btn-outline-light dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">{{ __('allotments.menu') }}</button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <li><a class="dropdown-item" href="{{ route('department.allotments.pre-dpc.create') }}">{{ __('allotments.open') }}</a></li>
+                                    <li><a class="dropdown-item" href="{{ route('department.allotments.index', ['view' => 'pre-dpc']) }}">{{ __('allotments.list.pre-dpc.title') }}</a></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><a class="dropdown-item" href="{{ route('department.allotments.index') }}">{{ __('allotments.list.running.title') }}</a></li>
+                                    <li><a class="dropdown-item" href="{{ route('department.allotments.index', ['view' => 'closed']) }}">{{ __('allotments.list.closed.title') }}</a></li>
+                                </ul>
+                            </div>
+                        @endif
                         {{-- The department's year-wise vacancy records, kept by its Authorized Officer. --}}
                         @if (auth()->user()->hasAnyRole([\App\Enums\Role::AuthorizedOfficer->value, \App\Enums\Role::AdministrativeHead->value]))
                             <a class="btn btn-sm btn-outline-light" href="{{ route('vacancy-management.index') }}">{{ __('vacancymaster.title') }}</a>
@@ -92,13 +106,36 @@
                             </div>
                         @endif
 
+                        {{-- Department switcher (Phase 6, 2026-10-27): only for an officer with
+                             more than one current assignment. --}}
+                        @php($assignmentsHeld = app(\App\Domain\UserManagement\Services\ActingAssignmentService::class)->current(auth()->user()))
+                        @if ($assignmentsHeld->count() > 1)
+                            <div class="dropdown" id="department-switcher">
+                                <button class="btn btn-sm btn-outline-light dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                    {{ auth()->user()->department?->code ?? __('assignments.switch') }}
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    @foreach ($assignmentsHeld as $held)
+                                        <li>
+                                            <form method="POST" action="{{ route('acting-department') }}" class="m-0" data-no-busy>
+                                                @csrf
+                                                <input type="hidden" name="assignment_id" value="{{ $held->id }}">
+                                                <button type="submit" class="dropdown-item {{ auth()->user()->activeAssignment?->id === $held->id ? 'active' : '' }}">
+                                                    {{ $held->department?->name }} — {{ $held->role->label() }}@if ($held->isAdditionalCharge()) ({{ __('assignments.additional_charge') }})@endif
+                                                </button>
+                                            </form>
+                                        </li>
+                                    @endforeach
+                                </ul>
+                            </div>
+                        @endif
+
                         <form method="POST" action="{{ route('logout') }}" class="m-0" data-no-busy>
                             @csrf
                             <button type="submit" class="btn btn-sm btn-outline-light">{{ __('ui.logout') }}</button>
                         </form>
                     @else
                         <a class="btn btn-sm btn-outline-light" href="{{ route('login') }}">{{ __('ui.login') }}</a>
-                        <a class="btn btn-sm btn-accent" href="{{ route('register') }}">{{ __('ui.layouts.app.register') }}</a>
                     @endauth
 
                     <span class="vr text-white-50 d-none d-lg-inline mx-1"></span>
@@ -132,14 +169,13 @@
 
 <script src="{{ asset('vendor/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
 <script src="{{ asset('js/portal.js') }}" defer></script>
-{{-- Searchable dropdowns. Loaded on the department shell as well as the admin
-     one from 2026-08-18, when the Pre-DPC screen started selecting posts,
-     feeder posts and qualifications from the masters. It is a progressive
-     enhancement over a native <select>, so a screen that does not use one is
-     unaffected by its presence. --}}
+{{-- Searchable dropdowns: every single-choice select, on every shell (2026-10-26;
+     opt out with data-searchable="off"). A progressive enhancement over the
+     native select, which stays the field that submits. --}}
 <script src="{{ asset('js/searchable-select.js') }}" defer></script>
 <script src="{{ asset('js/multiselect-dropdown.js') }}" defer></script>
 <script src="{{ asset('js/table-hscroll.js') }}" defer></script>
+<script src="{{ asset('js/forms/whole-number.js') }}" defer></script>
 @stack('scripts')
 </body>
 </html>

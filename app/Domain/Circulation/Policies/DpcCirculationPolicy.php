@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Circulation\Policies;
 
+use App\Domain\Allotment\Services\ProposalAllotmentService;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Circulation\Enums\CirculationStatus;
 use App\Domain\Circulation\Models\DpcCirculation;
@@ -24,6 +25,20 @@ use App\Enums\Role;
  */
 class DpcCirculationPolicy
 {
+    public function __construct(private readonly ProposalAllotmentService $allotments) {}
+
+    /**
+     * A circulation is the work of the officers its originating DPC is allotted to
+     * (2026-10-26, docs/plans/PROPOSAL-ALLOTMENT-PLAN.md); one without an
+     * originating DPC is allotted to nobody.
+     */
+    private function allotted(User $user, DpcCirculation $circulation, Role $role): bool
+    {
+        $origin = $circulation->originProposal;
+
+        return $origin !== null && $this->allotments->isAllotted($user, $origin, $role);
+    }
+
     public function viewAny(User $user): bool
     {
         return $user->is_active && $user->hasAnyRole([
@@ -45,8 +60,8 @@ class DpcCirculationPolicy
             return true;
         }
 
-        return $user->department_id === $circulation->department_id
-            && $user->hasAnyRole([Role::AuthorizedOfficer->value, Role::AdministrativeHead->value]);
+        return $this->allotted($user, $circulation, Role::AuthorizedOfficer)
+            || $this->allotted($user, $circulation, Role::AdministrativeHead);
     }
 
     /**
@@ -64,8 +79,7 @@ class DpcCirculationPolicy
     public function submit(User $user, DpcCirculation $circulation): bool
     {
         return $user->is_active
-            && $user->hasRole(Role::AuthorizedOfficer->value)
-            && $user->department_id === $circulation->department_id
+            && $this->allotted($user, $circulation, Role::AuthorizedOfficer)
             && $circulation->isEditable();
     }
 
@@ -81,8 +95,7 @@ class DpcCirculationPolicy
     public function approve(User $user, DpcCirculation $circulation): bool
     {
         return $user->is_active
-            && $user->hasRole(Role::AdministrativeHead->value)
-            && $user->department_id === $circulation->department_id
+            && $this->allotted($user, $circulation, Role::AdministrativeHead)
             && $circulation->status->value === 'submitted';
     }
 

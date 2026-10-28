@@ -18,6 +18,7 @@ use App\Enums\ServiceClass;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Route;
+use Tests\Concerns\OpensPreDpcs;
 use Tests\Concerns\PrescribesQualifications;
 use Tests\Concerns\UsesPptPromotionRules;
 use Tests\TestCase;
@@ -33,6 +34,7 @@ use Tests\TestCase;
  */
 class PreDpcWorkflowTest extends TestCase
 {
+    use OpensPreDpcs;
     use PrescribesQualifications;
     use RefreshDatabase;
     use UsesPptPromotionRules;
@@ -122,7 +124,7 @@ class PreDpcWorkflowTest extends TestCase
      */
     private function draft(array $overrides = []): PreDpcProposal
     {
-        $this->actingAs($this->ao)->post(route('pre-dpc.store'), $this->payload($overrides));
+        $this->storePreDpc($this->ao, $this->payload($overrides));
 
         return PreDpcProposal::query()->latest('id')->firstOrFail();
     }
@@ -130,15 +132,22 @@ class PreDpcWorkflowTest extends TestCase
     /**
      * The blank form renders.
      *
-     * A new proposal names no Promotion To Post, so item 5's derived line has
-     * nothing to look up. It must read as an em dash rather than fail on a null
-     * key — the officer opens this page before choosing anything at all.
+     * Since 2026-10-26 (A1) the Department Admin opens a Pre-DPC with its year and
+     * Promotion To Post, so the AO's first sight of it is the edit form of an opened
+     * draft: no sources yet, and the year and post shown but not changeable.
      */
-    public function test_the_blank_form_renders_before_a_post_is_chosen(): void
+    public function test_the_opened_draft_renders_with_its_year_and_post_locked(): void
     {
-        $this->actingAs($this->ao)->get(route('pre-dpc.create'))
+        $opened = $this->openPreDpc($this->ao, 2026, $this->toPost->id);
+
+        $this->actingAs($this->ao)->get(route('pre-dpc.edit', $opened))
             ->assertOk()
-            ->assertSee(__('predpc.form.to_post_attributes', ['scale' => '—', 'class' => '—']));
+            ->assertSee('name="dpc_year" readonly', false)
+            ->assertSee('<input type="hidden" name="promotion_to_post_id" value="'.$this->toPost->id.'">', false);
+
+        // A crafted request cannot move the exercise either.
+        $this->actingAs($this->ao)->put(route('pre-dpc.update', $opened), $this->payload(['dpc_year' => 2025]));
+        $this->assertSame(2026, (int) $opened->fresh()->dpc_year);
     }
 
     // -------------------------------------------- deleting a draft (2026-09-06)
@@ -263,12 +272,13 @@ class PreDpcWorkflowTest extends TestCase
             'status' => MasterStatus::Active->value,
         ]);
 
-        $this->actingAs($this->ao)->post(route('pre-dpc.store'), $this->payload([
+        $this->storePreDpc($this->ao, $this->payload([
             // Class-I feeding Class-II: the pair the business named as never allowed.
             'promotion_to_post_id' => $lower->id,
         ]))->assertSessionHasErrors('promotion_sources.0.promotion_from_post_id');
 
-        $this->assertSame(0, PreDpcProposal::query()->count());
+        // The Department Admin's draft stands; the refused form saved nothing on it.
+        $this->assertSame(0, PreDpcProposal::query()->sole()->promotionSources()->count());
     }
 
     public function test_a_feeder_below_the_promotion_post_is_accepted(): void
@@ -281,7 +291,7 @@ class PreDpcWorkflowTest extends TestCase
             'status' => MasterStatus::Active->value,
         ]);
 
-        $this->actingAs($this->ao)->post(route('pre-dpc.store'), $this->payload([
+        $this->storePreDpc($this->ao, $this->payload([
             'promotion_sources' => [[
                 'promotion_from_post_id' => $lower->id,
                 'promotion_percentage' => 100,
@@ -314,13 +324,13 @@ class PreDpcWorkflowTest extends TestCase
         // Same class, same scale — not a promotion at all.
         $this->fromPost->forceFill(['pay_scale_id' => $sameScale->id])->save();
 
-        $this->actingAs($this->ao)->post(route('pre-dpc.store'), $this->payload())
+        $this->storePreDpc($this->ao, $this->payload())
             ->assertSessionHasErrors('promotion_sources.0.promotion_from_post_id');
 
         // Same class, lower scale — the Class-I to Class-I exemption.
         $this->fromPost->forceFill(['pay_scale_id' => $lowerScale->id])->save();
 
-        $this->actingAs($this->ao)->post(route('pre-dpc.store'), $this->payload())
+        $this->storePreDpc($this->ao, $this->payload())
             ->assertSessionHasNoErrors();
     }
 
@@ -358,7 +368,8 @@ class PreDpcWorkflowTest extends TestCase
      */
     public function test_the_qualification_field_is_a_searchable_checkbox_multiselect(): void
     {
-        $response = $this->actingAs($this->ao)->get(route('pre-dpc.create'))->assertOk();
+        $opened = $this->openPreDpc($this->ao, 2026, $this->toPost->id);
+        $response = $this->actingAs($this->ao)->get(route('pre-dpc.edit', $opened))->assertOk();
 
         $response->assertSee('data-multiselect', false);
         $response->assertSee('name="promotion_sources[__INDEX__][qualification_ids][]"', false);
@@ -632,7 +643,7 @@ class PreDpcWorkflowTest extends TestCase
     {
         $proposal = $this->draft();
 
-        $this->actingAs($this->ah)->get(route('pre-dpc.create'))->assertForbidden();
+        $this->actingAs($this->ah)->get(route('pre-dpc.edit', $proposal))->assertForbidden();
 
         $this->actingAs($this->ao)->post(route('pre-dpc.submit', $proposal));
         $this->actingAs($this->ao)->post(route('pre-dpc.approve', $proposal))

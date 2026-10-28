@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Review\Services;
 
+use App\Domain\Allotment\Services\ProposalAllotmentService;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Dpc\Enums\DpcProposalStatus;
 use App\Domain\Dpc\Models\DpcProposal;
@@ -46,6 +47,7 @@ class ReviewDpcService
         private readonly ActivityTimelineService $timeline,
         private readonly IdentifierSequenceService $identifiers,
         private readonly DpcRevisionService $revisions,
+        private readonly ProposalAllotmentService $allotments,
     ) {}
 
     /**
@@ -487,6 +489,10 @@ class ReviewDpcService
             'status' => DpcProposalStatus::Draft->value,
             'prepared_by' => $actor->id,
         ]);
+
+        // A Review stays with the officers the original is allotted to (A2,
+        // 2026-10-26); the Department Admin may reassign it.
+        $this->allotments->inherit($review, $original, $actor);
 
         // `created_by` is not fillable on the M4 model, so it is set by direct
         // update rather than through mass assignment. Strict attribute mode (AD-18)

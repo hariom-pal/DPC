@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Dpc;
 
+use App\Domain\Allotment\Services\ProposalAllotmentService;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Committee\Enums\MemberCategory;
 use App\Domain\Committee\Services\CgpscChairmanService;
@@ -72,6 +73,7 @@ class DpcProposalController extends Controller
         private readonly CgpscChairmanService $chairmen,
         private readonly PromotionCandidateProvisioner $candidateAccounts,
         private readonly ProposalVerificationService $verification,
+        private readonly ProposalAllotmentService $allotments,
     ) {}
 
     public function index(Request $request): View
@@ -79,8 +81,9 @@ class DpcProposalController extends Controller
         $this->authorize('viewAny', DpcProposal::class);
 
         return view('dpc-proposals.index', [
-            'proposals' => DpcProposal::query()
-                ->where('department_id', $this->departmentId($request))
+            // Only what this officer is allotted (A3, 2026-10-26).
+            // Any department's (2026-10-27): the allotment is the scope.
+            'proposals' => $this->allotments->scopeTo(DpcProposal::query(), $request->user())
                 ->with('dpcType', 'promotionToPost', 'promotionFromPost')
                 ->latest('id')
                 ->paginate(20),
@@ -106,10 +109,10 @@ class DpcProposalController extends Controller
      */
     private function raisablePreDpcs(Request $request): Collection
     {
-        return PreDpcProposal::query()
+        // Only Pre-DPCs this AO is allotted (A2, 2026-10-26).
+        return $this->allotments->scopeTo(PreDpcProposal::query(), $request->user())
             ->activeApproved()
             ->with(['promotionToPost', 'promotionSources.promotionFromPost', 'payScale'])
-            ->where('department_id', $this->departmentId($request))
             ->orderByDesc('dpc_year')
             ->orderBy('id')
             ->get();
@@ -127,10 +130,12 @@ class DpcProposalController extends Controller
          | the service inherits from. Fetching it here with the same scope means
          | there is no window in which a validated id becomes an unscoped lookup.
          */
+        // Scoped by the allotment rather than the officer's own department
+        // (2026-10-27): raiseFrom() below requires being its allotted AO.
         $preDpc = PreDpcProposal::query()
             ->activeApproved()
-            ->where('department_id', $request->user()->department_id)
             ->findOrFail($request->integer('pre_dpc_proposal_id'));
+        $this->authorize('raiseFrom', [DpcProposal::class, $preDpc]);
 
         try {
             $proposal = $this->service->createFromPreDpc($preDpc, $request->user(), $request->validated());
@@ -644,11 +649,6 @@ class DpcProposalController extends Controller
             ->where('department_id', $proposal->department_id)
             ->orderBy('name')
             ->get();
-    }
-
-    private function departmentId(Request $request): ?int
-    {
-        return $request->user()->department_id;
     }
 
     /**

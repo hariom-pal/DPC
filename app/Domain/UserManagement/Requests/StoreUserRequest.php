@@ -27,6 +27,11 @@ class StoreUserRequest extends FormRequest
             'designation_id' => ['nullable', Rule::exists('designations', 'id')],
             'role' => ['required', Rule::in(Role::provisionableValues())],
 
+            // Checked against DigiLocker at first sign-in, for the roles that must
+            // verify their identity (2026-10-27).
+            'date_of_birth' => [Rule::requiredIf(fn (): bool => in_array($this->input('role'), (array) config('dpc.identity.roles'), true)), 'nullable', 'date', 'before:today', 'after:1940-01-01'],
+            'gender' => [Rule::requiredIf(fn (): bool => in_array($this->input('role'), (array) config('dpc.identity.roles'), true)), 'nullable', 'in:M,F'],
+
             /*
              | Department — required for a departmental role, refused for a
              | Commission one (change items 1 and 2).

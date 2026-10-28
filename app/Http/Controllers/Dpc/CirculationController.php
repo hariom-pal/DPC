@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Dpc;
 
+use App\Domain\Allotment\Services\ProposalAllotmentService;
 use App\Domain\Circulation\Exceptions\PendingBusinessDecisionException;
 use App\Domain\Circulation\Models\DpcCirculation;
 use App\Domain\Circulation\Requests\RaiseCirculationRequest;
@@ -11,6 +12,7 @@ use App\Domain\Circulation\Services\CirculationService;
 use App\Domain\Circulation\Services\CirculationWorkflowService;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Shared\Workflow\WorkflowException;
+use App\Enums\Role;
 use App\Http\Controllers\Controller;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
@@ -32,6 +34,7 @@ class CirculationController extends Controller
     public function __construct(
         private readonly CirculationService $circulations,
         private readonly CirculationWorkflowService $workflow,
+        private readonly ProposalAllotmentService $allotments,
     ) {}
 
     public function index(Request $request): View
@@ -39,8 +42,10 @@ class CirculationController extends Controller
         $this->authorize('viewAny', DpcCirculation::class);
 
         return view('dpc.circulations.index', [
+            // Only circulations of DPCs this officer is allotted (A3, 2026-10-26).
             'circulations' => DpcCirculation::query()
                 ->where('department_id', $request->user()->department_id)
+                ->whereIn('origin_dpc_proposal_id', $this->allotments->scopeTo(DpcProposal::query(), $request->user())->select('dpc_proposals.id'))
                 ->with(['items', 'originProposal'])
                 ->orderByDesc('id')
                 ->get(),
@@ -54,7 +59,10 @@ class CirculationController extends Controller
     {
         $this->authorize('create', DpcCirculation::class);
 
-        $origins = $this->circulations->eligibleOrigins((int) $request->user()->department_id);
+        // Raised by the AO the originating DPC is allotted to (2026-10-26).
+        $origins = $this->circulations->eligibleOrigins((int) $request->user()->department_id)
+            ->filter(fn (DpcProposal $origin): bool => $this->allotments->isAllotted($request->user(), $origin, Role::AuthorizedOfficer))
+            ->values();
 
         $selected = $request->query('origin')
             ? $origins->firstWhere('uuid', (string) $request->query('origin'))
@@ -76,6 +84,7 @@ class CirculationController extends Controller
         $origin = DpcProposal::query()
             ->where('uuid', (string) $request->input('origin_dpc_proposal_uuid'))
             ->firstOrFail();
+        abort_unless($this->allotments->isAllotted($request->user(), $origin, Role::AuthorizedOfficer), 403);
 
         /** @var array<int, array{hold_uuid:string, resolution_detail:string, resolution_reference?:string|null, resolution_received_on:string}> $items */
         $items = array_values((array) $request->input('items', []));

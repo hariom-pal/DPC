@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Cgpsc;
 
+use App\Domain\Allotment\Services\ProposalAllotmentService;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Cgpsc\Services\AllotmentService;
 use App\Domain\Department\Models\Department;
@@ -88,6 +89,8 @@ class NotificationCoverageTest extends TestCase
             'dpc_code' => 'DPC-2026-HE-0001',
             'forwarded_at' => now(),
         ]);
+        // Allotted to this AO and AH (2026-10-26): they are the officers told.
+        app(ProposalAllotmentService::class)->allot($this->proposal, $this->ao, $this->ah, null);
 
         Mail::fake();
 

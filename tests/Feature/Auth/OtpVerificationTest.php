@@ -4,76 +4,82 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Auth;
 
-use App\Domain\Department\Models\Department;
-use App\Domain\Master\Models\Designation;
-use App\Domain\Master\Models\District;
-use App\Enums\DepartmentStatus;
+use App\Domain\Authentication\Models\User;
 use App\Enums\Role;
-use Database\Seeders\DepartmentMasterSeeder;
-use Database\Seeders\DesignationSeeder;
-use Database\Seeders\DistrictSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
+/**
+ * The OTP step an unverified account meets at login. (Registration verifies
+ * both channels before the Register button since 2026-10-22, so a registered
+ * officer no longer passes through it.)
+ */
 class OtpVerificationTest extends TestCase
 {
     use RefreshDatabase;
 
+    private User $user;
+
     protected function setUp(): void
     {
         parent::setUp();
-        $this->seed([RolesAndPermissionsSeeder::class, DepartmentMasterSeeder::class, DistrictSeeder::class, DesignationSeeder::class]);
+        $this->seed(RolesAndPermissionsSeeder::class);
+
+        $this->user = User::factory()->unverified()->create();
+        $this->user->assignRole(Role::AuthorizedOfficer->value);
+
+        $this->post(route('login.store'), ['login' => $this->user->mobile, 'password' => 'password'])
+            ->assertRedirect(route('verify.show'));
     }
 
     /**
-     * @return array<string, string|int>
+     * The second factor is the mobile alone (2026-10-28): its code signs in and
+     * proves the mobile; no e-mail code is asked.
      */
-    private function payload(Department $department): array
+    public function test_the_mobile_code_signs_in_and_proves_the_mobile(): void
     {
-        return [
-            'department_id' => $department->id,
-            'district_id' => (int) District::query()->where('name_en', 'Raipur')->value('id'),
-            'place' => 'Raipur',
-            'pin' => '492001',
-            'department_email' => 'h_edu@cg.gov.in',
-            'ah_name' => 'A. B. Cdef',
-            'ah_designation_id' => (int) Designation::query()->where('name', 'Secretary')->value('id'),
-            'ah_mobile' => '9826195455',
-            'ah_email' => 'ah.hedu@cg.gov.in',
-            'ao_name' => 'P. Q. Rstuv',
-            'ao_designation_id' => (int) Designation::query()->where('name', 'Deputy Secretary')->value('id'),
-            'ao_mobile' => '9407938480',
-            'ao_email' => 'ao.hedu@cg.gov.in',
-        ];
+        $this->get(route('verify.show'))->assertSee('name="mobile_code"', false)->assertDontSee('name="email_code"', false);
+
+        $this->post(route('verify.store'), ['mobile_code' => '123456'])->assertRedirect(route('dashboard'));
+
+        $this->assertNotNull($this->user->fresh()->mobile_verified_at);
+        $this->assertAuthenticatedAs($this->user);
     }
 
-    public function test_valid_otps_verify_the_account_and_activate_the_department(): void
+    public function test_an_e_mail_code_alone_does_not_sign_in(): void
     {
-        $department = Department::query()->where('code', 'SE')->firstOrFail();
-        $this->post(route('register.store'), $this->payload($department));
-
-        $this->post(route('verify.store'), [
-            'email_code' => '123456',
-            'mobile_code' => '123456',
-        ])->assertRedirect(route('login'));
-
-        $ao = $department->users()->role(Role::AuthorizedOfficer->value)->firstOrFail();
-        $this->assertTrue($ao->fresh()->isFullyVerified());
-        $this->assertSame(DepartmentStatus::Active, $department->fresh()->status);
+        $this->post(route('verify.store'), ['email_code' => '123456'])->assertSessionHasErrors('mobile_code');
+        $this->assertGuest();
     }
 
     public function test_invalid_otp_is_rejected(): void
     {
-        $department = Department::query()->where('code', 'SE')->firstOrFail();
-        $this->post(route('register.store'), $this->payload($department));
+        $this->post(route('verify.store'), ['mobile_code' => '000000'])->assertSessionHasErrors('mobile_code');
 
-        $this->post(route('verify.store'), [
-            'email_code' => '000000',
-            'mobile_code' => '000000',
-        ])->assertSessionHasErrors('mobile_code');
+        $this->assertNull($this->user->fresh()->mobile_verified_at);
+        $this->assertGuest();
+    }
 
-        $ao = $department->users()->role(Role::AuthorizedOfficer->value)->firstOrFail();
-        $this->assertFalse($ao->fresh()->isFullyVerified());
+    /**
+     * No way to deliver a mobile code — no SMS gateway and no fixed code — means
+     * no second factor, so the sign-in is refused.
+     */
+    public function test_without_a_deliverable_mobile_the_sign_in_is_refused(): void
+    {
+        config(['dpc.otp.fixed.mobile' => false, 'features.sms_gateway' => false]);
+        auth()->logout();
+        $this->travel(2)->minutes();
+
+        $this->post(route('login.store'), ['login' => $this->user->email, 'password' => 'password'])->assertRedirect(route('login'));
+        $this->assertGuest();
+    }
+
+    public function test_resend_respects_the_cooldown(): void
+    {
+        $this->post(route('verify.resend'))->assertSessionHasErrors('mobile_code');
+
+        $this->travel((int) config('dpc.otp.resend_cooldown_seconds') + 1)->seconds();
+        $this->post(route('verify.resend'))->assertSessionHasNoErrors()->assertSessionHas('status', __('authui.otp.resent'));
     }
 }

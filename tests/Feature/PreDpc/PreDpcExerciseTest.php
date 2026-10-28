@@ -15,6 +15,7 @@ use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\ViewErrorBag;
+use Tests\Concerns\OpensPreDpcs;
 use Tests\Concerns\PrescribesQualifications;
 use Tests\TestCase;
 
@@ -31,6 +32,7 @@ use Tests\TestCase;
  */
 class PreDpcExerciseTest extends TestCase
 {
+    use OpensPreDpcs;
     use PrescribesQualifications;
     use RefreshDatabase;
 
@@ -110,7 +112,7 @@ class PreDpcExerciseTest extends TestCase
      */
     private function approved(array $overrides = []): PreDpcProposal
     {
-        $this->actingAs($this->ao)->post(route('pre-dpc.store'), $this->payload($overrides))->assertRedirect();
+        $this->storePreDpc($this->ao, $this->payload($overrides))->assertRedirect();
         $proposal = PreDpcProposal::query()->latest('id')->firstOrFail();
 
         $this->actingAs($this->ao)->post(route('pre-dpc.submit', $proposal));
@@ -125,8 +127,7 @@ class PreDpcExerciseTest extends TestCase
 
     public function test_a_proposal_without_a_dpc_year_is_refused(): void
     {
-        $this->actingAs($this->ao)
-            ->post(route('pre-dpc.store'), $this->payload(['dpc_year' => null]))
+        $this->storePreDpc($this->ao, $this->payload(['dpc_year' => null]))
             ->assertSessionHasErrors('dpc_year');
 
         $this->assertSame(0, PreDpcProposal::query()->count());
@@ -134,16 +135,14 @@ class PreDpcExerciseTest extends TestCase
 
     public function test_a_dpc_year_beyond_next_year_is_refused(): void
     {
-        $this->actingAs($this->ao)
-            ->post(route('pre-dpc.store'), $this->payload(['dpc_year' => (int) now()->addYears(3)->format('Y')]))
+        $this->storePreDpc($this->ao, $this->payload(['dpc_year' => (int) now()->addYears(3)->format('Y')]))
             ->assertSessionHasErrors('dpc_year');
     }
 
     public function test_a_dpc_year_before_2019_is_refused(): void
     {
         // Coder Instructions rule 1.4: reservation in promotion ended in 2019.
-        $this->actingAs($this->ao)
-            ->post(route('pre-dpc.store'), $this->payload(['dpc_year' => 2018]))
+        $this->storePreDpc($this->ao, $this->payload(['dpc_year' => 2018]))
             ->assertSessionHasErrors(['dpc_year' => __('predpc.validation.year_before_earliest', ['year' => 2019])]);
 
         $this->assertSame(0, PreDpcProposal::query()->count());
@@ -155,7 +154,7 @@ class PreDpcExerciseTest extends TestCase
 
     public function test_the_number_is_issued_at_draft_in_the_prescribed_form(): void
     {
-        $this->actingAs($this->ao)->post(route('pre-dpc.store'), $this->payload());
+        $this->storePreDpc($this->ao, $this->payload());
 
         $proposal = PreDpcProposal::query()->latest('id')->firstOrFail();
 
@@ -164,12 +163,12 @@ class PreDpcExerciseTest extends TestCase
 
     public function test_numbers_run_per_department_per_year(): void
     {
-        $this->actingAs($this->ao)->post(route('pre-dpc.store'), $this->payload());
+        $this->storePreDpc($this->ao, $this->payload());
 
         $second = $this->departmentPost('Joint Secretary', ['promotion_duration_years' => 3]);
-        $this->actingAs($this->ao)->post(route('pre-dpc.store'), $this->payload(['promotion_to_post_id' => $second->id]));
+        $this->storePreDpc($this->ao, $this->payload(['promotion_to_post_id' => $second->id]));
 
-        $this->actingAs($this->ao)->post(route('pre-dpc.store'), $this->payload(['dpc_year' => 2025]));
+        $this->storePreDpc($this->ao, $this->payload(['dpc_year' => 2025]));
 
         $numbers = PreDpcProposal::query()->orderBy('id')->pluck('pre_dpc_number')->all();
 
@@ -268,8 +267,7 @@ class PreDpcExerciseTest extends TestCase
     {
         $active = $this->approved();
 
-        $this->actingAs($this->ao)
-            ->post(route('pre-dpc.store'), $this->payload())
+        $this->storePreDpc($this->ao, $this->payload())
             ->assertSessionHasErrors('promotion_to_post_id');
 
         $this->assertSame(
@@ -300,16 +298,16 @@ class PreDpcExerciseTest extends TestCase
     {
         $second = $this->departmentPost('Research Officer', ['promotion_duration_years' => 7]);
 
-        $this->actingAs($this->ao)
-            ->post(route('pre-dpc.store'), $this->payload([
-                'promotion_sources' => [
-                    $this->source(['promotion_percentage' => 60]),
-                    $this->source(['promotion_from_post_id' => $second->id, 'promotion_percentage' => 20]),
-                ],
-            ]))
+        $this->storePreDpc($this->ao, $this->payload([
+            'promotion_sources' => [
+                $this->source(['promotion_percentage' => 60]),
+                $this->source(['promotion_from_post_id' => $second->id, 'promotion_percentage' => 20]),
+            ],
+        ]))
             ->assertSessionHasErrors('promotion_sources');
 
-        $this->assertSame(0, PreDpcProposal::query()->count());
+        // The Department Admin's draft stands; the refused form saved nothing on it.
+        $this->assertSame(0, PreDpcProposal::query()->sole()->promotionSources()->count());
     }
 
     /**
@@ -318,13 +316,12 @@ class PreDpcExerciseTest extends TestCase
      */
     public function test_the_same_post_cannot_be_named_twice(): void
     {
-        $this->actingAs($this->ao)
-            ->post(route('pre-dpc.store'), $this->payload([
-                'promotion_sources' => [
-                    $this->source(['promotion_percentage' => 50]),
-                    $this->source(['promotion_percentage' => 50]),
-                ],
-            ]))
+        $this->storePreDpc($this->ao, $this->payload([
+            'promotion_sources' => [
+                $this->source(['promotion_percentage' => 50]),
+                $this->source(['promotion_percentage' => 50]),
+            ],
+        ]))
             ->assertSessionHasErrors('promotion_sources.1.promotion_from_post_id');
     }
 
@@ -340,8 +337,7 @@ class PreDpcExerciseTest extends TestCase
      */
     public function test_the_refusals_use_the_wording_written_for_them(): void
     {
-        $errors = fn (array $payload): ViewErrorBag => $this->actingAs($this->ao)
-            ->post(route('pre-dpc.store'), $payload)
+        $errors = fn (array $payload): ViewErrorBag => $this->storePreDpc($this->ao, $payload)
             ->assertSessionHasErrors()
             ->getSession()
             ->get('errors');
@@ -383,17 +379,16 @@ class PreDpcExerciseTest extends TestCase
             'promotion_duration_years' => 7,
         ]);
 
-        $this->actingAs($this->ao)
-            ->post(route('pre-dpc.store'), $this->payload([
-                'promotion_sources' => [
-                    $this->source(['promotion_percentage' => 60]),
-                    $this->source([
-                        'promotion_from_post_id' => $second->id,
-                        'promotion_percentage' => 40,
-                        'min_experience_years' => 7,
-                    ]),
-                ],
-            ]))
+        $this->storePreDpc($this->ao, $this->payload([
+            'promotion_sources' => [
+                $this->source(['promotion_percentage' => 60]),
+                $this->source([
+                    'promotion_from_post_id' => $second->id,
+                    'promotion_percentage' => 40,
+                    'min_experience_years' => 7,
+                ]),
+            ],
+        ]))
             ->assertRedirect();
 
         $sources = PreDpcProposal::query()->latest('id')->firstOrFail()
@@ -442,10 +437,9 @@ class PreDpcExerciseTest extends TestCase
         $other = Department::query()->create(['code' => 'PW', 'name' => 'Public Works', 'status' => 'active']);
         $foreign = $this->departmentPost('Executive Engineer', [], $other);
 
-        $this->actingAs($this->ao)
-            ->post(route('pre-dpc.store'), $this->payload([
-                'promotion_sources' => [$this->source(['promotion_from_post_id' => $foreign->id])],
-            ]))
+        $this->storePreDpc($this->ao, $this->payload([
+            'promotion_sources' => [$this->source(['promotion_from_post_id' => $foreign->id])],
+        ]))
             ->assertSessionHasErrors('promotion_sources.0.promotion_from_post_id');
     }
 
@@ -453,31 +447,35 @@ class PreDpcExerciseTest extends TestCase
     {
         $draftPost = $this->departmentPost('Special Secretary', ['status' => MasterStatus::Draft->value]);
 
-        $this->actingAs($this->ao)
-            ->post(route('pre-dpc.store'), $this->payload(['promotion_to_post_id' => $draftPost->id]))
+        $this->storePreDpc($this->ao, $this->payload(['promotion_to_post_id' => $draftPost->id]))
             ->assertSessionHasErrors('promotion_to_post_id');
     }
 
     public function test_a_recruitment_split_that_does_not_total_one_hundred_is_refused(): void
     {
-        $this->actingAs($this->ao)
-            ->post(route('pre-dpc.store'), $this->payload([
-                'direct_recruitment_pct' => 30,
-                'promotion_recruitment_pct' => 50,
-            ]))
+        $this->storePreDpc($this->ao, $this->payload([
+            'direct_recruitment_pct' => 30,
+            'promotion_recruitment_pct' => 50,
+        ]))
             ->assertSessionHasErrors('promotion_recruitment_pct');
     }
 
-    public function test_a_split_totalling_one_hundred_by_rounding_is_accepted(): void
+    /**
+     * Whole numbers only since 2026-10-28: a split of whole percentages is saved,
+     * a decimal one is refused.
+     */
+    public function test_a_whole_number_split_is_saved_and_a_decimal_one_refused(): void
     {
-        $this->actingAs($this->ao)
-            ->post(route('pre-dpc.store'), $this->payload([
-                'direct_recruitment_pct' => '33.33',
-                'promotion_recruitment_pct' => '66.67',
-            ]))
-            ->assertRedirect();
-
+        $this->storePreDpc($this->ao, $this->payload([
+            'direct_recruitment_pct' => '33',
+            'promotion_recruitment_pct' => '67',
+        ]))->assertSessionHasNoErrors();
         $this->assertSame(1, PreDpcProposal::query()->count());
+
+        $this->actingAs($this->ao)->put(route('pre-dpc.update', PreDpcProposal::query()->sole()), $this->payload([
+            'direct_recruitment_pct' => '33.33',
+            'promotion_recruitment_pct' => '66.67',
+        ]))->assertSessionHasErrors(['direct_recruitment_pct', 'promotion_recruitment_pct']);
     }
 
     // ------------------------------------------------------------------

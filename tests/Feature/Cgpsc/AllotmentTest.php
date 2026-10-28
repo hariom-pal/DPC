@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Cgpsc;
 
+use App\Domain\Allotment\Services\ProposalAllotmentService;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Cgpsc\Enums\AllotmentStatus;
 use App\Domain\Cgpsc\Models\DpcAllotment;
@@ -716,13 +717,17 @@ class AllotmentTest extends TestCase
         // that serves AO/AH can never reach them — they must be named.
         Event::fake([WorkflowTransitioned::class]);
 
+        // The department side is the DPC's allotted AO and AH (2026-10-26).
+        $ah = User::factory()->assignedTo($this->department->id, Role::AdministrativeHead)->create();
+        app(ProposalAllotmentService::class)->allot($this->proposal, $this->ao, $ah, null);
+
         $this->allot();
 
-        Event::assertDispatched(WorkflowTransitioned::class, function (WorkflowTransitioned $event): bool {
+        Event::assertDispatched(WorkflowTransitioned::class, function (WorkflowTransitioned $event) use ($ah): bool {
             return $event->workflow === 'dpc_cgpsc'
                 && $event->event === 'allot'
-                && in_array('authorized_officer', $event->notifyRoles, true)
-                && in_array('administrative_head', $event->notifyRoles, true)
+                && in_array($this->ao->id, $event->notifyUserIds, true)
+                && in_array($ah->id, $event->notifyUserIds, true)
                 && in_array($this->memberOne->id, $event->notifyUserIds, true);
         });
     }

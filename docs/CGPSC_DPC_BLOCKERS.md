@@ -31,6 +31,18 @@ There is **one true blocker** — a procurement, not a piece of software. Everyt
 
 **Also built because of it:** the **in-app notification channel** is deliberately *outside* the feature flag. It calls nothing external, and gating it would have switched off the only channel that works. Every notification the portal raises is therefore visible from the bell in the header today, with no gateway at all — which is what makes a demonstration and a UAT possible while B-1 is open.
 
+**Update 2026-10-26: SMS integration still pending.** The application log no longer stands in for SMS OTP delivery.
+- **An SMS OTP is never sent and never logged while `FEATURE_SMS_GATEWAY=false`.** The log records only that it was not sent.
+- **E-mail OTP is delivered synchronously.** A mail failure is reported on screen, and the unreceived code is withdrawn.
+- **Department Admin registration and AO/AH accounts** need only the e-mail code. The mobile number carries a recorded waiver, and the screen says so.
+- **Self-Inspection signs in by mobile OTP only.** Without SMS, and with the fixed OTP off, its sign-in shows a clear "SMS unavailable" message. With `DPC_OTP_FIXED_ENABLED=true` (local or UAT), it accepts the fixed code. It never shows a false "code sent", and it does not fail with a server error.
+- **Unchanged on purpose:**
+  - The `identity_factors` driver is not used in place of SMS (judged too weak).
+  - The UAT authentication driver is unchanged.
+  - The fixed OTP (`DPC_OTP_FIXED_*`, default off) is accepted only when `APP_ENV` is `local`, `testing` or `uat`, never on production, whatever `.env` says. With `DPC_OTP_FIXED_MOBILE=true` it also proves the mobile number in place of a waiver.
+
+Self-Inspection OTP on UAT therefore waits for this gateway.
+
 **Lead time is the concern.** This is the longest item on the list and the one to start first. It is not an engineering task and no amount of engineering shortens it.
 
 **What to ask for.** A government SMS gateway account with a registered sender ID, and an SMTP relay or transactional e-mail account on a `gov.in` domain. Both are ordinary government IT provisioning.

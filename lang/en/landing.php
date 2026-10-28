@@ -63,10 +63,6 @@ return [
         'faq_heading' => 'Frequently Asked Questions',
     ],
     'quick_actions' => [
-        'register' => [
-            'title' => 'New Registration',
-            'text' => 'Register your department and request portal access.',
-        ],
         'department' => [
             'title' => 'Department Login',
             'text' => 'Authorized Officers and Administrative Heads sign in here.',

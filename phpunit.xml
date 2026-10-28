@@ -34,7 +34,10 @@
         <env name="DPC_RESERVATION_CATEGORY_WISE" value="true"/>
         <!-- The suite's fixtures build the Working Officers chart; the Vacancy Management source has its own tests. -->
         <env name="DPC_VACANCY_SOURCE" value="chart"/>
-        <env name="DPC_OTP_FAKE_CODE" value="123456"/>
+        <env name="DPC_OTP_FIXED_ENABLED" value="true"/>
+        <env name="DPC_OTP_FIXED_CODE" value="123456"/>
+        <!-- Pinned: a developer .env may switch it on; tests that need it set it themselves. -->
+        <env name="DPC_OTP_FIXED_MOBILE" value="true"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>

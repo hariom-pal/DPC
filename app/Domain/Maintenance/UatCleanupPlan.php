@@ -67,6 +67,7 @@ final class UatCleanupPlan
         'dpc_proceedings' => 'DPC sittings',
         'dpc_schedules' => 'Sitting schedules',
         'dpc_allotments' => 'DPC allotments to members',
+        'proposal_allotments' => 'Pre-DPC / DPC allotments to an AO and an AH',
         'pre_dpc_source_qualifications' => 'Pre-DPC feeder qualifications',
         'pre_dpc_promotion_sources' => 'Pre-DPC feeder posts',
         'dpc_proposals' => 'DPC proposals (cases)',
@@ -75,6 +76,7 @@ final class UatCleanupPlan
         // Cross-cutting records of what happened.
         'workflow_transitions' => 'Workflow ledger (transactions)',
         'activity_timelines' => 'Activity timeline (workflow history)',
+        'signature_attempts' => 'eSign attempts (successful and failed)',
         'signatures' => 'Digital signatures (and their stored copies)',
         'audits' => 'Model audit trail of the test period',
         'user_notifications' => 'In-app notifications',
@@ -82,6 +84,11 @@ final class UatCleanupPlan
         'dpc_id_sequences' => 'Issued DPC / Pre-DPC numbers, so numbering restarts',
 
         // Transient authentication and queue state.
+        'department_invitations' => 'Department Admin invitations (one-time links)',
+        'security_events' => 'Security log (sign-in, OTP failures, sessions ended)',
+        'identity_verifications' => 'Officer identity verifications (DigiLocker, manual)',
+        'identity_corrections' => 'Officer identity corrections',
+        'assignment_requests' => 'Transfer and additional-charge requests',
         'otp_verifications' => 'OTP records',
         'password_reset_tokens' => 'Password reset tokens',
         'sessions' => 'Database sessions (everybody is logged out)',
@@ -159,6 +166,9 @@ final class UatCleanupPlan
         'previous_dpc_records' => [['minutes_disk', 'minutes_path'], ['seniority_list_disk', 'seniority_list_path'], ['working_officers_disk', 'working_officers_path']],
         'dpc_proposal_verifications' => [['disk', 'path']],
         'dpc_proposal_representations' => [['disk', 'path']],
+        'identity_verifications' => [['document_disk', 'document_path']],
+        'identity_corrections' => [['document_disk', 'document_path']],
+        'assignment_requests' => [['document_disk', 'document_path']],
         'vacancy_position_entries' => [['disk', 'path']],
         'vacancy_position_working_strengths' => [['disk', 'path']],
         'vacancy_position_sanctioned_strengths' => [['disk', 'path']],

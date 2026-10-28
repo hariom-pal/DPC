@@ -2,7 +2,8 @@
 
 @section('title', __('dpc.review.title', ['step' => $step, 'total' => count($steps)]))
 
-@php($isAH = auth()->user()->hasRole(\App\Enums\Role::AdministrativeHead->value))
+{{-- The allotted AH of this proposal (2026-10-26). --}}
+@php($isAH = app(\App\Domain\Allotment\Services\ProposalAllotmentService::class)->isAllotted(auth()->user(), $proposal, \App\Enums\Role::AdministrativeHead))
 @php($current = $steps[$step - 1])
 
 @section('content')
@@ -76,10 +77,7 @@
                             @error('workflow')<div class="alert alert-danger py-2">{{ $message }}</div>@enderror
 
                             <div class="d-flex flex-wrap gap-2">
-                                <form method="POST" action="{{ route('dpc-proposals.approve', $proposal) }}"
-                                      data-confirm="{{ __('ui.approve_digitally_sign_and_forward_this_proposal') }}">
-                                    @csrf<button class="btn btn-success">{{ __('ui.approve_sign_amp_forward_to_cgpsc') }}</button>
-                                </form>
+                                <a href="{{ route('esign.show', ['kind' => 'dpc-approve', 'uuid' => $proposal->uuid]) }}" class="btn btn-success" data-esign>{{ __('esign.button.approve_dpc') }}</a>
                             </div>
 
                             <form method="POST" action="{{ route('dpc-proposals.return', $proposal) }}" class="row g-2 mt-2">

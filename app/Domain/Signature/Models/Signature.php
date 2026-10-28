@@ -40,6 +40,8 @@ class Signature extends Model
         'certificate_subject',
         'certificate_serial',
         'certificate_issuer',
+        'signer_name',
+        'request_reference',
         'signed_disk',
         'signed_path',
         'meta',

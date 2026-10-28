@@ -6,9 +6,14 @@ namespace App\Domain\UserManagement\Services;
 
 use App\Domain\Authentication\Events\CredentialsIssued;
 use App\Domain\Authentication\Models\User;
+use App\Domain\Authentication\Services\AccountSessions;
+use App\Domain\Authentication\Services\MobileVerificationWaiver;
+use App\Domain\Authentication\Services\SecurityLog;
 use App\Domain\Department\Models\Department;
 use App\Domain\Shared\Services\ActivityTimelineService;
+use App\Domain\UserManagement\IssuedCredentials;
 use App\Enums\Role;
+use App\Http\Middleware\EnsureAccountReady;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -32,80 +37,89 @@ class UserProvisioningService
     public function __construct(
         private readonly ActivityTimelineService $timeline,
         private readonly DepartmentAssignmentService $assignments,
+        private readonly MobileVerificationWaiver $waiver,
     ) {}
 
     /**
-     * @param  array{name:string,email:string,mobile:string,designation_id:?int,role:string,department_id?:int|null}  $data
+     * @param  array{name:string,email:string,mobile:string,designation_id:?int,role:string,department_id?:int|null,date_of_birth?:string|null,gender?:string|null}  $data
      */
-    public function provision(array $data): User
+    public function provision(array $data, ?User $actor = null): IssuedCredentials
     {
-        return DB::transaction(function () use ($data): User {
-            $password = Str::password(12);
+        return DB::transaction(function () use ($data, $actor): IssuedCredentials {
+            $password = $this->temporaryPassword();
 
             $user = new User([
                 'name' => $data['name'],
                 'email' => $data['email'],
                 'mobile' => $data['mobile'],
                 'designation_id' => $data['designation_id'] ?? null,
+                'date_of_birth' => $data['date_of_birth'] ?? null,
+                'gender' => $data['gender'] ?? null,
                 'is_active' => true,
                 'must_change_password' => true,
             ]);
             $user->password = Hash::make($password);
             $user->save();
 
-            $this->grant($user, Role::from($data['role']), $data['department_id'] ?? null);
+            $this->grant($user, Role::from($data['role']), $data['department_id'] ?? null, $actor);
 
-            CredentialsIssued::dispatch($user, $password);
-            $this->timeline->record('user.provisioned', $user, "Account provisioned with role {$data['role']}");
+            // The mobile cannot be proved by OTP while the SMS gateway is down: the
+            // exception is recorded against the administrator who created the account.
+            $this->waiver->grant($user, $actor);
 
-            return $user;
+            CredentialsIssued::dispatch($user, CredentialsIssued::REASON_CREATED);
+            $this->timeline->record('user.provisioned', $user, "Account provisioned with role {$data['role']}", causer: $actor);
+
+            return new IssuedCredentials($user, $password);
         });
     }
 
     /**
-     * @param  array{name:string,email:string,mobile:string,designation_id:?int,role:string,department_id?:int|null}  $data
+     * @param  array{name:string,email:string,mobile:string,designation_id:?int,role?:string,department_id?:int|null}  $data  `role` absent: the role is not changed
      */
-    public function update(User $user, array $data): User
+    public function update(User $user, array $data, ?User $actor = null): User
     {
-        return DB::transaction(function () use ($user, $data): User {
+        return DB::transaction(function () use ($user, $data, $actor): User {
+            $emailChanged = mb_strtolower((string) $user->email) !== mb_strtolower((string) $data['email']);
+            $mobileChanged = (string) $user->mobile !== (string) $data['mobile'];
+
             $user->fill([
                 'name' => $data['name'],
                 'email' => $data['email'],
                 'mobile' => $data['mobile'],
                 'designation_id' => $data['designation_id'] ?? null,
-            ])->save();
+            ]);
 
-            $this->grant($user, Role::from($data['role']), $data['department_id'] ?? null);
+            // A changed address has not been proved: its verification goes with it
+            // (2026-10-26), so a status never claims more than an OTP showed.
+            if ($emailChanged) {
+                $user->email_verified_at = null;
+            }
 
-            $this->timeline->record('user.updated', $user, 'Account details updated');
+            if ($mobileChanged) {
+                $user->mobile_verified_at = null;
+                $user->mobile_verification_waived_at = null;
+                $user->mobile_verification_waived_by = null;
+                $user->mobile_verification_waiver_reason = null;
+            }
+
+            $user->save();
+
+            if ($mobileChanged) {
+                $this->waiver->grant($user, $actor);
+            }
+
+            if (isset($data['role'])) {
+                $this->grant($user, Role::from($data['role']), $data['department_id'] ?? null, $actor);
+            }
+
+            $this->timeline->record('user.updated', $user, 'Account details updated', causer: $actor);
 
             return $user;
         });
     }
 
-    /**
-     * Give the account the role it should hold, by whichever of the two routes
-     * that role uses.
-     *
-     * **A departmental role is never granted directly.** It is granted by posting
-     * the officer to a department, which is what `DepartmentAssignmentService`
-     * does and what makes the grant dated, reversible and answerable later
-     * (change item 2). Calling `syncRoles()` for an Authorized Officer would
-     * produce an officer who holds the role and belongs to no department — able
-     * to reach every departmental screen and see nothing on any of them.
-     *
-     * **Changing a departmental role or department is a transfer**, and goes
-     * through the same call: `assign()` retires the incumbent posting and opens a
-     * new one, so "moved from Higher Education to Forest" and "promoted from AO to
-     * AH within Higher Education" are both recorded as what they are rather than
-     * as an edit that overwrote the previous answer.
-     *
-     * Moving an account *out* of a departmental role and into a Commission one
-     * releases the posting first — otherwise the officer would remain the
-     * department's AO in the assignment table while holding Chairman in the role
-     * table.
-     */
-    private function grant(User $user, Role $role, ?int $departmentId): void
+    private function grant(User $user, Role $role, ?int $departmentId, ?User $actor = null): void
     {
         if ($role->isDepartmental()) {
             // Guarded rather than assumed: the Form Request requires a department
@@ -114,7 +128,7 @@ class UserProvisioningService
             // role-without-department account described above.
             $department = Department::query()->findOrFail($departmentId);
 
-            $this->assignments->assign($user, $department, $role, remarks: 'Set by the CGPSC Administrator.');
+            $this->assignments->assign($user, $department, $role, remarks: $actor?->hasRole(Role::DepartmentAdmin->value) ? 'Set by the Department Admin.' : 'Set by the CGPSC Administrator.');
 
             return;
         }
@@ -126,39 +140,55 @@ class UserProvisioningService
         $user->syncRoles([$role->value]);
     }
 
-    public function setActive(User $user, bool $active): void
+    /**
+     * Activate or deactivate an account.
+     *
+     * Deactivation ends the account's sessions (Phase 0, 2026-10-27): the
+     * remember-me token is rotated, the account gate ({@see EnsureAccountReady})
+     * refuses its sessions at their next request wherever they are, and with the
+     * database session driver its stored sessions are deleted outright.
+     */
+    public function setActive(User $user, bool $active, ?User $actor = null): void
     {
         $user->forceFill(['is_active' => $active])->save();
-        $this->timeline->record($active ? 'user.activated' : 'user.deactivated', $user);
+
+        if (! $active) {
+            app(AccountSessions::class)->invalidate($user, 'deactivated', $actor);
+        }
+
+        $this->timeline->record($active ? 'user.activated' : 'user.deactivated', $user, causer: $actor);
+        app(SecurityLog::class)->record($active ? 'account.activated' : 'account.deactivated', $user, actor: $actor);
     }
 
     /**
-     * Re-issue a temporary password, and **return it**.
+     * Replace the account's password with a NEW temporary one and return it, once,
+     * for the issuing administrator's screen (business decision, 2026-10-26).
      *
-     * The return value is the fix for a dead end reported on 2026-09-07: *"I reset
-     * the password and it should let me log in with Demo@2026, but it does not."*
-     * It never was `Demo@2026` — this issues a random twelve characters — and the
-     * only copy went out over SMS and e-mail, which in a local or a mock-gateway
-     * deployment means it went to a log file. The Administrator was told *"a new
-     * temporary password has been issued"* and given no way to learn what it was, so
-     * pressing the button locked the account out rather than recovering it.
-     *
-     * The password is still delivered to the user by the usual channel. This is the
-     * second copy, for the Administrator standing at the screen who has to hand it
-     * over — the same treatment the Seniority List already gives the candidate
-     * accounts it creates, and for the same reason.
+     * The old password stops working at once, the remember-me token is rotated so a
+     * "remember me" cookie no longer signs in, and every other session ends at its
+     * next request (`AuthenticateSession` compares the stored password hash). The
+     * password is never sent, logged or audited; the officer is told only that a
+     * reset happened.
      */
-    public function resetPassword(User $user): string
+    public function resetPassword(User $user, ?User $actor = null): string
     {
-        $password = Str::password(12);
+        $password = $this->temporaryPassword();
+
         $user->forceFill([
             'password' => Hash::make($password),
             'must_change_password' => true,
+            'password_changed_at' => null,
+            'remember_token' => Str::random(60),
         ])->save();
 
-        CredentialsIssued::dispatch($user, $password);
-        $this->timeline->record('user.password_reset', $user, 'Temporary password re-issued');
+        CredentialsIssued::dispatch($user, CredentialsIssued::REASON_RESET);
+        $this->timeline->record('user.password_reset', $user, 'Temporary password re-issued', causer: $actor);
 
         return $password;
+    }
+
+    private function temporaryPassword(): string
+    {
+        return Str::password(max(12, (int) config('dpc.accounts.password_length', 16)));
     }
 }

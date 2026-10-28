@@ -90,6 +90,7 @@ return [
        proves they hold the number their department recorded on the Seniority List,
        which is a stronger claim than reciting facts that circulate on one. */
     'otp' => [
+        'sms_unavailable' => 'Sign-in by mobile OTP is not available at the moment because the SMS service is not yet running. Please contact your department, or try again later.',
         'mobile_label' => 'Your mobile number',
         'mobile_hint' => 'The ten-digit number your department recorded for you. A one-time code will be sent to it.',
         'send_code' => 'Send me a code',

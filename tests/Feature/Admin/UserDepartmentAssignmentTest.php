@@ -100,22 +100,40 @@ class UserDepartmentAssignmentTest extends TestCase
         $this->assertSame('2026-08-31', $closed->effective_to?->toDateString());
     }
 
-    public function test_the_database_refuses_a_second_active_posting(): void
+    /**
+     * Since 2026-10-27 an officer may hold several active assignments — but only
+     * one primary posting, and only one assignment in any one department (so never
+     * AO and AH of the same department). Enforced by unique indexes, so it holds
+     * even against code that bypasses the service.
+     */
+    public function test_the_database_refuses_a_second_primary_or_a_second_assignment_in_one_department(): void
     {
         $officer = User::factory()->assignedTo($this->higherEducation)->create();
 
-        $this->expectException(QueryException::class);
-
-        // Deliberately bypassing the service: the guarantee has to hold even
-        // against code that does not go through it, which is why it is a unique
-        // index and not a check in a method.
+        // A second active assignment in another department, as additional charge: allowed.
         UserDepartmentAssignment::query()->create([
-            'user_id' => $officer->id,
-            'department_id' => $this->forest->id,
-            'role' => Role::AuthorizedOfficer->value,
-            'effective_from' => Carbon::today(),
-            'active_flag' => 1,
+            'user_id' => $officer->id, 'department_id' => $this->forest->id, 'role' => Role::AdministrativeHead->value,
+            'kind' => UserDepartmentAssignment::KIND_ADDITIONAL_CHARGE, 'effective_from' => Carbon::today(), 'active_flag' => 1,
         ]);
+
+        $third = Department::query()->create(['code' => 'THIRD', 'name' => 'Third Department', 'status' => 'registered']);
+
+        foreach ([
+            // A second primary posting, in a department the officer holds nothing in.
+            ['department_id' => $third->id, 'kind' => UserDepartmentAssignment::KIND_PRIMARY, 'primary_flag' => 1],
+            // A second assignment — in the other role — in the same department.
+            ['department_id' => $this->higherEducation->id, 'kind' => UserDepartmentAssignment::KIND_ADDITIONAL_CHARGE, 'role' => Role::AdministrativeHead->value],
+        ] as $row) {
+            try {
+                UserDepartmentAssignment::query()->create(array_replace([
+                    'user_id' => $officer->id, 'role' => Role::AuthorizedOfficer->value,
+                    'effective_from' => Carbon::today(), 'active_flag' => 1,
+                ], $row));
+                $this->fail('Refused: '.json_encode($row));
+            } catch (QueryException) {
+                $this->addToAssertionCount(1);
+            }
+        }
     }
 
     public function test_any_number_of_closed_postings_may_coexist(): void
@@ -270,6 +288,7 @@ class UserDepartmentAssignmentTest extends TestCase
     {
         $this->actingAs($this->admin)
             ->post(route('admin.users.store'), [
+                'date_of_birth' => '1979-09-09', 'gender' => 'M', // checked against DigiLocker (2026-10-27)
                 'name' => 'Shri A. Officer',
                 'email' => 'a.officer@cg.gov.in',
                 'mobile' => '9800000001',
@@ -284,6 +303,7 @@ class UserDepartmentAssignmentTest extends TestCase
     {
         $this->actingAs($this->admin)
             ->post(route('admin.users.store'), [
+                'date_of_birth' => '1979-09-09', 'gender' => 'M', // checked against DigiLocker (2026-10-27)
                 'name' => 'Hon. Member',
                 'email' => 'member@cgpsc.gov.in',
                 'mobile' => '9800000002',
@@ -297,13 +317,16 @@ class UserDepartmentAssignmentTest extends TestCase
     {
         $this->actingAs($this->admin)
             ->post(route('admin.users.store'), [
+                'date_of_birth' => '1979-09-09', 'gender' => 'M', // checked against DigiLocker (2026-10-27)
                 'name' => 'Shri A. Officer',
                 'email' => 'a.officer@cg.gov.in',
                 'mobile' => '9800000003',
                 'role' => Role::AdministrativeHead->value,
                 'department_id' => $this->forest->id,
             ])
-            ->assertRedirect(route('admin.users.index'));
+            // The temporary password is shown on the page that answers the POST (2026-10-26).
+            ->assertOk()
+            ->assertSee('id="issued-password"', false);
 
         $officer = User::query()->where('email', 'a.officer@cg.gov.in')->sole();
 

@@ -554,10 +554,13 @@ class DepartmentPostMappingTest extends TestCase
     {
         $post = $this->mapping();
 
-        $ao = User::factory()->assignedTo($this->department, Role::AuthorizedOfficer)->create();
+        // The post is chosen when the Department Admin opens the Pre-DPC (A1,
+        // 2026-10-26), so that is the screen that offers it.
+        $departmentAdmin = User::factory()->assignedTo($this->department, Role::DepartmentAdmin)->create();
 
-        $this->actingAs($ao)->get(route('pre-dpc.create'))
+        $this->actingAs($departmentAdmin)->get(route('department.allotments.pre-dpc.create'))
             ->assertOk()
+            ->assertSee('value="'.$post->id.'"', false)
             ->assertSee('Joint Director');
 
         app(DepartmentPostMappingService::class)->supersede($post, [
@@ -572,6 +575,12 @@ class DepartmentPostMappingTest extends TestCase
 
         $this->assertFalse($offered->contains($post->id), 'The superseded mapping must not be selectable.');
         $this->assertSame(1, $offered->count());
+        // Read the post list itself: the page has other lists (departments) whose
+        // option values can be the same number.
+        $page = (string) $this->actingAs($departmentAdmin)->get(route('department.allotments.pre-dpc.create'))->getContent();
+        preg_match('#<select id="promotion_to_post_id".*?</select>#s', $page, $postList);
+        $this->assertNotEmpty($postList, 'The post list is on the page.');
+        $this->assertStringNotContainsString('value="'.$post->id.'"', $postList[0]);
     }
 
     public function test_only_the_administrator_reaches_any_of_it(): void

@@ -44,6 +44,8 @@
                        href="{{ route('admin.dashboard') }}">{{ __('ui.layouts.admin.nav.dashboard') }}</a>
                     <a class="list-group-item list-group-item-action fw-semibold {{ request()->routeIs('admin.departments.*') ? 'active' : '' }}"
                        href="{{ route('admin.departments.index') }}">{{ __('ui.layouts.admin.nav.departments') }}</a>
+                    <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.department-invitations.*') ? 'active' : '' }}"
+                       href="{{ route('admin.department-invitations.index') }}">{{ __('invitations.admin.title') }}</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.districts.*') ? 'active' : '' }}"
                        href="{{ route('admin.districts.index') }}">{{ __('ui.layouts.admin.nav.districts') }}</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.designations.*') ? 'active' : '' }}"
@@ -71,6 +73,8 @@
                        href="{{ route('admin.cr-grades.index') }}">{{ __('admin.cr_grades.title') }}</a>
                     <a class="list-group-item list-group-item-action fw-semibold {{ request()->routeIs('admin.users.*') ? 'active' : '' }}"
                        href="{{ route('admin.users.index') }}">{{ __('ui.layouts.admin.nav.user_management') }}</a>
+                    <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.assignment-requests.*') ? 'active' : '' }}"
+                       href="{{ route('admin.assignment-requests.index') }}">{{ __('assignments.admin_title') }}</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.reservation-categories.*') ? 'active' : '' }}"
                        href="{{ route('admin.reservation-categories.index') }}">{{ __('ui.layouts.admin.nav.reservation_categories') }}</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.dpc-types.*') ? 'active' : '' }}"
@@ -98,7 +102,7 @@
 
     <script src="{{ asset('vendor/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
     <script src="{{ asset('js/portal.js') }}" defer></script>
-    {{-- Enhances any <select data-searchable> into a type-to-filter dropdown.
+    {{-- Makes every single-choice <select> a type-to-filter dropdown (2026-10-26).
          Deferred and additive: without it the selects stay plain and usable. --}}
     <script src="{{ asset('js/searchable-select.js') }}" defer></script>
     <script src="{{ asset('js/multiselect-dropdown.js') }}" defer></script>

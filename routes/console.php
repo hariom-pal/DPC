@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Console\Commands\ProcessAssignmentRequestsCommand;
 use App\Console\Commands\ReturnExpiredAllotmentsCommand;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -47,3 +48,11 @@ Schedule::command(ReturnExpiredAllotmentsCommand::class)
     ->withoutOverlapping()
     ->onOneServer()
     ->description('Return DPCs not concluded by their completion date to the CGPSC Chairman');
+
+// Transfers and additional charges take effect on their date, and additional
+// charges end on theirs (Phases 7–8, 2026-10-27). Idempotent.
+Schedule::command(ProcessAssignmentRequestsCommand::class)
+    ->dailyAt('00:05')
+    ->withoutOverlapping()
+    ->onOneServer()
+    ->description('Apply approved transfers and additional charges, end expired additional charges');

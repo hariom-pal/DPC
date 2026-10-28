@@ -12,6 +12,7 @@
     <div class="row justify-content-center">
         <div class="col-lg-10">
             @include('partials.alerts')
+            @include('partials.esign-issue', ['proposal' => $proposal])
 
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <div>
@@ -191,7 +192,7 @@
                 <div class="card-body d-flex flex-wrap gap-2">
                     @can('update', $proposal)
                         <a href="{{ route('pre-dpc.edit', $proposal) }}" class="btn btn-outline-primary btn-sm">{{ __('ui.edit') }}</a>
-                        <form method="POST" action="{{ route('pre-dpc.submit', $proposal) }}">@csrf<button class="btn btn-success btn-sm">{{ __('ui.submit_for_approval') }}</button></form>
+                        <a href="{{ route('esign.show', ['kind' => 'pre-dpc-submit', 'uuid' => $proposal->uuid]) }}" class="btn btn-success btn-sm" data-esign>{{ __('esign.button.submit') }}</a>
                         <form method="POST" action="{{ route('pre-dpc.cancel', $proposal) }}" data-confirm="{{ __('ui.cancel_this_proposal') }}">@csrf<button class="btn btn-outline-danger btn-sm">{{ __('ui.cancel') }}</button></form>
                     @endcan
 
@@ -212,7 +213,7 @@
                     @endcan
 
                     @can('approve', $proposal)
-                        <form method="POST" action="{{ route('pre-dpc.approve', $proposal) }}" data-confirm="{{ __('predpc.show.approve_and_digitally_sign_this_proposal') }}">@csrf<button class="btn btn-success btn-sm">{{ __('predpc.show.approve_amp_sign') }}</button></form>
+                        <a href="{{ route('esign.show', ['kind' => 'pre-dpc-approve', 'uuid' => $proposal->uuid]) }}" class="btn btn-success btn-sm" data-esign>{{ __('esign.button.approve') }}</a>
                     @endcan
 
                     @can('amend', $proposal)
