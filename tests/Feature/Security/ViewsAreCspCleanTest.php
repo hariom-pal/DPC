@@ -160,7 +160,8 @@ class ViewsAreCspCleanTest extends TestCase
         $loaded = [];
 
         foreach ($this->views() as $contents) {
-            preg_match_all("/asset\(\s*'(js\/[^']+\.js)'\s*\)/", $contents, $matches);
+            // `@versioned('js/…')` since 2026-10-29; `asset('js/…')` still counts.
+            preg_match_all("/(?:asset|@versioned)\(\s*'(js\/[^']+\.js)'\s*\)/", $contents, $matches);
             $loaded = array_merge($loaded, $matches[1]);
         }
 

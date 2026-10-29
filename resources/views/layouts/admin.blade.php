@@ -8,7 +8,7 @@
     <link rel="icon" href="{{ asset('favicon.ico') }}">
     <meta name="theme-color" content="#0b4f9e">
     <link rel="stylesheet" href="{{ asset('vendor/bootstrap/css/bootstrap.min.css') }}">
-    <link rel="stylesheet" href="{{ asset('css/portal.css') }}">
+    <link rel="stylesheet" href="@versioned('css/portal.css')">
     @stack('styles')
 </head>
 <body>
@@ -101,12 +101,12 @@
     </div>
 
     <script src="{{ asset('vendor/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
-    <script src="{{ asset('js/portal.js') }}" defer></script>
+    <script src="@versioned('js/portal.js')" defer></script>
     {{-- Makes every single-choice <select> a type-to-filter dropdown (2026-10-26).
          Deferred and additive: without it the selects stay plain and usable. --}}
-    <script src="{{ asset('js/searchable-select.js') }}" defer></script>
-    <script src="{{ asset('js/multiselect-dropdown.js') }}" defer></script>
-    <script src="{{ asset('js/table-hscroll.js') }}" defer></script>
+    <script src="@versioned('js/searchable-select.js')" defer></script>
+    <script src="@versioned('js/multiselect-dropdown.js')" defer></script>
+    <script src="@versioned('js/table-hscroll.js')" defer></script>
     @stack('scripts')
 </body>
 </html>

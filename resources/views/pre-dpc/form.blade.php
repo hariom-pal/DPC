@@ -282,7 +282,7 @@
     </form>
 
     @push('scripts')
-        <script src="{{ asset('js/forms/pre-dpc-exercise.js') }}" defer></script>
+        <script src="@versioned('js/forms/pre-dpc-exercise.js')" defer></script>
     @endpush
     {{-- The blank row the Add button clones. __INDEX__ is replaced on insert. --}}
     <template id="promotion-source-row-template">

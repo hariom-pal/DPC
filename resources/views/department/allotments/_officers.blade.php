@@ -91,4 +91,4 @@
         </div>
     </div>
 @endforeach
-<script src="{{ asset('js/forms/officer-picker.js') }}" defer></script>
+<script src="@versioned('js/forms/officer-picker.js')" defer></script>

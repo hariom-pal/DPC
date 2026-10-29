@@ -36,7 +36,7 @@
                             <button type="submit" class="btn btn-success">{{ __('invitations.admin.send') }}</button>
                         </div>
                     </form>
-                    <script src="{{ asset('js/forms/department-invitation.js') }}" defer></script>
+                    <script src="@versioned('js/forms/department-invitation.js')" defer></script>
                 </div>
             </div>
         </div>

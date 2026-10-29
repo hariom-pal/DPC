@@ -60,8 +60,9 @@
         var timer = null;
         var seq = 0;
 
-        function url(template, officerId) {
-            return template.replace('__ID__', encodeURIComponent(officerId));
+        // The officer's public identifier (uuid), never the numeric id.
+        function url(template, officerKey) {
+            return template.replace('__ID__', encodeURIComponent(officerKey));
         }
 
         function hideList() {
@@ -236,14 +237,14 @@
         });
 
         get('picker-mobile-send').addEventListener('click', function () {
-            request(url(data.mobileOtpUrl, chosen.id), 'POST', { mobile: fields.mobile.value.trim() }).then(function (answer) {
+            request(url(data.mobileOtpUrl, chosen.key), 'POST', { mobile: fields.mobile.value.trim() }).then(function (answer) {
                 text(message, answer.ok ? answer.data.message : firstError(answer.data, data.msgError), answer.ok ? 'success' : 'danger');
             }).catch(function () { text(message, data.msgError, 'danger'); });
         });
 
         get('picker-mobile-save').addEventListener('click', function () {
             var body = { mobile: fields.mobile.value.trim(), mobile_code: get('picker-new-mobile-code').value.trim() };
-            request(url(data.mobileUrl, chosen.id), 'PUT', body).then(function (answer) {
+            request(url(data.mobileUrl, chosen.key), 'PUT', body).then(function (answer) {
                 if (!answer.ok) {
                     text(message, firstError(answer.data, data.msgError), 'danger');
                     return;

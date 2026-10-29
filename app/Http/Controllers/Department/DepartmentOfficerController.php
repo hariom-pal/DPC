@@ -344,6 +344,8 @@ class DepartmentOfficerController extends Controller
 
         return [
             'id' => $user->id,
+            // The officer's public identifier, for the picker's mobile-change URLs.
+            'key' => $user->getRouteKey(),
             'email' => $user->email,
             'name' => $user->name,
             'mobile' => $user->mobile,

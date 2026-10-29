@@ -70,6 +70,7 @@ use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\Paginator;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
@@ -197,6 +198,10 @@ class AppServiceProvider extends ServiceProvider
         // one. Deliberately not enabled in production: a request that would
         // have half-worked should not become a 500 in front of a user.
         Model::preventSilentlyDiscardingAttributes(! $this->app->isProduction());
+
+        // Scripts and stylesheets carry their file's version, so a deployment
+        // reaches browsers that cached the previous copy (2026-10-29).
+        Blade::directive('versioned', static fn (string $path): string => '<?php echo e(\\App\\Support\\AssetVersion::url('.$path.')); ?>');
 
         /*
          | Pagination renders as Bootstrap 5, because that is what the portal is

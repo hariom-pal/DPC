@@ -9,7 +9,7 @@
     <title>@yield('title', __('messages.app_name'))</title>
     <link rel="icon" href="{{ asset('favicon.ico') }}">
     <link rel="stylesheet" href="{{ asset('vendor/bootstrap/css/bootstrap.min.css') }}">
-    <link rel="stylesheet" href="{{ asset('css/portal.css') }}">
+    <link rel="stylesheet" href="@versioned('css/portal.css')">
     @stack('styles')
 </head>
 <body class="d-flex flex-column min-vh-100">
@@ -221,10 +221,10 @@
 </footer>
 
 <script src="{{ asset('vendor/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
-<script src="{{ asset('js/portal.js') }}" defer></script>
+<script src="@versioned('js/portal.js')" defer></script>
 {{-- Every dropdown is searchable (2026-10-26), the public pages included. --}}
-<script src="{{ asset('js/searchable-select.js') }}" defer></script>
-<script src="{{ asset('js/table-hscroll.js') }}" defer></script>
+<script src="@versioned('js/searchable-select.js')" defer></script>
+<script src="@versioned('js/table-hscroll.js')" defer></script>
 @stack('scripts')
 </body>
 </html>

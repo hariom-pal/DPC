@@ -94,7 +94,12 @@ class DepartmentOfficerPickerTest extends TestCase
         $own = User::factory()->assignedTo($this->department, Role::AuthorizedOfficer)->create(['mobile' => '9000000001']);
         $foreign = User::factory()->assignedTo($this->other, Role::AuthorizedOfficer)->create();
 
-        $this->actingAs($this->admin)->postJson(route('department.officers.mobile.otp', $own), ['mobile' => '9000000002'])->assertOk();
+        // The picker builds these URLs from the key the lookup returns.
+        $key = $this->actingAs($this->admin)->getJson(route('department.officers.lookup', ['email' => $own->email]))->json('key');
+        $this->assertSame($own->uuid, $key);
+        $this->assertStringContainsString('/officers/'.$key.'/mobile', route('department.officers.mobile', ['officer' => $key]));
+
+        $this->postJson(route('department.officers.mobile.otp', ['officer' => $key]), ['mobile' => '9000000002'])->assertOk();
         $this->putJson(route('department.officers.mobile', $own), ['mobile' => '9000000002', 'mobile_code' => '000000'])->assertStatus(422);
         $this->assertSame('9000000001', $own->fresh()?->mobile);
 

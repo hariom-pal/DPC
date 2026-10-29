@@ -347,5 +347,5 @@
 @endsection
 
 @push('scripts')
-    <script src="{{ asset('js/forms/dpc-evaluation-chart.js') }}" defer></script>
+    <script src="@versioned('js/forms/dpc-evaluation-chart.js')" defer></script>
 @endpush

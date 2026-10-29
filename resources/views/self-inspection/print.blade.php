@@ -86,6 +86,6 @@
 
 {{-- External, so this screen satisfies `script-src 'self'` even when the policy is
      enforced. See TD-29 for the screens that do not yet. --}}
-<script src="{{ asset('js/self-inspection-print.js') }}"></script>
+<script src="@versioned('js/self-inspection-print.js')"></script>
 </body>
 </html>

@@ -40,7 +40,7 @@ class SearchableDropdownTest extends TestCase
     public function test_the_department_shell_loads_it_too(): void
     {
         $this->assertStringContainsString(
-            "asset('js/searchable-select.js')",
+            "@versioned('js/searchable-select.js')",
             (string) file_get_contents(resource_path('views/layouts/app.blade.php')),
         );
     }

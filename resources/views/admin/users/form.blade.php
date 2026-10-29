@@ -93,6 +93,6 @@
     </div>
 
     @push('scripts')
-        <script src="{{ asset('js/forms/user-role.js') }}" defer></script>
+        <script src="@versioned('js/forms/user-role.js')" defer></script>
     @endpush
 @endsection

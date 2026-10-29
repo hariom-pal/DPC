@@ -163,5 +163,5 @@
 @endsection
 
 @push('scripts')
-    <script src="{{ asset('js/forms/department-post-orders.js') }}" defer></script>
+    <script src="@versioned('js/forms/department-post-orders.js')" defer></script>
 @endpush

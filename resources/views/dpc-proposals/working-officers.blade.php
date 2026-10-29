@@ -331,5 +331,5 @@
 @endsection
 
 @push('scripts')
-    <script src="{{ asset('js/forms/dpc-working-officers.js') }}" defer></script>
+    <script src="@versioned('js/forms/dpc-working-officers.js')" defer></script>
 @endpush
