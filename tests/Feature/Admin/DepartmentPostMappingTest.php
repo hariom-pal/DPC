@@ -163,6 +163,40 @@ class DepartmentPostMappingTest extends TestCase
     }
 
     /**
+     * A file the server cannot write (2026-10-29, UAT: "Unable to create a
+     * directory"): nothing is saved — the mapping included — and the form says so
+     * without the server path.
+     */
+    public function test_an_order_that_cannot_be_stored_saves_nothing_and_says_so(): void
+    {
+        config([
+            'filesystems.disks.unwritable' => ['driver' => 'local', 'root' => '/proc/dpc-unwritable', 'throw' => false],
+            'dpc.documents.disk' => 'unwritable',
+        ]);
+
+        $this->actingAs($this->admin)->from(route('admin.department-posts.create'))->post(
+            route('admin.department-posts.store'),
+            $this->payload(['orders' => [['government_order_number' => 'F-12/2026', 'government_order_date' => '2026-01-01', 'document' => $this->pdf('F-12-2026.pdf')]]]),
+        )->assertRedirect(route('admin.department-posts.create'))
+            ->assertSessionHasErrors(['orders' => __('admin.department_posts.storage_failed')]);
+
+        $this->assertSame(0, DepartmentPost::query()->count());
+    }
+
+    /**
+     * The Department Admin's own department is preselected and not offered (2026-10-29).
+     */
+    public function test_the_department_admins_department_is_preselected(): void
+    {
+        $da = User::factory()->assignedTo($this->department, Role::DepartmentAdmin)->create();
+
+        $this->actingAs($da)->get(route('department.posts.create'))->assertOk()
+            ->assertSee('name="department_id" value="'.$this->department->id.'"', false)
+            ->assertSee('value="Higher Education" readonly', false)
+            ->assertDontSee('<select class="form-select" id="department_id"', false);
+    }
+
+    /**
      * Item 10, the thing the old shape could not do: several orders on one mapping,
      * each with its own number, date and PDF, all kept.
      */

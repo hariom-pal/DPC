@@ -288,6 +288,16 @@ class User extends Authenticatable implements Auditable
     }
 
     /**
+     * The department that released this officer, while they are released (2026-10-29).
+     *
+     * @return BelongsTo<Department, $this>
+     */
+    public function releasedFrom(): BelongsTo
+    {
+        return $this->belongsTo(Department::class, 'released_from_department_id');
+    }
+
+    /**
      * @return HasMany<Signature, $this>
      */
     public function signatures(): HasMany
@@ -328,6 +338,7 @@ class User extends Authenticatable implements Auditable
             'password_changed_at' => 'datetime',
             'date_of_birth' => 'date',
             'identity_verified_at' => 'datetime',
+            'released_at' => 'datetime',
             'session_epoch' => 'integer',
             'password' => 'hashed',
             'is_active' => 'boolean',

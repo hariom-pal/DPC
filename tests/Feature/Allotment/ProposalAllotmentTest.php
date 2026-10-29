@@ -167,8 +167,9 @@ class ProposalAllotmentTest extends TestCase
     }
 
     /**
-     * Any department's active officer may be allotted (2026-10-28); an inactive
-     * account or one of the Commission's may not.
+     * The department's own active officers, or one another department has
+     * released, may be allotted (2026-10-29); an inactive account, one of the
+     * Commission's, or another department's officer may not.
      */
     public function test_only_active_non_commission_officers_can_be_allotted(): void
     {
@@ -184,7 +185,10 @@ class ProposalAllotmentTest extends TestCase
 
         $elsewhere = Department::query()->create(['code' => 'SE', 'name' => 'School Education Department', 'status' => 'registered']);
         $foreignAo = User::factory()->assignedTo($elsewhere, Role::AuthorizedOfficer)->create();
-        $this->allotAs($proposal, $foreignAo, $this->ah)->assertSessionHasNoErrors();
+        $this->allotAs($proposal, $foreignAo, $this->ah)->assertSessionHasErrors('ao_user_id');
+
+        $releasedAo = User::factory()->create(['released_at' => now(), 'released_from_department_id' => $elsewhere->id]);
+        $this->allotAs($proposal, $releasedAo, $this->ah)->assertSessionHasNoErrors();
     }
 
     /**

@@ -13,6 +13,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use League\Flysystem\UnableToWriteFile;
 use RuntimeException;
 
 /**
@@ -194,8 +195,10 @@ class DepartmentPostMappingService
                     $file,
                 );
 
+                // A disk that cannot be written (permissions, space) is a storage
+                // failure, so the caller rolls the mapping back with it.
                 if ($path === false) {
-                    throw new RuntimeException('The Government Order could not be stored.');
+                    throw UnableToWriteFile::atLocation(sprintf('private/department-posts/%d', $post->id), 'The Government Order could not be stored.');
                 }
 
                 $attributes += [

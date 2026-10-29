@@ -6,7 +6,7 @@ declare(strict_types=1);
 return [
     'users' => [
         'title' => 'User Management',
-        'tile' => 'Create and manage your department\'s Authorized Officers and Administrative Heads.',
+        'tile' => 'View the officers registered in your department, and release an officer who has been transferred.',
         'lead' => 'Authorized Officers and Administrative Heads of :department. You can have any number of each.',
         'create' => '+ Create User',
         'create_title' => 'Create User',
@@ -54,6 +54,20 @@ return [
             'user_assigned' => 'Posted to the department',
             'user_transferred' => 'Transferred',
             'user_released' => 'Released from the department',
+        ],
+        'list_lead' => 'Officers registered in :department. Release an officer who has been transferred, so that their new department can choose them as AO or AH.',
+        'role' => 'Role',
+        'since' => 'Since',
+        'allotted' => 'Current allotments',
+        'allotted_counts' => 'AO :ao · AH :ah',
+        'release' => [
+            'button' => 'Release',
+            'reason' => 'Reason (e.g. transfer order number and date)',
+            'confirm' => 'Release this officer from the department? They will no longer see this department\'s Pre-DPCs and DPCs, and another department may choose them.',
+            'done' => ':name has been released from the department.',
+            'busy' => 'Allot another officer to their Pre-DPCs/DPCs first',
+            'not_member' => ':name is not registered in this department.',
+            'open_work' => ':name is still the AO or AH of a Pre-DPC or DPC in progress. Allot another officer to it first, then release.',
         ],
         'validation' => [
             'gov_email' => 'The e-mail must be an official .gov.in address.',

@@ -23,7 +23,10 @@ use App\Http\Controllers\Controller;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use League\Flysystem\FilesystemException;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -81,9 +84,18 @@ class DepartmentPostController extends Controller
         $scope = $this->scope($request);
         abort_if($scope !== null && $request->integer('department_id') !== $scope, 403);
 
-        $post = $this->crud->create(new DepartmentPost, $request->safe()->except(self::ORDER_FIELDS));
+        try {
+            // The mapping and its orders together (2026-10-29): an order whose file
+            // cannot be stored no longer leaves the mapping saved behind an error page.
+            $post = DB::transaction(function () use ($request): DepartmentPost {
+                $post = $this->crud->create(new DepartmentPost, $request->safe()->except(self::ORDER_FIELDS));
+                $this->recordOrders($request, $post);
 
-        $this->recordOrders($request, $post);
+                return $post;
+            });
+        } catch (FilesystemException $e) {
+            return $this->storageFailed($e);
+        }
 
         return redirect()->route($this->prefix($request).'.show', $post)
             ->with('status', __('admin.department_posts.created'));
@@ -125,9 +137,14 @@ class DepartmentPostController extends Controller
         $scope = $this->scope($request);
         abort_if($scope !== null && $request->integer('department_id') !== $scope, 403);
 
-        $this->crud->update($post, $request->safe()->except(self::ORDER_FIELDS));
-
-        $this->recordOrders($request, $post);
+        try {
+            DB::transaction(function () use ($request, $post): void {
+                $this->crud->update($post, $request->safe()->except(self::ORDER_FIELDS));
+                $this->recordOrders($request, $post);
+            });
+        } catch (FilesystemException $e) {
+            return $this->storageFailed($e);
+        }
 
         return redirect()->route($this->prefix($request).'.show', $post)
             ->with('status', __('admin.department_posts.updated'));
@@ -155,6 +172,8 @@ class DepartmentPostController extends Controller
                 $request->user(),
                 $request->file('government_order_document'),
             );
+        } catch (FilesystemException $e) {
+            return $this->storageFailed($e);
         } catch (RuntimeException $e) {
             // The service's refusals are statements about the order of orders, so
             // they belong on the field the Administrator can act on.
@@ -197,6 +216,17 @@ class DepartmentPostController extends Controller
     }
 
     /**
+     * The Government Order could not be written to storage: nothing was saved, and
+     * the form says so in words — the server path stays in the log only.
+     */
+    private function storageFailed(FilesystemException $e): RedirectResponse
+    {
+        Log::error('Department post Government Order could not be stored.', ['error' => $e::class, 'message' => $e->getMessage()]);
+
+        return back()->withInput()->withErrors(['orders' => __('admin.department_posts.storage_failed')]);
+    }
+
+    /**
      * Record every Government Order the form carried (item 10's "Add More").
      *
      * **Rows with no number are skipped rather than refused.** The repeater renders
@@ -227,6 +257,8 @@ class DepartmentPostController extends Controller
             'post' => $post,
             // A Department Admin maps posts for their own department only.
             'departments' => Department::query()->when($scope !== null, fn ($q) => $q->whereKey($scope))->orderBy('name')->get(),
+            // ...and does not choose it: it is preselected and shown, not offered (2026-10-29).
+            'lockedDepartment' => $scope !== null ? Department::query()->find($scope) : null,
             'payScales' => PayScale::query()->where('status', MasterStatus::Active->value)->orderBy('label')->get(),
             'classes' => ServiceClass::cases(),
             'statuses' => MasterStatus::cases(),

@@ -54,6 +54,7 @@
                         @if (app(\App\Domain\UserManagement\Services\DepartmentUserAuthority::class)->isDepartmentAdmin(auth()->user()))
                             {{-- The Department Admin's two menus (2026-10-28). --}}
                             <a class="btn btn-sm btn-outline-light" href="{{ route('department.posts.index') }}">{{ __('ui.layouts.admin.nav.department_posts') }}</a>
+                            <a class="btn btn-sm btn-outline-light" href="{{ route('department.users.index') }}">{{ __('department.users.title') }}</a>
                             <div class="dropdown m-0">
                                 <button class="btn btn-sm btn-outline-light dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">{{ __('allotments.menu') }}</button>
                                 <ul class="dropdown-menu dropdown-menu-end">

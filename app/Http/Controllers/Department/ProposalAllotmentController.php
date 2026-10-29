@@ -159,7 +159,7 @@ class ProposalAllotmentController extends Controller
             'label' => $label,
             'action' => $action,
             'current' => $this->allotments->current($proposal)?->loadMissing(['ao', 'ah']),
-            'departments' => Department::query()->orderBy('name')->get(['id', 'name']),
+            'department' => Department::query()->find($proposal->department_id),
             'designations' => Designation::query()->where('status', MasterStatus::Active->value)->orderBy('name')->get(['id', 'name']),
             'proposal' => $proposal,
         ]);

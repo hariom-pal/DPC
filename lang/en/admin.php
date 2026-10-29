@@ -180,6 +180,7 @@ return [
         ],
     ],
     'department_posts' => [
+        'storage_failed' => 'The Government Order file could not be saved on the server, so nothing was saved. Please try again; if it happens again, inform the portal administrator.',
         'created' => 'The Department Post Mapping was created.',
         'deleted' => 'The Department Post Mapping was withdrawn.',
         'form' => [

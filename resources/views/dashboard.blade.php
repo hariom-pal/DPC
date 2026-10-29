@@ -76,6 +76,7 @@
                         $tiles[] = ['workflow', __('allotments.list.running.title'), __('allotments.list.running.lead'), route('department.allotments.index')];
                         $tiles[] = ['workflow', __('allotments.list.closed.title'), __('allotments.list.closed.lead'), route('department.allotments.index', ['view' => 'closed'])];
                         $tiles[] = ['workflow', __('ui.layouts.admin.nav.department_posts'), __('allotments.posts_tile'), route('department.posts.index')];
+                        $tiles[] = ['workflow', __('department.users.title'), __('department.users.tile'), route('department.users.index')];
                     }
 
                     if ($isAO || $isAH) {

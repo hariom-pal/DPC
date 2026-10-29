@@ -15,12 +15,17 @@
                 <div class="row">
                     <div class="col-md-6 mb-3">
                         <label class="form-label" for="department_id">{{ __('ui.department') }}</label>
+                        @if ($lockedDepartment)
+                        <input type="hidden" name="department_id" value="{{ $lockedDepartment->id }}">
+                        <input type="text" class="form-control @error('department_id') is-invalid @enderror" id="department_id" value="{{ $lockedDepartment->name }}" readonly>
+                        @else
                         <select class="form-select @error('department_id') is-invalid @enderror" id="department_id" name="department_id" required>
                             <option value="">{{ __('ui.select') }}</option>
                             @foreach ($departments as $department)
                                 <option value="{{ $department->id }}" @selected(old('department_id', $post->department_id) == $department->id)>{{ $department->name }}</option>
                             @endforeach
                         </select>
+                        @endif
                         @error('department_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
                     <div class="col-md-6 mb-3">

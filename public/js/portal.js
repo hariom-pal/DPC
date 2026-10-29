@@ -1,11 +1,11 @@
 /*
  * e-DPC Portal — presentation behaviour only.
  *
- * Five small things: the accessibility font-size control, the statistics
+ * Six small things: the accessibility font-size control, the statistics
  * counters, the confirmation prompt before a destructive action, the
- * submit-on-change filter selects, and a busy state on submitted forms. No
- * business behaviour, no network calls, no dependencies beyond Bootstrap's own
- * bundle.
+ * submit-on-change filter selects, no paste into Confirm Password, and a busy
+ * state on submitted forms. No business behaviour, no network calls, no
+ * dependencies beyond Bootstrap's own bundle.
  *
  * Everything degrades: with JavaScript off the page renders fully, the
  * statistics show their final values, and forms submit normally.
@@ -139,6 +139,22 @@
         var el = event.target;
         if (!el || el.dataset === undefined || el.dataset.submitOnChange === undefined) { return; }
         if (el.form) { el.form.submit(); }
+    });
+
+    /* ------------------------------------- no paste into Confirm Password */
+
+    /*
+     * The confirmation of a new password must be typed (2026-10-29), so a
+     * mistyped password copied from the first box cannot confirm itself. Every
+     * `password_confirmation` field, and anything marked `data-no-paste`.
+     */
+    var NO_PASTE = 'input[name="password_confirmation"], [data-no-paste]';
+
+    ['paste', 'drop'].forEach(function (type) {
+        document.addEventListener(type, function (event) {
+            var el = event.target;
+            if (el && el.matches && el.matches(NO_PASTE)) { event.preventDefault(); }
+        }, true);
     });
 
     /* ------------------------------------------- busy state on submission */

@@ -129,7 +129,7 @@
                         {!! __('predpc.form.direct_recruitment_label') !!}
                         <input type="number" min="0" max="100" step="1" inputmode="numeric" data-whole-number
                                class="form-control @error('direct_recruitment_pct') is-invalid @enderror"
-                               id="direct_recruitment_pct" name="direct_recruitment_pct"
+                               id="direct_recruitment_pct" name="direct_recruitment_pct" data-complement="promotion_recruitment_pct"
                                value="{{ (fn ($v) => is_numeric($v) && (float) $v == (int) $v ? (int) $v : $v)(old('direct_recruitment_pct', $proposal->direct_recruitment_pct ?? '0')) }}" required>
                         @error('direct_recruitment_pct')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
@@ -137,7 +137,7 @@
                         {!! __('predpc.form.promotion_label') !!}
                         <input type="number" min="0" max="100" step="1" inputmode="numeric" data-whole-number
                                class="form-control @error('promotion_recruitment_pct') is-invalid @enderror"
-                               id="promotion_recruitment_pct" name="promotion_recruitment_pct"
+                               id="promotion_recruitment_pct" name="promotion_recruitment_pct" data-complement="direct_recruitment_pct"
                                value="{{ (fn ($v) => is_numeric($v) && (float) $v == (int) $v ? (int) $v : $v)(old('promotion_recruitment_pct', $proposal->promotion_recruitment_pct ?? '100')) }}" required>
                         @error('promotion_recruitment_pct')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         <div class="form-text">{{ __('predpc.form.hint_shares_total') }}</div>

@@ -12,6 +12,7 @@ use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\PreDpc\Models\PreDpcProposal;
 use App\Domain\Shared\Services\ActivityTimelineService;
 use App\Domain\UserManagement\Services\DepartmentAssignmentService;
+use App\Domain\UserManagement\Services\OfficerPool;
 use App\Enums\Role;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -34,6 +35,7 @@ class ProposalAllotmentService
     public function __construct(
         private readonly ActivityTimelineService $timeline,
         private readonly DepartmentAssignmentService $assignments,
+        private readonly OfficerPool $pool,
     ) {}
 
     public function current(PreDpcProposal|DpcProposal $proposal): ?ProposalAllotment
@@ -105,6 +107,19 @@ class ProposalAllotmentService
                 ->where($this->key($proposal), $proposal->getKey())
                 ->lockForUpdate()
                 ->first();
+
+            // Only the department's own officers, or one another department has
+            // released (2026-10-29) — who is posted here on being chosen. An
+            // officer already allotted to this proposal stays choosable.
+            foreach ([[$ao, Role::AuthorizedOfficer], [$ah, Role::AdministrativeHead]] as [$officer, $role]) {
+                $kept = $current !== null && in_array($officer->id, [$current->ao_user_id, $current->ah_user_id], true);
+
+                if (! $kept && ! $this->pool->isSelectable($officer, (int) $proposal->department_id)) {
+                    throw new AllotmentRefused((string) __('allotments.errors.not_in_pool', ['name' => $officer->name]));
+                }
+
+                $this->pool->adopt($officer, (int) $proposal->department_id, $role);
+            }
 
             $reason = $reason !== null ? trim($reason) : null;
 

@@ -305,3 +305,23 @@
     syncRemoveButtons();
     refreshShareTotal();
 })();
+
+// Direct Recruitment % and Promotion % always total 100 (2026-10-29): typing in
+// one sets the other to 100 minus it. The server still checks the total.
+(function () {
+    'use strict';
+
+    document.addEventListener('input', function (event) {
+        var input = event.target;
+        if (!(input.matches && input.matches('input[data-complement]'))) {
+            return;
+        }
+        var other = document.getElementById(input.dataset.complement);
+        var digits = input.value.replace(/[^0-9]/g, '');
+        if (!other || digits === '') {
+            return;
+        }
+        var value = Math.min(100, parseInt(digits, 10));
+        other.value = String(100 - value);
+    });
+})();

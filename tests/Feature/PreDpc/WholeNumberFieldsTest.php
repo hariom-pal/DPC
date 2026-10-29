@@ -48,4 +48,29 @@ class WholeNumberFieldsTest extends TestCase
                 ->assertSessionHasErrors('direct_recruitment_pct');
         }
     }
+
+    /**
+     * Direct Recruitment % and Promotion % fill each other to 100, and the
+     * Promotion To Post is never offered as a Promotion From Post (2026-10-29).
+     */
+    public function test_the_shares_complement_each_other_and_the_to_post_is_not_a_from_post(): void
+    {
+        $this->seed(RolesAndPermissionsSeeder::class);
+        $department = Department::query()->create(['code' => 'SE', 'name' => 'School Education', 'status' => 'active']);
+        $admin = User::factory()->assignedTo($department, Role::DepartmentAdmin)->create();
+        $to = DepartmentPost::query()->create(['department_id' => $department->id, 'name' => 'Deputy Director', 'class_level' => 'I', 'status' => MasterStatus::Active->value]);
+        $from = DepartmentPost::query()->create(['department_id' => $department->id, 'name' => 'Assistant Director', 'class_level' => 'II', 'status' => MasterStatus::Active->value]);
+        $proposal = app(PreDpcProposalService::class)->createDraft($department, $admin, ['dpc_year' => 2026, 'promotion_to_post_id' => $to->id]);
+
+        $page = (string) $this->actingAs($admin)->get(route('pre-dpc.edit', $proposal))->assertOk()->getContent();
+        $this->assertStringContainsString('data-complement="promotion_recruitment_pct"', $page);
+        $this->assertStringContainsString('data-complement="direct_recruitment_pct"', $page);
+
+        preg_match_all('#<select[^>]*class="[^"]*source-post[^"]*"[^>]*>(.*?)</select>#s', $page, $selects);
+        $this->assertNotEmpty($selects[1]);
+        foreach ($selects[1] as $options) {
+            $this->assertStringContainsString('value="'.$from->id.'"', $options);
+            $this->assertStringNotContainsString('value="'.$to->id.'"', $options);
+        }
+    }
 }

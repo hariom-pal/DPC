@@ -18,19 +18,9 @@
                         <dt class="col-sm-4">{{ __('identity.field.date_of_birth') }}</dt><dd class="col-sm-8">{{ $user->date_of_birth?->format('d-m-Y') ?? '—' }}</dd>
                         <dt class="col-sm-4">{{ __('identity.field.gender') }}</dt><dd class="col-sm-8">{{ $user->gender ? __('identity.gender.'.$user->gender) : '—' }}</dd>
                         <dt class="col-sm-4">{{ __('department.users.designation') }}</dt><dd class="col-sm-8">{{ $user->designation?->name ?? '—' }}</dd>
+                        <dt class="col-sm-4">{{ __('ui.department') }}</dt><dd class="col-sm-8">{{ $user->department?->name ?? '—' }}</dd>
                     </dl>
-
-                    <div class="mb-3">
-                        <label for="department_id" class="form-label small fw-semibold">{{ __('ui.department') }}</label>
-                        <select id="department_id" name="department_id" class="form-select form-select-sm @error('department_id') is-invalid @enderror" required>
-                            <option value="">{{ __('ui.select') }}</option>
-                            @foreach ($departments as $department)
-                                <option value="{{ $department->id }}" @selected((int) old('department_id', $user->department_id) === $department->id)>{{ $department->name }}</option>
-                            @endforeach
-                        </select>
-                        <div class="form-text">{{ __('profile.department_help') }}</div>
-                        @error('department_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                    </div>
+                    <p class="small text-muted">{{ __('profile.department_help') }}</p>
 
                     <div class="form-check">
                         <input class="form-check-input @error('confirm') is-invalid @enderror" type="checkbox" name="confirm" value="1" id="confirm">

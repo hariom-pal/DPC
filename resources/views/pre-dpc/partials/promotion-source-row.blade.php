@@ -20,7 +20,9 @@
                 id="source-{{ $index }}-post"
                 name="promotion_sources[{{ $index }}][promotion_from_post_id]" required>
             <option value="">{{ __('ui.select') }}</option>
+            {{-- The Promotion To Post is never offered here (2026-10-29). --}}
             @foreach ($posts as $post)
+                @continue($post->id === (int) ($toPostId ?? 0) && $postId !== $post->id)
                 <option value="{{ $post->id }}" @selected($postId === $post->id)>{{ $post->name }}</option>
             @endforeach
         </select>

@@ -10,10 +10,10 @@ use App\Domain\Authentication\Exceptions\OtpThrottled;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Authentication\Services\OtpService;
 use App\Domain\Authentication\Services\SecurityLog;
-use App\Domain\Department\Models\Department;
 use App\Domain\Identity\Models\IdentityCorrection;
 use App\Domain\Shared\Services\ActivityTimelineService;
 use App\Domain\UserManagement\Services\DepartmentUserAuthority;
+use App\Domain\UserManagement\Services\OfficerPool;
 use App\Domain\UserManagement\Services\UserProvisioningService;
 use App\Enums\OtpChannel;
 use App\Enums\OtpPurpose;
@@ -27,10 +27,14 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 
 /**
- * The AO / AH picker on the allotment screens (2026-10-28): the Department Admin
- * types an e-mail; an existing officer is chosen at once, and a new one is added
- * on the spot — name, e-mail, mobile, gender, date of birth and department —
- * once the e-mail and mobile OTPs prove both. Answers in JSON for the picker.
+ * The AO / AH picker on the allotment screens (2026-10-28, reworked 2026-10-29).
+ * As the Department Admin types an e-mail the picker suggests the officers the
+ * department may allot — its own and those another department has released
+ * ({@see OfficerPool}). A chosen officer's details are shown read-only except the
+ * mobile, which may be changed once an OTP proves the new number. An e-mail
+ * nobody has is added on the spot — name, mobile, gender, date of birth — in the
+ * Department Admin's own department, once the e-mail and mobile OTPs prove both.
+ * Answers in JSON for the picker.
  */
 class DepartmentOfficerController extends Controller
 {
@@ -40,11 +44,36 @@ class DepartmentOfficerController extends Controller
         private readonly DepartmentUserAuthority $authority,
         private readonly OtpService $otp,
         private readonly UserProvisioningService $provisioning,
+        private readonly OfficerPool $pool,
     ) {}
+
+    /**
+     * Suggestions while the e-mail is typed: the department's own officers and
+     * released officers whose e-mail or name contains what was typed.
+     */
+    public function search(Request $request): JsonResponse
+    {
+        $admin = $this->admin($request);
+        $term = mb_strtolower(trim((string) $request->query('q')));
+
+        if (mb_strlen($term) < 2) {
+            return response()->json(['officers' => []]);
+        }
+
+        $like = '%'.addcslashes($term, '%_\\').'%';
+        $officers = $this->pool->selectable((int) $admin->department_id)
+            ->with(['designation', 'activeAssignment.department', 'releasedFrom'])
+            ->where(fn ($q) => $q->whereRaw('LOWER(email) LIKE ?', [$like])->orWhereRaw('LOWER(name) LIKE ?', [$like]))
+            ->orderBy('email')
+            ->limit(15)
+            ->get();
+
+        return response()->json(['officers' => $officers->map(fn (User $user): array => $this->describe($user))->values()]);
+    }
 
     public function lookup(Request $request): JsonResponse
     {
-        $this->admin($request);
+        $admin = $this->admin($request);
         $email = mb_strtolower(trim((string) $request->query('email')));
 
         if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -62,13 +91,65 @@ class DepartmentOfficerController extends Controller
             return response()->json(['found' => false, 'blocked' => true, 'message' => __('allotments.picker.not_selectable')]);
         }
 
-        return response()->json([
-            'found' => true,
-            'id' => $user->id,
-            'name' => $user->name,
-            'designation' => $user->designation?->name,
-            'department' => $user->department?->name,
+        // Registered in another department and not released by it (2026-10-29).
+        if (! $this->pool->isSelectable($user, (int) $admin->department_id)) {
+            return response()->json(['found' => false, 'blocked' => true, 'message' => __('allotments.picker.other_department', [
+                'department' => $user->department->name ?? __('allotments.picker.another_department'),
+            ])]);
+        }
+
+        return response()->json(['found' => true] + $this->describe($user->load('releasedFrom')));
+    }
+
+    /**
+     * Send an OTP to the new mobile number of a chosen officer.
+     */
+    public function sendMobileOtp(Request $request, User $officer): JsonResponse
+    {
+        $admin = $this->admin($request);
+        abort_unless($this->pool->isSelectable($officer, (int) $admin->department_id), 403);
+
+        $data = $this->validated($request, ['mobile' => $this->mobileRule($officer)]);
+        if ($data instanceof JsonResponse) {
+            return $data;
+        }
+
+        try {
+            $this->otp->issue($data['mobile'], OtpChannel::Sms, OtpPurpose::Registration);
+        } catch (OtpThrottled|OtpDeliveryFailed $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        return response()->json(['sent' => true, 'message' => __('allotments.picker.mobile_otp_sent')]);
+    }
+
+    /**
+     * Change a chosen officer's mobile once the OTP proves the new number. Sign-in
+     * is by mobile OTP, so the number is never changed unproved.
+     */
+    public function updateMobile(Request $request, User $officer): JsonResponse
+    {
+        $admin = $this->admin($request);
+        abort_unless($this->pool->isSelectable($officer, (int) $admin->department_id), 403);
+
+        $data = $this->validated($request, [
+            'mobile' => $this->mobileRule($officer),
+            'mobile_code' => ['required', 'digits:'.(int) config('dpc.otp.length')],
         ]);
+        if ($data instanceof JsonResponse) {
+            return $data;
+        }
+
+        if (! $this->otp->verifyAll([[$data['mobile'], (string) $data['mobile_code']]], OtpPurpose::Registration)) {
+            return response()->json(['message' => __('authui.otp.invalid'), 'errors' => ['mobile_code' => [__('authui.otp.invalid')]]], 422);
+        }
+
+        $old = $officer->mobile;
+        $officer->forceFill(['mobile' => $data['mobile'], 'mobile_verified_at' => now()])->save();
+        app(ActivityTimelineService::class)->record('officer.mobile_changed', $officer, 'Mobile number changed by the Department Admin.', [], $admin);
+        app(SecurityLog::class)->record('officer.mobile_changed', $officer, context: ['had_mobile' => $old === null ? 'no' : 'yes'], actor: $admin);
+
+        return response()->json(['message' => __('allotments.picker.mobile_changed')] + $this->describe($officer->load('releasedFrom')));
     }
 
     /**
@@ -95,7 +176,7 @@ class DepartmentOfficerController extends Controller
 
     /**
      * Add the officer once both codes are right. The account is posted to the
-     * chosen department in the role it is being allotted (AO or AH), its e-mail
+     * Department Admin's department in the role it is being allotted (AO or AH), its e-mail
      * and mobile verified; a one-time password is returned to hand over.
      */
     public function store(Request $request): JsonResponse
@@ -107,7 +188,6 @@ class DepartmentOfficerController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'gender' => ['required', 'in:M,F'],
             'date_of_birth' => ['required', 'date', 'before:today', 'after:1940-01-01'],
-            'department_id' => ['required', 'integer', Rule::exists('departments', 'id')],
             'role' => ['required', Rule::in(Role::departmentManageableValues())],
             'email_code' => ['required', $digits],
             'mobile_code' => ['required', $digits],
@@ -127,7 +207,8 @@ class DepartmentOfficerController extends Controller
             'mobile' => $data['mobile'],
             'designation_id' => null,
             'role' => $data['role'],
-            'department_id' => (int) $data['department_id'],
+            // Always the Department Admin's own department (2026-10-29).
+            'department_id' => (int) $admin->department_id,
             'date_of_birth' => $data['date_of_birth'],
             'gender' => $data['gender'],
         ], $admin);
@@ -135,10 +216,7 @@ class DepartmentOfficerController extends Controller
         $user = $issued->user;
         $user->forceFill(['email_verified_at' => now(), 'mobile_verified_at' => now()])->save();
 
-        return response()->json([
-            'id' => $user->id,
-            'name' => $user->name,
-            'department' => Department::query()->whereKey($data['department_id'])->value('name'),
+        return response()->json($this->describe($user->fresh() ?? $user) + [
             'password' => $issued->temporaryPassword,
             'message' => __('allotments.picker.added', ['name' => $user->name]),
         ])->header('Cache-Control', 'no-store, no-cache, must-revalidate, private');
@@ -253,6 +331,37 @@ class DepartmentOfficerController extends Controller
             'email' => ['required', 'email', 'max:255', self::GOV_EMAIL, Rule::unique('users', 'email')],
             'mobile' => ['required', 'regex:/^[6-9]\d{9}$/', Rule::unique('users', 'mobile')],
         ];
+    }
+
+    /**
+     * What the picker shows of an officer.
+     *
+     * @return array<string, mixed>
+     */
+    private function describe(User $user): array
+    {
+        $released = $this->pool->isReleased($user);
+
+        return [
+            'id' => $user->id,
+            'email' => $user->email,
+            'name' => $user->name,
+            'mobile' => $user->mobile,
+            'date_of_birth' => $user->date_of_birth?->toDateString(),
+            'gender' => $user->gender,
+            'designation' => $user->designation?->name,
+            'department' => $released ? null : $user->department?->name,
+            'released' => $released,
+            'released_from' => $released ? $user->releasedFrom?->name : null,
+        ];
+    }
+
+    /**
+     * @return array<int, mixed>
+     */
+    private function mobileRule(User $officer): array
+    {
+        return ['required', 'regex:/^[6-9]\d{9}$/', Rule::unique('users', 'mobile')->ignore($officer->id)];
     }
 
     private function admin(Request $request): User

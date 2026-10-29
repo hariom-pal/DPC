@@ -56,6 +56,7 @@ use App\Http\Controllers\Cgpsc\ProceedingResultController;
 use App\Http\Controllers\Cgpsc\SchedulingController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Department\DepartmentOfficerController;
+use App\Http\Controllers\Department\DepartmentUserController;
 use App\Http\Controllers\Department\ProposalAllotmentController;
 use App\Http\Controllers\Dpc\CirculationController;
 use App\Http\Controllers\Dpc\DpcCalculationController;
@@ -202,8 +203,17 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
                 Route::get('/posts/{post}/orders/{order}', [DepartmentPostController::class, 'downloadDocument'])->name('posts.documents.download');
                 Route::resource('posts', DepartmentPostController::class)->parameters(['posts' => 'post']);
 
-                // The AO / AH picker (2026-10-28): find by e-mail, or add with both OTPs.
+                // The AO / AH picker (2026-10-28): suggest as the e-mail is typed, find by
+                // e-mail, or add with both OTPs; a chosen officer's mobile changes by OTP.
+                Route::get('/officers/search', [DepartmentOfficerController::class, 'search'])->middleware('throttle:120,1')->name('officers.search');
                 Route::get('/officers/lookup', [DepartmentOfficerController::class, 'lookup'])->middleware('throttle:30,1')->name('officers.lookup');
+                Route::post('/officers/{officer}/mobile/otp', [DepartmentOfficerController::class, 'sendMobileOtp'])->middleware('throttle:registration')->name('officers.mobile.otp');
+                Route::put('/officers/{officer}/mobile', [DepartmentOfficerController::class, 'updateMobile'])->middleware('throttle:otp-verify')->name('officers.mobile');
+
+                // User Management (2026-10-29): the department's officers, and releasing
+                // a transferred AO/AH so another department can pick them up.
+                Route::get('/users', [DepartmentUserController::class, 'index'])->name('users.index');
+                Route::post('/users/{officer}/release', [DepartmentUserController::class, 'release'])->name('users.release');
                 Route::post('/officers/otp', [DepartmentOfficerController::class, 'sendOtp'])->middleware('throttle:registration')->name('officers.otp');
                 Route::post('/officers', [DepartmentOfficerController::class, 'store'])->middleware('throttle:otp-verify')->name('officers.store');
                 Route::put('/officers/{officer}/details', [DepartmentOfficerController::class, 'updateDetails'])->name('officers.details');

@@ -83,6 +83,11 @@ class DepartmentAssignmentService
             ]);
             $assignment->save();
 
+            // A posting ends a release (2026-10-29): the officer is this department's now.
+            if ($user->released_at !== null) {
+                $user->forceFill(['released_at' => null, 'released_from_department_id' => null, 'released_by' => null])->save();
+            }
+
             $this->projectRoles($user);
 
             $this->timeline->record(

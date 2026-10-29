@@ -4,12 +4,8 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Auth;
 
-use App\Domain\Allotment\Services\ProposalAllotmentService;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Department\Models\Department;
-use App\Domain\Master\Models\DepartmentPost;
-use App\Domain\PreDpc\Services\PreDpcProposalService;
-use App\Enums\MasterStatus;
 use App\Enums\Role;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -54,8 +50,8 @@ class OfficerProfileTest extends TestCase
         $this->get(route('profile.show'))->assertOk()->assertSee('Alpha Officer')->assertSee(__('profile.disclaimer'))
             ->assertDontSee('name="name"', false)->assertDontSee('name="mobile"', false);
 
-        $this->post(route('profile.confirm'), ['department_id' => $this->alpha->id])->assertSessionHasErrors('confirm');
-        $this->post(route('profile.confirm'), ['department_id' => $this->alpha->id, 'confirm' => '1'])->assertRedirect(route('dashboard'));
+        $this->post(route('profile.confirm'), [])->assertSessionHasErrors('confirm');
+        $this->post(route('profile.confirm'), ['confirm' => '1'])->assertRedirect(route('dashboard'));
         $this->get(route('dashboard'))->assertOk();
 
         // The next sign-in asks again.
@@ -64,21 +60,19 @@ class OfficerProfileTest extends TestCase
         $this->get(route('dashboard'))->assertRedirect(route('profile.show'));
     }
 
-    public function test_the_department_changes_at_once_and_the_allotments_stay(): void
+    /**
+     * The department is read only on the profile (2026-10-29): a transfer is the
+     * Department Admin's release and the new department's choice.
+     */
+    public function test_the_department_is_shown_but_cannot_be_changed_here(): void
     {
-        $post = DepartmentPost::query()->create(['department_id' => $this->alpha->id, 'name' => 'Deputy Director', 'class_level' => 'I', 'status' => MasterStatus::Active->value]);
-        $ah = User::factory()->assignedTo($this->alpha, Role::AdministrativeHead)->create();
-        $proposal = app(PreDpcProposalService::class)->createDraft($this->alpha, $this->ao, ['dpc_year' => 2026, 'promotion_to_post_id' => $post->id]);
-        app(ProposalAllotmentService::class)->allot($proposal, $this->ao, $ah, null);
-
         $this->signIn($this->ao);
-        $this->post(route('profile.confirm'), ['department_id' => $this->beta->id, 'confirm' => '1'])->assertRedirect(route('dashboard'));
+        $this->get(route('profile.show'))->assertOk()->assertSee($this->alpha->name)
+            ->assertDontSee('name="department_id"', false)->assertSee(__('profile.department_help'));
 
-        $officer = $this->ao->fresh();
-        $this->assertSame($this->beta->id, $officer->department_id, 'Applied at once.');
-        $this->assertContains(Role::AuthorizedOfficer->value, $officer->grantedRoleNames());
-        $this->assertTrue(app(ProposalAllotmentService::class)->isAllotted($officer, $proposal, Role::AuthorizedOfficer), 'The allotment stays until the Department Admin changes it.');
-        $this->assertDatabaseHas('security_events', ['user_id' => $officer->id, 'event' => 'profile.department_changed']);
+        $this->post(route('profile.confirm'), ['department_id' => $this->beta->id, 'confirm' => '1'])->assertRedirect(route('dashboard'));
+        $this->assertSame($this->alpha->id, $this->ao->fresh()->department_id);
+        $this->assertDatabaseMissing('security_events', ['user_id' => $this->ao->id, 'event' => 'profile.department_changed']);
     }
 
     /**
