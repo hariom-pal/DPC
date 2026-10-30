@@ -123,7 +123,8 @@
 
         function suggest() {
             var term = email.value.trim();
-            if (term.length < 2) {
+            // From the first character typed (2026-10-30).
+            if (term.length < 1) {
                 hideList();
                 return;
             }

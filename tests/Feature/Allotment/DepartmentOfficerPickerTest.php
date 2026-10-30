@@ -56,7 +56,8 @@ class DepartmentOfficerPickerTest extends TestCase
         $this->other = Department::query()->create(['code' => 'HED', 'name' => 'Higher Education', 'status' => 'registered']);
         $this->admin = User::factory()->assignedTo($this->department, Role::DepartmentAdmin)->create();
         $this->post = DepartmentPost::query()->create(['department_id' => $this->department->id, 'name' => 'Executive Engineer', 'class_level' => 'I', 'status' => MasterStatus::Active->value]);
-        $this->designation = Designation::query()->create(['name' => 'Superintending Engineer', 'status' => MasterStatus::Active->value]);
+        // The designation the department has mapped (2026-10-30).
+        $this->designation = Designation::query()->create(['name' => 'Executive Engineer', 'status' => MasterStatus::Active->value]);
     }
 
     /**
@@ -95,6 +96,12 @@ class DepartmentOfficerPickerTest extends TestCase
         $emails = collect($this->getJson(route('department.officers.search', ['q' => 'officer']))->assertOk()->json('officers'))->pluck('email')->all();
         $this->assertEqualsCanonicalizing(['phe.officer@cg.gov.in', 'free.officer@cg.gov.in'], $emails);
         $this->assertSame([], $this->getJson(route('department.officers.search', ['q' => $this->admin->email]))->json('officers'));
+
+        // From the first character typed (2026-10-30), still own and released only.
+        $emails = collect($this->getJson(route('department.officers.search', ['q' => 'f']))->assertOk()->json('officers'))->pluck('email')->all();
+        $this->assertContains('free.officer@cg.gov.in', $emails);
+        $this->assertNotContains($this->admin->email, $emails);
+        $this->assertSame([], $this->getJson(route('department.officers.search', ['q' => ' ']))->json('officers'));
     }
 
     public function test_a_chosen_officers_mobile_changes_only_with_an_otp_to_the_new_number(): void
@@ -130,6 +137,13 @@ class DepartmentOfficerPickerTest extends TestCase
         $this->assertSame($this->designation->id, $own->fresh()->designation_id);
 
         $this->putJson(route('department.officers.designation', ['officer' => $key]), ['designation_id' => '999999'])->assertStatus(422);
+
+        // Only what the department has mapped: another department's post is refused and not offered.
+        $unmapped = Designation::query()->create(['name' => 'Professor', 'status' => MasterStatus::Active->value]);
+        DepartmentPost::query()->create(['department_id' => $this->other->id, 'name' => 'Professor', 'class_level' => 'I', 'status' => MasterStatus::Active->value]);
+        $this->putJson(route('department.officers.designation', ['officer' => $key]), ['designation_id' => (string) $unmapped->id])->assertStatus(422);
+        $this->postJson(route('department.officers.store'), $this->newOfficer(['designation_id' => (string) $unmapped->id]))->assertStatus(422)->assertJsonValidationErrors('designation_id');
+        $this->assertSame([$this->designation->id], Designation::query()->mappedIn($this->department->id)->pluck('id')->all());
         $this->putJson(route('department.officers.designation', ['officer' => $foreign->uuid]), ['designation_id' => (string) $this->designation->id])->assertForbidden();
     }
 

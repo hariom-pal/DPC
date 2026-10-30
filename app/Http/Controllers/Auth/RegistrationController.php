@@ -22,6 +22,7 @@ use App\Integrations\Contracts\DigiLockerProvider;
 use App\Integrations\DigiLocker\DigiLockerIdentity;
 use App\Integrations\DigiLocker\DigiLockerUnavailable;
 use Illuminate\Contracts\View\View;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -248,7 +249,7 @@ class RegistrationController extends Controller
 
         return view('auth.register-password', [
             'invitation' => $invitation, 'token' => $token, 'identity' => $state['identity'],
-            'designations' => Designation::query()->where('status', MasterStatus::Active->value)->orderBy('name')->get(['id', 'name']),
+            'designations' => $this->designations($invitation)->get(['id', 'name']),
         ]);
     }
 
@@ -262,6 +263,10 @@ class RegistrationController extends Controller
         }
 
         $identity = $state['identity'];
+
+        if (! $this->designations($invitation)->whereKey($request->integer('designation_id'))->exists()) {
+            throw ValidationException::withMessages(['designation_id' => __('validation.in', ['attribute' => __('invitations.register.post')])]);
+        }
 
         try {
             $this->invitations->register(
@@ -285,6 +290,22 @@ class RegistrationController extends Controller
         $request->session()->forget($this->key($invitation));
 
         return redirect()->route('login')->with('status', __('invitations.registered'));
+    }
+
+    /**
+     * The designations the Department Admin chooses from (2026-10-30): those the
+     * department has mapped, or — for a department with no mapping yet, whose
+     * Department Admin has still to map its posts — the whole active master.
+     *
+     * @return Builder<Designation>
+     */
+    private function designations(DepartmentInvitation $invitation): Builder
+    {
+        $mapped = Designation::query()->mappedIn((int) $invitation->department_id);
+
+        return (clone $mapped)->exists()
+            ? $mapped
+            : Designation::query()->where('status', MasterStatus::Active->value)->orderBy('name');
     }
 
     private function mayVerifyIdentity(Request $request, DepartmentInvitation $invitation): bool

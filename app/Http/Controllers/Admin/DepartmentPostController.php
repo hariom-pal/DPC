@@ -67,7 +67,8 @@ class DepartmentPostController extends Controller
             'posts' => $this->searched($request, DepartmentPost::query()
                 ->with(['department', 'payScale', 'orders'])
                 ->when($scope !== null, fn ($q) => $q->where('department_id', $scope))
-                ->orderByRaw('active_flag IS NULL')
+                // In force, then Draft / Inactive, then superseded (2026-10-30).
+                ->orderByRaw('CASE WHEN active_flag IS NOT NULL THEN 0 WHEN effective_to IS NULL THEN 1 ELSE 2 END')
                 ->orderBy('name')
                 ->orderByDesc('effective_from'), 'department-posts')
                 ->paginate(20)->withQueryString(),
@@ -127,6 +128,8 @@ class DepartmentPostController extends Controller
     public function edit(Request $request, DepartmentPost $post): View
     {
         $this->assertManages($request, $post);
+        // A superseded mapping is history; a new order supersedes the one in force.
+        abort_if($post->isSuperseded(), 403);
 
         return $this->page($request, 'admin.department-posts.form', $this->formData($post, $this->scope($request)));
     }
@@ -134,6 +137,7 @@ class DepartmentPostController extends Controller
     public function update(DepartmentPostRequest $request, DepartmentPost $post): RedirectResponse
     {
         $this->assertManages($request, $post);
+        abort_if($post->isSuperseded(), 403);
         $scope = $this->scope($request);
         abort_if($scope !== null && $request->integer('department_id') !== $scope, 403);
 

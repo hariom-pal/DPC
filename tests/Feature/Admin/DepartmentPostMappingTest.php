@@ -418,6 +418,41 @@ class DepartmentPostMappingTest extends TestCase
         $this->assertSame('31-08-2026', $old->effective_to?->format('d-m-Y'));
     }
 
+    /**
+     * A mapping saved as Draft is not in force, but it is not superseded either
+     * (2026-10-30): it keeps its status and stays editable.
+     */
+    public function test_a_draft_mapping_is_not_shown_as_superseded(): void
+    {
+        $this->actingAs($this->admin)
+            ->post(route('admin.department-posts.store'), $this->payload(['status' => MasterStatus::Draft->value]))
+            ->assertSessionHasNoErrors();
+        $draft = DepartmentPost::query()->latest('id')->firstOrFail();
+
+        $this->assertFalse($draft->isInForce());
+        $this->assertFalse($draft->isSuperseded());
+
+        $this->get(route('admin.department-posts.index'))->assertOk()
+            ->assertDontSee(__('admin.department_posts.show.superseded'))
+            ->assertSee(route('admin.department-posts.edit', $draft), false);
+        $this->get(route('admin.department-posts.show', $draft))->assertOk()
+            ->assertDontSee(__('admin.department_posts.show.superseded'));
+        $this->get(route('admin.department-posts.edit', $draft))->assertOk();
+
+        // Activated later from its own edit form.
+        $this->put(route('admin.department-posts.update', $draft), $this->payload(['status' => MasterStatus::Active->value, 'orders' => []]))
+            ->assertSessionHasNoErrors();
+        $this->assertTrue($draft->fresh()->isInForce());
+
+        // A superseded mapping is history: not editable.
+        $this->post(route('admin.department-posts.supersede', $draft), [
+            'class_level' => 'I', 'pay_scale_id' => $this->level13->id, 'promotion_duration_years' => 6,
+            'government_order_number' => 'F-45/2026', 'government_order_date' => '2026-08-01', 'effective_from' => '2026-09-01',
+        ])->assertSessionHasNoErrors();
+        $this->assertTrue($draft->fresh()->isSuperseded());
+        $this->get(route('admin.department-posts.edit', $draft))->assertForbidden();
+    }
+
     public function test_only_one_mapping_is_in_force_at_a_time(): void
     {
         $post = $this->mapping();

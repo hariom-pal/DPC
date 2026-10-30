@@ -19,8 +19,12 @@
                 <a href="{{ route($routePrefix.'.supersede.form', $post) }}" class="btn btn-warning btn-sm">
                     {{ __('admin.department_posts.show.supersede') }}
                 </a>
-            @else
+            @elseif ($post->isSuperseded())
                 <span class="badge text-bg-secondary align-self-center">{{ __('admin.department_posts.show.superseded') }}</span>
+            @else
+                {{-- A Draft or Inactive mapping: not in force, still editable (2026-10-30). --}}
+                <x-status-badge :status="$post->status" />
+                <a href="{{ route($routePrefix.'.edit', $post) }}" class="btn btn-outline-primary btn-sm">{{ __('ui.edit') }}</a>
             @endif
             <a href="{{ route($routePrefix.'.index') }}" class="btn btn-outline-secondary btn-sm">{{ __('ui.back_to_list') }}</a>
         </div>

@@ -30,7 +30,7 @@
                         {{-- Superseded mappings are dimmed rather than hidden: they
                              are why an old DPC can still be audited, so they belong
                              on the screen — just visibly behind the one in force. --}}
-                        <tr @class(['table-light text-body-secondary' => ! $post->isInForce()])>
+                        <tr @class(['table-light text-body-secondary' => $post->isSuperseded()])>
                             <td>
                                 <a href="{{ route($routePrefix.'.show', $post) }}" class="fw-semibold text-decoration-none">{{ $post->name }}</a>
                                 <div class="small text-muted">{{ $post->department?->name }}</div>
@@ -40,22 +40,22 @@
                                 <div class="text-muted">{{ $post->payScale?->label ?? '—' }}</div>
                             </td>
                             <td>
-                                @if ($post->isInForce())
-                                    <x-status-badge :status="$post->status" />
-                                @else
+                                @if ($post->isSuperseded())
                                     <span class="badge text-bg-secondary">{{ __('admin.department_posts.show.superseded') }}</span>
+                                @else
+                                    <x-status-badge :status="$post->status" />
                                 @endif
                             </td>
                             <td class="text-end text-nowrap">
                                 <a href="{{ route($routePrefix.'.show', $post) }}" class="btn btn-outline-secondary btn-sm">{{ __('ui.view') }}</a>
-                                @if ($post->isInForce())
+                                @unless ($post->isSuperseded())
                                     <a href="{{ route($routePrefix.'.edit', $post) }}" class="btn btn-outline-primary btn-sm">{{ __('ui.edit') }}</a>
                                     <form method="POST" action="{{ route($routePrefix.'.destroy', $post) }}" class="d-inline"
                                           data-confirm="{{ __('admin.department_posts.index.delete_this_post') }}">
                                         @csrf @method('DELETE')
                                         <button class="btn btn-outline-danger btn-sm">{{ __('ui.delete') }}</button>
                                     </form>
-                                @endif
+                                @endunless
                             </td>
                         </tr>
                     @empty

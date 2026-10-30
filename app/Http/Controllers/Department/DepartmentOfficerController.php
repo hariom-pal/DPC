@@ -11,11 +11,11 @@ use App\Domain\Authentication\Models\User;
 use App\Domain\Authentication\Services\OtpService;
 use App\Domain\Authentication\Services\SecurityLog;
 use App\Domain\Identity\Models\IdentityCorrection;
+use App\Domain\Master\Models\Designation;
 use App\Domain\Shared\Services\ActivityTimelineService;
 use App\Domain\UserManagement\Services\DepartmentUserAuthority;
 use App\Domain\UserManagement\Services\OfficerPool;
 use App\Domain\UserManagement\Services\UserProvisioningService;
-use App\Enums\MasterStatus;
 use App\Enums\OtpChannel;
 use App\Enums\OtpPurpose;
 use App\Enums\Role;
@@ -57,7 +57,7 @@ class DepartmentOfficerController extends Controller
         $admin = $this->admin($request);
         $term = mb_strtolower(trim((string) $request->query('q')));
 
-        if (mb_strlen($term) < 2) {
+        if ($term === '') {
             return response()->json(['officers' => []]);
         }
 
@@ -162,7 +162,7 @@ class DepartmentOfficerController extends Controller
         $admin = $this->admin($request);
         abort_unless($this->pool->isSelectable($officer, (int) $admin->department_id), 403);
 
-        $data = $this->validated($request, ['designation_id' => $this->designationRule()]);
+        $data = $this->validated($request, ['designation_id' => $this->designationRule((int) $admin->department_id)]);
         if ($data instanceof JsonResponse) {
             return $data;
         }
@@ -211,7 +211,7 @@ class DepartmentOfficerController extends Controller
             'gender' => ['required', 'in:M,F'],
             'date_of_birth' => ['required', 'date', 'before:today', 'after:1940-01-01'],
             'role' => ['required', Rule::in(Role::departmentManageableValues())],
-            'designation_id' => $this->designationRule(),
+            'designation_id' => $this->designationRule((int) $admin->department_id),
             'email_code' => ['required', $digits],
             'mobile_code' => ['required', $digits],
         ]);
@@ -383,13 +383,14 @@ class DepartmentOfficerController extends Controller
     }
 
     /**
-     * A post from the Post (Designation) master (MoM of 2026-10-29).
+     * A designation the department has mapped (MoM of 2026-10-29; mapped only,
+     * 2026-10-30).
      *
      * @return array<int, mixed>
      */
-    private function designationRule(): array
+    private function designationRule(int $departmentId): array
     {
-        return ['required', 'integer', Rule::exists('designations', 'id')->where('status', MasterStatus::Active->value)->whereNull('deleted_at')];
+        return ['required', 'integer', Rule::in(Designation::query()->mappedIn($departmentId)->pluck('id')->all())];
     }
 
     /**

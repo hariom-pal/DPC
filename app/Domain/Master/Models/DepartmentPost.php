@@ -183,12 +183,23 @@ class DepartmentPost extends Model implements Auditable
      */
     public function scopeSuperseded(Builder $query): Builder
     {
-        return $query->whereNull('active_flag');
+        return $query->whereNull('active_flag')->whereNotNull('effective_to');
     }
 
     public function isInForce(): bool
     {
         return $this->active_flag !== null;
+    }
+
+    /**
+     * Closed by a successor (DepartmentPostMappingService::supersede(), which
+     * sets `effective_to`). A Draft or Inactive mapping is not in force either,
+     * but it is not superseded: it stays editable (2026-10-30 — a saved draft
+     * was shown as Superseded, with no way to edit it).
+     */
+    public function isSuperseded(): bool
+    {
+        return $this->active_flag === null && $this->effective_to !== null;
     }
 
     /**

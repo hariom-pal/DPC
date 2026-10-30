@@ -7,6 +7,7 @@ namespace Tests\Feature\Auth;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Department\Models\Department;
 use App\Domain\Department\Models\DepartmentInvitation;
+use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\Designation;
 use App\Domain\Master\Models\District;
 use App\Enums\DepartmentStatus;
@@ -152,6 +153,40 @@ class RegistrationTest extends TestCase
         $this->post(route('login.store'), ['login' => $admin->email, 'password' => 'Dept@Admin2026'])->assertRedirect(route('verify.show'));
         $this->passSignInChallenge()->assertRedirect(route('dashboard'));
         $this->assertAuthenticatedAs($admin);
+    }
+
+    /**
+     * The designation is one the department has mapped, once it has mapped any
+     * (2026-10-30).
+     */
+    public function test_the_department_admin_chooses_a_designation_the_department_has_mapped(): void
+    {
+        $mapped = Designation::query()->create(['name' => 'Chief Engineer', 'status' => 'active']);
+        $unmapped = Designation::query()->create(['name' => 'Professor', 'status' => 'active']);
+        DepartmentPost::query()->create(['department_id' => $this->department->id, 'name' => 'Chief Engineer', 'class_level' => 'I', 'status' => 'active']);
+
+        $this->invite()->assertSessionHasNoErrors();
+        $token = $this->tokenFromMail();
+        $this->register($token)->assertRedirect(route('register.invitation.identity', ['token' => $token]));
+
+        $start = $this->post(route('register.invitation.identity.start', ['token' => $token]));
+        parse_str((string) parse_url((string) $start->headers->get('Location'), PHP_URL_QUERY), $query);
+        $callback = $this->post(route('identity.simulator.submit'), [
+            'state' => (string) ($query['state'] ?? ''), 'decision' => 'allow',
+            'name' => 'Shri D. Admin', 'date_of_birth' => '1978-01-20', 'gender' => 'M', 'aadhaar_verified' => '1',
+        ]);
+        $this->get((string) $callback->headers->get('Location'))->assertRedirect(route('register.invitation.password', ['token' => $token]));
+
+        $this->get(route('register.invitation.password', ['token' => $token]))->assertOk()
+            ->assertSee('Chief Engineer')->assertDontSee('>Professor<', false);
+
+        $password = ['password' => 'Dept@Admin2026', 'password_confirmation' => 'Dept@Admin2026'];
+        $this->post(route('register.invitation.complete', ['token' => $token]), $password + ['designation_id' => (string) $unmapped->id])
+            ->assertSessionHasErrors('designation_id');
+        $this->post(route('register.invitation.complete', ['token' => $token]), $password + ['designation_id' => (string) $mapped->id])
+            ->assertRedirect(route('login'));
+
+        $this->assertSame($mapped->id, User::query()->where('email', 'phe.dpc@cg.gov.in')->sole()->designation_id);
     }
 
     public function test_the_mobile_otp_is_sent_and_checked_when_the_sms_gateway_is_available(): void
