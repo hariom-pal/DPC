@@ -35,6 +35,8 @@ use Database\Seeders\QualificationSeeder;
  */
 final class QualificationCatalogue
 {
+    public const NOT_APPLICABLE = 'NA';
+
     /**
      * @var list<array{code:string, name_en:string, name_hi:string, description:string}>
      */
@@ -140,6 +142,13 @@ final class QualificationCatalogue
             'name_en' => 'Ph.D.',
             'name_hi' => 'पी-एच.डी.',
             'description' => 'Doctor of Philosophy.',
+        ],
+        // Last in every dropdown (MoM of 2026-10-29): the rule names no qualification.
+        [
+            'code' => self::NOT_APPLICABLE,
+            'name_en' => 'NA',
+            'name_hi' => 'लागू नहीं',
+            'description' => 'Not applicable — the recruitment rule names no qualification for this feeder.',
         ],
     ];
 

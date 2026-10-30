@@ -86,7 +86,9 @@ class DepartmentPostRequest extends FormRequest
                     ->ignore($id),
             ],
             'class_level' => ['required', new Enum(ServiceClass::class)],
-            'pay_scale_id' => ['nullable', Rule::exists('pay_scales', 'id')],
+            // Required (MoM of 2026-10-29): a Pre-DPC promotes only to a higher
+            // pay scale, so every post's class and scale must be mapped.
+            'pay_scale_id' => ['required', Rule::exists('pay_scales', 'id')],
 
             /*
              | Promotion Duration — the qualifying service a feeder must have on

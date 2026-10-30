@@ -98,7 +98,9 @@ class DpcProposalWorkflowTest extends TestCase
         $this->assertSame('DPC-2026-HE-0001', $proposal->dpc_code);
 
         // Decision 1 — exactly one of each, not five.
-        $this->assertSame(1, Signature::query()->where('signable_type', $proposal->getMorphClass())->where('signable_id', $proposal->id)->count());
+        $this->assertSame(1, Signature::query()->where('signable_type', $proposal->getMorphClass())->where('signable_id', $proposal->id)->where('signed_path', 'not like', '%-submission.txt')->count());
+        // The AO eSigned the submission (MoM of 2026-10-29).
+        $this->assertSame(1, Signature::query()->where('signable_type', $proposal->getMorphClass())->where('signable_id', $proposal->id)->where('signed_path', 'like', '%-submission.txt')->count());
         $this->assertSame(1, WorkflowTransition::query()->where('workflow', 'dpc_proposal')->where('event', 'approve')->where('subject_id', $proposal->id)->count());
         $this->assertSame(1, DB::table('activity_timelines')->where('event', 'dpc_proposal.approve')->where('subject_id', $proposal->id)->count());
         // Exactly one audit row records the approval itself (a separate,

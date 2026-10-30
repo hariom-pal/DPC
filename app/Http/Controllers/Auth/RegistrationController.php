@@ -13,6 +13,8 @@ use App\Domain\Department\Exceptions\InvitationRefused;
 use App\Domain\Department\Models\DepartmentInvitation;
 use App\Domain\Department\Services\DepartmentInvitationService;
 use App\Domain\Identity\Models\IdentityVerification;
+use App\Domain\Master\Models\Designation;
+use App\Enums\MasterStatus;
 use App\Enums\OtpChannel;
 use App\Enums\OtpPurpose;
 use App\Http\Controllers\Controller;
@@ -244,7 +246,10 @@ class RegistrationController extends Controller
             return redirect()->route('register.invitation', ['token' => $token]);
         }
 
-        return view('auth.register-password', ['invitation' => $invitation, 'token' => $token, 'identity' => $state['identity']]);
+        return view('auth.register-password', [
+            'invitation' => $invitation, 'token' => $token, 'identity' => $state['identity'],
+            'designations' => Designation::query()->where('status', MasterStatus::Active->value)->orderBy('name')->get(['id', 'name']),
+        ]);
     }
 
     public function complete(CompleteInvitedRegistrationRequest $request, string $token): RedirectResponse
@@ -271,6 +276,7 @@ class RegistrationController extends Controller
                 ),
                 (string) $identity['method'],
                 (string) $request->input('password'),
+                $request->integer('designation_id'),
             );
         } catch (InvitationRefused $e) {
             throw ValidationException::withMessages(['password' => $e->getMessage()]);

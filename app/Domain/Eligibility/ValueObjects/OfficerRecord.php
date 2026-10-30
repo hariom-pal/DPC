@@ -6,6 +6,7 @@ namespace App\Domain\Eligibility\ValueObjects;
 
 use App\Domain\Dpc\Models\DpcEvaluationRecordGap;
 use App\Domain\Dpc\Models\DpcEvaluationRow;
+use App\Domain\Master\Data\QualificationCatalogue;
 use App\Domain\Master\Models\RecruitmentRuleSource;
 use Illuminate\Support\Str;
 
@@ -164,9 +165,10 @@ final class OfficerRecord
             justifiedCrGapYears: $crGaps,
             justifiedLoyaltyGapYears: $loyaltyGaps,
             qualification: $row->qualification,
+            // "NA" names no qualification, so it requires none (2026-10-30).
             requiredQualifications: $source === null
                 ? []
-                : $source->qualifications->pluck('name_en')->all(),
+                : $source->qualifications->where('code', '!=', QualificationCatalogue::NOT_APPLICABLE)->pluck('name_en')->values()->all(),
             serviceMonthsOnFeederPost: self::monthsOnFeederPost($row),
 
             /*

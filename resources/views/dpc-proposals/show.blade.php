@@ -149,7 +149,8 @@
                 <div class="card-body d-flex flex-wrap gap-2">
                     @if ($proposal->status->isEditable() && $isAO)
                         <a href="{{ route('dpc-proposals.edit', $proposal) }}" class="btn btn-outline-primary btn-sm">{{ __('ui.edit') }}</a>
-                        <form method="POST" action="{{ route('dpc-proposals.submit', $proposal) }}">@csrf<button class="btn btn-success btn-sm">{{ __('ui.submit_for_approval') }}</button></form>
+                        {{-- eSigned by the AO (MoM of 2026-10-29). --}}
+                        <a href="{{ route('esign.show', ['kind' => 'dpc-submit', 'uuid' => $proposal->uuid]) }}" class="btn btn-success btn-sm" data-esign>{{ __('esign.button.submit') }}</a>
                         <form method="POST" action="{{ route('dpc-proposals.cancel', $proposal) }}" data-confirm="{{ __('ui.cancel_this_proposal') }}">@csrf<button class="btn btn-outline-danger btn-sm">{{ __('ui.cancel') }}</button></form>
                     @endif
 

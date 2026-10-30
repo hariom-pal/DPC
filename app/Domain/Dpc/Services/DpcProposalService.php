@@ -619,31 +619,59 @@ class DpcProposalService
             );
         }
 
-        DB::transaction(function () use ($proposal, $actor, $request): void {
-            $locked = $this->lock($proposal);
-            $from = $locked->status->value;
-            $def = $this->engine->assertAllowed('dpc_proposal', 'submit', $from, $actor);
+        $this->assertSignatureAvailable();
 
-            $locked->forceFill([
-                'status' => DpcProposalStatus::Submitted->value,
-                'submitted_at' => now(),
-                'prepared_by' => $actor->id,
+        // The AO eSigns the submission (MoM of 2026-10-29), as the AH eSigns the
+        // approval: a failed or mismatched eSign submits nothing.
+        try {
+            DB::transaction(function () use ($proposal, $actor, $request): void {
+                $this->submitSigned($proposal, $actor, $request);
+            });
+        } catch (SignatureVerificationFailed $e) {
+            app(SecurityLog::class)->record('esign.'.$e->reason, $actor, context: ['subject' => 'dpc_proposal', 'id' => $proposal->id, 'action' => 'submit']);
+            app(SignatureAttemptLog::class)->record($actor, $proposal, 'submit', $e->reason, $e->assertedName);
 
-                // The finalized Vacancy Master position this submission was
-                // reconciled against, if one exists — so a later revision of the
-                // position does not change what the proposal was checked with.
-                'vacancy_position_id' => app(VacancyMasterService::class)->finalizedForProposal($locked)?->id,
-            ])->save();
-
-            // Item 18: the revision records that it was submitted, by whom and
-            // when. The proposal's own `submitted_at` is the *latest* submission;
-            // the revision row is the one that will not be overwritten by the next.
-            $this->revisions->recordSubmission($locked, $actor);
-
-            $this->engine->record($locked, 'dpc_proposal', 'submit', $from, $def, $actor, $request, null, null, $locked->department_id);
-        });
+            throw new WorkflowException($e->getMessage());
+        }
 
         $proposal->refresh();
+    }
+
+    private function submitSigned(DpcProposal $proposal, User $actor, Request $request): void
+    {
+        $locked = $this->lock($proposal);
+        $from = $locked->status->value;
+        $def = $this->engine->assertAllowed('dpc_proposal', 'submit', $from, $actor);
+
+        if (! $this->allotments->isAllotted($actor, $locked, Role::AuthorizedOfficer)) {
+            throw new WorkflowException((string) __('esign.errors.not_current_officer'));
+        }
+
+        $signature = $this->signatures->signVerified(
+            $actor,
+            $locked,
+            $this->renderDocument($locked),
+            "dpc-proposal-{$locked->id}-submission.txt",
+            ['action' => 'submit'],
+        );
+
+        $locked->forceFill([
+            'status' => DpcProposalStatus::Submitted->value,
+            'submitted_at' => now(),
+            'prepared_by' => $actor->id,
+
+            // The finalized Vacancy Master position this submission was
+            // reconciled against, if one exists — so a later revision of the
+            // position does not change what the proposal was checked with.
+            'vacancy_position_id' => app(VacancyMasterService::class)->finalizedForProposal($locked)?->id,
+        ])->save();
+
+        // Item 18: the revision records that it was submitted, by whom and
+        // when. The proposal's own `submitted_at` is the *latest* submission;
+        // the revision row is the one that will not be overwritten by the next.
+        $this->revisions->recordSubmission($locked, $actor);
+
+        $this->engine->record($locked, 'dpc_proposal', 'submit', $from, $def, $actor, $request, null, $signature->id, $locked->department_id);
     }
 
     public function approve(DpcProposal $proposal, User $actor, Request $request): void

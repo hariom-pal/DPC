@@ -7,6 +7,7 @@ namespace Tests\Feature\Auth;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Department\Models\Department;
 use App\Domain\Department\Models\DepartmentInvitation;
+use App\Domain\Master\Models\Designation;
 use App\Domain\Master\Models\District;
 use App\Enums\DepartmentStatus;
 use App\Enums\Role;
@@ -97,7 +98,7 @@ class RegistrationTest extends TestCase
         ]);
         $this->get((string) $callback->headers->get('Location'))->assertRedirect(route('register.invitation.password', ['token' => $token]));
 
-        return $this->post(route('register.invitation.complete', ['token' => $token]), ['password' => 'Dept@Admin2026', 'password_confirmation' => 'Dept@Admin2026']);
+        return $this->post(route('register.invitation.complete', ['token' => $token]), ['password' => 'Dept@Admin2026', 'password_confirmation' => 'Dept@Admin2026', 'designation_id' => (string) Designation::query()->firstOrCreate(['name' => 'Deputy Secretary'], ['status' => 'active'])->id]);
     }
 
     public function test_register_without_an_invitation_offers_nothing(): void

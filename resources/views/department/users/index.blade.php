@@ -38,9 +38,18 @@
                                     <form method="POST" action="{{ route('department.users.release', $officer) }}" class="d-flex gap-1 justify-content-end"
                                           data-confirm="{{ __('department.users.release.confirm') }}">
                                         @csrf
+                                        {{-- A reason from the list, and the eSign (MoM of 2026-10-29). --}}
                                         <label class="visually-hidden" for="reason-{{ $officer->id }}">{{ __('department.users.release.reason') }}</label>
-                                        <input type="text" class="form-control form-control-sm" id="reason-{{ $officer->id }}" name="reason" maxlength="500" required
-                                               placeholder="{{ __('department.users.release.reason') }}" style="min-width: 14rem">
+                                        <select class="form-select form-select-sm" id="reason-{{ $officer->id }}" name="reason" required style="min-width: 14rem">
+                                            <option value="">{{ __('department.users.release.reason') }}</option>
+                                            @foreach (\App\Enums\OfficerChangeReason::cases() as $reason)
+                                                <option value="{{ $reason->value }}">{{ $reason->label() }}</option>
+                                            @endforeach
+                                        </select>
+                                        <div class="form-check form-check-inline small text-nowrap align-self-center me-0">
+                                            <input class="form-check-input" type="checkbox" name="consent" value="1" id="consent-{{ $officer->id }}" required>
+                                            <label class="form-check-label" for="consent-{{ $officer->id }}">{{ __('department.users.release.esign') }}</label>
+                                        </div>
                                         <button type="submit" class="btn btn-outline-danger btn-sm">{{ __('department.users.release.button') }}</button>
                                     </form>
                                 @endif

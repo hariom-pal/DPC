@@ -11,6 +11,7 @@ use App\Domain\Dpc\Enums\DpcProposalStatus;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\DpcType;
+use App\Domain\Master\Models\PayScale;
 use App\Domain\PreDpc\Models\PreDpcProposal;
 use App\Enums\Role;
 use Database\Seeders\LookupMasterSeeder;
@@ -64,13 +65,16 @@ class RoleBasedUiVisibilityTest extends TestCase
 
         // A Pre-DPC names two existing posts since change items 8-11, so both must
         // be registered before anything can be drafted.
+        // Each on a scale, the feeder's lower (MoM of 2026-10-29).
         $this->postFrom = DepartmentPost::query()->create([
             'department_id' => $department->id, 'name' => 'Under Secretary',
             'class_level' => 'I', 'promotion_duration_years' => 5, 'status' => 'active',
+            'pay_scale_id' => PayScale::query()->create(['code' => 'L10', 'label' => 'Level-10', 'minimum_pay' => 56100, 'status' => 'active'])->id,
         ]);
         $this->postTo = DepartmentPost::query()->create([
             'department_id' => $department->id, 'name' => 'Deputy Secretary',
             'class_level' => 'I', 'status' => 'active',
+            'pay_scale_id' => PayScale::query()->create(['code' => 'L12', 'label' => 'Level-12', 'minimum_pay' => 78800, 'status' => 'active'])->id,
         ]);
 
         $this->ao = User::factory()->assignedTo($department->id, Role::AuthorizedOfficer)->create();
@@ -218,7 +222,7 @@ class RoleBasedUiVisibilityTest extends TestCase
 
         // SUBMITTED: it flips — approval and return appear for the AH, and the
         // AO's authoring actions go away.
-        $this->actingAs($this->ao)->post(route('pre-dpc.submit', $draft));
+        $this->actingAs($this->ao)->post(route('pre-dpc.submit', $draft), ['declaration' => '1']);
 
         $this->actingAs($this->ah)->get(route('pre-dpc.show', $draft->fresh()))
             ->assertOk()

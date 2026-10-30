@@ -7,6 +7,7 @@ namespace Tests\Feature\Admin;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Department\Models\Department;
 use App\Domain\Master\Models\DepartmentPost;
+use App\Domain\Master\Models\PayScale;
 use App\Domain\Master\Models\ReservationCategory;
 use App\Domain\Master\Models\ReservationRoster;
 use App\Enums\MasterStatus;
@@ -42,6 +43,8 @@ class ReservationHierarchyTest extends TestCase
                 'department_id' => $department->id,
                 'name' => 'Additional Director',
                 'class_level' => ServiceClass::I->value,
+                // Required since the MoM of 2026-10-29.
+                'pay_scale_id' => (string) PayScale::query()->firstOrCreate(['label' => 'Level-12 (78800-209200)'], ['code' => 'L12', 'minimum_pay' => 78800, 'status' => MasterStatus::Active->value])->id,
                 'status' => MasterStatus::Active->value,
 
                 // A mapping is effective-dated since 2026-08-25 — it is what a

@@ -25,7 +25,7 @@ class QualificationController extends Controller
         return view('admin.qualifications.index', [
             'qualifications' => $this->searched($request, Qualification::query()
                 ->withCount('recruitmentRuleSources')
-                ->orderBy('name_en'), 'qualifications')
+                ->inDropdownOrder(), 'qualifications')
                 ->paginate(20)->withQueryString(),
         ]);
     }

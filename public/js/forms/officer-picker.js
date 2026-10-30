@@ -1,7 +1,7 @@
 // The AO / AH picker on the allotment screens (2026-10-28, reworked 2026-10-29).
 // As the e-mail is typed, the department's own officers and released officers are
 // suggested. A chosen officer fills the details form read-only, except the mobile,
-// which changes only after an OTP to the new number. An e-mail nobody has opens
+// which changes only after an OTP to the new number, and the post (2026-10-30). An e-mail nobody has opens
 // the same form empty, to add the officer after the e-mail and mobile OTPs.
 (function () {
     'use strict';
@@ -54,7 +54,7 @@
         var message = get('picker-message');
         var list = get('picker-suggestions');
         var details = get('picker-details');
-        var fields = { name: get('picker-name'), mobile: get('picker-mobile'), gender: get('picker-gender'), dob: get('picker-dob') };
+        var fields = { name: get('picker-name'), mobile: get('picker-mobile'), gender: get('picker-gender'), dob: get('picker-dob'), designation: get('picker-designation') };
         var data = picker.dataset;
         var chosen = null;
         var timer = null;
@@ -85,6 +85,8 @@
             fields.mobile.value = existing ? officer.mobile || '' : '';
             fields.gender.value = existing ? officer.gender || '' : '';
             fields.dob.value = existing ? officer.date_of_birth || '' : '';
+            fields.designation.value = existing && officer.designation_id ? String(officer.designation_id) : '';
+            get('picker-designation-save').classList.add('d-none');
             fields.name.readOnly = existing;
             fields.dob.readOnly = existing;
             fields.gender.disabled = existing;
@@ -236,6 +238,24 @@
             }
         });
 
+        // A chosen officer's post (MoM of 2026-10-29): saved as chosen, no OTP.
+        fields.designation.addEventListener('change', function () {
+            if (chosen) {
+                get('picker-designation-save').classList.toggle('d-none', fields.designation.value === String(chosen.designation_id || ''));
+            }
+        });
+
+        get('picker-designation-save').addEventListener('click', function () {
+            request(url(data.designationUrl, chosen.key), 'PUT', { designation_id: fields.designation.value }).then(function (answer) {
+                if (!answer.ok) {
+                    text(message, firstError(answer.data, data.msgError), 'danger');
+                    return;
+                }
+                choose(answer.data);
+                text(message, answer.data.message, 'success');
+            }).catch(function () { text(message, data.msgError, 'danger'); });
+        });
+
         get('picker-mobile-send').addEventListener('click', function () {
             request(url(data.mobileOtpUrl, chosen.key), 'POST', { mobile: fields.mobile.value.trim() }).then(function (answer) {
                 text(message, answer.ok ? answer.data.message : firstError(answer.data, data.msgError), answer.ok ? 'success' : 'danger');
@@ -269,6 +289,7 @@
             body.name = fields.name.value.trim();
             body.gender = fields.gender.value;
             body.date_of_birth = fields.dob.value;
+            body.designation_id = fields.designation.value;
             body.role = data.role;
             body.email_code = get('picker-email-code').value.trim();
             body.mobile_code = get('picker-mobile-code').value.trim();

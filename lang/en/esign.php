@@ -14,6 +14,7 @@ return [
         'title_pre-dpc-submit' => 'eSign and submit the Pre-DPC',
         'title_pre-dpc-approve' => 'eSign and approve the Pre-DPC',
         'title_dpc-approve' => 'eSign and approve the DPC',
+        'title_dpc-submit' => 'eSign and submit the DPC proposal',
         'lead' => 'Every submission and approval is signed with a fresh eSign; an earlier eSign never counts for this one.',
         'what' => 'What you are signing',
         'document' => 'Document',
@@ -49,5 +50,6 @@ return [
         'not_correlated' => 'The eSign response does not belong to this document and request. Nothing was submitted or approved.',
         'replayed' => 'This eSign transaction has already been used. Sign again.',
         'not_current_officer' => 'You are no longer the officer allotted to this proposal in this role.',
+        'unavailable' => 'Digital signing is unavailable on this environment. Contact the system administrator.',
     ],
 ];

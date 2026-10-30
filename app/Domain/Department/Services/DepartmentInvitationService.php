@@ -175,8 +175,9 @@ class DepartmentInvitationService
         DigiLockerIdentity $identity,
         string $method,
         #[SensitiveParameter] string $password,
+        ?int $designationId = null,
     ): User {
-        return DB::transaction(function () use ($invitation, $mobile, $identity, $method, $password): User {
+        return DB::transaction(function () use ($invitation, $mobile, $identity, $method, $password, $designationId): User {
             $invitation = $this->lockPending($invitation);
 
             if (! $identity->aadhaarVerified) {
@@ -212,6 +213,10 @@ class DepartmentInvitationService
                 'identity_verified_at' => now(),
                 'identity_verification_method' => $method,
             ]);
+            // The post the Department Admin chose (MoM of 2026-10-29).
+            if ($designationId !== null) {
+                $user->designation_id = $designationId;
+            }
             $user->password = Hash::make($password);
             $user->save();
 

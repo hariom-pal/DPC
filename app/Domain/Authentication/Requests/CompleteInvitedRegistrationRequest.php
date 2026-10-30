@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Domain\Authentication\Requests;
 
+use App\Enums\MasterStatus;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 
 /**
@@ -27,6 +29,8 @@ class CompleteInvitedRegistrationRequest extends FormRequest
         // The last step (2026-10-27): the OTPs and DigiLocker are behind it.
         return [
             'password' => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()->symbols()],
+            // The Department Admin's post, from the Post (Designation) master (MoM of 2026-10-29).
+            'designation_id' => ['required', 'integer', Rule::exists('designations', 'id')->where('status', MasterStatus::Active->value)->whereNull('deleted_at')],
         ];
     }
 }

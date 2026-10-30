@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Domain\PreDpc\Requests;
 
 use App\Domain\Eligibility\Services\PromotionHierarchyService;
+use App\Domain\Master\Data\QualificationCatalogue;
 use App\Domain\Master\Enums\ExperienceUnit;
 use App\Domain\Master\Models\DepartmentPost;
+use App\Domain\Master\Models\Qualification;
 use App\Domain\PreDpc\Models\PreDpcProposal;
 use App\Enums\MasterStatus;
 use Illuminate\Contracts\Validation\Validator;
@@ -150,8 +152,10 @@ class SavePreDpcProposalRequest extends FormRequest
 
             $this->assertSplitTotalsOneHundred($validator);
             $this->assertSourcesAreDistinct($validator);
+            $this->assertNotApplicableStandsAlone($validator);
             $this->assertSourceSharesTotalOneHundred($validator);
             $this->assertEveryFeederPromotesUpward($validator);
+            $this->assertPayScaleRises($validator);
             $this->assertExerciseIsNotAlreadyActive($validator);
         });
     }
@@ -220,6 +224,78 @@ class SavePreDpcProposalRequest extends FormRequest
                     'reason' => implode(' ', $verdict['failures']),
                 ]),
             );
+        }
+    }
+
+    /**
+     * A promotion only from a lower pay scale to a higher one (MoM of 2026-10-29),
+     * judged on the scales' entry pay. A post with no scale mapped, or a scale with
+     * no entry pay, is refused: it cannot be shown to rise.
+     */
+    private function assertPayScaleRises(Validator $validator): void
+    {
+        $to = DepartmentPost::query()->with('payScale')->find((int) $this->input('promotion_to_post_id', 0));
+
+        if ($to === null) {
+            return;
+        }
+
+        $toPay = $this->entryPay($validator, $to, 'promotion_to_post_id');
+
+        foreach ((array) $this->input('promotion_sources', []) as $index => $source) {
+            $from = DepartmentPost::query()->with('payScale')->find((int) ($source['promotion_from_post_id'] ?? 0));
+            $field = "promotion_sources.{$index}.promotion_from_post_id";
+
+            if ($from === null) {
+                continue;
+            }
+
+            $fromPay = $this->entryPay($validator, $from, $field);
+
+            if ($toPay !== null && $fromPay !== null && $toPay <= $fromPay && ! $validator->errors()->has($field)) {
+                $validator->errors()->add($field, __('predpc.validation.pay_scale_not_higher', [
+                    'from' => $from->name, 'from_scale' => $from->payScale?->label,
+                    'to' => $to->name, 'to_scale' => $to->payScale?->label,
+                ]));
+            }
+        }
+    }
+
+    private function entryPay(Validator $validator, DepartmentPost $post, string $field): ?int
+    {
+        if ($post->payScale === null) {
+            $validator->errors()->add($field, __('predpc.validation.pay_scale_not_mapped', ['post' => $post->name]));
+
+            return null;
+        }
+
+        if ($post->payScale->minimum_pay === null) {
+            $validator->errors()->add($field, __('predpc.validation.pay_scale_no_entry_pay', ['scale' => $post->payScale->label]));
+
+            return null;
+        }
+
+        return $post->payScale->minimum_pay;
+    }
+
+    /**
+     * "NA" says the rule names no qualification, so it is chosen alone
+     * (MoM of 2026-10-29).
+     */
+    private function assertNotApplicableStandsAlone(Validator $validator): void
+    {
+        $notApplicable = Qualification::query()->where('code', QualificationCatalogue::NOT_APPLICABLE)->value('id');
+
+        if ($notApplicable === null) {
+            return;
+        }
+
+        foreach ((array) $this->input('promotion_sources', []) as $index => $source) {
+            $ids = array_map('intval', (array) ($source['qualification_ids'] ?? []));
+
+            if (count($ids) > 1 && in_array((int) $notApplicable, $ids, true)) {
+                $validator->errors()->add("promotion_sources.{$index}.qualification_ids", __('predpc.validation.na_stands_alone'));
+            }
         }
     }
 

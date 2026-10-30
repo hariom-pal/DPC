@@ -10,6 +10,7 @@ use App\Domain\Department\Models\DepartmentInvitation;
 use App\Domain\Identity\Models\IdentityCorrection;
 use App\Domain\Identity\Models\IdentityVerification;
 use App\Domain\Master\Models\DepartmentPost;
+use App\Domain\Master\Models\Designation;
 use App\Domain\Master\Models\District;
 use App\Domain\UserManagement\Models\UserDepartmentAssignment;
 use App\Domain\UserManagement\Services\DepartmentUserAuthority;
@@ -96,7 +97,7 @@ class DepartmentAdminInvitationTest extends TestCase
             'name' => 'Smt. Kavita Sahu', 'date_of_birth' => '1979-02-14', 'gender' => 'F', 'aadhaar_verified' => '1',
         ], $identity));
         $this->get((string) $callback->headers->get('Location'))->assertRedirect(route('register.invitation.password', ['token' => $token]));
-        $this->post(route('register.invitation.complete', ['token' => $token]), ['password' => 'Dept@Admin2026', 'password_confirmation' => 'Dept@Admin2026'])
+        $this->post(route('register.invitation.complete', ['token' => $token]), ['password' => 'Dept@Admin2026', 'password_confirmation' => 'Dept@Admin2026', 'designation_id' => (string) Designation::query()->firstOrCreate(['name' => 'Deputy Secretary'], ['status' => 'active'])->id])
             ->assertRedirect(route('login'));
 
         return User::query()->where('email', 'phe.dpc@cg.gov.in')->sole();

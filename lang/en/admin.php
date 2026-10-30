@@ -331,6 +331,8 @@ return [
         'form' => [
             'title_edit' => 'Edit Pay Scale',
             'title_new' => 'New Pay Scale',
+            'minimum_pay' => 'Entry pay (₹)',
+            'minimum_pay_hint' => 'The first figure of the scale, e.g. 56100 for Level-10 (56100-177500). A promotion is only to a scale with a higher entry pay.',
         ],
         'index' => [
             'delete_this_pay_scale' => 'Withdraw this pay scale',

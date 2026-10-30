@@ -79,7 +79,7 @@ class EsignIssueTest extends TestCase
         $this->esign->mode = FakeSignatureProvider::OTHER_NAME;
         $this->esign->assertedName = 'Ramesh Kumar Verma';
 
-        $this->actingAs($this->ao)->post(route('pre-dpc.submit', $proposal))->assertSessionHasErrors('workflow');
+        $this->actingAs($this->ao)->post(route('pre-dpc.submit', $proposal), ['declaration' => '1'])->assertSessionHasErrors('workflow');
         $this->assertSame(PreDpcStatus::Draft, $proposal->fresh()->status, 'Not forwarded to the AH.');
 
         $attempt = SignatureAttempt::query()->sole();
@@ -97,7 +97,7 @@ class EsignIssueTest extends TestCase
         $this->assertDatabaseHas('identity_corrections', ['user_id' => $this->ao->id, 'stage' => 'esign_correction', 'field' => 'name', 'corrected_by' => $this->admin->id]);
 
         // The AO signs again: it now goes to the AH, and the notice is gone.
-        $this->actingAs($this->ao->fresh())->post(route('pre-dpc.submit', $proposal))->assertSessionHasNoErrors();
+        $this->actingAs($this->ao->fresh())->post(route('pre-dpc.submit', $proposal), ['declaration' => '1'])->assertSessionHasNoErrors();
         $this->assertSame(PreDpcStatus::Submitted, $proposal->fresh()->status);
         $this->get(route('pre-dpc.show', $proposal))->assertDontSee('id="esign-issue"', false);
         $this->assertSame(['name_mismatch', 'verified'], SignatureAttempt::query()->orderBy('id')->pluck('outcome')->all());
@@ -106,7 +106,7 @@ class EsignIssueTest extends TestCase
     public function test_an_ah_mismatch_stops_the_approval_with_the_same_notice(): void
     {
         $proposal = $this->draft();
-        $this->actingAs($this->ao)->post(route('pre-dpc.submit', $proposal));
+        $this->actingAs($this->ao)->post(route('pre-dpc.submit', $proposal), ['declaration' => '1']);
         $this->assertSame(PreDpcStatus::Submitted, $proposal->fresh()->status);
 
         $this->esign->mode = FakeSignatureProvider::OTHER_NAME;

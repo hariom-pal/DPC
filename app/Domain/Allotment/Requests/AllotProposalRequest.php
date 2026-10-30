@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Allotment\Requests;
 
+use App\Enums\OfficerChangeReason;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -26,7 +27,13 @@ class AllotProposalRequest extends FormRequest
         return [
             'ao_user_id' => ['required', 'integer', Rule::exists('users', 'id')],
             'ah_user_id' => ['required', 'integer', Rule::exists('users', 'id'), 'different:ao_user_id'],
-            'reason' => ['nullable', 'string', 'max:1000'],
+            // Chosen from the list (MoM of 2026-10-29); required by the service on a reassignment.
+            'reason' => ['nullable', Rule::in(OfficerChangeReason::values())],
+            // The Government Order / assignment document, the declaration made
+            // against it, and consent to the eSign (MoM of 2026-10-29).
+            'order' => ['required', 'file', 'mimes:pdf', 'mimetypes:application/pdf', 'extensions:pdf', 'max:10240'],
+            'declaration' => ['accepted'],
+            'consent' => ['accepted'],
         ];
     }
 
@@ -39,6 +46,9 @@ class AllotProposalRequest extends FormRequest
             'ah_user_id.different' => (string) __('allotments.errors.same_officer'),
             'ao_user_id.required' => (string) __('allotments.picker.choose_ao'),
             'ah_user_id.required' => (string) __('allotments.picker.choose_ah'),
+            'order.required' => (string) __('allotments.order.required'),
+            'declaration.accepted' => (string) __('allotments.order.declaration_required'),
+            'consent.accepted' => (string) __('esign.consent_required'),
         ];
     }
 }

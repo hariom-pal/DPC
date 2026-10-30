@@ -57,7 +57,8 @@ final class DemoActor
      */
     public static function request(): Request
     {
-        return Request::create('/demo-seeder', 'POST', [], [], [], [
+        // The declaration a Pre-DPC submission requires (MoM of 2026-10-29).
+        return Request::create('/demo-seeder', 'POST', ['declaration' => '1'], [], [], [
             'REMOTE_ADDR' => '127.0.0.1',
             'HTTP_USER_AGENT' => 'e-DPC Demo Seeder',
         ]);

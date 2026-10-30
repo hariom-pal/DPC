@@ -26,6 +26,13 @@
                         @error('code')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
                     <div class="col-md-3 mb-3">
+                        <label class="form-label" for="minimum_pay">{{ __('admin.pay_scales.form.minimum_pay') }} <span class="text-danger">*</span></label>
+                        <input type="number" min="1" step="1" class="form-control @error('minimum_pay') is-invalid @enderror"
+                               id="minimum_pay" name="minimum_pay" value="{{ old('minimum_pay', $payScale->minimum_pay) }}" required>
+                        @error('minimum_pay')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        <div class="form-text">{{ __('admin.pay_scales.form.minimum_pay_hint') }}</div>
+                    </div>
+                    <div class="col-md-3 mb-3">
                         <label class="form-label" for="status">{{ __('ui.status') }}</label>
                         <select class="form-select" id="status" name="status" required>
                             @foreach ($statuses as $status)

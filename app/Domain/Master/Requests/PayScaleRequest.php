@@ -26,6 +26,7 @@ class PayScaleRequest extends FormRequest
         return [
             'label' => ['required', 'string', 'max:255', Rule::unique('pay_scales', 'label')->ignore($id)],
             'code' => ['nullable', 'string', 'max:40', Rule::unique('pay_scales', 'code')->ignore($id)],
+            'minimum_pay' => ['required', 'integer', 'min:1', 'max:9999999'],
             'status' => ['required', new Enum(MasterStatus::class)],
         ];
     }

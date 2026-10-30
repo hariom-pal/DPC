@@ -17,6 +17,7 @@ use App\Enums\MasterStatus;
 use App\Enums\Role;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Tests\Concerns\PrescribesQualifications;
 use Tests\TestCase;
 
@@ -78,13 +79,13 @@ class PreDpcTransitionLockTest extends TestCase
         // a concurrent request would hold.
         $second = PreDpcProposal::query()->findOrFail($first->id);
 
-        $this->service->submit($first, $this->ao, request());
+        $this->service->submit($first, $this->ao, Request::create('/', 'POST', ['declaration' => '1']));
 
         $this->assertSame(PreDpcStatus::Submitted, $first->fresh()->status);
         $this->assertSame(PreDpcStatus::Draft, $second->status, 'the stale instance still believes it is a draft');
 
         $this->expectException(WorkflowException::class);
-        $this->service->submit($second, $this->ao, request());
+        $this->service->submit($second, $this->ao, Request::create('/', 'POST', ['declaration' => '1']));
     }
 
     /** And nothing was written by the refused call. */
@@ -93,10 +94,10 @@ class PreDpcTransitionLockTest extends TestCase
         $first = $this->draft();
         $second = PreDpcProposal::query()->findOrFail($first->id);
 
-        $this->service->submit($first, $this->ao, request());
+        $this->service->submit($first, $this->ao, Request::create('/', 'POST', ['declaration' => '1']));
 
         try {
-            $this->service->submit($second, $this->ao, request());
+            $this->service->submit($second, $this->ao, Request::create('/', 'POST', ['declaration' => '1']));
         } catch (WorkflowException) {
             // Expected — asserted in the test above.
         }
@@ -111,7 +112,7 @@ class PreDpcTransitionLockTest extends TestCase
     public function test_a_second_approval_from_a_stale_instance_signs_nothing(): void
     {
         $proposal = $this->draft();
-        $this->service->submit($proposal, $this->ao, request());
+        $this->service->submit($proposal, $this->ao, Request::create('/', 'POST', ['declaration' => '1']));
 
         $first = $proposal->fresh();
         $second = PreDpcProposal::query()->findOrFail($proposal->id);
@@ -136,7 +137,7 @@ class PreDpcTransitionLockTest extends TestCase
     public function test_return_and_cancel_also_decide_from_the_stored_row(): void
     {
         $proposal = $this->draft();
-        $this->service->submit($proposal, $this->ao, request());
+        $this->service->submit($proposal, $this->ao, Request::create('/', 'POST', ['declaration' => '1']));
 
         $stale = PreDpcProposal::query()->findOrFail($proposal->id);
 
@@ -145,7 +146,7 @@ class PreDpcTransitionLockTest extends TestCase
 
         // `cancel` is legal from `returned`, so this must succeed — the lock must
         // not turn a *valid* transition into a refusal.
-        $this->service->cancel($proposal->fresh(), $this->ao, request());
+        $this->service->cancel($proposal->fresh(), $this->ao, Request::create('/', 'POST', ['declaration' => '1']));
         $this->assertSame(PreDpcStatus::Cancelled, $proposal->fresh()->status);
 
         // And a second return, from the instance that still reads `submitted`, is
@@ -175,7 +176,7 @@ class PreDpcTransitionLockTest extends TestCase
         ]);
 
         $this->expectException(WorkflowException::class);
-        $this->service->submit($empty, $this->ao, request());
+        $this->service->submit($empty, $this->ao, Request::create('/', 'POST', ['declaration' => '1']));
     }
 
     // ------------------------------------------------------------------

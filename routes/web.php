@@ -209,6 +209,7 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
                 Route::get('/officers/lookup', [DepartmentOfficerController::class, 'lookup'])->middleware('throttle:30,1')->name('officers.lookup');
                 Route::post('/officers/{officer}/mobile/otp', [DepartmentOfficerController::class, 'sendMobileOtp'])->middleware('throttle:registration')->name('officers.mobile.otp');
                 Route::put('/officers/{officer}/mobile', [DepartmentOfficerController::class, 'updateMobile'])->middleware('throttle:otp-verify')->name('officers.mobile');
+                Route::put('/officers/{officer}/designation', [DepartmentOfficerController::class, 'updateDesignation'])->middleware('throttle:30,1')->name('officers.designation');
 
                 // User Management (2026-10-29): the department's officers, and releasing
                 // a transferred AO/AH so another department can pick them up.
@@ -228,6 +229,7 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
                 Route::get('/allotments/dpc/{dpcProposal}/edit', [ProposalAllotmentController::class, 'editDpc'])->name('allotments.dpc.edit');
                 Route::put('/allotments/dpc/{dpcProposal}', [ProposalAllotmentController::class, 'updateDpc'])->name('allotments.dpc.update');
                 Route::get('/allotments/dpc/{dpcProposal}/history', [ProposalAllotmentController::class, 'historyDpc'])->name('allotments.dpc.history');
+                Route::get('/allotments/{allotment}/order', [ProposalAllotmentController::class, 'order'])->name('allotments.order');
 
             });
 

@@ -62,7 +62,8 @@ return [
         'allotted_counts' => 'AO :ao · AH :ah',
         'release' => [
             'button' => 'Release',
-            'reason' => 'Reason (e.g. transfer order number and date)',
+            'reason' => 'Reason',
+            'esign' => 'eSign',
             'confirm' => 'Release this officer from the department? They will no longer see this department\'s Pre-DPCs and DPCs, and another department may choose them.',
             'done' => ':name has been released from the department.',
             'busy' => 'Allot another officer to their Pre-DPCs/DPCs first',

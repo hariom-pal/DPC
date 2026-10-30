@@ -12,19 +12,43 @@
     @include('partials.alerts')
     @include('partials.esign-issue', ['proposal' => $proposal])
 
-    <form method="POST" action="{{ $action }}" class="card border-0 shadow-sm">
+    <form method="POST" action="{{ $action }}" class="card border-0 shadow-sm" enctype="multipart/form-data">
         @csrf
         @method('PUT')
         <div class="card-body row g-3">
             @include('department.allotments._officers', ['current' => $current])
             @if ($current)
-                <div class="col-12">
-                    <label for="reason" class="form-label">{{ __('allotments.field.reason') }}</label>
-                    <textarea id="reason" name="reason" rows="2" required maxlength="1000"
-                              class="form-control @error('reason') is-invalid @enderror">{{ old('reason') }}</textarea>
+                {{-- From the list (MoM of 2026-10-29), never typed. --}}
+                <div class="col-md-6">
+                    <label for="reason" class="form-label">{{ __('allotments.field.reason') }} <span class="text-danger">*</span></label>
+                    <select id="reason" name="reason" required class="form-select @error('reason') is-invalid @enderror">
+                        <option value="">{{ __('ui.select') }}</option>
+                        @foreach (\App\Enums\OfficerChangeReason::cases() as $reason)
+                            <option value="{{ $reason->value }}" @selected(old('reason') === $reason->value)>{{ $reason->label() }}</option>
+                        @endforeach
+                    </select>
+                    @error('reason')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     <div class="form-text">{{ __('allotments.reason_help') }}</div>
                 </div>
             @endif
+
+            {{-- The assignment order, the declaration and the eSign (MoM of 2026-10-29). --}}
+            <div class="col-md-6">
+                <label for="order" class="form-label">{{ __('allotments.order.label') }} <span class="text-danger">*</span></label>
+                <input type="file" id="order" name="order" accept="application/pdf,.pdf" required
+                       class="form-control @error('order') is-invalid @enderror">
+                @error('order')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                <div class="form-text">{{ __('allotments.order.hint') }}</div>
+            </div>
+            <div class="col-12">@include('partials.declaration', ['key' => 'allotment'])</div>
+            <div class="col-12">
+                <div class="form-check">
+                    <input class="form-check-input @error('consent') is-invalid @enderror" type="checkbox" name="consent" value="1" id="consent" required>
+                    <label class="form-check-label small" for="consent">{{ __('esign.page.consent') }}</label>
+                    @error('consent')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                </div>
+                <div class="form-text">{{ __('allotments.order.esign_note') }}</div>
+            </div>
         </div>
         <div class="card-footer bg-transparent d-flex gap-2">
             <button type="submit" class="btn btn-primary btn-sm">{{ $current ? __('allotments.reassign') : __('allotments.allot') }}</button>

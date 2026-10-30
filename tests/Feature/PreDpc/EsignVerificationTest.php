@@ -22,6 +22,7 @@ use App\Integrations\Contracts\SignatureProvider;
 use Database\Seeders\LookupMasterSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Tests\Concerns\CompletesDpcProposals;
 use Tests\Concerns\PrescribesQualifications;
 use Tests\Concerns\RaisesDpcProposals;
@@ -92,7 +93,7 @@ class EsignVerificationTest extends TestCase
 
     private function submit(PreDpcProposal $proposal, ?User $as = null): void
     {
-        $this->preDpcs->submit($proposal->fresh(), $as ?? $this->ao, request());
+        $this->preDpcs->submit($proposal->fresh(), $as ?? $this->ao, Request::create('/', 'POST', ['declaration' => '1']));
     }
 
     private function approve(PreDpcProposal $proposal, ?User $as = null): void

@@ -55,7 +55,7 @@
                             @endif
                         </dd>
                         <dt class="col-sm-3">{{ __('predpc.show.government_order_no') }}</dt><dd class="col-sm-9">{{ $proposal->government_order_number ?? '—' }}</dd>
-                        <dt class="col-sm-3">{{ __('ui.effective_from') }}</dt><dd class="col-sm-9">{{ $proposal->effective_from?->format('d-m-Y') ?? '—' }}</dd>
+                        <dt class="col-sm-3">{{ __('predpc.show.publish_date') }}</dt><dd class="col-sm-9">{{ $proposal->effective_from?->format('d-m-Y') ?? '—' }}</dd>
                         @if ($proposal->parentVersion)
                             <dt class="col-sm-3">{{ __('predpc.show.amends') }}</dt>
                             <dd class="col-sm-9">

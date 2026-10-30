@@ -16,19 +16,23 @@ use App\Domain\PreDpc\Enums\PreDpcStatus;
 use App\Domain\PreDpc\Models\PreDpcProposal;
 use App\Domain\Shared\Events\WorkflowTransitioned;
 use App\Domain\Shared\Services\DashboardSummaryService;
+use App\Domain\Signature\Models\Signature;
 use App\Enums\MasterStatus;
 use App\Enums\Role;
 use Database\Seeders\LookupMasterSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Database\Seeders\Support\PptPromotionRules;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Routing\Route as RouteDefinition;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Testing\TestResponse;
 use Tests\Concerns\OpensPreDpcs;
 use Tests\Concerns\PrescribesQualifications;
 use Tests\Concerns\RaisesDpcProposals;
+use Tests\Concerns\SignsAsDepartmentAdmin;
 use Tests\TestCase;
 
 /**
@@ -44,6 +48,7 @@ class ProposalAllotmentTest extends TestCase
     }
     use PrescribesQualifications;
     use RefreshDatabase;
+    use SignsAsDepartmentAdmin;
 
     private Department $department;
 
@@ -76,10 +81,11 @@ class ProposalAllotmentTest extends TestCase
         $this->ah = User::factory()->assignedTo($this->department, Role::AdministrativeHead)->create(['name' => 'Allotted AH']);
         $this->otherAh = User::factory()->assignedTo($this->department, Role::AdministrativeHead)->create(['name' => 'Other AH']);
 
-        $scale = PayScale::query()->create(['code' => 'L12', 'label' => 'Level-12', 'status' => MasterStatus::Active->value]);
+        $scale = PayScale::query()->create(['code' => 'L12', 'label' => 'Level-12', 'minimum_pay' => 78800, 'status' => MasterStatus::Active->value]);
+        $feederScale = PayScale::query()->create(['code' => 'L10', 'label' => 'Level-10', 'minimum_pay' => 56100, 'status' => MasterStatus::Active->value]);
         $this->fromPost = DepartmentPost::query()->create([
             'department_id' => $this->department->id, 'name' => 'Assistant Professor', 'class_level' => 'I',
-            'promotion_duration_years' => 5, 'status' => MasterStatus::Active->value,
+            'pay_scale_id' => $feederScale->id, 'promotion_duration_years' => 5, 'status' => MasterStatus::Active->value,
         ]);
         $this->toPost = DepartmentPost::query()->create([
             'department_id' => $this->department->id, 'name' => 'Professor', 'class_level' => 'I',
@@ -135,7 +141,7 @@ class ProposalAllotmentTest extends TestCase
      */
     private function allotAs(PreDpcProposal $proposal, User $ao, User $ah, array $extra = []): TestResponse
     {
-        return $this->actingAs($this->departmentAdmin)->put(route('department.allotments.pre-dpc.update', $proposal), ['ao_user_id' => $ao->id, 'ah_user_id' => $ah->id] + $extra);
+        return $this->actingAs($this->departmentAdmin)->signedAllot($proposal, ['ao_user_id' => $ao->id, 'ah_user_id' => $ah->id] + $extra);
     }
 
     // ------------------------------------------------------------ A1: opening
@@ -211,8 +217,8 @@ class ProposalAllotmentTest extends TestCase
         $foreignAdmin = User::factory()->assignedTo($elsewhere, Role::DepartmentAdmin)->create();
 
         $this->actingAs($foreignAdmin)->get(route('department.allotments.pre-dpc.edit', $proposal))->assertForbidden();
-        $this->actingAs($foreignAdmin)->put(route('department.allotments.pre-dpc.update', $proposal), [
-            'ao_user_id' => $this->otherAo->id, 'ah_user_id' => $this->ah->id, 'reason' => 'x',
+        $this->actingAs($foreignAdmin)->signedAllot($proposal, [
+            'ao_user_id' => $this->otherAo->id, 'ah_user_id' => $this->ah->id, 'reason' => 'transfer',
         ])->assertForbidden();
         $this->actingAs($foreignAdmin)->get(route('department.allotments.index', ['view' => 'pre-dpc']))->assertOk()->assertDontSee($proposal->pre_dpc_number);
     }
@@ -227,10 +233,10 @@ class ProposalAllotmentTest extends TestCase
 
         $this->actingAs($this->departmentAdmin)->get(route('pre-dpc.show', $proposal))->assertOk();
         $this->get(route('pre-dpc.edit', $proposal))->assertOk();
-        $this->post(route('pre-dpc.submit', $proposal))->assertSessionHasErrors('workflow'); // refused: only the allotted AO signs and submits
+        $this->post(route('pre-dpc.submit', $proposal), ['declaration' => '1'])->assertSessionHasErrors('workflow'); // refused: only the allotted AO signs and submits
         $this->assertSame(PreDpcStatus::Draft, $proposal->fresh()->status);
 
-        $this->actingAs($this->ao)->post(route('pre-dpc.submit', $proposal));
+        $this->actingAs($this->ao)->post(route('pre-dpc.submit', $proposal), ['declaration' => '1']);
         $this->actingAs($this->departmentAdmin)->post(route('pre-dpc.approve', $proposal))->assertSessionHasErrors('workflow');
         $this->get(route('pre-dpc.edit', $proposal))->assertRedirect(route('pre-dpc.show', $proposal));
         $this->assertSame(PreDpcStatus::Submitted, $proposal->fresh()->status);
@@ -253,10 +259,10 @@ class ProposalAllotmentTest extends TestCase
             $this->actingAs($officer)->get(route('pre-dpc.show', $proposal))->assertForbidden();
         }
         $this->actingAs($this->otherAo)->get(route('pre-dpc.edit', $proposal))->assertForbidden();
-        $this->actingAs($this->otherAo)->post(route('pre-dpc.submit', $proposal))->assertForbidden();
+        $this->actingAs($this->otherAo)->post(route('pre-dpc.submit', $proposal), ['declaration' => '1'])->assertForbidden();
 
         $this->actingAs($this->ao)->get(route('pre-dpc.index'))->assertSee($proposal->pre_dpc_number);
-        $this->actingAs($this->ao)->post(route('pre-dpc.submit', $proposal))->assertSessionHasNoErrors();
+        $this->actingAs($this->ao)->post(route('pre-dpc.submit', $proposal), ['declaration' => '1'])->assertSessionHasNoErrors();
 
         $this->actingAs($this->otherAh)->post(route('pre-dpc.approve', $proposal))->assertForbidden();
         $this->assertSame(PreDpcStatus::Submitted, $proposal->fresh()->status);
@@ -294,7 +300,7 @@ class ProposalAllotmentTest extends TestCase
             ->assertOk()->assertSee('data-allotment-pending', false);
 
         // Allotting it needs no reason: there is nothing to replace.
-        $this->actingAs($this->departmentAdmin)->put(route('department.allotments.pre-dpc.update', $proposal), [
+        $this->actingAs($this->departmentAdmin)->signedAllot($proposal, [
             'ao_user_id' => $this->ao->id, 'ah_user_id' => $this->ah->id,
         ])->assertRedirect(route('department.allotments.index', ['view' => 'pre-dpc']));
         $this->actingAs($this->ao)->get(route('pre-dpc.show', $proposal))->assertOk();
@@ -306,13 +312,13 @@ class ProposalAllotmentTest extends TestCase
     {
         $proposal = $this->opened();
 
-        $this->actingAs($this->departmentAdmin)->put(route('department.allotments.pre-dpc.update', $proposal), [
+        $this->actingAs($this->departmentAdmin)->signedAllot($proposal, [
             'ao_user_id' => $this->otherAo->id, 'ah_user_id' => $this->ah->id,
         ])->assertSessionHasErrors('ao_user_id');
         $this->assertSame($this->ao->id, $proposal->fresh()->currentAllotment->ao_user_id, 'Refused without a reason.');
 
-        $this->actingAs($this->departmentAdmin)->put(route('department.allotments.pre-dpc.update', $proposal), [
-            'ao_user_id' => $this->otherAo->id, 'ah_user_id' => $this->otherAh->id, 'reason' => 'Officer transferred',
+        $this->actingAs($this->departmentAdmin)->signedAllot($proposal, [
+            'ao_user_id' => $this->otherAo->id, 'ah_user_id' => $this->otherAh->id, 'reason' => 'transfer',
         ])->assertRedirect(route('department.allotments.index', ['view' => 'pre-dpc']));
 
         // The work moves at once.
@@ -326,11 +332,44 @@ class ProposalAllotmentTest extends TestCase
         $this->assertSame($this->departmentAdmin->id, $rows[0]->ended_by);
         $this->assertSame([$this->ao->id, $this->ah->id], [$rows[0]->ao_user_id, $rows[0]->ah_user_id]);
         $this->assertNull($rows[1]->ended_at);
-        $this->assertSame('Officer transferred', $rows[1]->reason);
+        $this->assertSame('transfer', $rows[1]->reason);
         $this->assertDatabaseHas('activity_timelines', ['event' => 'proposal.reallotted', 'causer_id' => $this->departmentAdmin->id]);
 
+        // The order, the declaration and the Department Admin's eSign go with it (MoM of 2026-10-29).
+        $this->assertSame('assignment-order.pdf', $rows[1]->order_name);
+        $this->assertNotNull($rows[1]->declaration_accepted_at);
+        $this->assertTrue(Signature::query()->where('signable_type', $rows[1]->getMorphClass())->where('signable_id', $rows[1]->id)->where('user_id', $this->departmentAdmin->id)->exists());
+
         $this->actingAs($this->departmentAdmin)->get(route('department.allotments.pre-dpc.history', $proposal))
-            ->assertOk()->assertSee('Allotted AO')->assertSee('Other AO')->assertSee('Officer transferred');
+            ->assertOk()->assertSee('Allotted AO')->assertSee('Other AO')->assertSee(__('allotments.reasons.transfer'))->assertSee('assignment-order.pdf');
+        $this->get(route('department.allotments.order', $rows[1]))->assertOk();
+    }
+
+    /**
+     * The order, the declaration and the eSign are each required (MoM of
+     * 2026-10-29); an eSign in another name allots nothing and keeps no order.
+     */
+    public function test_an_allotment_needs_its_order_declaration_and_a_matching_esign(): void
+    {
+        $proposal = $this->opened();
+        Storage::fake((string) config('dpc.documents.disk', 'local'));
+
+        $this->actingAs($this->departmentAdmin)->put(route('department.allotments.pre-dpc.update', $proposal), [
+            'ao_user_id' => $this->otherAo->id, 'ah_user_id' => $this->ah->id, 'reason' => 'transfer',
+        ])->assertSessionHasErrors(['order', 'declaration', 'consent']);
+
+        $this->get(route('department.allotments.pre-dpc.edit', $proposal))->assertOk()
+            ->assertSee(config('dpc.declarations.allotment.hi'))->assertSee(config('dpc.declarations.allotment.en'))
+            ->assertSee(__('allotments.reasons.official_permission'));
+
+        $response = $this->put(route('department.allotments.pre-dpc.update', $proposal), [
+            'ao_user_id' => $this->otherAo->id, 'ah_user_id' => $this->ah->id, 'reason' => 'transfer',
+            'order' => UploadedFile::fake()->create('order.pdf', 20, 'application/pdf'), 'declaration' => '1', 'consent' => '1',
+        ]);
+        $this->throughEsign($response, 'Somebody Else')->assertSessionHasErrors('ao_user_id');
+
+        $this->assertSame($this->ao->id, $proposal->fresh()->currentAllotment->ao_user_id, 'Nothing was allotted.');
+        $this->assertSame([], Storage::disk((string) config('dpc.documents.disk', 'local'))->allFiles('private/allotment-orders'));
     }
 
     public function test_an_allotment_is_never_edited_or_deleted(): void
@@ -353,7 +392,7 @@ class ProposalAllotmentTest extends TestCase
 
     private function raiseFromApproved(PreDpcProposal $proposal): DpcProposal
     {
-        $this->actingAs($this->ao)->post(route('pre-dpc.submit', $proposal));
+        $this->actingAs($this->ao)->post(route('pre-dpc.submit', $proposal), ['declaration' => '1']);
         $this->actingAs($this->ah)->post(route('pre-dpc.approve', $proposal));
 
         $this->actingAs($this->ao)->post(route('dpc-proposals.store'), $this->dpcStorePayload($proposal->fresh(), [
@@ -368,7 +407,7 @@ class ProposalAllotmentTest extends TestCase
         $proposal = $this->opened();
 
         // Only the allotted AO may raise a DPC from it.
-        $this->actingAs($this->ao)->post(route('pre-dpc.submit', $proposal));
+        $this->actingAs($this->ao)->post(route('pre-dpc.submit', $proposal), ['declaration' => '1']);
         $this->actingAs($this->ah)->post(route('pre-dpc.approve', $proposal));
         $this->actingAs($this->otherAo)->post(route('dpc-proposals.store'), $this->dpcStorePayload($proposal->fresh(), [
             'promotion_from_post_id' => $this->fromPost->id,
@@ -381,8 +420,8 @@ class ProposalAllotmentTest extends TestCase
         $dpc = DpcProposal::query()->sole();
         $this->assertSame([$this->ao->id, $this->ah->id], [$dpc->currentAllotment->ao_user_id, $dpc->currentAllotment->ah_user_id]);
 
-        $this->actingAs($this->departmentAdmin)->put(route('department.allotments.dpc.update', $dpc), [
-            'ao_user_id' => $this->otherAo->id, 'ah_user_id' => $this->otherAh->id, 'reason' => 'A parallel DPC for another team',
+        $this->actingAs($this->departmentAdmin)->signedAllot($dpc, [
+            'ao_user_id' => $this->otherAo->id, 'ah_user_id' => $this->otherAh->id, 'reason' => 'official_permission',
         ])->assertRedirect(route('department.allotments.index'));
 
         $this->assertSame($this->otherAo->id, $dpc->fresh()->currentAllotment->ao_user_id);
@@ -423,7 +462,7 @@ class ProposalAllotmentTest extends TestCase
         $proposal = $this->opened();
         Event::fake([WorkflowTransitioned::class]);
 
-        $this->actingAs($this->ao)->post(route('pre-dpc.submit', $proposal));
+        $this->actingAs($this->ao)->post(route('pre-dpc.submit', $proposal), ['declaration' => '1']);
 
         Event::assertDispatched(WorkflowTransitioned::class, fn (WorkflowTransitioned $event): bool => $event->event === 'submit'
             && $event->notifyUserIds === [$this->ah->id]

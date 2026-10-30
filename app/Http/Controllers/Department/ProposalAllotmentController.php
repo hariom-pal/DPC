@@ -12,19 +12,23 @@ use App\Domain\Allotment\Services\ProposalAllotmentService;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Department\Models\Department;
 use App\Domain\Dpc\Models\DpcProposal;
+use App\Domain\Identity\Services\SupportingDocumentStore;
 use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\Designation;
 use App\Domain\PreDpc\Models\PreDpcProposal;
 use App\Domain\PreDpc\Services\PreDpcProposalService;
 use App\Domain\Shared\Workflow\WorkflowException;
+use App\Domain\Signature\Services\EsignGate;
 use App\Domain\Signature\Services\SignatureAttemptLog;
 use App\Domain\UserManagement\Services\DepartmentUserAuthority;
 use App\Enums\MasterStatus;
 use App\Enums\Role;
 use App\Http\Controllers\Controller;
+use App\Http\SignedActions\AllotOfficers;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Department Dashboard → Pre-DPC / DPC Allotment (business decisions A1–A5,
@@ -41,6 +45,8 @@ class ProposalAllotmentController extends Controller
         private readonly DepartmentUserAuthority $authority,
         private readonly ProposalAllotmentService $allotments,
         private readonly PreDpcProposalService $preDpcs,
+        private readonly EsignGate $gate,
+        private readonly SupportingDocumentStore $documents,
     ) {}
 
     /**
@@ -60,7 +66,7 @@ class ProposalAllotmentController extends Controller
                 ->where('department_id', $admin->department_id)
                 ->where('status', '!=', 'cancelled')
                 ->whereNotIn('id', DpcProposal::query()->whereNotNull('pre_dpc_proposal_id')->select('pre_dpc_proposal_id'))
-                ->with(['promotionToPost', 'currentAllotment.ao', 'currentAllotment.ah'])
+                ->with(['promotionToPost', 'promotionSources.promotionFromPost', 'currentAllotment.ao', 'currentAllotment.ah'])
                 ->orderByDesc('dpc_year')->orderByDesc('id')
                 ->get();
         } else {
@@ -177,13 +183,42 @@ class ProposalAllotmentController extends Controller
                 $this->preDpcs->assertComplete($proposal);
             }
 
-            $this->allotments->allot($proposal, $ao, $ah, $admin, $request->input('reason'));
+            if (! $this->gate->available()) {
+                throw new WorkflowException((string) __('esign.errors.unavailable'));
+            }
         } catch (AllotmentRefused|WorkflowException $e) {
             return back()->withInput()->withErrors(['ao_user_id' => $e->getMessage()]);
         }
 
-        return redirect()->route('department.allotments.index', $proposal instanceof PreDpcProposal ? ['view' => 'pre-dpc'] : [])
-            ->with('status', __('allotments.saved', ['proposal' => $label, 'ao' => $ao->name, 'ah' => $ah->name]));
+        // The assignment order, kept with the allotment; the Department Admin
+        // declares against it and eSigns (MoM of 2026-10-29). A declined or
+        // failed eSign removes it again.
+        $stored = $this->documents->store($request->file('order'), 'allotment-orders');
+
+        return $this->gate->begin($request, $admin, AllotOfficers::class, [
+            'kind' => $proposal instanceof PreDpcProposal ? 'pre_dpc' : 'dpc',
+            'proposal' => $proposal->getKey(),
+            'ao' => $ao->id,
+            'ah' => $ah->id,
+            'reason' => $request->input('reason'),
+            'order' => [
+                'disk' => $stored['document_disk'], 'path' => $stored['document_path'],
+                'name' => $stored['document_name'], 'sha256' => $stored['document_sha256'],
+            ],
+            'label' => $label,
+        ]);
+    }
+
+    /**
+     * An allotment's assignment order (MoM of 2026-10-29), to the department's
+     * own Department Admin.
+     */
+    public function order(Request $request, ProposalAllotment $allotment): StreamedResponse
+    {
+        $admin = $this->admin($request);
+        abort_unless($allotment->department_id === $admin->department_id, 403);
+
+        return $this->documents->download($allotment->order_disk, $allotment->order_path, $allotment->order_name);
     }
 
     private function history(Request $request, PreDpcProposal|DpcProposal $proposal, ?string $label): View

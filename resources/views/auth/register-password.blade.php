@@ -22,6 +22,18 @@
                         <p class="small text-body-secondary">{{ __('invitations.register.from_digilocker') }}</p>
                         <form method="POST" action="{{ route('register.invitation.complete', ['token' => $token]) }}">
                             @csrf
+                            {{-- The Department Admin's post (MoM of 2026-10-29). --}}
+                            <div class="mb-3">
+                                <label for="designation_id" class="form-label">{{ __('invitations.register.post') }} <span class="text-danger">*</span></label>
+                                <select class="form-select @error('designation_id') is-invalid @enderror" id="designation_id" name="designation_id" required
+                                        data-searchable data-searchable-placeholder="{{ __('ui.search') }}">
+                                    <option value="">{{ __('ui.select') }}</option>
+                                    @foreach ($designations as $designation)
+                                        <option value="{{ $designation->id }}" @selected((int) old('designation_id') === $designation->id)>{{ $designation->name }}</option>
+                                    @endforeach
+                                </select>
+                                @error('designation_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
                             <div class="mb-3">
                                 <label for="password" class="form-label">{{ __('invitations.register.password') }}</label>
                                 <input type="password" class="form-control @error('password') is-invalid @enderror" id="password" name="password" required autocomplete="new-password">

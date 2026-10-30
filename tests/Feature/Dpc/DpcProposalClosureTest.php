@@ -217,6 +217,8 @@ class DpcProposalClosureTest extends TestCase
         $this->assertSame(1, Signature::query()
             ->where('signable_type', $this->proposal->getMorphClass())
             ->where('signable_id', $this->proposal->id)
+            // The AH's approval; the AO's submission is eSigned too (MoM of 2026-10-29).
+            ->where('signed_path', 'not like', '%-submission.txt')
             ->count());
 
         $this->assertSame(1, WorkflowTransition::query()
@@ -350,6 +352,8 @@ class DpcProposalClosureTest extends TestCase
         $this->assertSame(0, Signature::query()
             ->where('signable_type', $this->proposal->getMorphClass())
             ->where('signable_id', $this->proposal->id)
+            // The AH's approval; the AO's submission is eSigned too (MoM of 2026-10-29).
+            ->where('signed_path', 'not like', '%-submission.txt')
             ->count());
     }
 
@@ -387,6 +391,8 @@ class DpcProposalClosureTest extends TestCase
         $this->assertSame(0, Signature::query()
             ->where('signable_type', $proposal->getMorphClass())
             ->where('signable_id', $proposal->id)
+            // The AH's approval; the AO's submission is eSigned too (MoM of 2026-10-29).
+            ->where('signed_path', 'not like', '%-submission.txt')
             ->count());
     }
 

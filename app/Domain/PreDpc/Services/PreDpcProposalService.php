@@ -132,6 +132,11 @@ class PreDpcProposalService
         $this->guardComplete($proposal);
         $this->assertSignatureAvailable();
 
+        // The AO's declaration (MoM of 2026-10-29), made with every submission.
+        if (! $request->boolean('declaration')) {
+            throw new WorkflowException((string) __('predpc.declaration_required'));
+        }
+
         // The AO signs what they submit (2026-10-27), verified against this eSign
         // transaction every time. A failed or mismatched eSign rolls everything
         // back: the draft stays a draft and no signature is recorded.
@@ -145,12 +150,12 @@ class PreDpcProposalService
                 $signature = $this->signatures->signVerified(
                     $actor,
                     $locked,
-                    $this->renderDocument($locked),
+                    $this->renderDocument($locked)."\n\nDeclaration:\n".config('dpc.declarations.pre_dpc_submit.hi')."\n".config('dpc.declarations.pre_dpc_submit.en'),
                     "pre-dpc-{$locked->pre_dpc_number}-v{$locked->version}-submission.txt",
                     ['action' => 'submit'],
                 );
 
-                $locked->forceFill(['status' => PreDpcStatus::Submitted->value, 'submitted_at' => now(), 'prepared_by' => $actor->id])->save();
+                $locked->forceFill(['status' => PreDpcStatus::Submitted->value, 'submitted_at' => now(), 'declaration_accepted_at' => now(), 'prepared_by' => $actor->id])->save();
                 $this->engine->record($locked, 'pre_dpc', 'submit', $from, $def, $actor, $request, null, $signature->id, $locked->department_id);
             });
         });
@@ -551,7 +556,7 @@ class PreDpcProposalService
         }
 
         if (($proposal->government_order_number === null) || ($proposal->effective_from === null)) {
-            throw new WorkflowException('Government Order number and effective date are required before submitting.');
+            throw new WorkflowException('The Adyatan Vibhagiy Bharti Niyam and its Publish Date are required before submitting.');
         }
     }
 

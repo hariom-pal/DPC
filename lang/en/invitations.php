@@ -49,7 +49,8 @@ return [
     ],
     'register' => [
         'step3' => 'Step 3 of 4: authenticate with DigiLocker. Your name, date of birth and gender are taken from it.',
-        'step4' => 'Step 4 of 4: choose your password.',
+        'step4' => 'Step 4 of 4: choose your post and your password.',
+        'post' => 'Post',
         'verify_otp' => 'Verify OTPs',
         'digilocker_lead' => 'DigiLocker confirms who you are. Your name, date of birth and gender on the portal will be those DigiLocker returns. Your Aadhaar number is never stored.',
         'from_digilocker' => 'Returned by DigiLocker. These are your portal identity and cannot be edited.',

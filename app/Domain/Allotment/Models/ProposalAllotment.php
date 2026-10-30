@@ -36,6 +36,11 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property string|null $reason
  * @property Carbon|null $ended_at
  * @property int|null $ended_by
+ * @property string|null $order_disk
+ * @property string|null $order_path
+ * @property string|null $order_name
+ * @property string|null $order_sha256
+ * @property Carbon|null $declaration_accepted_at
  * @property-read User $ao
  * @property-read User $ah
  * @property-read User|null $allottedBy
@@ -57,6 +62,12 @@ class ProposalAllotment extends Model implements Auditable
         'allotted_by',
         'allotted_at',
         'reason',
+        // The assignment order and the declaration made with it (MoM of 2026-10-29).
+        'order_disk',
+        'order_path',
+        'order_name',
+        'order_sha256',
+        'declaration_accepted_at',
     ];
 
     /**
@@ -80,6 +91,7 @@ class ProposalAllotment extends Model implements Auditable
         return [
             'allotted_at' => 'datetime',
             'ended_at' => 'datetime',
+            'declaration_accepted_at' => 'datetime',
         ];
     }
 
@@ -135,6 +147,11 @@ class ProposalAllotment extends Model implements Auditable
     public function endedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'ended_by');
+    }
+
+    public function hasOrder(): bool
+    {
+        return $this->order_path !== null;
     }
 
     /**

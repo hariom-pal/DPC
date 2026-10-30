@@ -17,6 +17,7 @@ declare(strict_types=1);
 */
 
 return [
+    'declaration_required' => 'प्रस्ताव प्रस्तुत करने हेतु घोषणा पर टिक करें।',
     'summary' => [
         'title_edit' => 'प्री-डीपीसी प्रस्ताव संपादित करें',
         'title_new' => 'नया प्री-डीपीसी प्रस्ताव',
@@ -27,7 +28,8 @@ return [
         '2_taken_from_the_posts' => '2. पदों से प्राप्त',
         '2_terms_this_exercise_sanctions' => '2. इस प्रक्रिया द्वारा स्वीकृत शर्तें',
         '3_promotion_from_posts' => '3. पदोन्नति-पूर्व पद',
-        '4_government_order' => '4. शासनादेश',
+        '4_government_order' => '4. अद्यतन विभागीय भर्ती नियम',
+        'publish_date' => 'प्रकाशन तिथि',
         'all_fields_required' => '* चिह्नित प्रत्येक फ़ील्ड आवश्यक है।',
         'share_total_ok' => 'फीडर पदों का अंश पदोन्नति कोटे का पूर्ण 100% है।',
         'share_total_short' => 'फीडर पदों का अंश :total% है। यह ठीक 100% होना चाहिए — :short% शेष है, अतः प्रस्ताव सहेजा नहीं जा सकता।',
@@ -35,13 +37,13 @@ return [
         'add_source' => 'पदोन्नति-पूर्व पद जोड़ें',
         'attributes_unavailable' => 'लोड नहीं हो सका — आदेश सहेजते समय पद से ही लिया जाएगा',
         'back_to_list' => 'सूची पर वापस',
-        'both_are_required_before_the_proposal_can_be_sub' => 'प्रस्ताव को अनुमोदन हेतु प्रस्तुत करने से पूर्व दोनों आवश्यक हैं — पूर्व-डी.पी.सी. ही वह आदेश है जो पदोन्नति को स्वीकृत करता है, और क्रमांक एवं तिथि के बिना वह कुछ भी स्वीकृत नहीं करता।',
+        'both_are_required_before_the_proposal_can_be_sub' => 'प्रस्ताव को अनुमोदन हेतु प्रस्तुत करने से पूर्व दोनों आवश्यक हैं।',
         'derived_hint' => 'ऊपर दोनों पद चुनें और ये स्वयं भर जाएँगे। वेतनमान एवं वर्ग <strong>पदोन्नति-पश्चात</strong> पद से आते हैं — पदोन्नति किसी पद <em>में</em> होती है, उसी पद के वेतनमान पर — तथा पदोन्नति अवधि <strong>पदोन्नति-पूर्व</strong> पद से आती है, जो वह अर्हकारी सेवा है जो अधिकारी के पास उस पद पर पहले से होनी चाहिए।',
         'direct_recruitment_label' => '<label class="form-label" for="direct_recruitment_pct">सीधी भर्ती % <span class="text-danger">*</span></label>',
         'dpc_year_label' => '<label class="form-label" for="dpc_year">डी.पी.सी. वर्ष <span class="text-danger">*</span></label>',
         'experience_unit' => 'अनुभव इकाई',
         'experience_unit_label' => '<label class="form-label" for="experience_unit">इकाई <span class="text-danger">*</span></label>',
-        'government_order_number' => 'शासनादेश क्रमांक',
+        'government_order_number' => 'अद्यतन विभागीय भर्ती नियम',
         'hint_from_post' => 'वह पद जिससे अधिकारियों की पदोन्नति <strong>होती है</strong>।',
         'hint_shares_total' => 'दोनों का योग ठीक 100% होना चाहिए।',
         'hint_to_post' => 'वह पद जिसमें अधिकारियों की पदोन्नति <strong>की जाती है</strong>।',
@@ -73,6 +75,8 @@ return [
     'index' => [
         'exercise' => 'प्रक्रिया',
         'pre_dpc_no' => 'पूर्व-डी.पी.सी. क्र.',
+        'promotion_from_post' => 'पदोन्नति-पूर्व पद',
+        'promotion_to_post' => 'पदोन्नति-पश्चात पद',
         'pre_dpc_proposals' => 'पूर्व-डी.पी.सी. प्रस्ताव',
     ],
     'show' => [
@@ -88,7 +92,8 @@ return [
         'delete_draft' => 'प्रारूप हटाएँ',
         'delete_draft_confirm' => 'क्या यह प्रारूप प्री-डीपीसी हटाना है? यह सूची से हट जाएगा किंतु अभिलेख में सुरक्षित रहेगा; केवल प्रारूप ही हटाया जा सकता है।',
         'draft_deleted' => 'प्रारूप :number हटा दिया गया।',
-        'government_order_no' => 'शासनादेश क्रमांक',
+        'government_order_no' => 'अद्यतन विभागीय भर्ती नियम',
+        'publish_date' => 'प्रकाशन तिथि',
         'minimum_experience' => 'न्यूनतम अनुभव',
         'no_actions_available_in_this_state' => 'इस स्थिति में कोई कार्रवाई उपलब्ध नहीं है।',
         'no_sources_recorded' => 'अभी तक कोई पदोन्नति-पूर्व पद अभिलिखित नहीं किया गया है।',
@@ -105,5 +110,9 @@ return [
         'qualification_required' => 'इस फीडर हेतु स्वीकार्य कम से कम एक अर्हता चुनें।',
         'year_before_earliest' => 'पदोन्नति में आरक्षण 2019 से समाप्त (नियम 1.4): :year से पूर्व के वर्ष की DPC इस सॉफ़्टवेयर में नहीं ली जाती।',
         'feeder_not_below_post' => ':from से :to पर पदोन्नति संभव नहीं है। पदोन्नति निम्न श्रेणी से उच्च श्रेणी की ओर ही होती है। :reason',
+        'na_stands_alone' => '"NA" का अर्थ है कोई योग्यता आवश्यक नहीं, इसलिए इसे किसी अन्य योग्यता के साथ नहीं चुना जा सकता।',
+        'pay_scale_not_mapped' => ':post पर कोई वेतनमान मैप नहीं है। पहले पद मैपिंग में वेतनमान मैप करें।',
+        'pay_scale_no_entry_pay' => 'वेतनमान मास्टर में :scale का प्रारंभिक वेतन दर्ज नहीं है।',
+        'pay_scale_not_higher' => 'पदोन्नति केवल उच्च वेतनमान में ही होती है: :from (:from_scale) से :to (:to_scale) पर पदोन्नति संभव नहीं है।',
     ],
 ];

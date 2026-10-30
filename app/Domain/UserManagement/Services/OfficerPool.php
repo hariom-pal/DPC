@@ -9,7 +9,11 @@ use App\Domain\Authentication\Models\User;
 use App\Domain\Authentication\Services\SecurityLog;
 use App\Domain\Department\Models\Department;
 use App\Domain\Shared\Services\ActivityTimelineService;
+use App\Domain\Signature\Exceptions\SignatureVerificationFailed;
+use App\Domain\Signature\Services\SignatureAttemptLog;
+use App\Domain\Signature\Services\SignatureService;
 use App\Domain\UserManagement\Exceptions\AssignmentRefused;
+use App\Enums\OfficerChangeReason;
 use App\Enums\Role;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
@@ -88,9 +92,44 @@ class OfficerPool
      *
      * @throws AssignmentRefused
      */
-    public function release(User $officer, Department $department, User $actor, string $reason): void
+    public function release(User $officer, Department $department, User $actor, string $reason, bool $signed = false): void
     {
-        DB::transaction(function () use ($officer, $department, $actor, $reason): void {
+        $reasonText = OfficerChangeReason::describe($reason) ?? $reason;
+
+        try {
+            $this->releaseInTransaction($officer, $department, $actor, $reasonText, $signed);
+        } catch (SignatureVerificationFailed $e) {
+            $this->log->record('esign.'.$e->reason, $actor, context: ['subject' => 'release', 'id' => $officer->id, 'action' => 'release']);
+            app(SignatureAttemptLog::class)->record($actor, $officer, 'release', $e->reason, $e->assertedName);
+
+            throw new AssignmentRefused($e->getMessage());
+        }
+    }
+
+    /**
+     * Refuses, before any eSign, a release that cannot be made.
+     *
+     * @throws AssignmentRefused
+     */
+    public function assertReleasable(User $officer, Department $department): void
+    {
+        $member = $officer->activeAssignments()
+            ->where('department_id', $department->id)
+            ->where('role', '!=', Role::DepartmentAdmin->value)
+            ->exists();
+
+        if (! $member) {
+            throw new AssignmentRefused((string) __('department.users.release.not_member', ['name' => $officer->name]));
+        }
+
+        if ($this->hasOpenWork($officer, $department->id)) {
+            throw new AssignmentRefused((string) __('department.users.release.open_work', ['name' => $officer->name]));
+        }
+    }
+
+    private function releaseInTransaction(User $officer, Department $department, User $actor, string $reason, bool $signed): void
+    {
+        DB::transaction(function () use ($officer, $department, $actor, $reason, $signed): void {
             $assignments = $officer->activeAssignments()
                 ->where('department_id', $department->id)
                 ->where('role', '!=', Role::DepartmentAdmin->value)
@@ -103,6 +142,18 @@ class OfficerPool
 
             if ($this->hasOpenWork($officer, $department->id)) {
                 throw new AssignmentRefused((string) __('department.users.release.open_work', ['name' => $officer->name]));
+            }
+
+            // The Department Admin eSigns the release (MoM of 2026-10-29).
+            if ($signed) {
+                app(SignatureService::class)->signVerified($actor, $officer, implode("\n", [
+                    'RELEASE OF AN OFFICER',
+                    "Officer: {$officer->name} <{$officer->email}>",
+                    "Released from: {$department->name}",
+                    "Reason: {$reason}",
+                    "Released by: {$actor->name} <{$actor->email}>",
+                    'Date: '.now()->toDateTimeString(),
+                ]), "release-{$officer->id}.txt", ['action' => 'release']);
             }
 
             foreach ($assignments as $assignment) {

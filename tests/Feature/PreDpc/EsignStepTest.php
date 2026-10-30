@@ -58,7 +58,7 @@ class EsignStepTest extends TestCase
     private function esign(User $as, string $kind, string $name): void
     {
         $this->travel(2)->minutes(); // past the eSign rate limit between attempts
-        $this->actingAs($as)->post(route('esign.start', ['kind' => $kind, 'uuid' => $this->proposal->uuid]), ['consent' => '1'])
+        $this->actingAs($as)->post(route('esign.start', ['kind' => $kind, 'uuid' => $this->proposal->uuid]), ['consent' => '1', 'declaration' => '1'])
             ->assertRedirect();
         $reference = (string) session('esign.pending')['reference'];
         $this->get(route('esign.simulator', ['reference' => $reference]))->assertOk()->assertSee('value="'.$as->name.'"', false);
@@ -77,6 +77,12 @@ class EsignStepTest extends TestCase
         // Consent first.
         $this->post(route('esign.start', ['kind' => 'pre-dpc-submit', 'uuid' => $this->proposal->uuid]), [])->assertSessionHasErrors('consent');
 
+        // And the declaration, shown in Hindi and English (MoM of 2026-10-29).
+        $this->get(route('esign.show', ['kind' => 'pre-dpc-submit', 'uuid' => $this->proposal->uuid]))
+            ->assertSee(config('dpc.declarations.pre_dpc_submit.hi'))->assertSee(config('dpc.declarations.pre_dpc_submit.en'));
+        $this->post(route('esign.start', ['kind' => 'pre-dpc-submit', 'uuid' => $this->proposal->uuid]), ['consent' => '1'])
+            ->assertSessionHasErrors('declaration');
+
         $this->esign($this->ao, 'pre-dpc-submit', 'Shri Ramesh Verma');
         $this->assertSame(PreDpcStatus::Submitted, $this->proposal->fresh()->status);
         $this->assertSame('verified', SignatureAttempt::query()->sole()->outcome);
@@ -93,7 +99,7 @@ class EsignStepTest extends TestCase
 
     public function test_a_cancelled_or_replayed_esign_does_nothing(): void
     {
-        $this->actingAs($this->ao)->post(route('esign.start', ['kind' => 'pre-dpc-submit', 'uuid' => $this->proposal->uuid]), ['consent' => '1']);
+        $this->actingAs($this->ao)->post(route('esign.start', ['kind' => 'pre-dpc-submit', 'uuid' => $this->proposal->uuid]), ['consent' => '1', 'declaration' => '1']);
         $reference = (string) session('esign.pending')['reference'];
         $this->post(route('esign.simulator.submit'), ['reference' => $reference, 'decision' => 'cancel'])->assertSessionHasErrors('workflow');
         $this->assertSame(PreDpcStatus::Draft, $this->proposal->fresh()->status);

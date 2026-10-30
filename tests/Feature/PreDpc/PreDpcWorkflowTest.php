@@ -49,6 +49,8 @@ class PreDpcWorkflowTest extends TestCase
 
     private DepartmentPost $toPost;
 
+    private PayScale $feederScale;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -59,7 +61,11 @@ class PreDpcWorkflowTest extends TestCase
         $this->ah = User::factory()->assignedTo($this->department, Role::AdministrativeHead)->create();
 
         $scale = PayScale::query()->create([
-            'code' => 'L12', 'label' => 'Level-12 (₹56,100)', 'status' => MasterStatus::Active->value,
+            'code' => 'L12', 'label' => 'Level-12 (₹56,100)', 'minimum_pay' => 78800, 'status' => MasterStatus::Active->value,
+        ]);
+        // A feeder is on a lower scale (MoM of 2026-10-29).
+        $this->feederScale = PayScale::query()->create([
+            'code' => 'L10', 'label' => 'Level-10', 'minimum_pay' => 56100, 'status' => MasterStatus::Active->value,
         ]);
 
         /*
@@ -76,6 +82,7 @@ class PreDpcWorkflowTest extends TestCase
             'department_id' => $this->department->id,
             'name' => 'Under Secretary',
             'class_level' => 'I',
+            'pay_scale_id' => $this->feederScale->id,
             'promotion_duration_years' => 5,
             'status' => MasterStatus::Active->value,
         ]);
@@ -205,7 +212,7 @@ class PreDpcWorkflowTest extends TestCase
     public function test_only_a_draft_may_be_deleted(): void
     {
         $proposal = $this->draft();
-        $this->actingAs($this->ao)->post(route('pre-dpc.submit', $proposal));
+        $this->actingAs($this->ao)->post(route('pre-dpc.submit', $proposal), ['declaration' => '1']);
 
         $this->actingAs($this->ao)
             ->delete(route('pre-dpc.destroy', $proposal))
@@ -237,7 +244,7 @@ class PreDpcWorkflowTest extends TestCase
             ->assertOk()
             ->assertSee(__('predpc.show.delete_draft'));
 
-        $this->actingAs($this->ao)->post(route('pre-dpc.submit', $proposal));
+        $this->actingAs($this->ao)->post(route('pre-dpc.submit', $proposal), ['declaration' => '1']);
 
         $this->actingAs($this->ao)->get(route('pre-dpc.show', $proposal))
             ->assertOk()
@@ -287,6 +294,7 @@ class PreDpcWorkflowTest extends TestCase
             'department_id' => $this->department->id,
             'name' => 'Section Officer',
             'class_level' => 'II',
+            'pay_scale_id' => $this->feederScale->id,
             'promotion_duration_years' => 5,
             'status' => MasterStatus::Active->value,
         ]);
@@ -313,10 +321,10 @@ class PreDpcWorkflowTest extends TestCase
     public function test_a_same_class_feeder_needs_a_lower_pay_scale_than_the_post_it_feeds(): void
     {
         $lowerScale = PayScale::query()->create([
-            'code' => 'L11', 'label' => 'Level-11', 'level' => 11, 'status' => MasterStatus::Active->value,
+            'code' => 'L11', 'label' => 'Level-11', 'level' => 11, 'minimum_pay' => 67700, 'status' => MasterStatus::Active->value,
         ]);
         $sameScale = PayScale::query()->create([
-            'code' => 'L13', 'label' => 'Level-13', 'level' => 13, 'status' => MasterStatus::Active->value,
+            'code' => 'L13', 'label' => 'Level-13', 'level' => 13, 'minimum_pay' => 123100, 'status' => MasterStatus::Active->value,
         ]);
 
         $this->toPost->forceFill(['pay_scale_id' => $sameScale->id])->save();
@@ -332,6 +340,34 @@ class PreDpcWorkflowTest extends TestCase
 
         $this->storePreDpc($this->ao, $this->payload())
             ->assertSessionHasNoErrors();
+    }
+
+    /**
+     * Only from a lower pay scale to a higher one, on the entry pay (MoM of
+     * 2026-10-29) — even from a lower class.
+     */
+    public function test_a_promotion_must_rise_in_pay_scale(): void
+    {
+        $higher = PayScale::query()->create(['code' => 'L14', 'label' => 'Level-14', 'minimum_pay' => 144200, 'status' => MasterStatus::Active->value]);
+        $feeder = DepartmentPost::query()->create([
+            'department_id' => $this->department->id, 'name' => 'Section Officer', 'class_level' => 'II',
+            'pay_scale_id' => $higher->id, 'promotion_duration_years' => 5, 'status' => MasterStatus::Active->value,
+        ]);
+
+        $this->storePreDpc($this->ao, $this->payload(['promotion_sources' => [[
+            'promotion_from_post_id' => $feeder->id, 'promotion_percentage' => 100, 'min_experience_years' => 5,
+            'experience_unit' => 'years', 'qualification_ids' => $this->qualificationIds(),
+        ]]]))->assertSessionHasErrors(['promotion_sources.0.promotion_from_post_id' => __('predpc.validation.pay_scale_not_higher', [
+            'from' => 'Section Officer', 'from_scale' => 'Level-14', 'to' => 'Deputy Secretary', 'to_scale' => 'Level-12 (₹56,100)',
+        ])]);
+    }
+
+    public function test_a_post_without_a_pay_scale_is_refused(): void
+    {
+        $this->fromPost->forceFill(['pay_scale_id' => null])->save();
+
+        $this->storePreDpc($this->ao, $this->payload())
+            ->assertSessionHasErrors(['promotion_sources.0.promotion_from_post_id' => __('predpc.validation.pay_scale_not_mapped', ['post' => 'Under Secretary'])]);
     }
 
     /**
@@ -407,7 +443,7 @@ class PreDpcWorkflowTest extends TestCase
             $proposal->promotionSources->pluck('promotion_from_post_id')->all(),
         );
 
-        $this->actingAs($this->ao)->post(route('pre-dpc.submit', $proposal))
+        $this->actingAs($this->ao)->post(route('pre-dpc.submit', $proposal), ['declaration' => '1'])
             ->assertRedirect(route('pre-dpc.show', $proposal));
 
         $this->assertSame(PreDpcStatus::Submitted, $proposal->fresh()->status);
@@ -460,7 +496,7 @@ class PreDpcWorkflowTest extends TestCase
     public function test_ah_approval_signs_activates_and_projects_the_recruitment_rule(): void
     {
         $proposal = $this->draft();
-        $this->actingAs($this->ao)->post(route('pre-dpc.submit', $proposal));
+        $this->actingAs($this->ao)->post(route('pre-dpc.submit', $proposal), ['declaration' => '1']);
 
         $this->actingAs($this->ah)->post(route('pre-dpc.approve', $proposal))
             ->assertRedirect(route('pre-dpc.show', $proposal));
@@ -493,7 +529,7 @@ class PreDpcWorkflowTest extends TestCase
             'experience_unit' => 'months',
             'qualification_ids' => $this->qualificationIds(),
         ]]]);
-        $this->actingAs($this->ao)->post(route('pre-dpc.submit', $proposal));
+        $this->actingAs($this->ao)->post(route('pre-dpc.submit', $proposal), ['declaration' => '1']);
         $this->actingAs($this->ah)->post(route('pre-dpc.approve', $proposal))->assertSessionHasNoErrors();
 
         $feeder = RecruitmentRule::query()->where('post_id', $this->toPost->id)->sole()->promotionSources()->sole();
@@ -526,6 +562,7 @@ class PreDpcWorkflowTest extends TestCase
             'department_id' => $this->department->id,
             'name' => 'Research Officer',
             'class_level' => 'I',
+            'pay_scale_id' => $this->feederScale->id,
             'promotion_duration_years' => 7,
             'status' => MasterStatus::Active->value,
         ]);
@@ -562,7 +599,7 @@ class PreDpcWorkflowTest extends TestCase
         $this->assertSame(5, $sources[$this->fromPost->id]->promotion_duration_years);
         $this->assertSame(7, $sources[$second->id]->promotion_duration_years);
 
-        $this->actingAs($this->ao)->post(route('pre-dpc.submit', $proposal));
+        $this->actingAs($this->ao)->post(route('pre-dpc.submit', $proposal), ['declaration' => '1']);
         $this->actingAs($this->ah)->post(route('pre-dpc.approve', $proposal));
 
         // The Recruitment Rule projected on approval names both, with the shares the
@@ -580,7 +617,7 @@ class PreDpcWorkflowTest extends TestCase
     public function test_ah_can_return_a_submitted_proposal_with_remarks(): void
     {
         $proposal = $this->draft();
-        $this->actingAs($this->ao)->post(route('pre-dpc.submit', $proposal));
+        $this->actingAs($this->ao)->post(route('pre-dpc.submit', $proposal), ['declaration' => '1']);
 
         $this->actingAs($this->ah)->post(route('pre-dpc.return', $proposal), ['return_remarks' => 'Correct the GO number.'])
             ->assertRedirect(route('pre-dpc.show', $proposal));
@@ -598,7 +635,7 @@ class PreDpcWorkflowTest extends TestCase
     public function test_returning_without_remarks_is_refused(): void
     {
         $proposal = $this->draft();
-        $this->actingAs($this->ao)->post(route('pre-dpc.submit', $proposal));
+        $this->actingAs($this->ao)->post(route('pre-dpc.submit', $proposal), ['declaration' => '1']);
 
         $this->actingAs($this->ah)->post(route('pre-dpc.return', $proposal), [])
             ->assertSessionHasErrors('return_remarks');
@@ -619,7 +656,7 @@ class PreDpcWorkflowTest extends TestCase
     public function test_amend_opens_a_new_version_of_the_same_exercise_with_its_own_number(): void
     {
         $approved = $this->draft();
-        $this->actingAs($this->ao)->post(route('pre-dpc.submit', $approved));
+        $this->actingAs($this->ao)->post(route('pre-dpc.submit', $approved), ['declaration' => '1']);
         $this->actingAs($this->ah)->post(route('pre-dpc.approve', $approved));
 
         $this->actingAs($this->ao)->post(route('pre-dpc.amend', $approved->refresh()))->assertRedirect();
@@ -645,7 +682,7 @@ class PreDpcWorkflowTest extends TestCase
 
         $this->actingAs($this->ah)->get(route('pre-dpc.edit', $proposal))->assertForbidden();
 
-        $this->actingAs($this->ao)->post(route('pre-dpc.submit', $proposal));
+        $this->actingAs($this->ao)->post(route('pre-dpc.submit', $proposal), ['declaration' => '1']);
         $this->actingAs($this->ao)->post(route('pre-dpc.approve', $proposal))
             ->assertRedirect(route('pre-dpc.show', $proposal))
             ->assertSessionHasErrors('workflow');
@@ -667,7 +704,7 @@ class PreDpcWorkflowTest extends TestCase
     {
         $proposal = $this->draft(['government_order_number' => null, 'effective_from' => null]);
 
-        $this->actingAs($this->ao)->post(route('pre-dpc.submit', $proposal))
+        $this->actingAs($this->ao)->post(route('pre-dpc.submit', $proposal), ['declaration' => '1'])
             ->assertSessionHasErrors('workflow');
 
         $this->assertSame(PreDpcStatus::Draft, $proposal->fresh()->status);

@@ -61,7 +61,7 @@ class UserProvisioningService
             $user->password = Hash::make($password);
             $user->save();
 
-            $this->grant($user, Role::from($data['role']), $data['department_id'] ?? null, $actor);
+            $this->grant($user, Role::from($data['role']), self::departmentId($data), $actor);
 
             // The mobile cannot be proved by OTP while the SMS gateway is down: the
             // exception is recorded against the administrator who created the account.
@@ -110,13 +110,27 @@ class UserProvisioningService
             }
 
             if (isset($data['role'])) {
-                $this->grant($user, Role::from($data['role']), $data['department_id'] ?? null, $actor);
+                $this->grant($user, Role::from($data['role']), self::departmentId($data), $actor);
             }
 
             $this->timeline->record('user.updated', $user, 'Account details updated', causer: $actor);
 
             return $user;
         });
+    }
+
+    /**
+     * The department as an id. A submitted form carries it as a string — the
+     * `exists` rule validates without casting — so it is cast here, once, for
+     * every caller (2026-10-29: the admin's user form failed with a TypeError).
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private static function departmentId(array $data): ?int
+    {
+        $id = $data['department_id'] ?? null;
+
+        return $id === null || $id === '' ? null : (int) $id;
     }
 
     private function grant(User $user, Role $role, ?int $departmentId, ?User $actor = null): void

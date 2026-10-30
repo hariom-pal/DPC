@@ -46,6 +46,10 @@ class PreDpcExerciseTest extends TestCase
 
     private DepartmentPost $toPost;
 
+    private PayScale $topScale;
+
+    private PayScale $feederScale;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -54,7 +58,11 @@ class PreDpcExerciseTest extends TestCase
         $this->ao = User::factory()->assignedTo($this->department, Role::AuthorizedOfficer)->create();
         $this->ah = User::factory()->assignedTo($this->department, Role::AdministrativeHead)->create();
 
-        $scale = PayScale::query()->create(['code' => 'L12', 'label' => 'Level-12', 'status' => MasterStatus::Active->value]);
+        $scale = PayScale::query()->create(['code' => 'L12', 'label' => 'Level-12', 'minimum_pay' => 78800, 'status' => MasterStatus::Active->value]);
+        $this->topScale = $scale;
+
+        // Every post carries a scale (MoM of 2026-10-29); a feeder's is the lower one.
+        $this->feederScale = PayScale::query()->create(['code' => 'L10', 'label' => 'Level-10', 'minimum_pay' => 56100, 'status' => MasterStatus::Active->value]);
 
         $this->fromPost = $this->departmentPost('Under Secretary', ['promotion_duration_years' => 5]);
         $this->toPost = $this->departmentPost('Deputy Secretary', ['pay_scale_id' => $scale->id]);
@@ -69,6 +77,7 @@ class PreDpcExerciseTest extends TestCase
             'department_id' => ($department ?? $this->department)->id,
             'name' => $name,
             'class_level' => 'I',
+            'pay_scale_id' => $this->feederScale->id,
             'status' => MasterStatus::Active->value,
         ], $attributes));
     }
@@ -115,7 +124,7 @@ class PreDpcExerciseTest extends TestCase
         $this->storePreDpc($this->ao, $this->payload($overrides))->assertRedirect();
         $proposal = PreDpcProposal::query()->latest('id')->firstOrFail();
 
-        $this->actingAs($this->ao)->post(route('pre-dpc.submit', $proposal));
+        $this->actingAs($this->ao)->post(route('pre-dpc.submit', $proposal), ['declaration' => '1']);
         $this->actingAs($this->ah)->post(route('pre-dpc.approve', $proposal));
 
         return $proposal->refresh();
@@ -202,7 +211,7 @@ class PreDpcExerciseTest extends TestCase
         $this->actingAs($this->ao)->post(route('pre-dpc.amend', $first));
         $amendment = PreDpcProposal::query()->latest('id')->firstOrFail();
 
-        $this->actingAs($this->ao)->post(route('pre-dpc.submit', $amendment));
+        $this->actingAs($this->ao)->post(route('pre-dpc.submit', $amendment), ['declaration' => '1']);
         $this->actingAs($this->ah)->post(route('pre-dpc.approve', $amendment));
 
         $first->refresh();
@@ -256,7 +265,7 @@ class PreDpcExerciseTest extends TestCase
     {
         $first = $this->approved();
 
-        $other = $this->departmentPost('Joint Secretary', ['promotion_duration_years' => 3]);
+        $other = $this->departmentPost('Joint Secretary', ['promotion_duration_years' => 3, 'pay_scale_id' => $this->topScale->id]);
         $second = $this->approved(['promotion_to_post_id' => $other->id]);
 
         $this->assertTrue($first->refresh()->isActive());
@@ -372,7 +381,7 @@ class PreDpcExerciseTest extends TestCase
      */
     public function test_each_source_keeps_the_terms_of_its_own_post(): void
     {
-        $otherScale = PayScale::query()->create(['code' => 'L11', 'label' => 'Level-11', 'status' => MasterStatus::Active->value]);
+        $otherScale = PayScale::query()->create(['code' => 'L11', 'label' => 'Level-11', 'minimum_pay' => 67700, 'status' => MasterStatus::Active->value]);
         $second = $this->departmentPost('Research Officer', [
             'class_level' => 'II',
             'pay_scale_id' => $otherScale->id,
@@ -507,9 +516,8 @@ class PreDpcExerciseTest extends TestCase
             ->assertJsonFragment([
                 'id' => $this->fromPost->id,
 
-                // Under Secretary carries no scale of its own, and the answer says
-                // so rather than borrowing the promotion post's.
-                'pay_scale_label' => null,
+                // Under Secretary's own scale, never the promotion post's.
+                'pay_scale_label' => 'Level-10',
                 'class_level' => 'I',
                 'promotion_duration_years' => 5,
             ]);

@@ -6,12 +6,16 @@ namespace App\Http\Controllers\Department;
 
 use App\Domain\Allotment\Models\ProposalAllotment;
 use App\Domain\Authentication\Models\User;
+use App\Domain\Signature\Services\EsignGate;
 use App\Domain\UserManagement\Exceptions\AssignmentRefused;
 use App\Domain\UserManagement\Services\DepartmentUserAuthority;
 use App\Domain\UserManagement\Services\OfficerPool;
+use App\Enums\OfficerChangeReason;
 use App\Http\Controllers\Controller;
+use App\Http\SignedActions\ReleaseOfficer;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 /**
@@ -25,6 +29,7 @@ class DepartmentUserController extends Controller
     public function __construct(
         private readonly DepartmentUserAuthority $authority,
         private readonly OfficerPool $pool,
+        private readonly EsignGate $gate,
     ) {}
 
     public function index(Request $request): View
@@ -59,15 +64,23 @@ class DepartmentUserController extends Controller
     public function release(Request $request, User $officer): RedirectResponse
     {
         $admin = $this->admin($request);
-        $data = $request->validate(['reason' => ['required', 'string', 'max:500']]);
+        // A reason from the list, and the eSign (MoM of 2026-10-29).
+        $data = $request->validate([
+            'reason' => ['required', Rule::in(OfficerChangeReason::values())],
+            'consent' => ['accepted'],
+        ], ['consent.accepted' => __('esign.consent_required')]);
 
         try {
-            $this->pool->release($officer, $admin->department, $admin, trim($data['reason']));
+            $this->pool->assertReleasable($officer, $admin->department);
         } catch (AssignmentRefused $e) {
             return back()->withErrors(['release' => $e->getMessage()]);
         }
 
-        return back()->with('status', __('department.users.release.done', ['name' => $officer->name]));
+        if (! $this->gate->available()) {
+            return back()->withErrors(['release' => __('esign.errors.unavailable')]);
+        }
+
+        return $this->gate->begin($request, $admin, ReleaseOfficer::class, ['officer' => $officer->id, 'reason' => $data['reason']]);
     }
 
     private function admin(Request $request): User

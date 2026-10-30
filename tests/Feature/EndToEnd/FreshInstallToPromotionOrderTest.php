@@ -34,6 +34,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\ViewErrorBag;
 use Illuminate\Testing\TestResponse;
 use Tests\Concerns\ReadsSentMail;
+use Tests\Concerns\SignsAsDepartmentAdmin;
 use Tests\TestCase;
 use Throwable;
 
@@ -55,6 +56,7 @@ class FreshInstallToPromotionOrderTest extends TestCase
 {
     use ReadsSentMail;
     use RefreshDatabase;
+    use SignsAsDepartmentAdmin;
 
     private const FIXTURES = __DIR__.'/../../Fixtures/dpc/';
 
@@ -233,7 +235,7 @@ class FreshInstallToPromotionOrderTest extends TestCase
                 'name' => 'Shri D. Admin', 'date_of_birth' => '1972-08-01', 'gender' => 'M', 'aadhaar_verified' => '1',
             ]);
             $this->get((string) $callback->headers->get('Location'))->assertRedirect(route('register.invitation.password', ['token' => $token]));
-            $this->ok($this->post(route('register.invitation.complete', ['token' => $token]), ['password' => 'Dept@Admin2026', 'password_confirmation' => 'Dept@Admin2026']));
+            $this->ok($this->post(route('register.invitation.complete', ['token' => $token]), ['password' => 'Dept@Admin2026', 'password_confirmation' => 'Dept@Admin2026', 'designation_id' => (string) Designation::query()->firstOrCreate(['name' => 'Deputy Secretary'], ['status' => 'active'])->id]));
             $deptAdmin = User::query()->where('email', 'phex.dpc@cg.gov.in')->sole();
             $this->assertSame('registered', $department->fresh()->status->value);
             $this->assertSame('digilocker_simulated', $deptAdmin->identity_verification_method);
@@ -268,7 +270,7 @@ class FreshInstallToPromotionOrderTest extends TestCase
                 'direct_recruitment_pct' => 0, 'promotion_recruitment_pct' => 100,
                 'government_order_number' => 'F-1/2026/PHE/RR', 'effective_from' => '2026-01-01',
             ]));
-            $this->ok($this->put(route('department.allotments.pre-dpc.update', $preDpc), ['ao_user_id' => $ao->id, 'ah_user_id' => $ah->id]));
+            $this->ok($this->signedAllot($preDpc, ['ao_user_id' => $ao->id, 'ah_user_id' => $ah->id]));
             $this->assertSame([$ao->id, $ah->id], [$preDpc->fresh()->currentAllotment->ao_user_id, $preDpc->fresh()->currentAllotment->ah_user_id]);
 
             return [$this->firstLogin('ao.phe@cg.gov.in', $officers['ao']), $this->firstLogin('ah.phe@cg.gov.in', $officers['ah']), $deptAdmin, $preDpc];
@@ -276,7 +278,7 @@ class FreshInstallToPromotionOrderTest extends TestCase
 
         $preDpc = $this->step('3 AO reviews and submits the Pre-DPC with eSign, AH approves with eSign; Recruitment Rule created', function () use ($ao, $ah, $preDpc, $to): PreDpcProposal {
             $this->actingAs($ao)->get(route('pre-dpc.edit', $preDpc))->assertOk();
-            $this->ok($this->actingAs($ao)->post(route('pre-dpc.submit', $preDpc)));
+            $this->ok($this->actingAs($ao)->post(route('pre-dpc.submit', $preDpc), ['declaration' => '1']));
             $this->ok($this->actingAs($ah)->post(route('pre-dpc.approve', $preDpc)));
             $this->assertSame('approved', $preDpc->fresh()->status->value);
             $this->assertSame(100.0, (float) RecruitmentRule::query()->where('post_id', $to->id)->sole()->promotion_recruitment_pct);

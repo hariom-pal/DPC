@@ -7,12 +7,17 @@ namespace App\Domain\Allotment\Services;
 use App\Domain\Allotment\Exceptions\AllotmentRefused;
 use App\Domain\Allotment\Models\ProposalAllotment;
 use App\Domain\Authentication\Models\User;
+use App\Domain\Authentication\Services\SecurityLog;
 use App\Domain\Circulation\Models\DpcCirculation;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\PreDpc\Models\PreDpcProposal;
 use App\Domain\Shared\Services\ActivityTimelineService;
+use App\Domain\Signature\Exceptions\SignatureVerificationFailed;
+use App\Domain\Signature\Services\SignatureAttemptLog;
+use App\Domain\Signature\Services\SignatureService;
 use App\Domain\UserManagement\Services\DepartmentAssignmentService;
 use App\Domain\UserManagement\Services\OfficerPool;
+use App\Enums\OfficerChangeReason;
 use App\Enums\Role;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -36,6 +41,7 @@ class ProposalAllotmentService
         private readonly ActivityTimelineService $timeline,
         private readonly DepartmentAssignmentService $assignments,
         private readonly OfficerPool $pool,
+        private readonly SignatureService $signatures,
     ) {}
 
     public function current(PreDpcProposal|DpcProposal $proposal): ?ProposalAllotment
@@ -90,7 +96,34 @@ class ProposalAllotmentService
      *
      * @throws AllotmentRefused
      */
-    public function allot(PreDpcProposal|DpcProposal $proposal, User $ao, User $ah, ?User $by, ?string $reason = null): ProposalAllotment
+    /**
+     * With an $order (MoM of 2026-10-29) — the Government Order / assignment
+     * document the Department Admin uploaded and declared against — the
+     * allotment carries it and is eSigned by the Department Admin in the same
+     * transaction: an eSign that fails or does not match allots nothing.
+     *
+     * @param  array{disk: string, path: string, name: string, sha256: string}|null  $order
+     */
+    public function allot(PreDpcProposal|DpcProposal $proposal, User $ao, User $ah, ?User $by, ?string $reason = null, ?array $order = null): ProposalAllotment
+    {
+        if ($order === null || $by === null) {
+            return $this->record($proposal, $ao, $ah, $by, $reason, null);
+        }
+
+        try {
+            return $this->record($proposal, $ao, $ah, $by, $reason, $order);
+        } catch (SignatureVerificationFailed $e) {
+            app(SecurityLog::class)->record('esign.'.$e->reason, $by, context: ['subject' => 'allotment', 'id' => $proposal->getKey(), 'action' => 'allot']);
+            app(SignatureAttemptLog::class)->record($by, $proposal, 'allot', $e->reason, $e->assertedName);
+
+            throw new AllotmentRefused($e->getMessage());
+        }
+    }
+
+    /**
+     * @param  array{disk: string, path: string, name: string, sha256: string}|null  $order
+     */
+    private function record(PreDpcProposal|DpcProposal $proposal, User $ao, User $ah, ?User $by, ?string $reason, ?array $order): ProposalAllotment
     {
         // One officer is never both the AO and the AH of a proposal: the AH
         // approves what the AO prepared (Phase 0, 2026-10-27).
@@ -101,7 +134,7 @@ class ProposalAllotmentService
         $this->assertOfficer($ao, $proposal->department_id, Role::AuthorizedOfficer);
         $this->assertOfficer($ah, $proposal->department_id, Role::AdministrativeHead);
 
-        return DB::transaction(function () use ($proposal, $ao, $ah, $by, $reason): ProposalAllotment {
+        return DB::transaction(function () use ($proposal, $ao, $ah, $by, $reason, $order): ProposalAllotment {
             $current = ProposalAllotment::query()
                 ->current()
                 ->where($this->key($proposal), $proposal->getKey())
@@ -157,7 +190,15 @@ class ProposalAllotmentService
                 'allotted_by' => $by?->id,
                 'allotted_at' => now(),
                 'reason' => $reason !== '' ? $reason : null,
-            ]);
+            ] + ($order === null ? [] : [
+                'order_disk' => $order['disk'], 'order_path' => $order['path'],
+                'order_name' => $order['name'], 'order_sha256' => $order['sha256'],
+                'declaration_accepted_at' => now(),
+            ]));
+
+            if ($order !== null && $by !== null) {
+                $this->signatures->signVerified($by, $allotment, $this->document($proposal, $allotment, $ao, $ah, $by, $reason, $order), "allotment-{$allotment->id}.txt", ['action' => 'allot']);
+            }
 
             // The AO and AH roles follow the allotments (2026-10-27): the incoming
             // officers gain them, the outgoing ones keep them only while another
@@ -171,7 +212,7 @@ class ProposalAllotmentService
                 $proposal,
                 $current === null
                     ? "Allotted to {$ao->name} (AO) and {$ah->name} (AH)"
-                    : "Reassigned to {$ao->name} (AO) and {$ah->name} (AH): {$reason}",
+                    : "Reassigned to {$ao->name} (AO) and {$ah->name} (AH): ".OfficerChangeReason::describe($reason),
                 ['ao_user_id' => $ao->id, 'ah_user_id' => $ah->id, 'previous_allotment_id' => $current?->id],
                 $by,
             );
@@ -346,5 +387,28 @@ class ProposalAllotmentService
             Role::AdministrativeHead => 'ah_user_id',
             default => null,
         };
+    }
+
+    /**
+     * What the Department Admin signs on allotting (MoM of 2026-10-29).
+     *
+     * @param  array{disk: string, path: string, name: string, sha256: string}  $order
+     */
+    private function document(PreDpcProposal|DpcProposal $proposal, ProposalAllotment $allotment, User $ao, User $ah, User $by, ?string $reason, array $order): string
+    {
+        return implode("\n", array_filter([
+            'AO / AH ALLOTMENT #'.$allotment->id,
+            $proposal instanceof PreDpcProposal ? 'Pre-DPC '.$proposal->pre_dpc_number : 'DPC Proposal '.$proposal->citation(),
+            "Department #{$proposal->department_id}",
+            "Authorized Officer: {$ao->name} <{$ao->email}>",
+            "Administrative Head: {$ah->name} <{$ah->email}>",
+            $reason !== null && $reason !== '' ? 'Reason: '.OfficerChangeReason::describe($reason) : null,
+            "Assignment order: {$order['name']} (SHA-256 {$order['sha256']})",
+            "Allotted by: {$by->name} <{$by->email}>",
+            '',
+            'Declaration:',
+            (string) config('dpc.declarations.allotment.hi'),
+            (string) config('dpc.declarations.allotment.en'),
+        ], static fn (?string $line): bool => $line !== null));
     }
 }

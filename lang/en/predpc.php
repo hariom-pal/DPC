@@ -19,6 +19,7 @@ declare(strict_types=1);
 */
 
 return [
+    'declaration_required' => 'Tick the declaration to submit the proposal.',
     'summary' => [
         'title_edit' => 'Edit Pre-DPC Proposal',
         'title_new' => 'New Pre-DPC Proposal',
@@ -29,7 +30,8 @@ return [
         '2_taken_from_the_posts' => '2. Taken from the posts',
         '2_terms_this_exercise_sanctions' => '2. Terms this exercise sanctions',
         '3_promotion_from_posts' => '3. Promotion From Posts',
-        '4_government_order' => '4. Government Order',
+        '4_government_order' => '4. Adyatan Vibhagiy Bharti Niyam (Updated Departmental Recruitment Rules)',
+        'publish_date' => 'Publish Date',
         'all_fields_required' => 'Every field marked * is required.',
         'share_total_ok' => 'The feeder shares total 100% of the promotion quota.',
         'share_total_short' => 'The feeder shares total :total%. They must total exactly 100% — :short% is unaccounted for, so the proposal cannot be saved.',
@@ -37,14 +39,13 @@ return [
         'add_source' => 'Add Promotion From Post',
         'attributes_unavailable' => 'Could not be loaded — read from the post itself when the order is saved',
         'back_to_list' => 'Back to list',
-        'both_are_required_before_the_proposal_can_be_sub' => 'Both are required before the proposal can be submitted for approval — a Pre-DPC is the order
-                    that sanctions the promotion, and one without its number and date sanctions nothing.',
+        'both_are_required_before_the_proposal_can_be_sub' => 'Both are required before the proposal can be submitted for approval.',
         'derived_hint' => 'Choose both posts above and these fill in on their own. The Pay Scale and Class come from the Promotion <strong>To</strong> Post — a promotion is <em>into</em> a post, at that post\'s scale — and the Promotion Duration from the Promotion <strong>From</strong> Post, being the qualifying service an officer must already have on it.',
         'direct_recruitment_label' => '<label class="form-label" for="direct_recruitment_pct">Direct Recruitment % <span class="text-danger">*</span></label>',
         'dpc_year_label' => '<label class="form-label" for="dpc_year">DPC Year <span class="text-danger">*</span></label>',
         'experience_unit' => 'Experience unit',
         'experience_unit_label' => '<label class="form-label" for="experience_unit">Unit <span class="text-danger">*</span></label>',
-        'government_order_number' => 'Government Order Number',
+        'government_order_number' => 'Adyatan Vibhagiy Bharti Niyam',
         'hint_from_post' => 'The post officers are promoted <strong>out of</strong>.',
         'hint_shares_total' => 'The two must total exactly 100%.',
         'hint_to_post' => 'The post officers are promoted <strong>into</strong>.',
@@ -76,6 +77,8 @@ return [
     'index' => [
         'exercise' => 'Exercise',
         'pre_dpc_no' => 'Pre-DPC No.',
+        'promotion_from_post' => 'Promotion From Post',
+        'promotion_to_post' => 'Promotion To Post',
         'pre_dpc_proposals' => 'Pre-DPC Proposals',
     ],
     'show' => [
@@ -91,7 +94,8 @@ return [
         'delete_draft' => 'Delete Draft',
         'delete_draft_confirm' => 'Delete this draft Pre-DPC? It is removed from the list and kept on the record; only a draft can be deleted.',
         'draft_deleted' => 'Draft :number deleted.',
-        'government_order_no' => 'Government Order No.',
+        'government_order_no' => 'Adyatan Vibhagiy Bharti Niyam',
+        'publish_date' => 'Publish Date',
         'minimum_experience' => 'Minimum Experience',
         'no_actions_available_in_this_state' => 'No actions available in this state.',
         'no_sources_recorded' => 'No Promotion From Post has been recorded yet.',
@@ -110,5 +114,9 @@ return [
         'qualification_required' => 'Choose at least one qualification this feeder accepts.',
         'year_before_earliest' => 'Reservation in promotion ended in 2019 (rule 1.4): a DPC for a year before :year is not taken in this software.',
         'feeder_not_below_post' => ':from cannot feed :to. A promotion goes from a lower grade to a higher one. :reason',
+        'na_stands_alone' => '"NA" means no qualification is required, so it cannot be chosen with another qualification.',
+        'pay_scale_not_mapped' => 'No pay scale is mapped to :post. Map it under Post Mapping first.',
+        'pay_scale_no_entry_pay' => 'The pay scale :scale has no entry pay in the Pay Scale master.',
+        'pay_scale_not_higher' => 'A promotion is only to a higher pay scale: :from (:from_scale) cannot be promoted to :to (:to_scale).',
     ],
 ];

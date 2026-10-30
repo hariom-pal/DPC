@@ -271,7 +271,7 @@ class PreDpcProposalController extends Controller
                 ->where('department_id', $departmentId)
                 ->orderBy('name')
                 ->get(),
-            'qualifications' => Qualification::query()->selectable()->orderBy('name_en')->get(),
+            'qualifications' => Qualification::query()->selectable()->inDropdownOrder()->get(),
             'experienceUnits' => ExperienceUnit::cases(),
 
             // Pay Scale, Class and Promotion Duration are shown, never chosen

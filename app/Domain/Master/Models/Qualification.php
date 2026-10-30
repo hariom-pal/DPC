@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Master\Models;
 
 use App\Domain\Master\Concerns\IsMaster;
+use App\Domain\Master\Data\QualificationCatalogue;
 use App\Domain\PreDpc\Models\PreDpcPromotionSource;
 use App\Enums\MasterStatus;
 use Illuminate\Database\Eloquent\Builder;
@@ -51,6 +52,17 @@ class Qualification extends Model implements Auditable
     public function scopeSelectable(Builder $query): Builder
     {
         return $query->where('status', MasterStatus::Active->value);
+    }
+
+    /**
+     * Dropdown order: by name, with "NA" last (MoM of 2026-10-29).
+     *
+     * @param  Builder<$this>  $query
+     * @return Builder<$this>
+     */
+    public function scopeInDropdownOrder(Builder $query): Builder
+    {
+        return $query->orderByRaw('CASE WHEN code = ? THEN 1 ELSE 0 END', [QualificationCatalogue::NOT_APPLICABLE])->orderBy('name_en');
     }
 
     public function isSelectable(): bool

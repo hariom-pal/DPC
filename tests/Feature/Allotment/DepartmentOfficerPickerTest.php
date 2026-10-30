@@ -9,9 +9,11 @@ use App\Domain\Authentication\Models\User;
 use App\Domain\Department\Models\Department;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Master\Models\DepartmentPost;
+use App\Domain\Master\Models\Designation;
 use App\Domain\Master\Models\DpcType;
 use App\Domain\PreDpc\Models\PreDpcProposal;
 use App\Domain\PreDpc\Services\PreDpcProposalService;
+use App\Domain\Signature\Models\Signature;
 use App\Domain\UserManagement\Models\UserDepartmentAssignment;
 use App\Enums\MasterStatus;
 use App\Enums\Role;
@@ -19,6 +21,7 @@ use Database\Seeders\LookupMasterSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Concerns\PrescribesQualifications;
+use Tests\Concerns\SignsAsDepartmentAdmin;
 use Tests\TestCase;
 
 /**
@@ -32,6 +35,7 @@ class DepartmentOfficerPickerTest extends TestCase
 {
     use PrescribesQualifications;
     use RefreshDatabase;
+    use SignsAsDepartmentAdmin;
 
     private Department $department;
 
@@ -40,6 +44,8 @@ class DepartmentOfficerPickerTest extends TestCase
     private User $admin;
 
     private DepartmentPost $post;
+
+    private Designation $designation;
 
     protected function setUp(): void
     {
@@ -50,6 +56,7 @@ class DepartmentOfficerPickerTest extends TestCase
         $this->other = Department::query()->create(['code' => 'HED', 'name' => 'Higher Education', 'status' => 'registered']);
         $this->admin = User::factory()->assignedTo($this->department, Role::DepartmentAdmin)->create();
         $this->post = DepartmentPost::query()->create(['department_id' => $this->department->id, 'name' => 'Executive Engineer', 'class_level' => 'I', 'status' => MasterStatus::Active->value]);
+        $this->designation = Designation::query()->create(['name' => 'Superintending Engineer', 'status' => MasterStatus::Active->value]);
     }
 
     /**
@@ -62,6 +69,7 @@ class DepartmentOfficerPickerTest extends TestCase
             'name' => 'Shri New Officer', 'email' => 'new.officer@cg.gov.in', 'mobile' => '9123456780',
             'gender' => 'M', 'date_of_birth' => '1980-05-01',
             'role' => Role::AuthorizedOfficer->value, 'email_code' => '123456', 'mobile_code' => '123456',
+            'designation_id' => (string) $this->designation->id,
         ];
     }
 
@@ -110,6 +118,21 @@ class DepartmentOfficerPickerTest extends TestCase
         $this->postJson(route('department.officers.mobile.otp', $foreign), ['mobile' => '9000000003'])->assertForbidden();
     }
 
+    public function test_a_chosen_officers_post_is_changed_from_the_post_master(): void
+    {
+        $own = User::factory()->assignedTo($this->department, Role::AuthorizedOfficer)->create(['email' => 'phe.post@cg.gov.in']);
+        $foreign = User::factory()->assignedTo($this->other, Role::AuthorizedOfficer)->create();
+        $this->actingAs($this->admin);
+
+        $key = (string) $this->getJson(route('department.officers.lookup', ['email' => 'phe.post@cg.gov.in']))->json('key');
+        $this->putJson(route('department.officers.designation', ['officer' => $key]), ['designation_id' => (string) $this->designation->id])
+            ->assertOk()->assertJsonPath('designation_id', $this->designation->id);
+        $this->assertSame($this->designation->id, $own->fresh()->designation_id);
+
+        $this->putJson(route('department.officers.designation', ['officer' => $key]), ['designation_id' => '999999'])->assertStatus(422);
+        $this->putJson(route('department.officers.designation', ['officer' => $foreign->uuid]), ['designation_id' => (string) $this->designation->id])->assertForbidden();
+    }
+
     public function test_a_new_officer_is_added_only_with_both_otps(): void
     {
         $this->actingAs($this->admin)->postJson(route('department.officers.otp'), ['email' => 'new.officer@cg.gov.in', 'mobile' => '9123456780'])
@@ -124,6 +147,7 @@ class DepartmentOfficerPickerTest extends TestCase
         $this->assertSame($officer->id, $response->json('id'));
         $this->assertNotEmpty($response->json('password'));
         $this->assertSame(['1980-05-01', 'M'], [$officer->date_of_birth?->toDateString(), $officer->gender]);
+        $this->assertSame($this->designation->id, $officer->designation_id); // the post (MoM of 2026-10-29)
         $this->assertNotNull($officer->email_verified_at);
         $this->assertNotNull($officer->mobile_verified_at);
         $this->assertTrue($officer->must_change_password);
@@ -162,11 +186,11 @@ class DepartmentOfficerPickerTest extends TestCase
             ->assertSee(__('allotments.picker.hint'));
 
         // Another department's officer, not released: refused.
-        $this->put(route('department.allotments.pre-dpc.update', $proposal), ['ao_user_id' => $ao->id, 'ah_user_id' => $foreign->id])
+        $this->signedAllot($proposal, ['ao_user_id' => $ao->id, 'ah_user_id' => $foreign->id])
             ->assertSessionHasErrors(['ao_user_id' => __('allotments.errors.not_in_pool', ['name' => $foreign->name])]);
 
         // A released officer: allotted, and posted to this department.
-        $this->put(route('department.allotments.pre-dpc.update', $proposal), ['ao_user_id' => $ao->id, 'ah_user_id' => $released->id])->assertSessionHasNoErrors();
+        $this->signedAllot($proposal, ['ao_user_id' => $ao->id, 'ah_user_id' => $released->id])->assertSessionHasNoErrors();
 
         $allotments = app(ProposalAllotmentService::class);
         $this->assertTrue($allotments->isAllotted($ao->fresh(), $proposal, Role::AuthorizedOfficer));
@@ -232,14 +256,17 @@ class DepartmentOfficerPickerTest extends TestCase
         $this->post(route('department.allotments.pre-dpc.store'), ['dpc_year' => 2026, 'promotion_to_post_id' => $this->post->id]);
         $proposal = PreDpcProposal::query()->sole();
         app(ProposalAllotmentService::class)->allot($proposal, $officer, $ah, $this->admin);
-        $this->post(route('department.users.release', $officer), ['reason' => 'Transfer order 12/2026'])
+        $this->signedRelease($officer)
             ->assertSessionHasErrors(['release' => __('department.users.release.open_work', ['name' => $officer->name])]);
 
         $replacement = User::factory()->assignedTo($this->department, Role::AuthorizedOfficer)->create();
-        app(ProposalAllotmentService::class)->allot($proposal, $replacement, $ah, $this->admin, 'Officer transferred');
+        app(ProposalAllotmentService::class)->allot($proposal, $replacement, $ah, $this->admin, 'transfer');
 
-        $this->post(route('department.users.release', $officer), [])->assertSessionHasErrors('reason');
-        $this->post(route('department.users.release', $officer), ['reason' => 'Transfer order 12/2026'])->assertSessionHasNoErrors();
+        // A reason from the list, and the eSign (MoM of 2026-10-29).
+        $this->post(route('department.users.release', $officer), [])->assertSessionHasErrors(['reason', 'consent']);
+        $this->post(route('department.users.release', $officer), ['reason' => 'Transfer order 12/2026', 'consent' => '1'])->assertSessionHasErrors('reason');
+        $this->signedRelease($officer, 'retirement')->assertSessionHasNoErrors();
+        $this->assertTrue(Signature::query()->where('signable_type', $officer->getMorphClass())->where('signable_id', $officer->id)->exists(), 'The release is eSigned.');
 
         $officer = $officer->fresh();
         $this->assertNotNull($officer?->released_at);
@@ -248,7 +275,7 @@ class DepartmentOfficerPickerTest extends TestCase
         $this->assertTrue($officer?->is_active);
 
         // Another department's officer cannot be released from here.
-        $this->post(route('department.users.release', $outsider), ['reason' => 'x'])
+        $this->signedRelease($outsider)
             ->assertSessionHasErrors(['release' => __('department.users.release.not_member', ['name' => $outsider->name])]);
 
         // The released officer is now offered to the other department.

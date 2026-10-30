@@ -643,7 +643,7 @@ return [
         // signature, one transition, one timeline entry, one audit event.
         'dpc_proposal' => [
             'transitions' => [
-                'submit' => ['from' => ['draft', 'returned'], 'to' => 'submitted', 'role' => 'authorized_officer', 'signature' => false, 'notify' => ['administrative_head']],
+                'submit' => ['from' => ['draft', 'returned'], 'to' => 'submitted', 'role' => 'authorized_officer', 'signature' => true, 'notify' => ['administrative_head']],
                 'approve' => ['from' => ['submitted'], 'to' => 'approved', 'role' => 'administrative_head', 'signature' => true, 'notify' => ['authorized_officer']],
                 'return' => ['from' => ['submitted'], 'to' => 'returned', 'role' => 'administrative_head', 'signature' => false, 'notify' => ['authorized_officer']],
                 'cancel' => ['from' => ['draft', 'returned'], 'to' => 'cancelled', 'role' => 'authorized_officer', 'signature' => false, 'notify' => ['administrative_head']],
@@ -1860,6 +1860,29 @@ return [
         // section limits above — an import cannot smuggle in a larger write
         // than manual entry allows.
         'max_rows' => (int) env('DPC_IMPORT_MAX_ROWS', 500),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Declarations (MoM of 2026-10-29)
+    |--------------------------------------------------------------------------
+    |
+    | Worded as the Commission gave them, in Hindi and English, and shown in
+    | both whatever the screen's language. Each is a mandatory checkbox.
+    |
+    */
+
+    'declarations' => [
+        // The Department Admin, on allotting an AO / AH.
+        'allotment' => [
+            'hi' => 'प्रमाणित किया जाता है कि अपलोड किये जा रहे दस्तावेज में विभागीय एडमिन के रूप में मेरा नाम दर्ज है, तथा AH/AO के असाइनमेंट दस्तावेज के अनुरूप ही किये गये है। किसी प्रकार कि भिन्नता होने पर इस हेतु मै स्वयं जिम्मेदार होऊंगा, तथा इस सन्दर्भ में कि गयी अनुशासनात्मक कार्यवाही मुझे मान्य होगी।',
+            'en' => 'I hereby certify that my name is recorded as the Department Admin in the document being uploaded and that the AH/AO assignments have been made in accordance with the assignment document. I shall be solely responsible for any discrepancy and shall accept any disciplinary action taken in this regard.',
+        ],
+        // The Authorized Officer, on submitting a Pre-DPC.
+        'pre_dpc_submit' => [
+            'hi' => 'प्रमाणित किया जाता है कि उक्त पदोन्नति प्रस्ताव अद्यतन विभागीय भर्ती नियम के पूर्णतः अनुरूप तैयार किया गया है, तथा किसी प्रकार की भिन्नता होने पर इस हेतु मैं स्वयं जिम्मेदार होऊंगा, तथा इस संदर्भ में की गयी अनुशासनात्मक कार्यवाही मुझे मान्य होगी।',
+            'en' => 'I hereby certify that the above promotion proposal has been prepared in full compliance with the updated Departmental Recruitment Rules. I shall be personally responsible for any discrepancy and shall accept any disciplinary action taken in this regard.',
+        ],
     ],
 
 ];

@@ -126,6 +126,7 @@ class PreDpcProposal extends Model implements Auditable
             'version' => 'integer',
             'effective_from' => 'date',
             'submitted_at' => 'datetime',
+            'declaration_accepted_at' => 'datetime',
             'approved_at' => 'datetime',
             'returned_at' => 'datetime',
             'cancelled_at' => 'datetime',

@@ -23,7 +23,11 @@
                                     <span class="badge text-bg-success">{{ __('allotments.current') }}</span>
                                 @endif
                             </td>
-                            <td>{{ $row->reason ?? '—' }}</td>
+                            <td>{{ \App\Enums\OfficerChangeReason::describe($row->reason) ?? '—' }}
+                                @if ($row->hasOrder())
+                                    <div><a href="{{ route('department.allotments.order', $row) }}" class="small">{{ __('allotments.order.download') }}: {{ $row->order_name }}</a></div>
+                                @endif
+                            </td>
                         </tr>
                     @empty
                         <tr><td colspan="5" class="text-muted">{{ __('allotments.none') }}</td></tr>

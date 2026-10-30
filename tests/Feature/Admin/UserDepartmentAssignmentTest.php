@@ -322,7 +322,8 @@ class UserDepartmentAssignmentTest extends TestCase
                 'email' => 'a.officer@cg.gov.in',
                 'mobile' => '9800000003',
                 'role' => Role::AdministrativeHead->value,
-                'department_id' => $this->forest->id,
+                // As a browser posts it: a string (2026-10-29, a TypeError in grant()).
+                'department_id' => (string) $this->forest->id,
             ])
             // The temporary password is shown on the page that answers the POST (2026-10-26).
             ->assertOk()
@@ -357,6 +358,24 @@ class UserDepartmentAssignmentTest extends TestCase
 
         // The posting is closed, not erased.
         $this->assertSame(1, $officer->assignments()->count());
+    }
+
+    public function test_editing_an_officer_with_the_department_as_a_browser_posts_it(): void
+    {
+        $officer = User::factory()->assignedTo($this->higherEducation)->create(['email' => 'y@cg.gov.in']);
+
+        // A browser posts the department as a string; grant() takes an int (2026-10-29).
+        $this->actingAs($this->admin)
+            ->put(route('admin.users.update', $officer), [
+                'name' => $officer->name,
+                'email' => 'y@cg.gov.in',
+                'mobile' => $officer->mobile,
+                'role' => Role::AuthorizedOfficer->value,
+                'department_id' => (string) $this->forest->id,
+            ])
+            ->assertRedirect(route('admin.users.index'));
+
+        $this->assertSame($this->forest->id, $officer->refresh()->department_id);
     }
 
     public function test_only_the_administrator_reaches_role_assignments(): void

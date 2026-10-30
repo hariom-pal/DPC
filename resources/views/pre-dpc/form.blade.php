@@ -258,7 +258,7 @@
                         @error('government_order_number')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
                     <div class="col-md-3 mb-3">
-                        <label class="form-label" for="effective_from">{{ __('ui.effective_from') }}{!! $required !!}</label>
+                        <label class="form-label" for="effective_from">{{ __('predpc.form.publish_date') }}{!! $required !!}</label>
                         <input type="date" class="form-control @error('effective_from') is-invalid @enderror"
                                id="effective_from" name="effective_from"
                                value="{{ old('effective_from', $proposal->effective_from?->format('Y-m-d')) }}">

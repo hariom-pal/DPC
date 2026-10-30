@@ -45,6 +45,10 @@ class PayScale extends Model implements Auditable
          */
         'level',
         'grade_pay',
+
+        // The entry pay (MoM of 2026-10-29): what orders one scale above another
+        // for a Pre-DPC, where a promotion is only to a higher scale.
+        'minimum_pay',
     ];
 
     /**
@@ -55,6 +59,7 @@ class PayScale extends Model implements Auditable
         return [
             'level' => 'integer',
             'grade_pay' => 'integer',
+            'minimum_pay' => 'integer',
         ];
     }
 }

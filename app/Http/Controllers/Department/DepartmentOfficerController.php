@@ -15,6 +15,7 @@ use App\Domain\Shared\Services\ActivityTimelineService;
 use App\Domain\UserManagement\Services\DepartmentUserAuthority;
 use App\Domain\UserManagement\Services\OfficerPool;
 use App\Domain\UserManagement\Services\UserProvisioningService;
+use App\Enums\MasterStatus;
 use App\Enums\OtpChannel;
 use App\Enums\OtpPurpose;
 use App\Enums\Role;
@@ -153,6 +154,27 @@ class DepartmentOfficerController extends Controller
     }
 
     /**
+     * Change a chosen officer's post (MoM of 2026-10-29): editable like the
+     * mobile, from the Post (Designation) master, with no OTP.
+     */
+    public function updateDesignation(Request $request, User $officer): JsonResponse
+    {
+        $admin = $this->admin($request);
+        abort_unless($this->pool->isSelectable($officer, (int) $admin->department_id), 403);
+
+        $data = $this->validated($request, ['designation_id' => $this->designationRule()]);
+        if ($data instanceof JsonResponse) {
+            return $data;
+        }
+
+        $old = $officer->designation_id;
+        $officer->forceFill(['designation_id' => (int) $data['designation_id']])->save();
+        app(ActivityTimelineService::class)->record('officer.post_changed', $officer, 'Post changed by the Department Admin.', ['from' => $old, 'to' => $officer->designation_id], $admin);
+
+        return response()->json(['message' => __('allotments.picker.post_changed')] + $this->describe($officer->load(['releasedFrom', 'designation'])));
+    }
+
+    /**
      * Send the OTPs that prove the new officer's e-mail and mobile.
      */
     public function sendOtp(Request $request): JsonResponse
@@ -189,6 +211,7 @@ class DepartmentOfficerController extends Controller
             'gender' => ['required', 'in:M,F'],
             'date_of_birth' => ['required', 'date', 'before:today', 'after:1940-01-01'],
             'role' => ['required', Rule::in(Role::departmentManageableValues())],
+            'designation_id' => $this->designationRule(),
             'email_code' => ['required', $digits],
             'mobile_code' => ['required', $digits],
         ]);
@@ -205,7 +228,7 @@ class DepartmentOfficerController extends Controller
             'name' => trim($data['name']),
             'email' => $data['email'],
             'mobile' => $data['mobile'],
-            'designation_id' => null,
+            'designation_id' => (int) $data['designation_id'],
             'role' => $data['role'],
             // Always the Department Admin's own department (2026-10-29).
             'department_id' => (int) $admin->department_id,
@@ -352,10 +375,21 @@ class DepartmentOfficerController extends Controller
             'date_of_birth' => $user->date_of_birth?->toDateString(),
             'gender' => $user->gender,
             'designation' => $user->designation?->name,
+            'designation_id' => $user->designation_id,
             'department' => $released ? null : $user->department?->name,
             'released' => $released,
             'released_from' => $released ? $user->releasedFrom?->name : null,
         ];
+    }
+
+    /**
+     * A post from the Post (Designation) master (MoM of 2026-10-29).
+     *
+     * @return array<int, mixed>
+     */
+    private function designationRule(): array
+    {
+        return ['required', 'integer', Rule::exists('designations', 'id')->where('status', MasterStatus::Active->value)->whereNull('deleted_at')];
     }
 
     /**

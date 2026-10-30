@@ -21,7 +21,8 @@
             <div class="table-responsive">
                 <table class="table table-striped mb-0 align-middle small" id="allotments-{{ $kind }}">
                     <thead><tr>
-                        <th>{{ __('allotments.column.proposal') }}</th><th>{{ __('allotments.column.exercise') }}</th>
+                        <th>{{ __('allotments.column.proposal') }}</th><th>{{ __('ui.year') }}</th>
+                        <th>{{ __('predpc.index.promotion_from_post') }}</th><th>{{ __('predpc.index.promotion_to_post') }}</th>
                         <th>{{ __('ui.status') }}</th><th>{{ __('allotments.column.ao') }}</th><th>{{ __('allotments.column.ah') }}</th>
                         <th class="text-end">{{ __('ui.actions') }}</th>
                     </tr></thead>
@@ -30,7 +31,9 @@
                             @php($current = $proposal->currentAllotment)
                             <tr data-proposal="{{ $proposal->uuid }}">
                                 <td>{{ $kind === 'pre_dpc' ? $proposal->pre_dpc_number : $proposal->citation() }}</td>
-                                <td>{{ $proposal->dpc_year }} · {{ $proposal->promotionToPost?->name ?? '—' }}</td>
+                                <td>{{ $proposal->dpc_year }}</td>
+                                <td>{{ ($kind === 'pre_dpc' ? $proposal->promotionSources->map(fn ($source) => $source->promotionFromPost?->name)->filter()->implode(', ') : $proposal->promotionFromPost?->name) ?: '—' }}</td>
+                                <td>{{ $proposal->promotionToPost?->name ?? '—' }}</td>
                                 <td>
                                     @if ($kind === 'pre_dpc')
                                         {{ __('allotments.stage.'.match ($proposal->status->value) { 'submitted' => 'with_ah', 'approved' => 'dpc_to_raise', default => 'with_ao' }) }}
@@ -72,7 +75,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="6" class="text-muted">{{ __('allotments.none') }}</td></tr>
+                            <tr><td colspan="8" class="text-muted">{{ __('allotments.none') }}</td></tr>
                         @endforelse
                     </tbody>
                 </table>

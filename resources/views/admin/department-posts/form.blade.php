@@ -59,13 +59,14 @@
                         </select>
                     </div>
                     <div class="col-md-3 mb-3">
-                        <label class="form-label" for="pay_scale_id">{{ __('ui.pay_scale') }}</label>
-                        <select class="form-select" id="pay_scale_id" name="pay_scale_id">
-                            <option value="">{{ __('ui.none') }}</option>
+                        <label class="form-label" for="pay_scale_id">{{ __('ui.pay_scale') }} <span class="text-danger">*</span></label>
+                        <select class="form-select @error('pay_scale_id') is-invalid @enderror" id="pay_scale_id" name="pay_scale_id" required>
+                            <option value="">{{ __('ui.select') }}</option>
                             @foreach ($payScales as $payScale)
                                 <option value="{{ $payScale->id }}" @selected(old('pay_scale_id', $post->pay_scale_id) == $payScale->id)>{{ $payScale->label }}</option>
                             @endforeach
                         </select>
+                        @error('pay_scale_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
                     {{-- Promotion Duration (item 4). These three attributes are why a
                          proposal never re-asks for a post's pay scale or class: they

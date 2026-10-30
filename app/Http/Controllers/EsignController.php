@@ -10,6 +10,7 @@ use App\Domain\Dpc\Services\DpcProposalService;
 use App\Domain\PreDpc\Models\PreDpcProposal;
 use App\Domain\PreDpc\Services\PreDpcProposalService;
 use App\Domain\Shared\Workflow\WorkflowException;
+use App\Domain\Signature\Contracts\SignedAction;
 use App\Enums\Feature;
 use App\Integrations\Mock\MockSignatureProvider;
 use Illuminate\Contracts\View\View;
@@ -37,6 +38,7 @@ class EsignController extends Controller
     private const KINDS = [
         'pre-dpc-submit' => [PreDpcProposal::class, 'submit', 'esign.done.submit'],
         'pre-dpc-approve' => [PreDpcProposal::class, 'approve', 'esign.done.approve'],
+        'dpc-submit' => [DpcProposal::class, 'submit', 'esign.done.submit'],
         'dpc-approve' => [DpcProposal::class, 'approve', 'esign.done.approve'],
     ];
 
@@ -58,6 +60,11 @@ class EsignController extends Controller
         $proposal = $this->proposal($kind, $uuid);
         $request->validate(['consent' => ['accepted']], ['consent.accepted' => __('esign.consent_required')]);
 
+        // The AO's declaration on a Pre-DPC submission (MoM of 2026-10-29).
+        if ($kind === 'pre-dpc-submit') {
+            $request->validate(['declaration' => ['accepted']], ['declaration.accepted' => __('predpc.declaration_required')]);
+        }
+
         if (! $this->simulated()) {
             // The provider signs as the workflow runs (its own consent screen, if
             // any, is the provider's).
@@ -68,6 +75,7 @@ class EsignController extends Controller
         $request->session()->put(self::SESSION_KEY, [
             'reference' => $reference, 'kind' => $kind, 'uuid' => $uuid,
             'user_id' => $this->user($request)->id, 'expires' => now()->addMinutes(10)->timestamp,
+            'declaration' => $request->boolean('declaration'),
         ]);
 
         return redirect()->route('esign.simulator', ['reference' => $reference]);
@@ -81,7 +89,8 @@ class EsignController extends Controller
         return view('esign.simulator', [
             'reference' => $pending['reference'],
             'signer' => $this->user($request),
-            'proposal' => $this->proposal($pending['kind'], $pending['uuid']),
+            // A Department Admin's step (allot, release) has no proposal to sign.
+            'proposal' => isset($pending['action']) ? null : $this->proposal($pending['kind'], $pending['uuid']),
         ]);
     }
 
@@ -89,6 +98,11 @@ class EsignController extends Controller
     {
         abort_unless($this->simulated(), 404);
         $pending = $this->pending($request, (string) $request->input('reference'), pull: true);
+
+        if (isset($pending['action'])) {
+            return $this->simulateAction($request, $pending);
+        }
+
         $proposal = $this->proposal($pending['kind'], $pending['uuid']);
 
         if ($request->input('decision') !== 'sign') {
@@ -98,8 +112,40 @@ class EsignController extends Controller
         $name = trim((string) $request->validate(['name' => ['required', 'string', 'max:255']])['name']);
         app()->instance(MockSignatureProvider::SIMULATED_NAME, $name);
 
+        // The declaration was made on the consent screen, before the simulator.
+        $request->merge(['declaration' => ($pending['declaration'] ?? false) ? '1' : '']);
+
         try {
             return $this->perform($request, $pending['kind'], $proposal);
+        } finally {
+            app()->forgetInstance(MockSignatureProvider::SIMULATED_NAME);
+        }
+    }
+
+    /**
+     * A Department Admin's signed step (MoM of 2026-10-29), stashed by EsignGate.
+     *
+     * @param  array<string, mixed>  $pending
+     */
+    private function simulateAction(Request $request, array $pending): RedirectResponse
+    {
+        $action = (string) $pending['action'];
+        abort_unless(is_subclass_of($action, SignedAction::class), 404);
+
+        /** @var SignedAction $handler */
+        $handler = app($action);
+        /** @var array<string, mixed> $payload */
+        $payload = (array) ($pending['payload'] ?? []);
+
+        if ($request->input('decision') !== 'sign') {
+            return $handler->abandon($payload)->withErrors(['workflow' => __('esign.errors.esign_failed')]);
+        }
+
+        $name = trim((string) $request->validate(['name' => ['required', 'string', 'max:255']])['name']);
+        app()->instance(MockSignatureProvider::SIMULATED_NAME, $name);
+
+        try {
+            return $handler->perform($request, $this->user($request), $payload);
         } finally {
             app()->forgetInstance(MockSignatureProvider::SIMULATED_NAME);
         }
@@ -113,6 +159,7 @@ class EsignController extends Controller
             match ($kind) {
                 'pre-dpc-submit' => app(PreDpcProposalService::class)->submit($proposal, $user, $request),
                 'pre-dpc-approve' => app(PreDpcProposalService::class)->approve($proposal, $user, $request),
+                'dpc-submit' => app(DpcProposalService::class)->submit($proposal, $user, $request),
                 'dpc-approve' => app(DpcProposalService::class)->approve($proposal, $user, $request),
                 default => abort(404),
             };
@@ -124,7 +171,7 @@ class EsignController extends Controller
     }
 
     /**
-     * @return array{reference: string, kind: string, uuid: string, user_id: int, expires: int}
+     * @return array{reference: string, kind?: string, uuid?: string, action?: string, payload?: array<string, mixed>, user_id: int, expires: int, declaration?: bool}
      */
     private function pending(Request $request, string $reference, bool $pull): array
     {

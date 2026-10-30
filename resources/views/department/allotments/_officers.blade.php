@@ -14,6 +14,7 @@
              data-store-url="{{ route('department.officers.store') }}"
              data-mobile-otp-url="{{ route('department.officers.mobile.otp', ['officer' => '__ID__']) }}"
              data-mobile-url="{{ route('department.officers.mobile', ['officer' => '__ID__']) }}"
+             data-designation-url="{{ route('department.officers.designation', ['officer' => '__ID__']) }}"
              data-msg-not-found="{{ __('allotments.picker.not_found') }}"
              data-msg-no-match="{{ __('allotments.picker.no_match') }}"
              data-msg-searching="{{ __('allotments.picker.searching') }}"
@@ -63,6 +64,18 @@
                         <input type="date" class="form-control form-control-sm picker-dob"></div>
                     <div class="col-6"><label class="form-label small">{{ __('ui.department') }}</label>
                         <input type="text" class="form-control form-control-sm" value="{{ $department?->name }}" readonly></div>
+                    {{-- The post, from the Post (Designation) master (MoM of 2026-10-29):
+                         editable for a chosen officer too, like the mobile. --}}
+                    <div class="col-12"><label class="form-label small">{{ __('allotments.picker.post') }} <span class="text-danger">*</span></label>
+                        <div class="input-group input-group-sm">
+                            <select class="form-select form-select-sm picker-designation">
+                                <option value="">{{ __('ui.select') }}</option>
+                                @foreach ($designations as $designation)
+                                    <option value="{{ $designation->id }}">{{ $designation->name }}</option>
+                                @endforeach
+                            </select>
+                            <button type="button" class="btn btn-outline-success picker-designation-save d-none">{{ __('allotments.picker.save_post') }}</button>
+                        </div></div>
 
                     {{-- A new officer: both OTPs, then add. --}}
                     <div class="col-12 picker-new-actions">

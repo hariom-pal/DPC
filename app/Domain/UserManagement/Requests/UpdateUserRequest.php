@@ -29,11 +29,14 @@ class UpdateUserRequest extends FormRequest
             // The name is an identity field (2026-10-27): it changes on the Identity
             // page, with a reason and a recorded history — never here.
             'name' => ['required', 'string', 'max:255', function (string $attribute, mixed $value, \Closure $fail) use ($current): void {
-                if ($current instanceof User && trim((string) $value) !== (string) $current->name) {
+                if ($current instanceof User && trim((string) $value) !== trim((string) $current->name)) {
                     $fail((string) __('identity.name_via_identity'));
                 }
             }],
-            'email' => ['required', 'email', 'max:255', 'regex:/@([A-Za-z0-9\-]+\.)*gov\.in$/i', Rule::unique('users', 'email')->ignore($id)],
+            // The .gov.in rule binds a new address only (2026-10-30): an account
+            // that already holds another one could otherwise not be saved at all,
+            // whatever was being changed.
+            'email' => ['required', 'email', 'max:255', ...($this->emailChanged($current) ? ['regex:/@([A-Za-z0-9\-]+\.)*gov\.in$/i'] : []), Rule::unique('users', 'email')->ignore($id)],
             'mobile' => ['required', 'digits:10', Rule::unique('users', 'mobile')->ignore($id)],
             'designation_id' => ['nullable', Rule::exists('designations', 'id')],
             'role' => ['required', Rule::in(Role::provisionableValues())],
@@ -55,6 +58,12 @@ class UpdateUserRequest extends FormRequest
                 Rule::exists('departments', 'id'),
             ],
         ];
+    }
+
+    private function emailChanged(mixed $current): bool
+    {
+        return ! $current instanceof User
+            || mb_strtolower(trim((string) $this->input('email'))) !== mb_strtolower((string) $current->email);
     }
 
     /**

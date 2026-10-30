@@ -81,6 +81,30 @@ class UserManagementTest extends TestCase
         }
     }
 
+    public function test_an_account_with_an_older_address_can_still_be_edited(): void
+    {
+        $admin = $this->admin();
+        $member = User::factory()->create(['email' => 'member@nic.in', 'name' => 'Shri Member ']);
+        $member->assignRole(Role::Member->value);
+
+        // Unchanged, the address is kept (2026-10-30); a padded name is the same name.
+        $this->actingAs($admin)
+            ->put(route('admin.users.update', $member), [
+                'name' => 'Shri Member', 'email' => 'member@nic.in', 'mobile' => '9811111111',
+                'role' => Role::Member->value, 'department_id' => '', 'designation_id' => '',
+            ])
+            ->assertSessionHasNoErrors();
+        $this->assertSame('9811111111', $member->fresh()->mobile);
+
+        // A new address must still be .gov.in.
+        $this->actingAs($admin)
+            ->put(route('admin.users.update', $member), [
+                'name' => 'Shri Member', 'email' => 'member@gmail.com', 'mobile' => '9811111111',
+                'role' => Role::Member->value, 'department_id' => '', 'designation_id' => '',
+            ])
+            ->assertSessionHasErrors('email');
+    }
+
     public function test_admin_can_deactivate_and_reactivate_an_account(): void
     {
         $admin = $this->admin();
