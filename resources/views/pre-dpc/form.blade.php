@@ -62,7 +62,7 @@
         </div>
     @endif
 
-    <form method="POST" action="{{ route('pre-dpc.update', $proposal) }}">
+    <form method="POST" action="{{ route('pre-dpc.update', $proposal) }}" enctype="multipart/form-data">
         @csrf
         @if ($proposal->exists) @method('PUT') @endif
 
@@ -264,12 +264,30 @@
                                value="{{ old('effective_from', $proposal->effective_from?->format('Y-m-d')) }}">
                         @error('effective_from')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
+                    {{-- The Bharti Niyam itself, as a PDF (2026-10-30). --}}
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label" for="rules_document">{{ __('predpc.form.rules_document') }}</label>
+                        <input type="file" accept="application/pdf,.pdf" class="form-control @error('rules_document') is-invalid @enderror"
+                               id="rules_document" name="rules_document">
+                        @error('rules_document')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        <div class="form-text">
+                            @if ($proposal->hasRulesDocument())
+                                {{ __('predpc.form.rules_document_current') }}
+                                <a href="{{ route('pre-dpc.rules-document', $proposal) }}">{{ $proposal->rules_document_name }}</a>.
+                            @endif
+                            {{ __('predpc.form.rules_document_hint') }}
+                        </div>
+                    </div>
                 </div>
                 <p class="text-muted small mb-0">
                     {{ __('predpc.form.both_are_required_before_the_proposal_can_be_sub') }}
                 </p>
             </div>
         </div>
+
+        {{-- The preparer's declaration (MoM of 2026-10-29), made with every save
+             (2026-10-30); the AO makes it again on submitting. --}}
+        <div class="mb-3" id="pre-dpc-form-declaration">@include('partials.declaration', ['key' => 'pre_dpc_submit'])</div>
 
         {{-- `data-no-posts` tells pre-dpc-exercise.js to leave this button alone.
              It governs Save on the share total, and would otherwise *enable* a

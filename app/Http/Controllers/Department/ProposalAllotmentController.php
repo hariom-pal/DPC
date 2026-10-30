@@ -21,6 +21,7 @@ use App\Domain\Shared\Workflow\WorkflowException;
 use App\Domain\Signature\Services\EsignGate;
 use App\Domain\Signature\Services\SignatureAttemptLog;
 use App\Domain\UserManagement\Services\DepartmentUserAuthority;
+use App\Enums\MasterStatus;
 use App\Enums\Role;
 use App\Http\Controllers\Controller;
 use App\Http\SignedActions\AllotOfficers;
@@ -165,8 +166,8 @@ class ProposalAllotmentController extends Controller
             'action' => $action,
             'current' => $this->allotments->current($proposal)?->loadMissing(['ao', 'ah']),
             'department' => Department::query()->find($proposal->department_id),
-            // Only what the department has mapped (2026-10-30).
-            'designations' => Designation::query()->mappedIn((int) $proposal->department_id)->get(['id', 'name']),
+            // The whole active Designation master (2026-10-30, second instruction).
+            'designations' => Designation::query()->where('status', MasterStatus::Active->value)->orderBy('name')->get(['id', 'name']),
             'proposal' => $proposal,
         ]);
     }

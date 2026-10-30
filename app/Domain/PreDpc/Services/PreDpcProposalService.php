@@ -307,6 +307,11 @@ class PreDpcProposalService
                 'promotion_recruitment_pct',
                 'government_order_number',
                 'effective_from',
+                // The Bharti Niyam PDF goes with the amendment until replaced (2026-10-30).
+                'rules_document_disk',
+                'rules_document_path',
+                'rules_document_name',
+                'rules_document_sha256',
             ]));
 
             $draft->fill([

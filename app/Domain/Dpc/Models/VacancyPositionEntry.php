@@ -73,6 +73,7 @@ class VacancyPositionEntry extends Model implements Auditable
         'reason',
         'occupant_quota',
         'vacancy_count',
+        'officer_name',
         'effective_date',
         'order_number',
         'order_date',
@@ -93,6 +94,7 @@ class VacancyPositionEntry extends Model implements Auditable
         'deputation_expected_months',
         'against_sanctioned_post',
         'cadre_details',
+        'deputation_from',
         'eligibility',
         'eligibility_note',
         'verification_basis',
@@ -155,10 +157,17 @@ class VacancyPositionEntry extends Model implements Auditable
      */
     public function isCounted(): bool
     {
-        return $this->isActive()
-            && $this->kind === VacancyEntryKind::Anticipated
-            && $this->eligibility === VacancyEntryEligibility::Eligible
-            && $this->reconciliation === VacancyReconciliation::CountedInWorking;
+        if (! $this->isActive() || $this->eligibility !== VacancyEntryEligibility::Eligible) {
+            return false;
+        }
+
+        return match ($this->kind) {
+            VacancyEntryKind::Deputation => true,
+            // An anticipated row since 2026-10-30 asks no reconciliation: its officer
+            // is in the working strength. An older row still answers by its own.
+            VacancyEntryKind::Anticipated => $this->reconciliation === null || $this->reconciliation === VacancyReconciliation::CountedInWorking,
+            VacancyEntryKind::Existing => false,
+        };
     }
 
     /**

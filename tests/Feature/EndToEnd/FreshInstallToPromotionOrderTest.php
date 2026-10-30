@@ -235,7 +235,7 @@ class FreshInstallToPromotionOrderTest extends TestCase
                 'name' => 'Shri D. Admin', 'date_of_birth' => '1972-08-01', 'gender' => 'M', 'aadhaar_verified' => '1',
             ]);
             $this->get((string) $callback->headers->get('Location'))->assertRedirect(route('register.invitation.password', ['token' => $token]));
-            $this->ok($this->post(route('register.invitation.complete', ['token' => $token]), ['password' => 'Dept@Admin2026', 'password_confirmation' => 'Dept@Admin2026', 'designation_id' => (string) Designation::query()->firstOrCreate(['name' => 'Deputy Secretary'], ['status' => 'active'])->id]));
+            $this->ok($this->post(route('register.invitation.complete', ['token' => $token]), ['password' => 'Dept@Admin2026', 'password_confirmation' => 'Dept@Admin2026', 'designation_id' => (string) (Designation::query()->mappedIn($department->id)->value('id') ?? Designation::query()->firstOrCreate(['name' => 'Deputy Secretary'], ['status' => 'active'])->id)]));
             $deptAdmin = User::query()->where('email', 'phex.dpc@cg.gov.in')->sole();
             $this->assertSame('registered', $department->fresh()->status->value);
             $this->assertSame('digilocker_simulated', $deptAdmin->identity_verification_method);
@@ -264,6 +264,7 @@ class FreshInstallToPromotionOrderTest extends TestCase
             ]));
             $preDpc = PreDpcProposal::query()->sole();
             $this->ok($this->put(route('pre-dpc.update', $preDpc), [
+                'declaration' => '1',
                 'dpc_year' => 2026, 'promotion_to_post_id' => $to->id,
                 'promotion_sources' => [['promotion_from_post_id' => $from->id, 'promotion_percentage' => 100, 'min_experience_years' => 5,
                     'experience_unit' => 'years', 'qualification_ids' => [Qualification::query()->where('name_en', 'B.E.')->value('id')]]],

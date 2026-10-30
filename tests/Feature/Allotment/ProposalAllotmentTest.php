@@ -99,6 +99,7 @@ class ProposalAllotmentTest extends TestCase
     private function payload(): array
     {
         return [
+            'declaration' => '1', // the preparer's declaration (2026-10-30)
             'dpc_year' => 2026,
             'promotion_to_post_id' => $this->toPost->id,
             'direct_recruitment_pct' => 0,

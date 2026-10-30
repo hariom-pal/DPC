@@ -141,6 +141,7 @@ class RoleBasedUiVisibilityTest extends TestCase
     public function test_the_ah_cannot_author_a_pre_dpc_through_any_entry_point(): void
     {
         $this->storePreDpc($this->ao, [
+            'declaration' => '1',
             'dpc_year' => 2026,
             'promotion_to_post_id' => $this->postTo->id,
             'direct_recruitment_pct' => 0,
@@ -162,6 +163,7 @@ class RoleBasedUiVisibilityTest extends TestCase
 
         $this->actingAs($this->ah)->get(route('pre-dpc.edit', $draft))->assertForbidden();
         $this->actingAs($this->ah)->put(route('pre-dpc.update', $draft), [
+            'declaration' => '1',
             'dpc_year' => 2026,
             'promotion_to_post_id' => $this->postTo->id,
             'direct_recruitment_pct' => 0,
@@ -190,6 +192,7 @@ class RoleBasedUiVisibilityTest extends TestCase
     public function test_the_pre_dpc_screen_offers_each_role_only_its_own_actions(): void
     {
         $this->storePreDpc($this->ao, [
+            'declaration' => '1',
             'dpc_year' => 2026,
             'promotion_to_post_id' => $this->postTo->id,
             'direct_recruitment_pct' => 0,

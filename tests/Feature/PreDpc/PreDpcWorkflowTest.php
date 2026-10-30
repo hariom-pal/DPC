@@ -17,7 +17,9 @@ use App\Enums\Role;
 use App\Enums\ServiceClass;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Storage;
 use Tests\Concerns\OpensPreDpcs;
 use Tests\Concerns\PrescribesQualifications;
 use Tests\Concerns\UsesPptPromotionRules;
@@ -103,6 +105,7 @@ class PreDpcWorkflowTest extends TestCase
     private function payload(array $overrides = []): array
     {
         return array_replace([
+            'declaration' => '1', // the preparer's declaration (2026-10-30)
             'dpc_year' => 2026,
             'promotion_to_post_id' => $this->toPost->id,
             'direct_recruitment_pct' => 0,
@@ -378,6 +381,37 @@ class PreDpcWorkflowTest extends TestCase
      * eligibility, and confusing beside the Promotion To Post named two lines above
      * it, because the class and scale on display belonged to a different post.
      */
+    /**
+     * The Bharti Niyam PDF is uploaded with the Pre-DPC, and the AO's declaration is
+     * on the Pre-DPC page itself, carried to the eSign screen (2026-10-30).
+     */
+    public function test_the_rules_document_is_uploaded_and_the_declaration_is_on_the_page(): void
+    {
+        Storage::fake((string) config('dpc.documents.disk', 'local'));
+        $proposal = $this->draft();
+
+        $this->actingAs($this->ao)->put(route('pre-dpc.update', $proposal), $this->payload([
+            'rules_document' => UploadedFile::fake()->create('bharti-niyam.pdf', 30, 'application/pdf'),
+        ]))->assertSessionHasNoErrors();
+
+        $proposal->refresh();
+        $this->assertSame('bharti-niyam.pdf', $proposal->rules_document_name);
+        $this->assertNotNull($proposal->prepared_declaration_at, 'The preparer declares with each save.');
+
+        // No save without the declaration, which the form shows (2026-10-30).
+        $this->put(route('pre-dpc.update', $proposal), $this->payload(['declaration' => '']))->assertSessionHasErrors('declaration');
+        $this->get(route('pre-dpc.edit', $proposal))->assertOk()->assertSee('id="pre-dpc-form-declaration"', false);
+        $this->get(route('pre-dpc.rules-document', $proposal))->assertOk();
+        $this->get(route('pre-dpc.edit', $proposal))->assertOk()->assertSee('bharti-niyam.pdf');
+
+        $this->get(route('pre-dpc.show', $proposal))->assertOk()
+            ->assertSee('id="pre-dpc-declaration"', false)
+            ->assertSee(config('dpc.declarations.pre_dpc_submit.hi'))
+            ->assertSee(config('dpc.declarations.pre_dpc_submit.en'));
+        $this->get(route('esign.show', ['kind' => 'pre-dpc-submit', 'uuid' => $proposal->uuid, 'declaration' => '1']))->assertOk()
+            ->assertSee('name="declaration" value="1" id="declaration" required checked', false);
+    }
+
     public function test_the_summary_states_the_promotion_posts_class_and_pay_scale(): void
     {
         $proposal = $this->draft();

@@ -379,6 +379,7 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
                 // see department.allotments.pre-dpc.*. The AO fills it in via edit.
                 Route::get('/{preDpc}', [PreDpcProposalController::class, 'show'])->name('show');
                 Route::get('/{preDpc}/edit', [PreDpcProposalController::class, 'edit'])->name('edit');
+                Route::get('/{preDpc}/rules-document', [PreDpcProposalController::class, 'rulesDocument'])->name('rules-document');
                 Route::put('/{preDpc}', [PreDpcProposalController::class, 'update'])->name('update');
                 Route::post('/{preDpc}/submit', [PreDpcProposalController::class, 'submit'])->name('submit');
                 Route::post('/{preDpc}/approve', [PreDpcProposalController::class, 'approve'])->name('approve');

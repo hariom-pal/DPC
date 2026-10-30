@@ -54,6 +54,12 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property int|null $active_flag
  * @property string|null $government_order_number
  * @property Carbon|null $effective_from
+ * @property string|null $rules_document_disk
+ * @property string|null $rules_document_path
+ * @property string|null $rules_document_name
+ * @property string|null $rules_document_sha256
+ * @property Carbon|null $prepared_declaration_at
+ * @property int|null $prepared_declaration_by
  * @property int|null $prepared_by
  * @property Carbon|null $submitted_at
  * @property int|null $approved_by
@@ -111,6 +117,10 @@ class PreDpcProposal extends Model implements Auditable
         'status',
         'government_order_number',
         'effective_from',
+        'rules_document_disk',
+        'rules_document_path',
+        'rules_document_name',
+        'rules_document_sha256',
         'prepared_by',
     ];
 
@@ -127,6 +137,7 @@ class PreDpcProposal extends Model implements Auditable
             'effective_from' => 'date',
             'submitted_at' => 'datetime',
             'declaration_accepted_at' => 'datetime',
+            'prepared_declaration_at' => 'datetime',
             'approved_at' => 'datetime',
             'returned_at' => 'datetime',
             'cancelled_at' => 'datetime',
@@ -160,6 +171,11 @@ class PreDpcProposal extends Model implements Auditable
     public function department(): BelongsTo
     {
         return $this->belongsTo(Department::class);
+    }
+
+    public function hasRulesDocument(): bool
+    {
+        return $this->rules_document_path !== null;
     }
 
     /**

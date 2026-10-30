@@ -140,6 +140,10 @@ class SavePreDpcProposalRequest extends FormRequest
 
             'government_order_number' => ['nullable', 'string', 'max:255'],
             'effective_from' => ['nullable', 'date'],
+            // The preparer's declaration, with every save (2026-10-30).
+            'declaration' => ['accepted'],
+            // The Adyatan Vibhagiy Bharti Niyam itself (2026-10-30).
+            'rules_document' => ['nullable', 'file', 'mimes:pdf', 'mimetypes:application/pdf', 'extensions:pdf', 'max:10240'],
         ];
     }
 
@@ -458,6 +462,7 @@ class SavePreDpcProposalRequest extends FormRequest
          | quietly gets worse.
          */
         return [
+            'declaration.accepted' => (string) __('predpc.declaration_required'),
             'dpc_year.min' => __('predpc.validation.year_before_earliest', ['year' => (int) config('dpc.earliest_dpc_year', 2019)]),
             'promotion_sources.required' => 'Name at least one Promotion From Post. An order that names none sanctions nobody\'s promotion.',
             'promotion_sources.*.promotion_from_post_id.required' => 'Choose the Promotion From Post — the post officers are promoted out of.',

@@ -19,7 +19,7 @@ declare(strict_types=1);
 */
 
 return [
-    'declaration_required' => 'Tick the declaration to submit the proposal.',
+    'declaration_required' => 'Tick the declaration to go on.',
     'summary' => [
         'title_edit' => 'Edit Pre-DPC Proposal',
         'title_new' => 'New Pre-DPC Proposal',
@@ -32,6 +32,9 @@ return [
         '3_promotion_from_posts' => '3. Promotion From Posts',
         '4_government_order' => '4. Adyatan Vibhagiy Bharti Niyam (Updated Departmental Recruitment Rules)',
         'publish_date' => 'Publish Date',
+        'rules_document' => 'Adyatan Vibhagiy Bharti Niyam (PDF)',
+        'rules_document_hint' => 'PDF, up to 10 MB.',
+        'rules_document_current' => 'Uploaded:',
         'all_fields_required' => 'Every field marked * is required.',
         'share_total_ok' => 'The feeder shares total 100% of the promotion quota.',
         'share_total_short' => 'The feeder shares total :total%. They must total exactly 100% — :short% is unaccounted for, so the proposal cannot be saved.',

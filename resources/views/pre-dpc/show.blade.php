@@ -56,6 +56,14 @@
                         </dd>
                         <dt class="col-sm-3">{{ __('predpc.show.government_order_no') }}</dt><dd class="col-sm-9">{{ $proposal->government_order_number ?? '—' }}</dd>
                         <dt class="col-sm-3">{{ __('predpc.show.publish_date') }}</dt><dd class="col-sm-9">{{ $proposal->effective_from?->format('d-m-Y') ?? '—' }}</dd>
+                        <dt class="col-sm-3">{{ __('predpc.form.rules_document') }}</dt>
+                        <dd class="col-sm-9">
+                            @if ($proposal->hasRulesDocument())
+                                <a href="{{ route('pre-dpc.rules-document', $proposal) }}">{{ $proposal->rules_document_name }}</a>
+                            @else
+                                —
+                            @endif
+                        </dd>
                         @if ($proposal->parentVersion)
                             <dt class="col-sm-3">{{ __('predpc.show.amends') }}</dt>
                             <dd class="col-sm-9">
@@ -192,7 +200,16 @@
                 <div class="card-body d-flex flex-wrap gap-2">
                     @can('update', $proposal)
                         <a href="{{ route('pre-dpc.edit', $proposal) }}" class="btn btn-outline-primary btn-sm">{{ __('ui.edit') }}</a>
-                        <a href="{{ route('esign.show', ['kind' => 'pre-dpc-submit', 'uuid' => $proposal->uuid]) }}" class="btn btn-success btn-sm" data-esign>{{ __('esign.button.submit') }}</a>
+                    @endcan
+                    @can('submit', $proposal)
+                        {{-- The AO's declaration, made here and carried to the eSign screen
+                             (MoM of 2026-10-29; shown on this page since 2026-10-30). --}}
+                        <form method="GET" action="{{ route('esign.show', ['kind' => 'pre-dpc-submit', 'uuid' => $proposal->uuid]) }}" class="w-100 order-first" id="pre-dpc-declaration">
+                            @include('partials.declaration', ['key' => 'pre_dpc_submit'])
+                            <button class="btn btn-success btn-sm mt-2" data-esign>{{ __('esign.button.submit') }}</button>
+                        </form>
+                    @endcan
+                    @can('update', $proposal)
                         <form method="POST" action="{{ route('pre-dpc.cancel', $proposal) }}" data-confirm="{{ __('ui.cancel_this_proposal') }}">@csrf<button class="btn btn-outline-danger btn-sm">{{ __('ui.cancel') }}</button></form>
                     @endcan
 

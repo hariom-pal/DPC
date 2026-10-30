@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\PreDpc;
 
 use App\Domain\Allotment\Services\ProposalAllotmentService;
+use App\Domain\Identity\Services\SupportingDocumentStore;
 use App\Domain\Master\Enums\ExperienceUnit;
 use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\Qualification;
@@ -21,6 +22,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class PreDpcProposalController extends Controller
 {
@@ -68,7 +70,19 @@ class PreDpcProposalController extends Controller
     {
         $this->authorize('update', $preDpc);
 
-        $this->service->updateDraft($preDpc, $request->validated());
+        $this->service->updateDraft($preDpc, $request->safe()->except(['rules_document', 'declaration']));
+
+        // Who declared the proposal prepared to the Bharti Niyam, and when (2026-10-30).
+        $preDpc->forceFill(['prepared_declaration_at' => now(), 'prepared_declaration_by' => $request->user()?->id])->save();
+
+        // The Bharti Niyam PDF (2026-10-30), replacing any earlier one.
+        if ($request->hasFile('rules_document')) {
+            $stored = app(SupportingDocumentStore::class)->store($request->file('rules_document'), 'pre-dpc-rules');
+            $preDpc->forceFill([
+                'rules_document_disk' => $stored['document_disk'], 'rules_document_path' => $stored['document_path'],
+                'rules_document_name' => $stored['document_name'], 'rules_document_sha256' => $stored['document_sha256'],
+            ])->save();
+        }
 
         // The Department Admin goes on to the last step — the AO and AH — while the
         // Pre-DPC has none (2026-10-28).
@@ -77,6 +91,16 @@ class PreDpcProposalController extends Controller
         }
 
         return redirect()->route('pre-dpc.show', $preDpc)->with('status', 'Draft updated.');
+    }
+
+    /**
+     * The Bharti Niyam PDF, to whoever may read the Pre-DPC.
+     */
+    public function rulesDocument(PreDpcProposal $preDpc): StreamedResponse
+    {
+        $this->authorize('view', $preDpc);
+
+        return app(SupportingDocumentStore::class)->download($preDpc->rules_document_disk, $preDpc->rules_document_path, $preDpc->rules_document_name);
     }
 
     public function show(Request $request, PreDpcProposal $preDpc): View

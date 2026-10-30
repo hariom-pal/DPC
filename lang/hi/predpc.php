@@ -17,7 +17,7 @@ declare(strict_types=1);
 */
 
 return [
-    'declaration_required' => 'प्रस्ताव प्रस्तुत करने हेतु घोषणा पर टिक करें।',
+    'declaration_required' => 'आगे बढ़ने हेतु घोषणा पर टिक करें।',
     'summary' => [
         'title_edit' => 'प्री-डीपीसी प्रस्ताव संपादित करें',
         'title_new' => 'नया प्री-डीपीसी प्रस्ताव',
@@ -30,6 +30,9 @@ return [
         '3_promotion_from_posts' => '3. पदोन्नति-पूर्व पद',
         '4_government_order' => '4. अद्यतन विभागीय भर्ती नियम',
         'publish_date' => 'प्रकाशन तिथि',
+        'rules_document' => 'अद्यतन विभागीय भर्ती नियम (PDF)',
+        'rules_document_hint' => 'PDF, अधिकतम 10 MB।',
+        'rules_document_current' => 'अपलोड किया गया:',
         'all_fields_required' => '* चिह्नित प्रत्येक फ़ील्ड आवश्यक है।',
         'share_total_ok' => 'फीडर पदों का अंश पदोन्नति कोटे का पूर्ण 100% है।',
         'share_total_short' => 'फीडर पदों का अंश :total% है। यह ठीक 100% होना चाहिए — :short% शेष है, अतः प्रस्ताव सहेजा नहीं जा सकता।',

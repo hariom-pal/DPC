@@ -23,7 +23,7 @@
                         <div class="alert alert-warning small py-2">{{ __('esign.page.simulated') }}</div>
                     @endif
                     @if ($kind === 'pre-dpc-submit')
-                        <div class="mb-3">@include('partials.declaration', ['key' => 'pre_dpc_submit'])</div>
+                        <div class="mb-3">@include('partials.declaration', ['key' => 'pre_dpc_submit', 'checked' => request()->boolean('declaration')])</div>
                     @endif
                     <div class="form-check">
                         <input class="form-check-input @error('consent') is-invalid @enderror" type="checkbox" name="consent" value="1" id="consent">

@@ -209,7 +209,17 @@
             });
         }
 
-        input.addEventListener('focus', open);
+        input.addEventListener('focus', function () {
+            open();
+            // Typing replaces the chosen text rather than appending to it (2026-10-30).
+            input.select();
+        });
+        // A click on a box that already has focus opens it again, as a dropdown does.
+        input.addEventListener('click', function () {
+            if (list.classList.contains('d-none')) {
+                open();
+            }
+        });
         input.addEventListener('input', function () {
             render(input.value);
             list.classList.remove('d-none');

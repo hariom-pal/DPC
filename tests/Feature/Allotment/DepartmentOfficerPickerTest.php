@@ -138,12 +138,11 @@ class DepartmentOfficerPickerTest extends TestCase
 
         $this->putJson(route('department.officers.designation', ['officer' => $key]), ['designation_id' => '999999'])->assertStatus(422);
 
-        // Only what the department has mapped: another department's post is refused and not offered.
+        // The whole master for an AO / AH (2026-10-30), mapped here or not; an inactive one is refused.
         $unmapped = Designation::query()->create(['name' => 'Professor', 'status' => MasterStatus::Active->value]);
-        DepartmentPost::query()->create(['department_id' => $this->other->id, 'name' => 'Professor', 'class_level' => 'I', 'status' => MasterStatus::Active->value]);
-        $this->putJson(route('department.officers.designation', ['officer' => $key]), ['designation_id' => (string) $unmapped->id])->assertStatus(422);
-        $this->postJson(route('department.officers.store'), $this->newOfficer(['designation_id' => (string) $unmapped->id]))->assertStatus(422)->assertJsonValidationErrors('designation_id');
-        $this->assertSame([$this->designation->id], Designation::query()->mappedIn($this->department->id)->pluck('id')->all());
+        $this->putJson(route('department.officers.designation', ['officer' => $key]), ['designation_id' => (string) $unmapped->id])->assertOk();
+        $inactive = Designation::query()->create(['name' => 'Retired Post', 'status' => MasterStatus::Inactive->value]);
+        $this->putJson(route('department.officers.designation', ['officer' => $key]), ['designation_id' => (string) $inactive->id])->assertStatus(422);
         $this->putJson(route('department.officers.designation', ['officer' => $foreign->uuid]), ['designation_id' => (string) $this->designation->id])->assertForbidden();
     }
 

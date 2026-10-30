@@ -366,6 +366,14 @@ a.gov-card:hover { color: inherit; }
 .ss-option:hover, .ss-option.is-active { background: #eaf2fb; }
 .ss-option[aria-selected="true"] { font-weight: 600; }
 .ss-empty { padding: .5rem .6rem; font-size: .85rem; color: #6b7c8d; }
+/* The box reads as a dropdown (2026-10-30): the select's caret, and a pointer
+   until it is being typed in. */
+.ss-input { cursor: pointer; padding-right: 2.25rem;
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+            background-repeat: no-repeat; background-position: right .75rem center; background-size: 16px 12px; }
+.ss-input.form-control-sm { padding-right: 2rem; background-position: right .5rem center; }
+.ss-input:focus { cursor: text; }
+.ss-input:disabled { cursor: not-allowed; }
 
 /* ---------------------------------------------------------------------------
    Searchable checkbox multiselect (public/js/multiselect-dropdown.js)
