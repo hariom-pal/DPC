@@ -1,9 +1,9 @@
 @extends('layouts.admin')
 
-@section('title', $district->exists ? 'Edit District' : 'New District')
+@section('title', $district->exists ? __('ui.screen.edit_district') : __('ui.screen.new_district'))
 
 @section('content')
-    <h1 class="h4 mb-3">{{ $district->exists ? 'Edit District' : 'New District' }}</h1>
+    <h1 class="h4 mb-3">{{ $district->exists ? __('ui.screen.edit_district') : __('ui.screen.new_district') }}</h1>
 
     <div class="card border-0 shadow-sm">
         <div class="card-body">

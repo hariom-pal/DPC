@@ -13,7 +13,7 @@
 --}}
 <div class="empty-state">
     <div class="empty-icon">@include('partials.icon', ['name' => $icon ?? 'inbox', 'size' => 30])</div>
-    <h3>{{ $title ?? 'Nothing here yet' }}</h3>
+    <h3>{{ $title ?? __('ui.screen.nothing_here_yet') }}</h3>
     @if (! empty($text))
         <p>{{ $text }}</p>
     @endif

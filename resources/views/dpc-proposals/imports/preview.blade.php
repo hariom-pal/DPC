@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Import Preview — ' . $batch->template->label())
+@section('title', __('ui.screen.import_preview').' — '.$batch->template->label())
 
 @section('content')
     <div class="row justify-content-center">
@@ -109,12 +109,12 @@
                 @endif
 
                 @if ($batch->rejected_count > 0)
-                    <a href="{{ route('dpc-proposals.imports.errors', [$proposal, $batch]) }}" class="btn btn-outline-danger btn-sm">{{ __('dpc.imports.preview.download_error_report_csv') }}</a>
+                    <a href="{{ route('dpc-proposals.imports.errors', [$proposal, $batch]) }}" class="btn btn-outline-secondary btn-sm">{{ __('dpc.imports.preview.download_error_report_csv') }}</a>
                 @endif
 
                 @if (! $batch->status->isTerminal())
                     <form method="POST" action="{{ route('dpc-proposals.imports.cancel', [$proposal, $batch]) }}">
-                        @csrf<button class="btn btn-outline-secondary btn-sm">{{ __('dpc.imports.preview.cancel_import') }}</button>
+                        @csrf<button class="btn btn-outline-danger btn-sm">{{ __('dpc.imports.preview.cancel_import') }}</button>
                     </form>
                 @endif
 

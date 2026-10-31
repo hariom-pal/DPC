@@ -150,7 +150,7 @@
 
                                     @if ($canEdit)
                                         <td class="text-nowrap">
-                                            <button class="btn btn-sm btn-outline-primary py-0 px-1"
+                                            <button type="button" class="btn btn-sm btn-outline-primary py-0 px-1"
                                                     data-bs-toggle="collapse"
                                                     data-bs-target="#edit-{{ $entry['sn'] }}">{{ __('cgpsc.proceedings.show.edit') }}</button>
                                         </td>
@@ -199,7 +199,7 @@
                                                 </div>
 
                                                 <div class="col-md-1">
-                                                    <button class="btn btn-sm btn-primary w-100">{{ __('cgpsc.proceedings.show.save') }}</button>
+                                                    <button class="btn btn-sm btn-success w-100">{{ __('cgpsc.proceedings.show.save') }}</button>
                                                 </div>
                                             </form>
                                         </td>

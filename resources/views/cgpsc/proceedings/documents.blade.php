@@ -54,7 +54,7 @@
                                     </td>
                                     <td>{!! $document->signature_id ? '&check;' : '&mdash;' !!}</td>
                                     <td class="small">
-                                        {{ $document->published_at?->format('d/m/Y h:i A') ?? 'Not published' }}
+                                        {{ $document->published_at?->format('d/m/Y h:i A') ?? __('ui.screen.not_published') }}
                                     </td>
                                     <td>
                                         @if ($document->isAvailable())
@@ -80,7 +80,7 @@
                         <form method="POST" action="{{ route('cgpsc.proceedings.documents.store', $proceeding) }}">
                             @csrf
                             <button class="btn btn-sm btn-primary">
-                                {{ $documents->isEmpty() ? 'Generate Documents' : 'Re-issue (new version)' }}
+                                {{ $documents->isEmpty() ? __('ui.screen.generate_documents') : __('ui.screen.reissue_new_version') }}
                             </button>
                         </form>
 

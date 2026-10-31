@@ -1,7 +1,7 @@
 @extends('layouts.admin')
 @section('title', __('ui.qualification'))
 @section('content')
-    <h1 class="h4 mb-3">{{ $qualification->exists ? 'Edit Qualification' : 'New Qualification' }}</h1>
+    <h1 class="h4 mb-3">{{ $qualification->exists ? __('ui.screen.edit_qualification') : __('ui.screen.new_qualification') }}</h1>
 
     <div class="card border-0 shadow-sm">
         <div class="card-body">

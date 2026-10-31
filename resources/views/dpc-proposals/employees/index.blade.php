@@ -1,7 +1,7 @@
 @extends('layouts.app')
 @section('title', __('dpc.employee_details.index_title'))
 @section('content')
-    <nav aria-label="breadcrumb">
+    <nav aria-label="{{ __('ui.screen.breadcrumb') }}">
         <ol class="breadcrumb small">
             <li class="breadcrumb-item">
                 <a href="{{ route('dpc-proposals.show', $proposal) }}">{{ $proposal->dpc_id ?? __('dpc.record_gaps.proposal') }}</a>

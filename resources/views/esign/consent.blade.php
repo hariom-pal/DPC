@@ -32,8 +32,8 @@
                     </div>
                 </div>
                 <div class="card-footer bg-transparent d-flex gap-2">
-                    <button type="submit" class="btn btn-success btn-sm">{{ __('esign.page.proceed') }}</button>
-                    <a href="{{ route($proposal instanceof \App\Domain\PreDpc\Models\PreDpcProposal ? 'pre-dpc.show' : 'dpc-proposals.show', $proposal) }}" class="btn btn-outline-secondary btn-sm">{{ __('ui.cancel') }}</a>
+                    <button type="submit" class="btn btn-success">{{ __('esign.page.proceed') }}</button>
+                    <a href="{{ route($proposal instanceof \App\Domain\PreDpc\Models\PreDpcProposal ? 'pre-dpc.show' : 'dpc-proposals.show', $proposal) }}" class="btn btn-outline-secondary">{{ __('ui.cancel') }}</a>
                 </div>
             </form>
         </div>

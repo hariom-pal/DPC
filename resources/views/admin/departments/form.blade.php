@@ -1,10 +1,10 @@
 @extends('layouts.admin')
 
-@section('title', $department->exists ? 'Edit Department' : 'New Department')
+@section('title', $department->exists ? __('ui.screen.edit_department') : __('ui.screen.new_department'))
 
 @section('content')
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <h1 class="h4 mb-0">{{ $department->exists ? 'Edit Department' : 'New Department' }}</h1>
+        <h1 class="h4 mb-0">{{ $department->exists ? __('ui.screen.edit_department') : __('ui.screen.new_department') }}</h1>
         @if ($department->exists)
             <a href="{{ route('admin.departments.vacancy-master.index', $department) }}" class="btn btn-outline-secondary btn-sm">{{ __('vacancymaster.open_vacancy_master') }}</a>
         @endif

@@ -39,7 +39,7 @@
         @include('partials.icon', ['name' => 'shield', 'size' => 20])
         <div>
             <strong class="d-block mb-1">
-                {{ $errors->count() === 1 ? 'Please correct the following' : 'Please correct the following '.$errors->count().' items' }}
+                {{ $errors->count() === 1 ? __('ui.screen.correct_following') : __('ui.screen.correct_following_n', ['count' => $errors->count()]) }}
             </strong>
             <ul class="mb-0 ps-3">
                 @foreach ($errors->all() as $error)

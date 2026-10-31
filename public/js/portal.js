@@ -166,7 +166,11 @@
         // A confirmation refused above already stopped this submission.
         if (event.defaultPrevented) { return; }
 
-        var button = form.querySelector('button[type="submit"], button:not([type])');
+        // The button actually pressed (Reject, not the Approve beside it); the
+        // first submit button when the form was sent with Enter.
+        var button = event.submitter && event.submitter.tagName === 'BUTTON'
+            ? event.submitter
+            : form.querySelector('button[type="submit"], button:not([type])');
         if (!button || button.classList.contains('is-busy')) { return; }
 
         // Purely visual. The button is not disabled until after the browser

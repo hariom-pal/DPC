@@ -155,7 +155,7 @@
 
                 <div class="card border-0 shadow-sm mb-3">
                     <div class="card-header bg-white">
-                        <strong>{{ $proposal->exists ? 'This proposal' : '2. This proposal' }}</strong>
+                        <strong>{{ $proposal->exists ? __('ui.screen.this_proposal') : __('ui.screen.this_proposal_numbered') }}</strong>
                     </div>
                     <div class="card-body">
                         <div class="mb-3">
@@ -197,7 +197,7 @@
                 </div>
 
                 <button type="submit" class="btn btn-success" @disabled(! $proposal->exists && $preDpcs->isEmpty())>
-                    {{ $proposal->exists ? 'Save Draft' : 'Raise DPC' }}
+                    {{ $proposal->exists ? __('ui.screen.save_draft') : __('ui.screen.raise_dpc') }}
                 </button>
                 <a href="{{ route('dpc-proposals.index') }}" class="btn btn-outline-secondary">{{ __('ui.cancel') }}</a>
             </form>

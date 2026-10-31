@@ -39,7 +39,7 @@
                             <tr>
                                 <td>
                                     <a href="{{ route('dpc-circulations.show', $circulation) }}">
-                                        {{ $circulation->circulation_code ?? 'Draft' }}
+                                        {{ $circulation->circulation_code ?? __('ui.screen.draft') }}
                                     </a>
                                 </td>
                                 <td>{{ $circulation->origin_dpc_code ?? '—' }}</td>

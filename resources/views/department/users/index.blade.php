@@ -40,7 +40,8 @@
                                         @csrf
                                         {{-- A reason from the list, and the eSign (MoM of 2026-10-29). --}}
                                         <label class="visually-hidden" for="reason-{{ $officer->id }}">{{ __('department.users.release.reason') }}</label>
-                                        <select class="form-select form-select-sm" id="reason-{{ $officer->id }}" name="reason" required style="min-width: 14rem">
+                                        {{-- Native, not searchable: eight fixed reasons, and the browser's own list is not clipped by the scrolling table. --}}
+                                        <select class="form-select form-select-sm" id="reason-{{ $officer->id }}" name="reason" required style="min-width: 14rem" data-searchable="off">
                                             <option value="">{{ __('department.users.release.reason') }}</option>
                                             @foreach (\App\Enums\OfficerChangeReason::cases() as $reason)
                                                 <option value="{{ $reason->value }}">{{ $reason->label() }}</option>

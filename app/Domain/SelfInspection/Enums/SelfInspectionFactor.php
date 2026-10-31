@@ -37,14 +37,7 @@ enum SelfInspectionFactor: string
      */
     public function label(): string
     {
-        return match ($this) {
-            self::Name => 'Name (as recorded by your department)',
-            self::Dob => 'Date of Birth',
-            self::DateOfPostingOnPromotionToPost => 'Date of Joining Promotion To Post',
-            self::DateOfPostingOnPromotionFromPost => 'Date of Joining Promotion From Post',
-            self::DateOfJoiningService => 'Date of Joining Service',
-            self::EmployeeNumber => 'Employee Number',
-        };
+        return __("ui.enum.self_inspection_factor.{$this->value}");
     }
 
     public function isDate(): bool

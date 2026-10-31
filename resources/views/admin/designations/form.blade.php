@@ -1,9 +1,9 @@
 @extends('layouts.admin')
 
-@section('title', $designation->exists ? 'Edit Designation' : 'New Designation')
+@section('title', $designation->exists ? __('ui.screen.edit_designation') : __('ui.screen.new_designation'))
 
 @section('content')
-    <h1 class="h4 mb-3">{{ $designation->exists ? 'Edit Designation' : 'New Designation' }}</h1>
+    <h1 class="h4 mb-3">{{ $designation->exists ? __('ui.screen.edit_designation') : __('ui.screen.new_designation') }}</h1>
 
     <div class="card border-0 shadow-sm">
         <div class="card-body">

@@ -45,7 +45,7 @@
                     <textarea class="form-control form-control-sm mb-2" id="c_reason" name="reason" rows="2" required></textarea>
                     <label class="form-label" for="c_doc">{{ __('identity.admin.document') }}</label>
                     <input type="file" class="form-control form-control-sm mb-2" id="c_doc" name="document" accept="application/pdf">
-                    <button class="btn btn-primary btn-sm">{{ __('identity.admin.correct') }}</button>
+                    <button class="btn btn-success btn-sm">{{ __('identity.admin.correct') }}</button>
                 </div>
             </form>
         </div>

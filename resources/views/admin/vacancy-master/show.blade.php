@@ -17,14 +17,27 @@
         // A record kept before 2026-10-30 and frozen then is read the old way.
         $perPreDpc = $position === null || $position->isDraft() || \App\Domain\Dpc\Services\VacancyMasterService::isPerPreDpc($b);
 
-        // One question per step. Each step knows whether it is done.
-        $steps = [
-            'sanctioned' => ['n' => 1, 'state' => $sanctioned !== null ? 'done' : 'pending'],
-            'working' => ['n' => 2, 'state' => $working !== null && ($perPreDpc || $working->hasQuotaSplit()) ? 'done' : 'pending'],
-            'vacancies' => ['n' => 3, 'state' => $pendingEntries > 0 ? 'pending' : ($activeEntries->isNotEmpty() ? 'done' : 'optional')],
-            // Done only once finalized — "ready" is not done.
-            'summary' => ['n' => 4, 'state' => $position !== null && ! $isDraft ? 'done' : 'pending'],
-        ];
+        // One question per step. Each step knows whether it is done. A record kept per
+        // Pre-DPC enters sanctioned and working strength on one screen (2026-10-31).
+        $vacanciesState = $pendingEntries > 0 ? 'pending' : ($activeEntries->isNotEmpty() ? 'done' : 'optional');
+        // Done only once finalized — "ready" is not done.
+        $summaryState = $position !== null && ! $isDraft ? 'done' : 'pending';
+        if ($perPreDpc) {
+            $section = $section === 'working' ? 'sanctioned' : $section;
+            $steps = [
+                'sanctioned' => ['n' => 1, 'state' => $sanctioned !== null && $working !== null ? 'done' : 'pending'],
+                'vacancies' => ['n' => 2, 'state' => $vacanciesState],
+                'summary' => ['n' => 3, 'state' => $summaryState],
+            ];
+        } else {
+            $steps = [
+                'sanctioned' => ['n' => 1, 'state' => $sanctioned !== null ? 'done' : 'pending'],
+                'working' => ['n' => 2, 'state' => $working !== null && $working->hasQuotaSplit() ? 'done' : 'pending'],
+                'vacancies' => ['n' => 3, 'state' => $vacanciesState],
+                'summary' => ['n' => 4, 'state' => $summaryState],
+            ];
+        }
+        $stepLabel = fn (string $key): string => __('vacancymaster.steps.'.($perPreDpc && $key === 'sanctioned' ? 'strength' : $key));
         $order = array_keys($steps);
         $index = array_search($section, $order, true);
         $previous = $index > 0 ? $order[$index - 1] : null;
@@ -32,7 +45,7 @@
         $stepUrl = fn (string $key): string => route($records.'.show', [$department, $year, $post, 'section' => $key]);
     @endphp
 
-    <nav aria-label="breadcrumb">
+    <nav aria-label="{{ __('ui.screen.breadcrumb') }}">
         <ol class="breadcrumb small">
             <li class="breadcrumb-item"><a href="{{ route($management.'.index') }}">{{ __('vacancymaster.title') }}</a></li>
             @if ($adminArea)<li class="breadcrumb-item"><a href="{{ route('admin.departments.edit', $department) }}">{{ $department->name }}</a></li>@endif
@@ -104,7 +117,7 @@
                         <a href="{{ $stepUrl($key) }}"
                            @class(['nav-link border h-100', 'active' => $section === $key])
                            @if ($section === $key) aria-current="step" @endif>
-                            <span class="fw-semibold">{{ $step['n'] }}. {{ __('vacancymaster.steps.'.$key) }}</span>
+                            <span class="fw-semibold">{{ $step['n'] }}. {{ $stepLabel($key) }}</span>
                             <span @class(['badge ms-1',
                                 'text-bg-success' => $step['state'] === 'done',
                                 'text-bg-warning' => $step['state'] === 'pending',
@@ -116,26 +129,27 @@
             </ol>
         </nav>
 
-        @include('admin.vacancy-master.steps.'.$section.($perPreDpc || $section === 'sanctioned' ? '' : '-v1'))
+        @include('admin.vacancy-master.steps.'.($perPreDpc && $section === 'sanctioned' ? 'strength' : $section.($perPreDpc || $section === 'sanctioned' ? '' : '-v1')))
 
         <div class="d-flex justify-content-between mb-3">
             <div>
                 @if ($previous)
-                    <a class="btn btn-outline-secondary btn-sm" href="{{ $stepUrl($previous) }}">&larr; {{ __('vacancymaster.steps.back', ['step' => __('vacancymaster.steps.'.$previous)]) }}</a>
+                    <a class="btn btn-outline-secondary btn-sm" href="{{ $stepUrl($previous) }}">&larr; {{ __('vacancymaster.steps.back', ['step' => $stepLabel($previous)]) }}</a>
                 @endif
             </div>
             <div>
                 @if ($next)
-                    <a class="btn btn-outline-primary btn-sm" href="{{ $stepUrl($next) }}">{{ __('vacancymaster.steps.next', ['step' => __('vacancymaster.steps.'.$next)]) }} &rarr;</a>
+                    <a class="btn btn-outline-primary btn-sm" href="{{ $stepUrl($next) }}">{{ __('vacancymaster.steps.next', ['step' => $stepLabel($next)]) }} &rarr;</a>
                 @endif
             </div>
         </div>
     @endif
 
-    {{-- The record's trail: every step of every revision, newest first. --}}
-    <div class="card border-0 shadow-sm mt-3" id="vacancy-trail">
-        <div class="card-header bg-white"><strong>{{ __('vacancymaster.trail.heading') }}</strong>
-            <span class="small text-muted">{{ __('vacancymaster.trail.lead') }}</span></div>
+    {{-- The record's trail: every step of every revision, newest first; folded until asked for. --}}
+    <details class="card border-0 shadow-sm mt-3" id="vacancy-trail">
+        <summary class="card-header bg-white"><strong>{{ __('vacancymaster.trail.heading') }}</strong>
+            <span class="badge text-bg-light border">{{ count($trail) }}</span>
+            <span class="small text-muted">{{ __('vacancymaster.trail.lead') }}</span></summary>
         <div class="table-responsive">
             <table class="table table-sm table-striped mb-0 align-middle">
                 <thead><tr>
@@ -158,5 +172,5 @@
                 </tbody>
             </table>
         </div>
-    </div>
+    </details>
 @endsection

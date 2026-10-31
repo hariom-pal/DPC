@@ -20,7 +20,7 @@
                 <div class="d-flex gap-2">
                     <a href="{{ route('notifications.index', $unreadOnly ? [] : ['unread' => 1]) }}"
                        class="btn btn-sm {{ $unreadOnly ? 'btn-primary' : 'btn-outline-primary' }}">
-                        {{ $unreadOnly ? 'Showing unread' : 'Unread only' }}
+                        {{ $unreadOnly ? __('ui.screen.showing_unread') : __('ui.screen.unread_only') }}
                     </a>
                     @if ($unreadCount > 0)
                         <form method="POST" action="{{ route('notifications.read-all') }}" class="m-0">
@@ -64,7 +64,7 @@
                             <form method="POST" action="{{ route('notifications.read', $notification) }}" class="m-0">
                                 @csrf
                                 <button class="btn btn-sm btn-outline-secondary">
-                                    {{ $notification->url ? 'Open' : 'Mark read' }}
+                                    {{ $notification->url ? __('ui.open') : __('ui.screen.mark_read') }}
                                 </button>
                             </form>
                         </li>

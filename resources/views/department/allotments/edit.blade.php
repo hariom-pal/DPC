@@ -51,11 +51,11 @@
             </div>
         </div>
         <div class="card-footer bg-transparent d-flex gap-2">
-            <button type="submit" class="btn btn-primary btn-sm">{{ $current ? __('allotments.reassign') : __('allotments.allot') }}</button>
+            <button type="submit" class="btn btn-primary">{{ $current ? __('allotments.reassign') : __('allotments.allot') }}</button>
             @if ($proposal instanceof \App\Domain\PreDpc\Models\PreDpcProposal && $proposal->status->isEditable())
-                <a href="{{ route('pre-dpc.edit', $proposal) }}" class="btn btn-outline-primary btn-sm">{{ __('allotments.edit_pre_dpc') }}</a>
+                <a href="{{ route('pre-dpc.edit', $proposal) }}" class="btn btn-outline-primary">{{ __('allotments.edit_pre_dpc') }}</a>
             @endif
-            <a href="{{ route('department.allotments.index', $proposal instanceof \App\Domain\PreDpc\Models\PreDpcProposal ? ['view' => 'pre-dpc'] : []) }}" class="btn btn-outline-secondary btn-sm">{{ __('ui.cancel') }}</a>
+            <a href="{{ route('department.allotments.index', $proposal instanceof \App\Domain\PreDpc\Models\PreDpcProposal ? ['view' => 'pre-dpc'] : []) }}" class="btn btn-outline-secondary">{{ __('ui.cancel') }}</a>
         </div>
     </form>
 

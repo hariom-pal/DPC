@@ -30,8 +30,8 @@
             <div class="col-12 small text-muted">{{ __('allotments.assign_last') }}</div>
         </div>
         <div class="card-footer bg-transparent d-flex gap-2">
-            <button type="submit" class="btn btn-primary btn-sm">{{ __('allotments.open_submit') }}</button>
-            <a href="{{ route('department.allotments.index', ['view' => 'pre-dpc']) }}" class="btn btn-outline-secondary btn-sm">{{ __('ui.cancel') }}</a>
+            <button type="submit" class="btn btn-primary">{{ __('allotments.open_submit') }}</button>
+            <a href="{{ route('department.allotments.index', ['view' => 'pre-dpc']) }}" class="btn btn-outline-secondary">{{ __('ui.cancel') }}</a>
         </div>
     </form>
 @endsection

@@ -525,6 +525,78 @@ class VacancyMasterService
     }
 
     /**
+     * Record (or correct) the sanctioned and working strength together, from one
+     * screen with one sanctioning order (2026-10-31).
+     *
+     * Only what changed is written. The order, its date and PDF are asked for when the
+     * sanctioned figure is new or changes; a change to the working figure alone needs
+     * no new document. When the sanctioned figure is lowered the working figure is
+     * written first, so the ceiling is judged on the new pair, not a half-saved one.
+     *
+     * @param  array{sanctioned_total: int, working_total: int, order_number?: string|null, order_date?: string|null, remarks?: string|null, correction_reason?: string|null}  $data
+     */
+    public function saveStrength(VacancyPosition $position, array $data, ?UploadedFile $document, User $actor): void
+    {
+        $this->assertDraft($position);
+
+        $sanctioned = (int) $data['sanctioned_total'];
+        $working = (int) $data['working_total'];
+        $previousSanctioned = $position->sanctionedStrength;
+        $previousWorking = $position->workingStrength;
+        $sanctionedChanged = $previousSanctioned === null || $previousSanctioned->sanctioned_total !== $sanctioned;
+        $workingChanged = $previousWorking === null || $previousWorking->working_total !== $working;
+
+        if (! $sanctionedChanged && ! $workingChanged) {
+            throw new WorkflowException(__('vacancymaster.errors.strength_unchanged'), 'sanctioned_total');
+        }
+
+        if ($sanctionedChanged) {
+            foreach (['order_number', 'order_date'] as $field) {
+                if (trim((string) ($data[$field] ?? '')) === '') {
+                    throw new WorkflowException(__('vacancymaster.errors.sanctioned_order_required'), $field);
+                }
+            }
+        }
+
+        $saved = null;
+        $writeSanctioned = function () use ($position, $data, $document, $actor, $sanctioned, &$saved): void {
+            $saved = $this->saveSanctionedStrength($position, [...$data, 'sanctioned_total' => $sanctioned], $document, $actor);
+        };
+        $writeWorking = function () use ($position, $data, $actor, $working, $sanctionedChanged): void {
+            $this->saveWorkingStrength($position, [
+                'working_total' => $working,
+                // The figures are certified by the same order when it was given now.
+                'order_number' => $sanctionedChanged ? ($data['order_number'] ?? null) : null,
+                'order_date' => $sanctionedChanged ? ($data['order_date'] ?? null) : null,
+                'remarks' => $data['remarks'] ?? null,
+                'correction_reason' => $data['correction_reason'] ?? null,
+            ], null, $actor);
+            $position->unsetRelation('workingStrength');
+        };
+
+        try {
+            DB::transaction(function () use ($previousSanctioned, $sanctioned, $sanctionedChanged, $workingChanged, $writeSanctioned, $writeWorking): void {
+                $order = $previousSanctioned !== null && $sanctioned < $previousSanctioned->sanctioned_total
+                    ? [[$workingChanged, $writeWorking], [$sanctionedChanged, $writeSanctioned]]
+                    : [[$sanctionedChanged, $writeSanctioned], [$workingChanged, $writeWorking]];
+
+                foreach ($order as [$changed, $write]) {
+                    if ($changed) {
+                        $write();
+                    }
+                }
+            });
+        } catch (\Throwable $e) {
+            // The sanctioned row was rolled back with the rest; its PDF goes too.
+            if ($saved instanceof VacancyPositionSanctionedStrength) {
+                Storage::disk((string) $saved->disk)->delete($saved->path);
+            }
+
+            throw $e;
+        }
+    }
+
+    /**
      * Record (or correct) the working strength as on 1 January: one figure, our own
      * officers on the post, those away on deputation included. Officers of other
      * departments working here on deputation are named row by row (B1) and added to

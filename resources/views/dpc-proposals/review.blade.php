@@ -87,7 +87,7 @@
                                            name="return_remarks" placeholder="{{ __('dpc.review.remarks_required_to_return_for_correction') }}">
                                     @error('return_remarks')<div class="invalid-feedback">{{ $message }}</div>@enderror
                                 </div>
-                                <div class="col-md-3"><button class="btn btn-warning btn-sm w-100">{{ __('ui.return_for_correction') }}</button></div>
+                                <div class="col-md-3"><button class="btn btn-outline-warning btn-sm w-100">{{ __('ui.return_for_correction') }}</button></div>
                             </form>
                         @else
                             <p class="text-muted small mb-0">

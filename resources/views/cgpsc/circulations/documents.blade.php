@@ -51,7 +51,7 @@
                                 <td>v{{ $document->document_version }}</td>
                                 <td>{{ $document->status->label() }}</td>
                                 <td><code class="small">{{ Str::limit($document->content_hash ?? '—', 16) }}</code></td>
-                                <td>{{ $document->signature_id ? 'Yes' : 'No' }}</td>
+                                <td>{{ $document->signature_id ? __('ui.yes') : __('ui.no') }}</td>
                                 <td>
                                     @if ($document->isPublished())
                                         {{ $document->published_at->format('d-m-Y H:i') }}

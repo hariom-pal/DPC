@@ -11,17 +11,34 @@
     $val = fn (string $kind, string $field, $default = null) => $mine($kind) ? old($field, $default) : $default;
     $yearFrom = $year.'-01-01';
     $yearTo = $year.'-12-31';
+
+    // One part at a time (2026-10-31). Open: the part whose form or row was just
+    // refused, else the part asked for (the redirect after a save names it), else B1.
+    $partOf = ['deputation_in' => 'b1', 'deputation' => 'b2', 'anticipated' => 'c'];
+    $refusedRow = $position->entries->first(fn ($entry) => $errors->getBag('entry_'.$entry->id)->any());
+    $part = $partOf[(string) old('kind')]
+        ?? ($refusedRow !== null ? ($partOf[$refusedRow->kind->value] ?? null) : null)
+        ?? (in_array(request('part'), $partOf, true) ? request('part') : 'b1');
 @endphp
 
-{{-- The running total, so the officer sees each row land. --}}
+{{-- The running total, so the officer sees each row land: A + B1 + B2 + C = total. --}}
 <div class="card border-0 shadow-sm mb-3" id="vacancy-tally">
     <div class="card-body py-2">
-        <div class="d-flex flex-wrap gap-3 small">
-            <span>{{ __('vacancymaster.pm.a_clear') }}: <strong>{{ $b['clear_vacancy'] ?? '—' }}</strong></span>
-            <span>{{ __('vacancymaster.pm.b1_short') }}: <strong>{{ $b['deputation_in_vacancy'] ?? 0 }}</strong></span>
-            <span>{{ __('vacancymaster.pm.b2_short') }}: <strong>{{ $b['deputation_out_vacancy'] ?? 0 }}</strong></span>
-            <span>{{ __('vacancymaster.pm.c_short') }}: <strong>{{ $b['anticipated_vacancy'] ?? 0 }}</strong></span>
-            <span>{{ __('vacancymaster.pm.total') }}: <strong>{{ $b['total_vacancy'] ?? '—' }}</strong> / {{ __('vacancymaster.pm.sanctioned_short') }} {{ $b['sanctioned'] ?? '—' }}</span>
+        <div class="vm-tally">
+            @foreach ([
+                ['a_clear', $b['clear_vacancy'] ?? '—'],
+                ['b1_short', $b['deputation_in_vacancy'] ?? 0],
+                ['b2_short', $b['deputation_out_vacancy'] ?? 0],
+                ['c_short', $b['anticipated_vacancy'] ?? 0],
+            ] as $i => [$label, $figure])
+                @if ($i > 0)<span class="vm-op" aria-hidden="true">+</span>@endif
+                <div class="vm-tile"><div class="vm-tile-value">{{ $figure }}</div><div class="vm-tile-label">{{ __('vacancymaster.pm.'.$label) }}</div></div>
+            @endforeach
+            <span class="vm-op" aria-hidden="true">=</span>
+            <div class="vm-tile vm-tile-total">
+                <div class="vm-tile-value">{{ $b['total_vacancy'] ?? '—' }} <span class="vm-tile-of">/ {{ $b['sanctioned'] ?? '—' }}</span></div>
+                <div class="vm-tile-label">{{ __('vacancymaster.pm.total') }} / {{ __('vacancymaster.pm.sanctioned_short') }}</div>
+            </div>
         </div>
         @if ($editable && ($sanctioned === null || $working === null))
             <div class="alert alert-warning small py-2 mt-2 mb-0">{{ __('vacancymaster.errors.figures_first') }}</div>
@@ -32,21 +49,51 @@
     </div>
 </div>
 
-@foreach ([
-    'deputation_in' => ['id' => 'b1', 'title' => 'b1_heading', 'help' => 'b1_help'],
-    'deputation' => ['id' => 'b2', 'title' => 'b2_heading', 'help' => 'b2_help'],
-    'anticipated' => ['id' => 'c', 'title' => 'c_heading', 'help' => 'c_help'],
-] as $kind => $card)
-    @php $rows = $rowsOf($kind); @endphp
-    <div class="card border-0 shadow-sm mb-3" id="vacancy-{{ $card['id'] }}">
-        <div class="card-header bg-white"><strong>{{ __('vacancymaster.pm.'.$card['title']) }}</strong></div>
-        <div class="card-body pb-0"><p class="small text-muted mb-2">{{ __('vacancymaster.pm.'.$card['help'], ['year' => $year, 'date' => '31-12-'.$year]) }}</p></div>
+@php
+    $cards = [
+        'deputation_in' => ['id' => 'b1', 'title' => 'b1_heading', 'help' => 'b1_help'],
+        'deputation' => ['id' => 'b2', 'title' => 'b2_heading', 'help' => 'b2_help'],
+        'anticipated' => ['id' => 'c', 'title' => 'c_heading', 'help' => 'c_help'],
+    ];
+@endphp
+<ul class="nav nav-tabs vm-parts" role="tablist" aria-label="{{ __('vacancymaster.pm.parts_label') }}">
+    @foreach ($cards as $kind => $card)
+        @php $tabRows = $rowsOf($kind)->filter(fn ($entry) => $entry->isActive()); @endphp
+        <li class="nav-item" role="presentation">
+            <button type="button" role="tab" id="tab-{{ $card['id'] }}" data-bs-toggle="tab" data-bs-target="#pane-{{ $card['id'] }}"
+                    aria-controls="pane-{{ $card['id'] }}" aria-selected="{{ $part === $card['id'] ? 'true' : 'false' }}"
+                    @class(['nav-link', 'active' => $part === $card['id']])>
+                {{ __('vacancymaster.pm.tab_'.$card['id']) }}
+                <span class="badge rounded-pill text-bg-light border ms-1">{{ $tabRows->filter(fn ($entry) => $entry->isCounted())->count() }}/{{ $tabRows->count() }}</span>
+            </button>
+        </li>
+    @endforeach
+</ul>
+<div class="tab-content mb-3">
+@foreach ($cards as $kind => $card)
+    @php
+        $rows = $rowsOf($kind);
+        $canAdd = $editable && $sanctioned !== null && $working !== null;
+        $activeRows = $rows->filter(fn ($entry) => $entry->isActive());
+    @endphp
+    <div @class(['tab-pane', 'show active' => $part === $card['id']]) id="pane-{{ $card['id'] }}" role="tabpanel" aria-labelledby="tab-{{ $card['id'] }}" tabindex="0">
+    <div class="card border-0 shadow-sm vm-part-card" id="vacancy-{{ $card['id'] }}">
+        <div class="card-header bg-white d-flex flex-wrap align-items-center gap-2">
+            <strong class="me-auto">{{ __('vacancymaster.pm.'.$card['title']) }}</strong>
+            @if ($activeRows->isNotEmpty())
+                <span class="badge text-bg-light border">{{ __('vacancymaster.pm.rows_counted', ['counted' => $activeRows->filter(fn ($entry) => $entry->isCounted())->count(), 'rows' => $activeRows->count()]) }}</span>
+            @endif
+            @if ($canAdd)
+                <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="collapse" data-bs-target="#add-{{ $card['id'] }}-panel"
+                        aria-expanded="{{ $mine($kind) ? 'true' : 'false' }}" aria-controls="add-{{ $card['id'] }}-panel">+ {{ __('vacancymaster.pm.add_officer') }}</button>
+            @endif
+        </div>
+        <p class="small text-muted px-3 pt-2 mb-2">{{ __('vacancymaster.pm.'.$card['help'], ['year' => $year, 'date' => '31-12-'.$year]) }}</p>
         <div class="table-responsive">
             <table class="table table-sm small mb-0 align-middle">
                 <thead><tr>
                     <th>{{ __('vacancymaster.entries.officer_name') }}</th>
                     <th>{{ __('vacancymaster.pm.details') }}</th>
-                    <th>{{ __('vacancymaster.order') }}</th>
                     <th>{{ __('vacancymaster.pm.counts') }}</th>
                     <th class="text-end">{{ __('ui.actions') }}</th>
                 </tr></thead>
@@ -67,14 +114,15 @@
                                         <div>{{ __('vacancymaster.entries.higher_summary', ['post' => $entry->higherPost->name, 'reference' => $entry->higher_dpc_reference]) }}</div>
                                     @endif
                                 @endif
-                                @if ($entry->remarks)<div class="text-muted">{{ $entry->remarks }}</div>@endif
-                            </td>
-                            <td>
-                                {{ $entry->order_number ?? '—' }}
-                                @if ($entry->order_date) · {{ $entry->order_date->format('d-m-Y') }}@endif
-                                @if ($entry->original_name)
-                                    <div><a href="{{ route($records.'.entries.document', [$department, $year, $post, $entry]) }}">{{ $entry->original_name }}</a></div>
+                                @if ($entry->order_number || $entry->original_name)
+                                    <div class="text-muted">
+                                        {{ __('vacancymaster.pm.order_line') }}: {{ $entry->order_number ?? '—' }}@if ($entry->order_date) · {{ $entry->order_date->format('d-m-Y') }}@endif
+                                        @if ($entry->original_name)
+                                            · <a href="{{ route($records.'.entries.document', [$department, $year, $post, $entry]) }}">{{ $entry->original_name }}</a>
+                                        @endif
+                                    </div>
                                 @endif
+                                @if ($entry->remarks)<div class="text-muted">{{ $entry->remarks }}</div>@endif
                             </td>
                             <td>
                                 @if (! $entry->isActive())
@@ -87,29 +135,43 @@
                                     @if ($entry->eligibility_note)<div class="text-muted">{{ $entry->eligibility_note }}</div>@endif
                                 @endif
                             </td>
-                            <td class="text-end" style="min-width:12rem">
+                            <td class="text-end text-nowrap">
                                 @if ($editable && $entry->isActive())
-@php $entryBag = $errors->getBag('entry_'.$entry->id); @endphp
-                                    <form method="POST" class="text-start" action="{{ route($records.'.entries.withdraw', [$department, $year, $post, $entry]) }}">
-                                        @csrf
-                                        <input type="hidden" name="_entry" value="{{ $entry->id }}">
-@include('admin.vacancy-master.partials.field-error', ['field' => 'workflow', 'bag' => 'entry_'.$entry->id])
-                                        <input type="text" name="withdrawal_reason" class="form-control form-control-sm mb-1 @if ($entryBag->has('withdrawal_reason')) is-invalid @endif" required placeholder="{{ __('vacancymaster.entries.withdrawal_reason') }}">
-@include('admin.vacancy-master.partials.field-error', ['field' => 'withdrawal_reason', 'bag' => 'entry_'.$entry->id])
-                                        <button class="btn btn-outline-danger btn-sm">{{ __('vacancymaster.pm.remove') }}</button>
-                                    </form>
+                                    <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="collapse" data-bs-target="#withdraw-{{ $entry->id }}"
+                                            aria-expanded="false" aria-controls="withdraw-{{ $entry->id }}">{{ __('vacancymaster.pm.remove') }}</button>
                                 @endif
                             </td>
                         </tr>
+                        @if ($editable && $entry->isActive())
+@php $entryBag = $errors->getBag('entry_'.$entry->id); @endphp
+                            <tr @class(['collapse vm-withdraw', 'show' => $entryBag->any()]) id="withdraw-{{ $entry->id }}">
+                                <td colspan="4">
+                                    <form method="POST" action="{{ route($records.'.entries.withdraw', [$department, $year, $post, $entry]) }}">
+                                        @csrf
+                                        <input type="hidden" name="_entry" value="{{ $entry->id }}">
+@include('admin.vacancy-master.partials.field-error', ['field' => 'workflow', 'bag' => 'entry_'.$entry->id])
+                                        <div class="d-flex flex-wrap align-items-start gap-2">
+                                            <div class="flex-grow-1" style="min-width:14rem">
+                                                <label class="visually-hidden" for="withdrawal-reason-{{ $entry->id }}">{{ __('vacancymaster.entries.withdrawal_reason') }}</label>
+                                                <input type="text" id="withdrawal-reason-{{ $entry->id }}" class="form-control form-control-sm @if ($entryBag->has('withdrawal_reason')) is-invalid @endif" name="withdrawal_reason" required placeholder="{{ __('vacancymaster.entries.withdrawal_reason') }}">
+@include('admin.vacancy-master.partials.field-error', ['field' => 'withdrawal_reason', 'bag' => 'entry_'.$entry->id])
+                                            </div>
+                                            <button type="submit" class="btn btn-danger btn-sm">{{ __('vacancymaster.pm.remove_confirm') }}</button>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="collapse" data-bs-target="#withdraw-{{ $entry->id }}">{{ __('vacancymaster.pm.cancel') }}</button>
+                                        </div>
+                                    </form>
+                                </td>
+                            </tr>
+                        @endif
                     @empty
-                        <tr><td colspan="5" class="text-center text-muted py-2">{{ __('vacancymaster.pm.none') }}</td></tr>
+                        <tr><td colspan="4" class="text-center text-muted py-2">{{ __('vacancymaster.pm.none') }}</td></tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
 
-        @if ($editable && $sanctioned !== null && $working !== null)
-            <div class="card-body border-top">
+        @if ($canAdd)
+            <div @class(['collapse border-top', 'show' => $mine($kind)]) id="add-{{ $card['id'] }}-panel"><div class="card-body">
                 <form method="POST" enctype="multipart/form-data" action="{{ route($records.'.entries.store', [$department, $year, $post]) }}" id="add-{{ $card['id'] }}">
                     @csrf
                     <input type="hidden" name="kind" value="{{ $kind }}">
@@ -218,15 +280,18 @@
                             <label class="form-label small" for="{{ $card['id'] }}_remarks">{{ __('vacancymaster.remarks') }}</label>
                             <input type="text" maxlength="2000" class="form-control form-control-sm" id="{{ $card['id'] }}_remarks" name="remarks" value="{{ $val($kind, 'remarks') }}">
                         </div>
-                        <div class="col-md-3">
-                            <button class="btn btn-primary btn-sm">{{ __('vacancymaster.pm.add_row') }}</button>
+                        <div class="col-12 d-flex gap-2">
+                            <button type="submit" class="btn btn-primary btn-sm">{{ __('vacancymaster.pm.add_row') }}</button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="collapse" data-bs-target="#add-{{ $card['id'] }}-panel">{{ __('vacancymaster.pm.cancel') }}</button>
                         </div>
                     </div>
                 </form>
-            </div>
+            </div></div>
         @endif
     </div>
+    </div>
 @endforeach
+</div>
 
 @if ($older->isNotEmpty())
     <div class="card border-0 shadow-sm mb-3">

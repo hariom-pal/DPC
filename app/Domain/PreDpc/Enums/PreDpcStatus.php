@@ -14,7 +14,7 @@ enum PreDpcStatus: string
 
     public function label(): string
     {
-        return ucfirst($this->value);
+        return __("ui.enum.proposal_status.{$this->value}");
     }
 
     public function isEditable(): bool

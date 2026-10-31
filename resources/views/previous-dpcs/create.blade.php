@@ -1,7 +1,7 @@
 @extends('layouts.app')
 @section('title', __('previous_dpc.new'))
 @section('content')
-    <nav aria-label="breadcrumb">
+    <nav aria-label="{{ __('ui.screen.breadcrumb') }}">
         <ol class="breadcrumb small">
             <li class="breadcrumb-item"><a href="{{ route('previous-dpcs.index') }}">{{ __('previous_dpc.title') }}</a></li>
             <li class="breadcrumb-item active" aria-current="page">{{ __('previous_dpc.new') }}</li>

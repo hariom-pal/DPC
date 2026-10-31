@@ -463,7 +463,7 @@ class VacancyMasterTest extends TestCase
         $this->assertNotSame($first->sanctioned_strength_id, $draft->sanctioned_strength_id, 'The copy belongs to the new revision.');
     }
 
-    // ---------------------------------------------------- the four steps
+    // ---------------------------------------------------- the three steps
 
     public function test_each_step_has_its_own_screen(): void
     {
@@ -471,15 +471,17 @@ class VacancyMasterTest extends TestCase
 
         $screen = fn (string $section) => $this->actingAs($this->ao)->get($this->url('show', ['section' => $section]))->assertOk();
 
-        $screen('sanctioned')->assertSee(__('vacancymaster.sanctioned.heading', ['year' => self::YEAR]))
+        // Sanctioned and working strength on one screen, with one order (2026-10-31).
+        $screen('sanctioned')->assertSee(__('vacancymaster.pm.strength_heading', ['year' => self::YEAR]))
             ->assertSee('name="sanctioned_total"', false)
-            ->assertDontSee('name="working_total"', false)
-            ->assertDontSee('id="vacancy-b1"', false);
-
-        $screen('working')->assertSee('name="working_total"', false)
-            ->assertDontSee('name="sanctioned_total"', false)
+            ->assertSee('name="working_total"', false)
+            ->assertSee('id="strength-form"', false)
             ->assertDontSee('id="vacancy-b1"', false)
-            ->assertSee(__('vacancymaster.sanctioned.reference_missing', ['year' => self::YEAR]));
+            ->assertSee(__('vacancymaster.steps.strength'))
+            ->assertDontSee('section=working', false);
+
+        // The old step key lands on the same screen.
+        $screen('working')->assertSee('id="strength-form"', false);
 
         $screen('vacancies')->assertSee('id="vacancy-b1"', false)
             ->assertSee('id="vacancy-b2"', false)
@@ -490,6 +492,93 @@ class VacancyMasterTest extends TestCase
         $screen('summary')->assertSee(__('vacancymaster.steps.missing_heading'))
             ->assertSee(__('vacancymaster.issues.sanctioned_not_entered', ['year' => self::YEAR]))
             ->assertSee(__('vacancymaster.finalize'));
+    }
+
+    // ------------------------------- step 1: sanctioned and working together
+
+    private function saveStrength(array $data): TestResponse
+    {
+        return $this->actingAs($this->ao)->from($this->url('show', ['section' => 'sanctioned']))->post($this->url('strength'), $data);
+    }
+
+    private function position(): VacancyPosition
+    {
+        return app(VacancyMasterService::class)->current($this->department->id, 'Principal', self::YEAR)->fresh();
+    }
+
+    public function test_both_figures_are_saved_once_with_one_order_and_a_working_change_needs_no_new_document(): void
+    {
+        $this->openDraft(null);
+
+        $this->saveStrength([
+            'sanctioned_total' => '10', 'working_total' => '6',
+            'order_number' => 'SE/SANC/1', 'order_date' => '2026-01-02', 'document' => $this->pdf('sanction.pdf'),
+        ])->assertSessionHasNoErrors()->assertRedirect($this->url('show', ['section' => 'vacancies']));
+
+        $position = $this->position();
+        $this->assertSame(10, $position->sanctionedStrength->sanctioned_total);
+        $this->assertSame(6, $position->workingStrength->working_total);
+        $this->assertSame('SE/SANC/1', $position->workingStrength->order_number, 'Certified by the same order.');
+        $this->assertNull($position->workingStrength->path, 'One PDF, kept once.');
+
+        // Later only the working figure changes: a reason, no order, no PDF.
+        $this->saveStrength(['sanctioned_total' => '10', 'working_total' => '7'])->assertSessionHasErrors('correction_reason');
+        $this->saveStrength(['sanctioned_total' => '10', 'working_total' => '7', 'correction_reason' => 'One more officer joined.'])->assertSessionHasNoErrors();
+
+        $position = $this->position();
+        $this->assertSame(7, $position->workingStrength->working_total);
+        $this->assertCount(1, $position->sanctionedStrengthHistory, 'The sanctioned figure did not change, so it is not written again.');
+
+        // A changed sanctioned figure needs its order again.
+        $this->saveStrength(['sanctioned_total' => '12', 'working_total' => '7', 'correction_reason' => 'New order.'])->assertSessionHasErrors('order_number');
+        $this->saveStrength(['sanctioned_total' => '12', 'working_total' => '7', 'order_number' => 'SE/SANC/2', 'order_date' => '2026-02-01', 'correction_reason' => 'New order.'])
+            ->assertSessionHasErrors('document');
+
+        // Nothing changed: said so, nothing written.
+        $this->saveStrength(['sanctioned_total' => '10', 'working_total' => '7', 'correction_reason' => 'x'])->assertSessionHasErrors('sanctioned_total');
+        $this->assertCount(2, $this->position()->workingStrengthHistory);
+    }
+
+    public function test_lowering_both_figures_together_is_judged_on_the_new_pair_and_a_refusal_writes_nothing(): void
+    {
+        $this->openDraft(null);
+        $this->saveStrength([
+            'sanctioned_total' => '10', 'working_total' => '8',
+            'order_number' => 'SE/SANC/1', 'order_date' => '2026-01-02', 'document' => $this->pdf(),
+        ])->assertSessionHasNoErrors();
+
+        $disk = Storage::disk((string) config('dpc.documents.disk', 'local'));
+        $files = count($disk->allFiles());
+
+        // Sanctioned below the working figure: refused, and the new PDF is not left behind.
+        $this->saveStrength(['sanctioned_total' => '6', 'working_total' => '8', 'order_number' => 'SE/SANC/2', 'order_date' => '2026-02-01', 'document' => $this->pdf(), 'correction_reason' => 'Posts reduced.'])
+            ->assertSessionHasErrors();
+        $this->assertSame(10, $this->position()->sanctionedStrength->sanctioned_total);
+        $this->assertSame($files, count($disk->allFiles()));
+
+        // Both lowered together: allowed.
+        $this->saveStrength(['sanctioned_total' => '6', 'working_total' => '5', 'order_number' => 'SE/SANC/2', 'order_date' => '2026-02-01', 'document' => $this->pdf(), 'correction_reason' => 'Posts reduced.'])
+            ->assertSessionHasNoErrors();
+        $position = $this->position();
+        $this->assertSame([6, 5], [$position->sanctionedStrength->sanctioned_total, $position->workingStrength->working_total]);
+    }
+
+    public function test_after_a_row_is_added_the_screen_returns_to_its_part(): void
+    {
+        $this->openDraft(null);
+        $this->saveStrength([
+            'sanctioned_total' => '10', 'working_total' => '6',
+            'order_number' => 'SE/SANC/1', 'order_date' => '2026-01-02', 'document' => $this->pdf(),
+        ])->assertSessionHasNoErrors();
+
+        $this->actingAs($this->ao)->post($this->url('entries.store'), ['kind' => 'deputation', 'officer_name' => 'C. Patel', 'deputation_from' => '2025-03-01', 'promotion_made' => '0'])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect($this->url('show', ['section' => 'vacancies', 'part' => 'b2']));
+
+        $html = $this->actingAs($this->ao)->get($this->url('show', ['section' => 'vacancies', 'part' => 'b2']))->assertOk()->getContent();
+        $this->assertMatchesRegularExpression('/class="tab-pane show active" id="pane-b2"/', $html);
+        $this->assertMatchesRegularExpression('/class="tab-pane" id="pane-b1"/', $html);
+        $this->assertStringContainsString('aria-selected="true"', substr($html, (int) strpos($html, 'id="tab-b2"'), 400));
     }
 
     public function test_the_screen_opens_on_the_first_step_still_to_do_and_moves_on_after_a_save(): void
@@ -547,6 +636,8 @@ class VacancyMasterTest extends TestCase
 
         $html = $this->revisit($here)->assertOk()->getContent();
         $this->assertMatchesRegularExpression('/is-invalid[^"]*"[^>]*name="withdrawal_reason"|name="withdrawal_reason"[^>]*is-invalid/', $html);
+        // The refused row's reason opens again, folded rows stay folded.
+        $this->assertStringContainsString('class="collapse vm-withdraw show" id="withdraw-'.$entry->id.'"', $html);
 
         // The add forms are untouched.
         $this->assertStringNotContainsString('is-invalid', substr($html, (int) strpos($html, 'id="add-b1"'), (int) strpos($html, 'id="vacancy-b2"') - (int) strpos($html, 'id="add-b1"')));
@@ -557,6 +648,9 @@ class VacancyMasterTest extends TestCase
         $html = $this->revisit($here)->assertOk()->getContent();
         $b2 = substr($html, (int) strpos($html, 'id="add-b2"'), (int) strpos($html, 'id="vacancy-c"') - (int) strpos($html, 'id="add-b2"'));
         $this->assertStringContainsString('is-invalid', $b2);
+        // Its panel opens by itself; the others stay folded.
+        $this->assertStringContainsString('class="collapse border-top show" id="add-b2-panel"', $html);
+        $this->assertStringContainsString('class="collapse border-top" id="add-b1-panel"', $html);
         $this->assertStringNotContainsString('is-invalid', substr($html, (int) strpos($html, 'id="add-c"')));
     }
 

@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'My DPC — ' . ($proposal->dpc_code ?? ''))
+@section('title', __('ui.screen.my_dpc').' — '.($proposal->dpc_code ?? ''))
 
 @section('content')
     {{-- Own DPC, own status, timeline and the final result once published
@@ -12,7 +12,7 @@
 
             <div class="d-flex justify-content-between align-items-start mb-3">
                 <div>
-                    <h1 class="h4 mb-0">{{ $proposal->dpc_code ?? 'My DPC' }}</h1>
+                    <h1 class="h4 mb-0">{{ $proposal->dpc_code ?? __('ui.screen.my_dpc') }}</h1>
                     <div class="text-muted small">
                         {{ $proposal->promotionFromPost?->name ?? '—' }} →
                         {{ $proposal->promotionToPost?->name ?? '—' }}

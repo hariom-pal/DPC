@@ -66,7 +66,7 @@
 
                         <dt class="col-sm-3">{{ __('ui.dpc') }}</dt>
                         <dd class="col-sm-9">
-                            {{ $proposal->dpc_code ?? 'Not yet allotted a DPC ID' }}
+                            {{ $proposal->dpc_code ?? __('ui.screen.no_dpc_id_yet') }}
                             <span class="text-body-secondary">
                                 · {{ $proposal->status->label() }}
                             </span>
@@ -81,7 +81,7 @@
 
                         <dt class="col-sm-3">{{ __('ui.committee_sitting') }}</dt>
                         <dd class="col-sm-9 mb-0">
-                            {{ $sitting_date?->format('d-m-Y') ?? 'Not scheduled yet' }}
+                            {{ $sitting_date?->format('d-m-Y') ?? __('ui.screen.not_scheduled_yet') }}
                         </dd>
                     </dl>
                 </div>

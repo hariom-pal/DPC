@@ -151,7 +151,7 @@
             </div>
         </div>
 
-        <button class="btn btn-primary">{{ __('admin.promotion_rules.save') }}</button>
+        <button class="btn btn-success">{{ __('admin.promotion_rules.save') }}</button>
         <a href="{{ route('admin.service-classes.promotion-rules.index', $class) }}" class="btn btn-outline-secondary">{{ __('ui.cancel') }}</a>
     </form>
 @endsection

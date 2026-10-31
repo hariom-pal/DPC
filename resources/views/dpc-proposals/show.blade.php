@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'DPC ' . ($proposal->dpc_code ?? 'Proposal'))
+@section('title', __('ui.screen.dpc_proposal', ['code' => $proposal->dpc_code ?? __('ui.screen.proposal')]))
 
 {{-- The allotted AO / AH of this proposal, not any officer holding the role (2026-10-26). --}}
 @php($isAO = app(\App\Domain\Allotment\Services\ProposalAllotmentService::class)->isAllotted(auth()->user(), $proposal, \App\Enums\Role::AuthorizedOfficer))
@@ -171,7 +171,7 @@
                                 <input type="text" class="form-control form-control-sm @error('return_remarks') is-invalid @enderror" name="return_remarks" placeholder="{{ __('ui.remarks_required_to_return') }}">
                                 @error('return_remarks')<div class="invalid-feedback">{{ $message }}</div>@enderror
                             </div>
-                            <div class="col-md-3"><button class="btn btn-warning btn-sm w-100">{{ __('ui.return_for_correction') }}</button></div>
+                            <div class="col-md-3"><button class="btn btn-outline-warning btn-sm w-100">{{ __('ui.return_for_correction') }}</button></div>
                         </form>
                     </div>
                 @endif

@@ -3,7 +3,7 @@
 @section('title', __('vacancymaster.title'))
 
 @section('content')
-    <nav aria-label="breadcrumb">
+    <nav aria-label="{{ __('ui.screen.breadcrumb') }}">
         <ol class="breadcrumb small">
             <li class="breadcrumb-item"><a href="{{ route($management.'.index') }}">{{ __('vacancymaster.title') }}</a></li>
             @if ($adminArea)<li class="breadcrumb-item"><a href="{{ route('admin.departments.edit', $department) }}">{{ $department->name }}</a></li>@endif

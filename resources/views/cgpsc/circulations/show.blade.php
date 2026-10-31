@@ -92,7 +92,7 @@
                                         <button name="decision" value="consented" class="btn btn-sm btn-outline-success">
                                             {{ __('cgpsc.circulations.show.consent') }}
                                         </button>
-                                        <button name="decision" value="returned" class="btn btn-sm btn-outline-secondary">
+                                        <button name="decision" value="returned" class="btn btn-sm btn-outline-warning">
                                             {{ __('ui.return') }}
                                         </button>
                                     </form>
@@ -175,7 +175,7 @@
                 @csrf
                 <label for="remarks" class="form-label">{{ __('cgpsc.circulations.show.return_to_the_department_for_further_evidence') }}</label>
                 <textarea id="remarks" name="remarks" class="form-control mb-2" rows="2" required></textarea>
-                <button type="submit" class="btn btn-outline-secondary">{{ __('cgpsc.circulations.show.return_to_department') }}</button>
+                <button type="submit" class="btn btn-outline-warning">{{ __('cgpsc.circulations.show.return_to_department') }}</button>
             </form>
         @endcan
     </div>

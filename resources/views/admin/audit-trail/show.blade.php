@@ -105,7 +105,7 @@
             @else
                 <div class="card border-0 shadow-sm">
                     <div class="card-body">
-                        <h2 class="h6">{{ $source === 'workflow' ? 'Transition metadata' : 'Event properties' }}</h2>
+                        <h2 class="h6">{{ $source === 'workflow' ? __('ui.screen.transition_metadata') : __('ui.screen.event_properties') }}</h2>
                         @php($properties = (array) ($source === 'workflow' ? $entry->meta : $entry->properties))
                         @if ($properties === [])
                             <p class="text-muted small mb-0">{{ __('admin.audit_trail.show.nothing_further_was_recorded') }}</p>

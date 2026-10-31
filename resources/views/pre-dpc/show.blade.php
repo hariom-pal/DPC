@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Pre-DPC ' . ($proposal->pre_dpc_number ?? 'Proposal'))
+@section('title', __('ui.screen.pre_dpc_proposal', ['number' => $proposal->pre_dpc_number ?? __('ui.screen.proposal')]))
 
 {{-- Actions are gated by `@can`, which asks PreDpcProposalPolicy — the same
      class the controller authorises against (TD-26, closed 2026-08-18). This
@@ -225,7 +225,7 @@
                               data-confirm="{{ __('predpc.show.delete_draft_confirm') }}">
                             @csrf
                             @method('DELETE')
-                            <button class="btn btn-danger btn-sm">{{ __('predpc.show.delete_draft') }}</button>
+                            <button class="btn btn-outline-danger btn-sm">{{ __('predpc.show.delete_draft') }}</button>
                         </form>
                     @endcan
 
@@ -260,7 +260,7 @@
                                 <input type="text" class="form-control form-control-sm @error('return_remarks') is-invalid @enderror" name="return_remarks" placeholder="{{ __('ui.remarks_required_to_return') }}">
                                 @error('return_remarks')<div class="invalid-feedback">{{ $message }}</div>@enderror
                             </div>
-                            <div class="col-md-3"><button class="btn btn-warning btn-sm w-100">{{ __('ui.return_for_correction') }}</button></div>
+                            <div class="col-md-3"><button class="btn btn-outline-warning btn-sm w-100">{{ __('ui.return_for_correction') }}</button></div>
                         </form>
                     </div>
                 @endcan

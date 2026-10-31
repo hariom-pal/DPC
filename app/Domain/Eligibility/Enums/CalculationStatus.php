@@ -29,12 +29,7 @@ enum CalculationStatus: string
 
     public function label(): string
     {
-        return match ($this) {
-            self::Draft => 'Draft',
-            self::Completed => 'Completed',
-            self::Cancelled => 'Cancelled',
-            self::Archived => 'Archived',
-        };
+        return __("ui.enum.calculation_status.{$this->value}");
     }
 
     public function badgeClass(): string

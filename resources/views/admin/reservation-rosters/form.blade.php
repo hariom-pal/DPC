@@ -1,9 +1,9 @@
 @extends('layouts.admin')
 
-@section('title', $roster->exists ? 'Edit Roster' : 'New Roster')
+@section('title', $roster->exists ? __('ui.screen.edit_reservation_roster') : __('ui.screen.new_reservation_roster'))
 
 @section('content')
-    <h1 class="h4 mb-3">{{ $roster->exists ? 'Edit Reservation Roster' : 'New Reservation Roster' }}</h1>
+    <h1 class="h4 mb-3">{{ $roster->exists ? __('ui.screen.edit_reservation_roster') : __('ui.screen.new_reservation_roster') }}</h1>
 
     <div class="card border-0 shadow-sm mb-4">
         <div class="card-body">

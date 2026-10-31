@@ -104,7 +104,7 @@
             </div>
         </div>
 
-        <button class="btn btn-primary">{{ __('ui.save') }}</button>
+        <button class="btn btn-success">{{ __('ui.save') }}</button>
         <a href="{{ route('admin.committee-configurations.index') }}" class="btn btn-outline-secondary">{{ __('ui.cancel') }}</a>
     </form>
 @endsection

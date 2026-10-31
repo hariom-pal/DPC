@@ -127,7 +127,7 @@
                                         </td>
                                         <td>{{ $result->reservation_category_code }}</td>
                                         <td>{{ $result->verdict['achieved_score'] ?? '—' }} / {{ $result->verdict['required_score'] ?? '—' }}</td>
-                                        <td>{{ $result->in_zone ? 'In' : 'Out' }}</td>
+                                        <td>{{ $result->in_zone ? __('ui.screen.in_zone') : __('ui.screen.out_of_zone') }}</td>
                                         {{-- Item 24 of the change register of 2026-08-27: four
                                              statuses, not two. This was a boolean until the
                                              register, which printed "Not Eligible" against a CIR

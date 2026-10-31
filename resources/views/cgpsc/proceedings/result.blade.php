@@ -187,7 +187,7 @@
                                                 <td>{{ $hold->reason_code->label() }}</td>
                                                 <td class="small">{{ $hold->detail }}</td>
                                                 <td class="small">
-                                                    {{ $hold->is_automatic ? 'From the chart' : $hold->recorded_by_name }}
+                                                    {{ $hold->is_automatic ? __('ui.screen.from_the_chart') : $hold->recorded_by_name }}
                                                 </td>
                                                 @if ($canAct)
                                                     <td>
@@ -195,7 +195,7 @@
                                                             <form method="POST"
                                                                   action="{{ route('cgpsc.proceedings.holds.destroy', [$proceeding, $hold]) }}">
                                                                 @csrf @method('DELETE')
-                                                                <button class="btn btn-sm btn-outline-secondary py-0">{{ __('cgpsc.proceedings.result.release') }}</button>
+                                                                <button class="btn btn-sm btn-outline-danger py-0">{{ __('cgpsc.proceedings.result.release') }}</button>
                                                             </form>
                                                         @endunless
                                                     </td>

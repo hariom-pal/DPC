@@ -12,6 +12,7 @@ use App\Domain\Dpc\Models\VacancyPositionEntry;
 use App\Domain\Dpc\Models\VacancyPositionSanctionedStrength;
 use App\Domain\Dpc\Models\VacancyPositionWorkingStrength;
 use App\Domain\Dpc\Requests\SaveSanctionedStrengthRequest;
+use App\Domain\Dpc\Requests\SaveStrengthRequest;
 use App\Domain\Dpc\Requests\SaveWorkingStrengthRequest;
 use App\Domain\Dpc\Requests\StoreVacancyEntryRequest;
 use App\Domain\Dpc\Requests\VerifyVacancyEntryRequest;
@@ -164,6 +165,19 @@ class VacancyMasterController extends Controller
         }, 'sanctioned', 'working');
     }
 
+    /** Sanctioned and working strength from the one screen of a record kept per Pre-DPC. */
+    public function saveStrength(SaveStrengthRequest $request, Department $department, int $year, DepartmentPost $post): RedirectResponse
+    {
+        $this->assertCanManage($request, $department);
+        $position = $this->draftFor($department, $year, $post);
+
+        return $this->attempt($department, $year, $post, function () use ($position, $request): string {
+            $this->vacancies->saveStrength($position, $request->safe()->except('document'), $request->file('document'), $request->user());
+
+            return __('vacancymaster.flash.strength_saved');
+        }, 'sanctioned', 'vacancies');
+    }
+
     public function saveWorkingStrength(SaveWorkingStrengthRequest $request, Department $department, int $year, DepartmentPost $post): RedirectResponse
     {
         $this->assertCanManage($request, $department);
@@ -185,7 +199,7 @@ class VacancyMasterController extends Controller
             $this->vacancies->addEntry($position, $request->safe()->except('document'), $request->file('document'), $request->user());
 
             return __('vacancymaster.flash.entry_added');
-        }, 'vacancies', 'vacancies');
+        }, 'vacancies', 'vacancies', 'default', ['part' => self::partOf((string) $request->input('kind'))]);
     }
 
     public function verifyEntry(VerifyVacancyEntryRequest $request, Department $department, int $year, DepartmentPost $post, VacancyPositionEntry $entry): RedirectResponse
@@ -197,7 +211,7 @@ class VacancyMasterController extends Controller
             $this->vacancies->verifyEntry($entry, $request->validated(), $request->user());
 
             return __('vacancymaster.flash.entry_verified');
-        }, 'vacancies', 'vacancies', VerifyVacancyEntryRequest::bagFor($entry));
+        }, 'vacancies', 'vacancies', VerifyVacancyEntryRequest::bagFor($entry), ['part' => self::partOf($entry->kind->value)]);
     }
 
     public function withdrawEntry(Request $request, Department $department, int $year, DepartmentPost $post, VacancyPositionEntry $entry): RedirectResponse
@@ -212,7 +226,7 @@ class VacancyMasterController extends Controller
             $this->vacancies->withdrawEntry($entry, $data['withdrawal_reason'], $request->user());
 
             return __('vacancymaster.flash.entry_withdrawn');
-        }, 'vacancies', 'vacancies', VerifyVacancyEntryRequest::bagFor($entry));
+        }, 'vacancies', 'vacancies', VerifyVacancyEntryRequest::bagFor($entry), ['part' => self::partOf($entry->kind->value)]);
     }
 
     public function finalize(Request $request, Department $department, int $year, DepartmentPost $post): RedirectResponse
@@ -279,10 +293,13 @@ class VacancyMasterController extends Controller
      * (or `workflow` when it is about no one field), in `$bag` — each entry's own forms
      * use their own bag, so a message never appears beside another form's field.
      */
-    private function attempt(Department $department, int $year, DepartmentPost $post, callable $action, string $here, string $next, string $bag = 'default'): RedirectResponse
+    /**
+     * @param  array<string, string|null>  $query  kept on the way back, e.g. the part (B1, B2, C) being worked on
+     */
+    private function attempt(Department $department, int $year, DepartmentPost $post, callable $action, string $here, string $next, string $bag = 'default', array $query = []): RedirectResponse
     {
         $records = $this->context(request(), $department)['records'];
-        $target = fn (string $section): string => route($records.'.show', [$department, $year, $post, 'section' => $section]);
+        $target = fn (string $section): string => route($records.'.show', [$department, $year, $post, 'section' => $section, ...array_filter($query)]);
 
         try {
             $message = $action();
@@ -291,6 +308,12 @@ class VacancyMasterController extends Controller
         }
 
         return redirect()->to($target($next))->with('status', $message);
+    }
+
+    /** The part of step "Vacancies during the year" a row of this kind is entered on. */
+    public static function partOf(string $kind): ?string
+    {
+        return ['deputation_in' => 'b1', 'deputation' => 'b2', 'anticipated' => 'c'][$kind] ?? null;
     }
 
     /**

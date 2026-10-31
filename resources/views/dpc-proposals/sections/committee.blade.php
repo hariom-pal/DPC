@@ -77,7 +77,7 @@
                                                  event, and refusing it after submission would leave the
                                                  department unable to record what actually happened. --}}
                                             @if (auth()->user()?->hasRole(\App\Enums\Role::Admin->value))
-                                                <a class="btn btn-link btn-sm p-0 align-baseline text-warning"
+                                                <a class="btn btn-link btn-sm p-0 align-baseline"
                                                    href="{{ route('admin.committee-members.replace.form', [$proposal, $member]) }}">
                                                     {{ __('dpc.committee.replace_member') }}
                                                 </a>

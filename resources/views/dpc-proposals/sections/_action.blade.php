@@ -23,6 +23,6 @@
     <span class="badge text-bg-secondary flex-shrink-0" title="{{ $lockReason }}">{{ __('ui.locked') }}</span>
 @elseif (($isAO ?? false) && ! empty($manageRoute))
     <a href="{{ route($manageRoute, $proposal) }}" class="btn btn-outline-primary btn-sm flex-shrink-0">
-        {{ $manageLabel ?? 'Manage' }}
+        {{ $manageLabel ?? __('ui.screen.manage') }}
     </a>
 @endif

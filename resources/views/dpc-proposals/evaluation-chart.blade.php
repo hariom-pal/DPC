@@ -279,7 +279,7 @@
                                                                 <option value="0" @selected($year['tribal_area'] === '0')>N</option>
                                                             </select>
                                                         </td>
-                                                        <td><button type="button" class="btn btn-outline-danger btn-sm remove-year">×</button></td>
+                                                        <td><button type="button" class="btn btn-outline-danger btn-sm remove-year" aria-label="{{ __('ui.remove') }}" title="{{ __('ui.remove') }}">×</button></td>
                                                     </tr>
                                                 @endforeach
                                             </tbody>
@@ -341,7 +341,7 @@
                     <option value="0">N</option>
                 </select>
             </td>
-            <td><button type="button" class="btn btn-outline-danger btn-sm remove-year">×</button></td>
+            <td><button type="button" class="btn btn-outline-danger btn-sm remove-year" aria-label="{{ __('ui.remove') }}" title="{{ __('ui.remove') }}">×</button></td>
         </tr>
     </template>
 @endsection

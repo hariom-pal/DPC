@@ -3,7 +3,7 @@
 @section('title', __($payScale->exists ? 'admin.pay_scales.form.title_edit' : 'admin.pay_scales.form.title_new'))
 
 @section('content')
-    <h1 class="h4 mb-3">{{ $payScale->exists ? 'Edit Pay Scale' : 'New Pay Scale' }}</h1>
+    <h1 class="h4 mb-3">{{ $payScale->exists ? __('ui.screen.edit_pay_scale') : __('ui.screen.new_pay_scale') }}</h1>
 
     <div class="card border-0 shadow-sm">
         <div class="card-body">

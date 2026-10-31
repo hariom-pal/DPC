@@ -1,9 +1,9 @@
 @extends('layouts.admin')
 
-@section('title', $user->exists ? 'Edit Account' : 'Provision Account')
+@section('title', $user->exists ? __('ui.screen.edit_account') : __('ui.screen.provision_account'))
 
 @section('content')
-    <h1 class="h4 mb-3">{{ $user->exists ? 'Edit Account' : 'Provision Account' }}</h1>
+    <h1 class="h4 mb-3">{{ $user->exists ? __('ui.screen.edit_account') : __('ui.screen.provision_account') }}</h1>
 
     <div class="card border-0 shadow-sm">
         <div class="card-body">
@@ -81,7 +81,7 @@
                     </div>
                 </div>
 
-                <button type="submit" class="btn btn-success">{{ $user->exists ? 'Save' : 'Provision' }}</button>
+                <button type="submit" class="btn btn-success">{{ $user->exists ? __('ui.save') : __('ui.screen.provision') }}</button>
                 <a href="{{ route('admin.users.index') }}" class="btn btn-outline-secondary">{{ __('ui.cancel') }}</a>
                 @if ($user->exists)
                     <a href="{{ route('admin.users.assignments.index', $user) }}" class="btn btn-outline-primary float-end">

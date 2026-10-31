@@ -16,6 +16,7 @@ Route::get('/{year}/posts/{post}', 'show')->whereNumber('year')->name('show');
 Route::post('/{year}/posts/{post}/open', 'open')->whereNumber('year')->name('open');
 Route::post('/{year}/posts/{post}/sanctioned-strength', 'saveSanctionedStrength')->whereNumber('year')->name('sanctioned-strength');
 Route::get('/{year}/posts/{post}/sanctioned-strength/{sanctionedStrength}/document', 'sanctionedStrengthDocument')->whereNumber('year')->name('sanctioned-strength.document');
+Route::post('/{year}/posts/{post}/strength', 'saveStrength')->whereNumber('year')->name('strength');
 Route::post('/{year}/posts/{post}/working-strength', 'saveWorkingStrength')->whereNumber('year')->name('working-strength');
 Route::get('/{year}/posts/{post}/working-strength/{workingStrength}/document', 'workingStrengthDocument')->whereNumber('year')->name('working-strength.document');
 Route::post('/{year}/posts/{post}/entries', 'storeEntry')->whereNumber('year')->name('entries.store');

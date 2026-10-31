@@ -395,6 +395,59 @@ class BilingualCoverageTest extends TestCase
     }
 
     /**
+     * No view echoes an English label, nor puts one in an attribute a screen reader
+     * announces (2026-10-31).
+     *
+     * The checks above read element text and multi-word prose, and so they missed
+     * the one-word labels inside an echo — `{{ $user->is_active ? 'Deactivate' :
+     * 'Activate' }}`, a page title "Edit District", "Open" or "Mark read" — and an
+     * `aria-label="breadcrumb"`. Each of those stayed English for a user who chose
+     * Hindi. A capitalised word in quotes inside `{{ }}` is a label by this
+     * portal's own convention: values, keys, formats and classes are lower case.
+     */
+    public function test_no_view_echoes_an_english_label(): void
+    {
+        $offenders = [];
+
+        foreach (File::allFiles(resource_path('views')) as $file) {
+            $path = str_replace(base_path().'/', '', $file->getPathname());
+
+            if (! str_ends_with($file->getFilename(), '.blade.php') || str_contains($path, 'views/documents/')) {
+                continue;
+            }
+
+            $source = (string) preg_replace('/\{\{--.*?--\}\}/s', '', File::get($file->getPathname()));
+
+            preg_match_all('/\{\{(.*?)\}\}/s', $source, $echoes);
+            preg_match_all("/@section\(\s*'title'\s*,(.*?)\)\s*$/m", $source, $titles);
+
+            foreach ([...$echoes[1], ...$titles[1]] as $echo) {
+                $echo = (string) preg_replace("/__\(\s*'[^']*'/", '', $echo);
+
+                preg_match_all("/'([A-Z][a-z]+(?: [A-Za-z()\-]+)*)'/", $echo, $literals);
+
+                foreach ($literals[1] as $literal) {
+                    if (! in_array($literal, ['Y', 'Asia/Kolkata'], true)) {
+                        $offenders[] = "{$path}: '{$literal}'";
+                    }
+                }
+            }
+
+            preg_match_all('/\b(?:aria-label|title|placeholder)="([^"{]*[A-Za-z]{3,}[^"{]*)"/', $source, $attributes);
+
+            foreach ($attributes[1] as $attribute) {
+                $offenders[] = "{$path}: attribute \"{$attribute}\"";
+            }
+        }
+
+        $this->assertSame([], $offenders, sprintf(
+            "%d English label(s) are echoed or announced without a language file:\n  - %s",
+            count($offenders),
+            implode("\n  - ", array_slice($offenders, 0, 40)),
+        ));
+    }
+
+    /**
      * The `@php` blocks and directive arguments of a template.
      *
      * @return list<string>

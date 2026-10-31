@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Change Password — ' . __('messages.app_name'))
+@section('title', __('ui.screen.change_password').' — '.__('messages.app_name'))
 
 @section('content')
     <div class="row justify-content-center">

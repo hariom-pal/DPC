@@ -1,15 +1,16 @@
-{{-- Step 4. What is still missing, the calculation, then finalize (2026-10-30). --}}
+{{-- The last step. What is still missing, the calculation, then finalize (2026-10-30). --}}
 @php
     $issueStep = [
         'sanctioned_not_entered' => 'sanctioned',
-        'working_not_entered' => 'working',
-        'working_exceeds_sanctioned' => 'working',
+        // Sanctioned and working strength share one screen (2026-10-31).
+        'working_not_entered' => 'sanctioned',
+        'working_exceeds_sanctioned' => 'sanctioned',
         'pending_entries' => 'vacancies',
         'total_exceeds_sanctioned' => 'vacancies',
     ];
 @endphp
 <div class="card border-0 shadow-sm mb-3">
-    <div class="card-header bg-white"><strong>4. {{ __('vacancymaster.steps.summary') }}</strong></div>
+    <div class="card-header bg-white"><strong>{{ $steps['summary']['n'] }}. {{ __('vacancymaster.steps.summary') }}</strong></div>
     <div class="card-body">
         @if ($isDraft)
             @if ($b['issues'] !== [])

@@ -3,7 +3,7 @@
 @section('title', __('ui.class_master'))
 
 @section('content')
-    <h1 class="h4 mb-3">{{ $classMaster->exists ? 'Edit Class' : 'New Class' }}</h1>
+    <h1 class="h4 mb-3">{{ $classMaster->exists ? __('ui.screen.edit_class') : __('ui.screen.new_class') }}</h1>
 
     <div class="card border-0 shadow-sm">
         <div class="card-body">

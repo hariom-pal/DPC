@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Explain Result — ' . $result->officer_name)
+@section('title', __('ui.screen.explain_result').' — '.$result->officer_name)
 
 @section('content')
     <div class="row justify-content-center">

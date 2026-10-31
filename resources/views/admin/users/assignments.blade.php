@@ -57,7 +57,7 @@
 
     <div class="card border-0 shadow-sm">
         <div class="card-header bg-white">
-            <strong>{{ $user->activeAssignment === null ? 'Record a posting' : 'Transfer' }}</strong>
+            <strong>{{ $user->activeAssignment === null ? __('ui.screen.record_a_posting') : __('ui.screen.transfer') }}</strong>
         </div>
         <div class="card-body">
             <form method="POST" action="{{ route('admin.users.assignments.store', $user) }}">
@@ -99,7 +99,7 @@
                 </div>
 
                 <button type="submit" class="btn btn-success">
-                    {{ $user->activeAssignment === null ? 'Record posting' : 'Transfer' }}
+                    {{ $user->activeAssignment === null ? __('ui.screen.record_posting') : __('ui.screen.transfer') }}
                 </button>
             </form>
 

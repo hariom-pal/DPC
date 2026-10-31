@@ -14,7 +14,7 @@ enum DpcProposalStatus: string
 
     public function label(): string
     {
-        return ucfirst($this->value);
+        return __("ui.enum.proposal_status.{$this->value}");
     }
 
     public function isEditable(): bool
@@ -46,13 +46,7 @@ enum DpcProposalStatus: string
     {
         return match ($this) {
             self::Draft, self::Returned => null,
-            self::Submitted => 'This proposal has been submitted for approval, so its sections are now read-only. '
-                .'The Administrative Head must return it for correction before the Seniority List or any other '
-                .'section can be uploaded or changed again.',
-            self::Approved => 'This proposal has been approved, digitally signed, and forwarded to CGPSC, so its '
-                .'sections are permanently read-only. A correction at this stage is a Review DPC, not an edit.',
-            self::Cancelled => 'This proposal was cancelled, so its sections are read-only. Start a new proposal to '
-                .'upload a fresh Seniority List.',
+            default => __("ui.enum.proposal_lock.{$this->value}"),
         };
     }
 

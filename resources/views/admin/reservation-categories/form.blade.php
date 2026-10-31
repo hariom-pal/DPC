@@ -3,7 +3,7 @@
 @section('title', __('ui.reservation_category'))
 
 @section('content')
-    <h1 class="h4 mb-3">{{ $category->exists ? 'Edit Reservation Category' : 'New Reservation Category' }}</h1>
+    <h1 class="h4 mb-3">{{ $category->exists ? __('ui.screen.edit_reservation_category') : __('ui.screen.new_reservation_category') }}</h1>
 
     <div class="card border-0 shadow-sm">
         <div class="card-body">

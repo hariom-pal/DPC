@@ -30,11 +30,7 @@ enum ChainRole: string
 
     public function label(): string
     {
-        return match ($this) {
-            self::Original => 'Original DPC',
-            self::ActiveReview => 'Active Review',
-            self::SupersededReview => 'Superseded Review',
-        };
+        return __("ui.enum.chain_role.{$this->value}");
     }
 
     public function badgeClass(): string

@@ -16,7 +16,7 @@
     <button class="btn btn-sm btn-outline-light position-relative" type="button"
             data-bs-toggle="dropdown" data-bs-auto-close="outside"
             aria-expanded="false"
-            aria-label="Notifications{{ $unread > 0 ? ' — '.$unread.' unread' : '' }}">
+            aria-label="{{ __('ui.notifications') }}{{ $unread > 0 ? ' — '.__('ui.screen.unread_count', ['count' => $unread]) : '' }}">
         @include('partials.icon', ['name' => 'bell', 'size' => 16])
         @if ($unread > 0)
             <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill text-bg-danger">

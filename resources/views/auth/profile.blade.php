@@ -29,7 +29,7 @@
                     </div>
                 </div>
                 <div class="card-footer bg-transparent">
-                    <button type="submit" class="btn btn-primary btn-sm">{{ __('profile.continue') }}</button>
+                    <button type="submit" class="btn btn-primary">{{ __('profile.continue') }}</button>
                 </div>
             </form>
         </div>
