@@ -79,7 +79,9 @@
                             </td>
                             <td class="text-end">{{ $b['opening_vacancy'] ?? '—' }}</td>
                             <td class="text-end">
-                                {{ $b === null ? '—' : $b['anticipated_counted_promotion'] + $b['anticipated_counted_direct'] }}
+                                {{ $b === null ? '—' : (\App\Domain\Dpc\Services\VacancyMasterService::isPerPreDpc($b)
+                                    ? $b['deputation_in_vacancy'] + $b['deputation_out_vacancy'] + $b['anticipated_vacancy']
+                                    : $b['anticipated_counted_promotion'] + $b['anticipated_counted_direct']) }}
                             </td>
                             <td class="text-end">
                                 @if ($b !== null && ($b['final_quota']['promotion_vacancy'] ?? null) !== null)

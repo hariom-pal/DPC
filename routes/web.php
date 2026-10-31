@@ -406,6 +406,8 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
             ->group(function (): void {
                 Route::get('/', [VacancyManagementController::class, 'index'])->name('vacancy-management.index');
                 Route::get('/open', [VacancyManagementController::class, 'go'])->name('vacancy-management.go');
+                // From an approved Pre-DPC: its post and year are the record's (2026-10-30).
+                Route::post('/pre-dpc/{preDpc}', [VacancyMasterController::class, 'fromPreDpc'])->name('vacancy-management.pre-dpc');
                 Route::prefix('departments/{department}')
                     ->name('vacancy-records.')
                     ->controller(VacancyMasterController::class)

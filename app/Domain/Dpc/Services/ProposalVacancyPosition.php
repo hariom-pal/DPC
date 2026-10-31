@@ -34,6 +34,9 @@ use Illuminate\Support\Carbon;
  *     chairs held (direct)    = working (direct)    − anticipated vacancies counted against direct
  *     promotion vacancy       = promotion chairs − chairs held (promotion)
  *
+ * A record kept per Pre-DPC since 2026-10-30 (`scheme` 2) is read as its own
+ * A + B + C total and the Pre-DPC's share of it — see `VacancyMasterService::breakdown()`.
+ *
  * Nothing is recalculated here and nothing is guessed: no record, no figures.
  */
 final class ProposalVacancyPosition
@@ -104,6 +107,10 @@ final class ProposalVacancyPosition
         $quota = $frozen['final_quota'];
         $sanctioned = $frozen['sanctioned'] === null ? null : (int) $frozen['sanctioned'];
 
+        if (VacancyMasterService::isPerPreDpc($frozen)) {
+            return $this->perPreDpcBreakdown($frozen, $sanctioned, $periodFrom, $periodTo, $rounding);
+        }
+
         $heldPromotion = (int) $working['promotion'] - (int) $frozen['anticipated_counted_promotion'];
         $heldDirect = (int) $working['direct'] - (int) $frozen['anticipated_counted_direct'];
 
@@ -163,7 +170,12 @@ final class ProposalVacancyPosition
             return [];
         }
 
-        $arising = min($total, max(0, (int) ($frozen['anticipated_counted_promotion'] ?? 0)));
+        // Arising in the year: on a record kept per Pre-DPC, the deputations ending
+        // here (B1) and the retirements and promotions (C); A and B2 are open on
+        // 1 January.
+        $arising = min($total, max(0, VacancyMasterService::isPerPreDpc($frozen)
+            ? (int) ($frozen['deputation_in_vacancy'] ?? 0) + (int) ($frozen['anticipated_vacancy'] ?? 0)
+            : (int) ($frozen['anticipated_counted_promotion'] ?? 0)));
         $opening = $total - $arising;
 
         $rows = [];
@@ -193,6 +205,13 @@ final class ProposalVacancyPosition
             $entries,
         ));
 
+        if (VacancyMasterService::isPerPreDpc($position->breakdown)) {
+            return [
+                'existing' => (int) ($position->breakdown['clear_vacancy'] ?? 0) + (int) ($position->breakdown['deputation_out_vacancy'] ?? 0),
+                'anticipated' => (int) ($position->breakdown['deputation_in_vacancy'] ?? 0) + (int) ($position->breakdown['anticipated_vacancy'] ?? 0),
+            ];
+        }
+
         return ['existing' => $sum(VacancyEntryKind::Existing->value), 'anticipated' => $sum(VacancyEntryKind::Anticipated->value)];
     }
 
@@ -210,12 +229,17 @@ final class ProposalVacancyPosition
      *     uploaded: array{total: int, promotion: int, direct: int, deputation: int}|null,
      *     record: array{total: int, promotion: int, direct: int, deputation: int}|null,
      *     differences: array<string, array{uploaded: int, record: int}>,
-     *     matches: bool
+     *     matches: bool,
+     *     figures: list<string>
      * }
      */
     public function reconcile(DpcProposal $proposal): array
     {
-        $working = $this->for($proposal)?->breakdown['working'] ?? null;
+        $frozen = $this->for($proposal)?->breakdown;
+        $working = $frozen['working'] ?? null;
+        // A record kept per Pre-DPC has no quota split: only the total and the
+        // officers here on deputation are compared.
+        $figures = VacancyMasterService::isPerPreDpc($frozen) ? ['deputation', 'total'] : ['promotion', 'direct', 'deputation', 'total'];
         $record = is_array($working) ? [
             'total' => (int) ($working['total'] ?? 0),
             'promotion' => (int) ($working['promotion'] ?? 0),
@@ -239,7 +263,7 @@ final class ProposalVacancyPosition
         $differences = [];
 
         if ($uploaded !== null && $record !== null) {
-            foreach (['promotion', 'direct', 'deputation', 'total'] as $figure) {
+            foreach ($figures as $figure) {
                 if ($uploaded[$figure] !== $record[$figure]) {
                     $differences[$figure] = ['uploaded' => $uploaded[$figure], 'record' => $record[$figure]];
                 }
@@ -251,7 +275,45 @@ final class ProposalVacancyPosition
             'record' => $record,
             'differences' => $differences,
             'matches' => $uploaded !== null && $record !== null && $differences === [],
+            'figures' => $figures,
         ];
+    }
+
+    /**
+     * The breakdown of a record kept per Pre-DPC (2026-10-30): A + B1 + B2 + C, and
+     * the Pre-DPC's share of that total.
+     *
+     * @param  array<string, mixed>  $frozen
+     */
+    private function perPreDpcBreakdown(array $frozen, ?int $sanctioned, Carbon $periodFrom, Carbon $periodTo, string $rounding): VacancyBreakdown
+    {
+        $quota = $frozen['final_quota'];
+        $total = $frozen['total_vacancy'] === null ? null : (int) $frozen['total_vacancy'];
+
+        return new VacancyBreakdown(
+            sanctionedStrength: $sanctioned,
+            workingStrength: (int) $frozen['working']['total'],
+            // The record was kept within the sanctioned strength.
+            chartRows: (int) $sanctioned,
+            baseVacancy: $frozen['clear_vacancy'] === null ? null : (int) $frozen['clear_vacancy'],
+            retirementVacancy: (int) ($frozen['retirement_vacancy'] ?? 0),
+            deputationVacancy: (int) $frozen['deputation_in_vacancy'] + (int) $frozen['deputation_out_vacancy'],
+            totalVacancy: $total,
+            promotionPercentage: $frozen['promotion_percentage'] === null ? null : (string) $frozen['promotion_percentage'],
+            promotionChairs: $quota['promotion_chairs'] === null ? null : (int) $quota['promotion_chairs'],
+            directChairs: $quota['direct_chairs'] === null ? null : (int) $quota['direct_chairs'],
+            promotionChairsHeld: 0,
+            directChairsHeld: 0,
+            deputationChairsHeld: (int) ($frozen['working']['deputation_in'] ?? 0),
+            promotionVacancy: $quota['promotion_vacancy'] === null ? null : (int) $quota['promotion_vacancy'],
+            directRecruitmentVacancy: $quota['direct_vacancy'] === null ? null : (int) $quota['direct_vacancy'],
+            periodFrom: Carbon::parse((string) $frozen['period_from'])->startOfDay(),
+            periodTo: Carbon::parse((string) $frozen['period_to'])->startOfDay(),
+            roundingRule: (string) ($frozen['rounding'] ?? $rounding),
+            contributors: [],
+            sanctionedFromPostId: $frozen['department_post_id'] === null ? null : (int) $frozen['department_post_id'],
+            recruitmentRuleId: $frozen['recruitment_rule_id'] === null ? null : (int) $frozen['recruitment_rule_id'],
+        );
     }
 
     private function matches(VacancyPosition $position, DpcProposal $proposal, string $postName, int $year): bool

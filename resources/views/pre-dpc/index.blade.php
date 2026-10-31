@@ -3,6 +3,10 @@
 @section('title', __('ui.pre_dpc_proposals'))
 
 @section('content')
+    @php
+        // The post's Vacancy Management, from an approved Pre-DPC (2026-10-30).
+        $canVacancy = auth()->user()?->hasAnyRole([\App\Enums\Role::AuthorizedOfficer->value, \App\Enums\Role::AdministrativeHead->value]) ?? false;
+    @endphp
     <div class="row justify-content-center">
         <div class="col-lg-10">
             @include('partials.alerts')
@@ -44,7 +48,15 @@
                                     <td><span class="badge {{ $proposal->status->badgeClass() }}">{{ $proposal->status->label() }}</span></td>
                                     <td>@if ($proposal->isActive())<span class="badge text-bg-primary">{{ __('ui.active') }}</span>@endif</td>
                                     <td>{{ $proposal->approved_at?->format('d-m-Y') ?? '—' }}</td>
-                                    <td class="text-end"><a href="{{ route('pre-dpc.show', $proposal) }}" class="btn btn-outline-primary btn-sm">{{ __('ui.open') }}</a></td>
+                                    <td class="text-end">
+                                        <a href="{{ route('pre-dpc.show', $proposal) }}" class="btn btn-outline-primary btn-sm">{{ __('ui.open') }}</a>
+                                        @if ($canVacancy && $proposal->status->value === 'approved' && $proposal->isActive() && $proposal->promotionToPost)
+                                            <form method="POST" action="{{ route('vacancy-management.pre-dpc', $proposal) }}" class="d-inline">
+                                                @csrf
+                                                <button class="btn btn-primary btn-sm mt-1" data-pre-dpc-vacancy>{{ __('vacancymaster.pm.proceed', ['post' => $proposal->promotionToPost->name]) }}</button>
+                                            </form>
+                                        @endif
+                                    </td>
                                 </tr>
                             @empty
                                 <tr><td colspan="10" class="text-center text-muted py-4">{{ __('ui.no_proposals_yet') }}</td></tr>

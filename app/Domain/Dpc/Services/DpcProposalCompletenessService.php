@@ -452,9 +452,13 @@ class DpcProposalCompletenessService
     private function adminVacancySection(DpcProposal $proposal, array $sums): array
     {
         $position = $this->vacancyPositions->for($proposal);
-        $proposalShare = $proposal->recruitment_rule_id === null
-            ? null
-            : RecruitmentRule::query()->whereKey($proposal->recruitment_rule_id)->value('promotion_recruitment_pct');
+        // A record kept per Pre-DPC took its share from the Pre-DPC; an older one
+        // from the Recruitment Rule. Each is compared with its own source.
+        $proposalShare = VacancyMasterService::isPerPreDpc($position?->breakdown)
+            ? $proposal->preDpcProposal?->promotion_recruitment_pct
+            : ($proposal->recruitment_rule_id === null
+                ? null
+                : RecruitmentRule::query()->whereKey($proposal->recruitment_rule_id)->value('promotion_recruitment_pct'));
         $recordShare = $position?->promotion_percentage;
         // Step 1: the AO's Working Officers List against the record's working strength.
         $reconciliation = $this->vacancyPositions->reconcile($proposal);

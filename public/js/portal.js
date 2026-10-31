@@ -176,4 +176,15 @@
             button.setAttribute('aria-busy', 'true');
         }, 0);
     });
+
+    /* --------------------------- Vacancy Management: higher-post fields */
+
+    // Shown only for a promotion to a higher post (2026-10-30).
+    document.querySelectorAll('[data-higher-toggle]').forEach(function (select) {
+        var fields = select.form && select.form.querySelector('[data-higher-fields]');
+        if (!fields) { return; }
+        var sync = function () { fields.hidden = select.value !== 'higher_post_promotion'; };
+        select.addEventListener('change', sync);
+        sync();
+    });
 })();

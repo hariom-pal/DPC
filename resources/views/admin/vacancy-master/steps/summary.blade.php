@@ -1,23 +1,19 @@
-{{-- Step 4. What is still missing, each item pointing at the step that fixes it. --}}
+{{-- Step 4. What is still missing, the calculation, then finalize (2026-10-30). --}}
 @php
     $issueStep = [
         'sanctioned_not_entered' => 'sanctioned',
         'working_not_entered' => 'working',
-        'working_split_missing' => 'working',
         'working_exceeds_sanctioned' => 'working',
         'pending_entries' => 'vacancies',
-        'existing_exceed_opening' => 'vacancies',
-        'anticipated_exceed_working' => 'vacancies',
-        'quota_overfilled' => 'vacancies',
+        'total_exceeds_sanctioned' => 'vacancies',
     ];
 @endphp
 <div class="card border-0 shadow-sm mb-3">
     <div class="card-header bg-white"><strong>4. {{ __('vacancymaster.steps.summary') }}</strong></div>
     <div class="card-body">
-        <p class="small text-muted">{{ __('vacancymaster.steps.summary_intro') }}</p>
         @if ($isDraft)
             @if ($b['issues'] !== [])
-                <div class="alert alert-warning small mb-0">
+                <div class="alert alert-warning small mb-0" id="vacancy-issues">
                     <strong>{{ __('vacancymaster.steps.missing_heading') }}</strong>
                     <ul class="mb-0">
                         @foreach ($b['issues'] as $issue)
@@ -37,44 +33,36 @@
     </div>
 </div>
 
-{{-- How the vacancies for the year are worked out from the three steps. --}}
-<div class="card border-0 shadow-sm mb-3">
+{{-- How the vacancy is worked out: A + B1 + B2 + C, then the Pre-DPC's share. --}}
+<div class="card border-0 shadow-sm mb-3" id="vacancy-calculation">
     <div class="card-header bg-white"><strong>{{ __('vacancymaster.steps.how_it_adds_up') }}</strong></div>
     <div class="card-body">
         <table class="table table-sm mb-3">
             <tbody>
                 <tr><td>{{ __('vacancymaster.calc.sanctioned') }}</td><td class="text-end">{{ $b['sanctioned'] ?? __('vacancymaster.not_recorded') }}</td></tr>
-                <tr><td>{{ __('vacancymaster.calc.working') }}</td><td class="text-end">{{ $b['working']['total'] ?? __('vacancymaster.not_entered') }}</td></tr>
-                <tr class="table-light"><td>{{ __('vacancymaster.calc.opening') }}</td><td class="text-end">{{ $b['opening_vacancy'] ?? '—' }}</td></tr>
-                <tr><td>{{ __('vacancymaster.calc.rule') }}</td>
-                    <td class="text-end">
-                        @if ($b['recruitment_rule_id'] === null)
-                            {{ __('vacancymaster.not_recorded') }}
-                        @else
-                            {{ __('vacancymaster.calc.rule_value', ['version' => $b['recruitment_rule_version'], 'percentage' => $b['promotion_percentage'], 'rounding' => __('vacancymaster.rounding.'.$b['rounding'])]) }}
-                        @endif
-                    </td></tr>
-                @if ($b['opening_quota'] !== null && $b['opening_quota']['promotion_chairs'] !== null)
-                    <tr><td>{{ __('vacancymaster.calc.chairs') }}</td><td class="text-end">{{ __('vacancymaster.calc.chairs_value', ['promotion' => $b['opening_quota']['promotion_chairs'], 'direct' => $b['opening_quota']['direct_chairs'], 'exact' => number_format((float) $b['opening_quota']['promotion_exact'], 2)]) }}</td></tr>
-                    <tr><td>{{ __('vacancymaster.calc.opening_quota') }}</td><td class="text-end">{{ __('vacancymaster.calc.quota_value', ['promotion' => $b['opening_quota']['promotion_vacancy'], 'direct' => $b['opening_quota']['direct_vacancy']]) }}</td></tr>
-                @endif
-                <tr><td>{{ __('vacancymaster.calc.existing_entries') }}</td><td class="text-end">{{ $b['existing_entries_total'] }}</td></tr>
-                <tr><td>{{ __('vacancymaster.calc.anticipated_counted') }}</td><td class="text-end">{{ __('vacancymaster.calc.quota_value', ['promotion' => $b['anticipated_counted_promotion'], 'direct' => $b['anticipated_counted_direct']]) }}</td></tr>
-                <tr><td>{{ __('vacancymaster.calc.anticipated_not_counted') }}</td><td class="text-end">{{ __('vacancymaster.calc.not_counted_value', ['opening' => $b['anticipated_already_in_opening'], 'pending' => $b['anticipated_pending'], 'not_eligible' => $b['anticipated_not_eligible']]) }}</td></tr>
+                <tr><td>{{ __('vacancymaster.pm.working_total_calc', ['own' => $b['working']['own'] ?? '—', 'incoming' => $b['working']['deputation_in'] ?? 0]) }}</td><td class="text-end">{{ $b['working']['total'] ?? __('vacancymaster.not_entered') }}</td></tr>
+                <tr><td>{{ __('vacancymaster.pm.a_clear') }}</td><td class="text-end" data-figure="a">{{ $b['clear_vacancy'] ?? '—' }}</td></tr>
+                <tr><td>{{ __('vacancymaster.pm.b1_short') }}</td><td class="text-end" data-figure="b1">{{ $b['deputation_in_vacancy'] }}</td></tr>
+                <tr><td>{{ __('vacancymaster.pm.b2_short') }}</td><td class="text-end" data-figure="b2">{{ $b['deputation_out_vacancy'] }}</td></tr>
+                <tr><td>{{ __('vacancymaster.pm.c_short') }}</td><td class="text-end" data-figure="c">{{ $b['anticipated_vacancy'] }}</td></tr>
+                <tr class="table-light fw-semibold"><td>{{ __('vacancymaster.pm.total_calc') }}</td><td class="text-end" data-figure="total">{{ $b['total_vacancy'] ?? '—' }}</td></tr>
+                <tr><td>{{ __('vacancymaster.pm.percentage', ['pre_dpc' => $b['pre_dpc_number'] ?? '—']) }}</td>
+                    <td class="text-end">{{ $b['promotion_percentage'] === null ? __('vacancymaster.not_recorded') : $b['promotion_percentage'].'% · '.__('vacancymaster.rounding.'.$b['rounding']) }}</td></tr>
                 <tr class="table-success fw-semibold">
-                    <td>{{ __('vacancymaster.calc.final') }}</td>
-                    <td class="text-end">
-                        @if ($b['final_quota'] !== null && $b['final_quota']['promotion_vacancy'] !== null)
-                            {{ __('vacancymaster.calc.quota_value', ['promotion' => $b['final_quota']['promotion_vacancy'], 'direct' => $b['final_quota']['direct_vacancy']]) }}
+                    <td>{{ __('vacancymaster.pm.promotion_vacancy') }}</td>
+                    <td class="text-end" data-figure="promotion">
+                        @if (($b['final_quota']['promotion_vacancy'] ?? null) !== null)
+                            {{ $b['final_quota']['promotion_vacancy'] }}
+                            <span class="small text-muted fw-normal">({{ number_format((float) $b['final_quota']['promotion_exact'], 2) }})</span>
                         @else
                             {{ __('vacancymaster.incomplete') }}
                         @endif
                     </td>
                 </tr>
+                <tr><td>{{ __('vacancymaster.pm.direct_vacancy') }}</td><td class="text-end" data-figure="direct">{{ $b['final_quota']['direct_vacancy'] ?? '—' }}</td></tr>
             </tbody>
         </table>
-        <p class="small text-muted mb-2">{{ __('vacancymaster.calc.formula') }}</p>
-        <p class="small text-muted mb-2">{{ __('vacancymaster.calc.reconciliation_limit') }}</p>
+        <p class="small text-muted mb-0">{{ __('vacancymaster.pm.formula') }}</p>
     </div>
 </div>
 

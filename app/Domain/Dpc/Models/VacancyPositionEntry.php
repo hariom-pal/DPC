@@ -28,13 +28,13 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property string|null $occupant_quota
  * @property int $vacancy_count
  * @property Carbon $effective_date
- * @property string $order_number
- * @property Carbon $order_date
- * @property string $disk
- * @property string $path
- * @property string $original_name
- * @property int $size_bytes
- * @property string $sha256
+ * @property string|null $order_number
+ * @property Carbon|null $order_date
+ * @property string|null $disk
+ * @property string|null $path
+ * @property string|null $original_name
+ * @property int|null $size_bytes
+ * @property string|null $sha256
  * @property string|null $remarks
  * @property VacancyReconciliation|null $reconciliation
  * @property int|null $higher_post_id
@@ -46,6 +46,9 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property int|null $deputation_expected_months
  * @property bool|null $against_sanctioned_post
  * @property string|null $cadre_details
+ * @property string|null $officer_name
+ * @property Carbon|null $deputation_from
+ * @property bool|null $promotion_made
  * @property VacancyEntryEligibility $eligibility
  * @property string|null $eligibility_note
  * @property string|null $verification_basis
@@ -95,6 +98,7 @@ class VacancyPositionEntry extends Model implements Auditable
         'against_sanctioned_post',
         'cadre_details',
         'deputation_from',
+        'promotion_made',
         'eligibility',
         'eligibility_note',
         'verification_basis',
@@ -139,6 +143,8 @@ class VacancyPositionEntry extends Model implements Auditable
             'deputation_to' => 'date',
             'deputation_expected_months' => 'integer',
             'against_sanctioned_post' => 'boolean',
+            'deputation_from' => 'date',
+            'promotion_made' => 'boolean',
             'size_bytes' => 'integer',
             'verified_at' => 'datetime',
             'withdrawn_at' => 'datetime',
@@ -161,8 +167,10 @@ class VacancyPositionEntry extends Model implements Auditable
             return false;
         }
 
+        // Deputation rows are judged against the Vacancy Year when saved: eligible is
+        // counted, not eligible is recorded only.
         return match ($this->kind) {
-            VacancyEntryKind::Deputation => true,
+            VacancyEntryKind::Deputation, VacancyEntryKind::DeputationIn => true,
             // An anticipated row since 2026-10-30 asks no reconciliation: its officer
             // is in the working strength. An older row still answers by its own.
             VacancyEntryKind::Anticipated => $this->reconciliation === null || $this->reconciliation === VacancyReconciliation::CountedInWorking,

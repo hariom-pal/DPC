@@ -20,6 +20,7 @@ use App\Domain\Dpc\Services\ProposalVacancyPosition;
 use App\Domain\Dpc\Services\ProposalVerificationService;
 use App\Domain\Dpc\Services\SanctionedStrengthSource;
 use App\Domain\Dpc\Services\VacancyCalculationService;
+use App\Domain\Dpc\Services\VacancyMasterService;
 use App\Domain\Master\Models\RecruitmentRule;
 use App\Domain\Master\Models\ReservationCategory;
 use App\Enums\MasterStatus;
@@ -208,6 +209,13 @@ trait CompletesDpcProposals
         }
 
         $rows = [];
+
+        // A record kept per Pre-DPC (2026-10-30) has no quota split: its officers
+        // other than those here on deputation are listed as promotion officers.
+        if (VacancyMasterService::isPerPreDpc(app(ProposalVacancyPosition::class)->for($proposal)?->breakdown)) {
+            $record[DpcWorkingOfficer::SOURCE_PROMOTION] = $record['total'] - $record[DpcWorkingOfficer::SOURCE_DEPUTATION];
+            $record[DpcWorkingOfficer::SOURCE_DIRECT] = 0;
+        }
 
         foreach ([DpcWorkingOfficer::SOURCE_PROMOTION, DpcWorkingOfficer::SOURCE_DIRECT, DpcWorkingOfficer::SOURCE_DEPUTATION] as $source) {
             for ($i = 0; $i < $record[$source]; $i++) {

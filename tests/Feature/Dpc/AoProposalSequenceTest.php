@@ -81,7 +81,9 @@ class AoProposalSequenceTest extends TestCase
         ]);
 
         $this->proposal = $this->raiseDpc($this->ao, $this->from, $this->to);
-        // Sanctioned 10 at 80 % promotion (8 chairs); working 6 on promotion, 1 direct: a promotion vacancy of 2.
+        // Sanctioned 10, working 7: a total vacancy of 3; at the Pre-DPC's 80 % share,
+        // 2.4 → a promotion vacancy of 2 (rule 1.3).
+        $this->proposal->preDpcProposal->forceFill(['promotion_recruitment_pct' => 80, 'direct_recruitment_pct' => 20])->save();
         $this->finalizeRecord(10, 6, 1, 0);
     }
 
@@ -101,9 +103,9 @@ class AoProposalSequenceTest extends TestCase
         $pdf = fn (): UploadedFile => UploadedFile::fake()->create('order.pdf', 20, 'application/pdf');
         $position = $service->openDraft($this->department, $this->to, self::YEAR, $this->ao);
         $service->saveSanctionedStrength($position, ['sanctioned_total' => $sanctioned, 'order_number' => 'SANC/1', 'order_date' => '2026-01-02'], $pdf(), $this->ao);
+        // One figure since 2026-10-30: our officers on the post.
         $service->saveWorkingStrength($position->fresh(), [
-            'working_total' => $promotion + $direct + $deputation, 'working_promotion' => $promotion,
-            'working_direct' => $direct, 'working_deputation' => $deputation,
+            'working_total' => $promotion + $direct + $deputation,
             'order_number' => 'EST/1', 'order_date' => '2026-01-02',
         ], $pdf(), $this->ao);
         $service->finalize($position->fresh(), $this->ao);
@@ -194,22 +196,24 @@ class AoProposalSequenceTest extends TestCase
     {
         $this->assertSame(__('vacancymaster.proposal.working_list.section_missing'), $this->vacancySection()['detail']);
 
-        // One direct recruit too many; deputation and promotion agree.
+        // One officer too many; nobody here on deputation on either side. The record
+        // has no quota split since 2026-10-30, so only the total and deputation compare.
         $this->uploadWorkingList(6, 2, 0, 2)->assertSessionHasNoErrors();
 
         $reconciliation = app(ProposalVacancyPosition::class)->reconcile($this->proposal->refresh());
         $this->assertFalse($reconciliation['matches']);
-        $this->assertSame(['direct' => ['uploaded' => 2, 'record' => 1], 'total' => ['uploaded' => 8, 'record' => 7]], $reconciliation['differences']);
+        $this->assertSame(['total' => ['uploaded' => 8, 'record' => 7]], $reconciliation['differences']);
 
         $this->actingAs($this->ao)->get(route('dpc-proposals.working-officers', $this->proposal))
             ->assertOk()
             ->assertSee('data-reconciled="no"', false)
-            ->assertSee('data-working-figure="direct" data-differs="yes"', false)
-            ->assertSee('data-working-figure="promotion" data-differs="no"', false)
+            ->assertSee('data-working-figure="total" data-differs="yes"', false)
+            ->assertSee('data-working-figure="deputation" data-differs="no"', false)
+            ->assertDontSee('data-working-figure="direct"', false)
             ->assertSee(__('vacancymaster.proposal.working_list.differs'));
 
         $this->assertFalse($this->vacancySection()['complete']);
-        $this->assertStringContainsString('Direct recruitment quota list 2, record 1', $this->vacancySection()['detail']);
+        $this->assertStringContainsString('Total working list 8, record 7', $this->vacancySection()['detail']);
 
         // Step 2 is closed: the page says why, and the upload and manual save refuse.
         $this->actingAs($this->ao)->get(route('dpc-proposals.seniority-list', $this->proposal))

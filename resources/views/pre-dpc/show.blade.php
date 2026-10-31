@@ -237,6 +237,16 @@
                         <form method="POST" action="{{ route('pre-dpc.amend', $proposal) }}">@csrf<button class="btn btn-outline-secondary btn-sm">{{ __('predpc.show.amend_new_version') }}</button></form>
                     @endcan
 
+                    {{-- After approval: the post's Vacancy Management for this Pre-DPC's year (2026-10-30). --}}
+                    @if ($proposal->status->value === 'approved' && $proposal->isActive() && $proposal->promotionToPost
+                        && auth()->user()?->department_id === $proposal->department_id
+                        && auth()->user()?->hasAnyRole([\App\Enums\Role::AuthorizedOfficer->value, \App\Enums\Role::AdministrativeHead->value]))
+                        <form method="POST" action="{{ route('vacancy-management.pre-dpc', $proposal) }}" id="pre-dpc-vacancy">
+                            @csrf
+                            <button class="btn btn-primary btn-sm">{{ __('vacancymaster.pm.proceed', ['post' => $proposal->promotionToPost->name]) }}</button>
+                        </form>
+                    @endif
+
                     @if (! $proposal->status->isEditable() && $proposal->status->value !== 'submitted' && $proposal->status->value !== 'approved')
                         <span class="text-muted small align-self-center">{{ __('predpc.show.no_actions_available_in_this_state') }}</span>
                     @endif

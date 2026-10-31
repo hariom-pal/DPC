@@ -24,13 +24,13 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property int|null $working_direct
  * @property int|null $working_deputation
  * @property bool $exceeds_sanctioned_acknowledged
- * @property string $order_number
- * @property Carbon $order_date
- * @property string $disk
- * @property string $path
- * @property string $original_name
- * @property int $size_bytes
- * @property string $sha256
+ * @property string|null $order_number
+ * @property Carbon|null $order_date
+ * @property string|null $disk
+ * @property string|null $path
+ * @property string|null $original_name
+ * @property int|null $size_bytes
+ * @property string|null $sha256
  * @property string|null $remarks
  * @property string|null $correction_reason
  * @property int|null $recorded_by

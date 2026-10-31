@@ -18,7 +18,8 @@
                     <th class="text-end">{{ __('vacancymaster.proposal.working_list.difference') }}</th>
                 </tr></thead>
                 <tbody>
-                    @foreach (['promotion', 'direct', 'deputation', 'total'] as $figure)
+                    {{-- A record kept per Pre-DPC (2026-10-30) compares the total and the officers here on deputation only. --}}
+                    @foreach ($reconciliation['figures'] ?? ['promotion', 'direct', 'deputation', 'total'] as $figure)
                         @php
                             $differs = isset($reconciliation['differences'][$figure]);
                         @endphp

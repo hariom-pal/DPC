@@ -9,6 +9,7 @@ use App\Domain\Department\Models\Department;
 use App\Domain\Dpc\Enums\VacancyPositionStatus;
 use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\RecruitmentRule;
+use App\Domain\PreDpc\Models\PreDpcProposal;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -26,6 +27,7 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property int $department_id
  * @property string $post_name
  * @property int|null $department_post_id
+ * @property int|null $pre_dpc_proposal_id
  * @property int $vacancy_year
  * @property int $revision
  * @property VacancyPositionStatus $status
@@ -56,6 +58,7 @@ class VacancyPosition extends Model implements Auditable
         'department_id',
         'post_name',
         'department_post_id',
+        'pre_dpc_proposal_id',
         'vacancy_year',
         'revision',
         'status',
@@ -133,6 +136,17 @@ class VacancyPosition extends Model implements Auditable
     public function departmentPost(): BelongsTo
     {
         return $this->belongsTo(DepartmentPost::class);
+    }
+
+    /**
+     * The approved Pre-DPC this record counts the vacancies of (2026-10-30): its
+     * post, its year and its promotion share.
+     *
+     * @return BelongsTo<PreDpcProposal, $this>
+     */
+    public function preDpcProposal(): BelongsTo
+    {
+        return $this->belongsTo(PreDpcProposal::class);
     }
 
     /**

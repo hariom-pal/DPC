@@ -7,7 +7,6 @@ namespace App\Http\Controllers\Admin;
 use App\Domain\Department\Models\Department;
 use App\Domain\Dpc\Enums\VacancyEntryKind;
 use App\Domain\Dpc\Enums\VacancyReason;
-use App\Domain\Dpc\Enums\VacancyReconciliation;
 use App\Domain\Dpc\Models\VacancyPosition;
 use App\Domain\Dpc\Models\VacancyPositionEntry;
 use App\Domain\Dpc\Models\VacancyPositionSanctionedStrength;
@@ -18,6 +17,8 @@ use App\Domain\Dpc\Requests\StoreVacancyEntryRequest;
 use App\Domain\Dpc\Requests\VerifyVacancyEntryRequest;
 use App\Domain\Dpc\Services\VacancyMasterService;
 use App\Domain\Master\Models\DepartmentPost;
+use App\Domain\PreDpc\Enums\PreDpcStatus;
+use App\Domain\PreDpc\Models\PreDpcProposal;
 use App\Domain\Shared\Models\ActivityTimeline;
 use App\Domain\Shared\Workflow\WorkflowException;
 use App\Enums\Role;
@@ -101,11 +102,42 @@ class VacancyMasterController extends Controller
                 ->whereNotNull('active_flag')
                 ->orderBy('name')
                 ->get(),
-            'kinds' => VacancyEntryKind::cases(),
-            'reasons' => VacancyReason::cases(),
-            'reconciliations' => VacancyReconciliation::cases(),
+            'kinds' => [VacancyEntryKind::DeputationIn, VacancyEntryKind::Deputation, VacancyEntryKind::Anticipated],
+            'reasons' => [VacancyReason::Retirement, VacancyReason::HigherPostPromotion],
+            'preDpc' => $position !== null && $position->preDpcProposal !== null ? $position->preDpcProposal : $this->vacancies->approvedPreDpc($department->id, $post->name, $year),
             'seniorityReference' => $this->vacancies->seniorityReferenceDate($year),
         ]);
+    }
+
+    /**
+     * "Proceed with Vacancy Management for the Post" on an approved Pre-DPC: the
+     * record of its department, post and year — opened for the Authorized Officer
+     * when there is none yet.
+     */
+    public function fromPreDpc(Request $request, PreDpcProposal $preDpc): RedirectResponse
+    {
+        $preDpc->loadMissing('department', 'promotionToPost');
+        $department = $preDpc->department;
+        $post = $preDpc->promotionToPost;
+
+        abort_if($department === null || $post === null || $preDpc->dpc_year === null, 404);
+        $this->assertCanView($request, $department);
+        abort_unless($preDpc->status === PreDpcStatus::Approved && $preDpc->isActive(), 403);
+
+        $year = (int) $preDpc->dpc_year;
+        $show = fn (string $section) => redirect()->route('vacancy-records.show', [$department, $year, $post, 'section' => $section]);
+
+        if ($this->vacancies->current($department->id, $post->name, $year) !== null || ! $this->canManage($request, $department)) {
+            return $show('');
+        }
+
+        try {
+            $this->vacancies->openDraft($department, $post, $year, $request->user());
+        } catch (WorkflowException $e) {
+            return redirect()->route('pre-dpc.show', $preDpc)->withErrors(['workflow' => $e->getMessage()]);
+        }
+
+        return $show('sanctioned')->with('status', __('vacancymaster.flash.draft_opened'));
     }
 
     public function open(Request $request, Department $department, int $year, DepartmentPost $post): RedirectResponse
@@ -138,10 +170,7 @@ class VacancyMasterController extends Controller
         $position = $this->draftFor($department, $year, $post);
 
         return $this->attempt($department, $year, $post, function () use ($position, $request): string {
-            $this->vacancies->saveWorkingStrength($position, [
-                ...$request->safe()->except('document'),
-                'exceeds_sanctioned_acknowledged' => $request->boolean('exceeds_sanctioned_acknowledged'),
-            ], $request->file('document'), $request->user());
+            $this->vacancies->saveWorkingStrength($position, $request->safe()->except('document'), $request->file('document'), $request->user());
 
             return __('vacancymaster.flash.working_saved');
         }, 'working', 'vacancies');

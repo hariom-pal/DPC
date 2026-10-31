@@ -46,12 +46,17 @@
     <dl class="row small mb-2">
         <dt class="col-sm-4">{{ __('vacancymaster.proposal.figures.sanction_order') }}</dt>
         <dd class="col-sm-8">{{ ($frozen['sanctioned_order']['order_number'] ?? '—') }} · {{ isset($frozen['sanctioned_order']['order_date']) ? \Illuminate\Support\Carbon::parse($frozen['sanctioned_order']['order_date'])->format('d-m-Y') : '—' }}</dd>
+        @if (\App\Domain\Dpc\Services\VacancyMasterService::isPerPreDpc($frozen))
+            <dt class="col-sm-4">{{ __('vacancymaster.pm.total_calc') }}</dt>
+            <dd class="col-sm-8">{{ ($frozen['clear_vacancy'] ?? '—').' + '.($frozen['deputation_in_vacancy'] ?? 0).' + '.($frozen['deputation_out_vacancy'] ?? 0).' + '.($frozen['anticipated_vacancy'] ?? 0).' = '.($frozen['total_vacancy'] ?? '—') }}</dd>
+        @else
         <dt class="col-sm-4">{{ __('vacancymaster.proposal.figures.working_split') }}</dt>
         <dd class="col-sm-8">{{ __('vacancymaster.proposal.figures.working_split_value', [
             'promotion' => $working['promotion'] ?? '—',
             'direct' => $working['direct'] ?? '—',
             'deputation' => $working['deputation'] ?? '—',
         ]) }}</dd>
+        @endif
         <dt class="col-sm-4">{{ __('vacancymaster.proposal.figures.promotion_share') }}</dt>
         <dd class="col-sm-8">{{ ($frozen['promotion_percentage'] ?? '—') }}% · {{ __('vacancymaster.proposal.figures.promotion_posts', ['posts' => $quota['promotion_chairs'] ?? '—']) }}</dd>
         <dt class="col-sm-4">{{ __('vacancymaster.proposal.figures.zone') }}</dt>
@@ -73,7 +78,7 @@
                         <tr>
                             <td>{{ __('vacancymaster.kinds.'.$entry['kind']) }}</td>
                             <td>{{ __('vacancymaster.reasons.'.$entry['reason']) }}</td>
-                            <td>{{ $entry['quota'] ? __('vacancymaster.quota.'.$entry['quota']) : '—' }}</td>
+                            <td>{{ ($entry['quota'] ?? null) ? __('vacancymaster.quota.'.$entry['quota']) : ($entry['officer_name'] ?? '—') }}</td>
                             <td>{{ $entry['count'] }}</td>
                             <td>{{ \Illuminate\Support\Carbon::parse($entry['effective_date'])->format('d-m-Y') }}</td>
                             <td>{{ $entry['kind'] === 'existing' ? '—' : ($entry['counted'] ? __('vacancymaster.yes') : __('vacancymaster.no')) }}</td>

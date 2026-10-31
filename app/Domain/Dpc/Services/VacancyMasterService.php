@@ -11,15 +11,14 @@ use App\Domain\Dpc\Enums\VacancyEntryEligibility;
 use App\Domain\Dpc\Enums\VacancyEntryKind;
 use App\Domain\Dpc\Enums\VacancyPositionStatus;
 use App\Domain\Dpc\Enums\VacancyReason;
-use App\Domain\Dpc\Enums\VacancyReconciliation;
 use App\Domain\Dpc\Models\DpcProposal;
-use App\Domain\Dpc\Models\DpcWorkingOfficer;
 use App\Domain\Dpc\Models\VacancyPosition;
 use App\Domain\Dpc\Models\VacancyPositionEntry;
 use App\Domain\Dpc\Models\VacancyPositionSanctionedStrength;
 use App\Domain\Dpc\Models\VacancyPositionWorkingStrength;
 use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\RecruitmentRule;
+use App\Domain\PreDpc\Models\PreDpcProposal;
 use App\Domain\Shared\Services\ActivityTimelineService;
 use App\Domain\Shared\Workflow\WorkflowException;
 use Illuminate\Http\UploadedFile;
@@ -46,11 +45,11 @@ use Illuminate\Support\Facades\Storage;
  *  - Documents follow the record-gap discipline: private disk, hash of the bytes
  *    that arrived, streamed only to an authorised user.
  *
- * ### What it will not do
+ * ### Since 2026-10-30
  *
- * It does not decide that a reason counts when no rule says so, and it does not
- * guess whether a count-only entry is already inside the opening vacancy — the
- * Administrator answers that for every anticipated entry (`VacancyReconciliation`).
+ * One record per approved Pre-DPC (its post, year and promotion share), counted as
+ * A clear + B deputation + C anticipated — see `breakdown()`. Whether a row counts
+ * is decided from its own dates when it is saved; no row waits for verification.
  */
 class VacancyMasterService
 {
@@ -188,11 +187,22 @@ class VacancyMasterService
     // ------------------------------------------------------------ calculation
 
     /**
-     * Every figure of the position, how each was reached, and what still stops it
-     * from being finalized.
+     * Every figure of the record, how each was reached, and what still stops it from
+     * being finalized (decisions of 2026-10-30):
      *
-     * A finalized or superseded position answers from its frozen snapshot, so a
-     * later change to a mapping or a rule never alters it.
+     *     working = our officers (those on deputation elsewhere included)
+     *             + officers of other departments on deputation here     (B1 rows)
+     *     A  clear              = sanctioned − working
+     *     B1 deputation ending  = B1 rows whose deputation ends in the Vacancy Year
+     *     B2 deputation out     = our officers away more than one year by 31 December
+     *                             with no promotion made against their post
+     *     C  anticipated        = retirements and promotions to a higher post in the year
+     *     total                 = A + B1 + B2 + C, never above the sanctioned strength
+     *     promotion vacancy     = total × the Pre-DPC's promotion share (rule 1.3 rounding)
+     *     direct vacancy        = total − promotion vacancy
+     *
+     * A finalized or superseded record answers from its frozen snapshot, so a later
+     * change to a mapping, a rule or the Pre-DPC never alters it.
      *
      * @return array<string, mixed>
      */
@@ -202,46 +212,45 @@ class VacancyMasterService
             return $position->breakdown;
         }
 
-        $position->loadMissing('sanctionedStrength', 'workingStrength', 'entries');
+        $position->loadMissing('sanctionedStrength', 'workingStrength', 'entries', 'preDpcProposal');
 
         [$from, $to] = $this->engine->periodForYear($position->vacancy_year);
         $mapping = $this->mappingFor($position);
         $rule = $this->ruleFor($position, $from);
+        $preDpc = $position->preDpcProposal;
         // Entered for this Vacancy Year — never the Post Mapping's figure.
         $sanctionedRecord = $position->sanctionedStrength;
         $sanctioned = $sanctionedRecord?->sanctioned_total;
-        $percentage = $rule?->promotion_recruitment_pct;
+        // The Pre-DPC's share; the Recruitment Rule's only for a record without one.
+        $percentage = $preDpc !== null ? $preDpc->promotion_recruitment_pct : $rule?->promotion_recruitment_pct;
         $working = $position->workingStrength;
 
         $active = $position->entries->filter(fn (VacancyPositionEntry $entry): bool => $entry->isActive());
-        $existing = $active->filter(fn (VacancyPositionEntry $entry): bool => $entry->kind === VacancyEntryKind::Existing);
-        $anticipated = $active->filter(fn (VacancyPositionEntry $entry): bool => $entry->kind === VacancyEntryKind::Anticipated);
-        $counted = $anticipated->filter(fn (VacancyPositionEntry $entry): bool => $entry->isCounted());
+        $ofKind = fn (VacancyEntryKind $kind): Collection => $active->filter(fn (VacancyPositionEntry $entry): bool => $entry->kind === $kind);
+        $counted = fn (Collection $entries): int => (int) $entries->filter(fn (VacancyPositionEntry $entry): bool => $entry->isCounted())->sum('vacancy_count');
 
-        $countedPromotion = (int) $counted->where('occupant_quota', DpcWorkingOfficer::SOURCE_PROMOTION)->sum('vacancy_count');
-        $countedDirect = (int) $counted->where('occupant_quota', DpcWorkingOfficer::SOURCE_DIRECT)->sum('vacancy_count');
-        $pending = $anticipated->filter(fn (VacancyPositionEntry $entry): bool => $entry->eligibility === VacancyEntryEligibility::PendingVerification);
-        $alreadyInOpening = $anticipated->filter(fn (VacancyPositionEntry $entry): bool => $entry->eligibility === VacancyEntryEligibility::Eligible
-            && $entry->reconciliation === VacancyReconciliation::AlreadyInOpening);
-        $notEligible = $anticipated->filter(fn (VacancyPositionEntry $entry): bool => $entry->eligibility === VacancyEntryEligibility::NotEligible);
+        $incoming = $ofKind(VacancyEntryKind::DeputationIn);
+        $outgoing = $ofKind(VacancyEntryKind::Deputation);
+        $anticipated = $ofKind(VacancyEntryKind::Anticipated);
+        $pending = $active->filter(fn (VacancyPositionEntry $entry): bool => $entry->eligibility === VacancyEntryEligibility::PendingVerification);
 
-        $opening = $sanctioned === null || $working === null ? null : $sanctioned - $working->working_total;
-        $split = $working !== null && $working->hasQuotaSplit();
+        $own = $working?->working_total;
+        $workingTotal = $own === null ? null : $own + (int) $incoming->sum('vacancy_count');
+        $clear = $sanctioned === null || $workingTotal === null ? null : max(0, $sanctioned - $workingTotal);
+        $deputationIn = $counted($incoming);
+        $deputationOut = $counted($outgoing);
+        $arising = $counted($anticipated);
+        $total = $clear === null ? null : $clear + $deputationIn + $deputationOut + $arising;
 
-        $openingQuota = $split
-            ? $this->engine->quotaPosition($sanctioned, $percentage === null ? null : (string) $percentage, (int) $working->working_promotion, (int) $working->working_direct)
-            : null;
-
-        $finalQuota = $split
-            ? $this->engine->quotaPosition(
-                $sanctioned,
-                $percentage === null ? null : (string) $percentage,
-                (int) $working->working_promotion - $countedPromotion,
-                (int) $working->working_direct - $countedDirect,
-            )
-            : null;
+        $quota = $total === null
+            ? null
+            : $this->engine->quotaPosition($total, $percentage === null ? null : (string) $percentage, 0, 0);
 
         $issues = [];
+
+        if ($preDpc === null) {
+            $issues[] = ['key' => 'no_pre_dpc', 'params' => ['year' => $position->vacancy_year]];
+        }
 
         if ($mapping === null) {
             $issues[] = ['key' => 'no_mapping', 'params' => ['date' => $from->format('d-m-Y')]];
@@ -253,63 +262,35 @@ class VacancyMasterService
 
         if ($working === null) {
             $issues[] = ['key' => 'working_not_entered', 'params' => []];
-        } elseif (! $split) {
-            $issues[] = ['key' => 'working_split_missing', 'params' => []];
         }
 
-        // The sanctioned strength may be entered, or corrected, after the working
-        // strength: a working figure above it must still be confirmed explicitly.
-        if ($working !== null && $sanctioned !== null && $working->working_total > $sanctioned
-            && ! $working->exceeds_sanctioned_acknowledged) {
+        if ($workingTotal !== null && $sanctioned !== null && $workingTotal > $sanctioned) {
             $issues[] = ['key' => 'working_exceeds_sanctioned', 'params' => [
-                'working' => $working->working_total,
+                'working' => $workingTotal,
                 'sanctioned' => $sanctioned,
             ]];
         }
 
-        if ($rule === null) {
-            $issues[] = ['key' => 'no_rule', 'params' => ['date' => $from->format('d-m-Y')]];
+        if ($percentage === null) {
+            $issues[] = ['key' => 'no_percentage', 'params' => []];
         }
 
         if ($pending->isNotEmpty()) {
             $issues[] = ['key' => 'pending_entries', 'params' => ['count' => $pending->count()]];
         }
 
-        if ($opening !== null && (int) $existing->sum('vacancy_count') > max(0, $opening)) {
-            $issues[] = ['key' => 'existing_exceed_opening', 'params' => [
-                'existing' => (int) $existing->sum('vacancy_count'),
-                'opening' => max(0, $opening),
-            ]];
-        }
-
-        if ($split) {
-            if ($countedPromotion > (int) $working->working_promotion) {
-                $issues[] = ['key' => 'anticipated_exceed_working', 'params' => [
-                    'quota' => __('vacancymaster.quota.promotion'),
-                    'counted' => $countedPromotion,
-                    'working' => (int) $working->working_promotion,
-                ]];
-            }
-
-            if ($countedDirect > (int) $working->working_direct) {
-                $issues[] = ['key' => 'anticipated_exceed_working', 'params' => [
-                    'quota' => __('vacancymaster.quota.direct'),
-                    'counted' => $countedDirect,
-                    'working' => (int) $working->working_direct,
-                ]];
-            }
-        }
-
-        if ($finalQuota !== null
-            && (($finalQuota['promotion_vacancy'] ?? 0) < 0 || ($finalQuota['direct_vacancy'] ?? 0) < 0)) {
-            $issues[] = ['key' => 'quota_overfilled', 'params' => []];
+        if ($total !== null && $total > $sanctioned) {
+            $issues[] = ['key' => 'total_exceeds_sanctioned', 'params' => ['total' => $total, 'sanctioned' => $sanctioned]];
         }
 
         return [
+            'scheme' => 2,
             'vacancy_year' => $position->vacancy_year,
             'period_from' => $from->toDateString(),
             'period_to' => $to->toDateString(),
             'department_post_id' => $mapping?->id,
+            'pre_dpc_proposal_id' => $preDpc?->id,
+            'pre_dpc_number' => $preDpc?->pre_dpc_number,
             'sanctioned' => $sanctioned,
             'sanctioned_order' => $sanctionedRecord === null ? null : [
                 'order_number' => $sanctionedRecord->order_number,
@@ -318,38 +299,41 @@ class VacancyMasterService
             ],
             'recruitment_rule_id' => $rule?->id,
             'recruitment_rule_version' => $rule?->version,
-            'promotion_percentage' => $percentage === null ? null : (string) $percentage,
+            'promotion_percentage' => $percentage === null ? null : number_format((float) $percentage, 2, '.', ''),
             'rounding' => $this->engine->rounding(),
             'working' => $working === null ? null : [
-                'total' => $working->working_total,
-                'promotion' => $working->working_promotion,
-                'direct' => $working->working_direct,
-                'deputation' => $working->working_deputation,
+                'total' => $workingTotal,
+                'own' => $own,
+                'deputation_in' => (int) $incoming->sum('vacancy_count'),
+                // No quota split since 2026-10-30; kept so a reader of an older record
+                // finds the same keys.
+                'promotion' => null,
+                'direct' => null,
+                'deputation' => (int) $incoming->sum('vacancy_count'),
                 'order_number' => $working->order_number,
-                'order_date' => $working->order_date->toDateString(),
+                'order_date' => $working->order_date?->toDateString(),
                 'document_sha256' => $working->sha256,
             ],
-            'opening_vacancy' => $opening,
-            'opening_quota' => $openingQuota,
-            'existing_entries_total' => (int) $existing->sum('vacancy_count'),
-            'anticipated_counted_promotion' => $countedPromotion,
-            'anticipated_counted_direct' => $countedDirect,
-            'anticipated_already_in_opening' => (int) $alreadyInOpening->sum('vacancy_count'),
-            'anticipated_pending' => (int) $pending->sum('vacancy_count'),
-            'anticipated_not_eligible' => (int) $notEligible->sum('vacancy_count'),
-            'final_quota' => $finalQuota,
-            'final_total' => $finalQuota === null || $finalQuota['promotion_vacancy'] === null
-                ? null
-                : $finalQuota['promotion_vacancy'] + $finalQuota['direct_vacancy'],
+            'opening_vacancy' => $clear,
+            'clear_vacancy' => $clear,
+            'deputation_in_vacancy' => $deputationIn,
+            'deputation_out_vacancy' => $deputationOut,
+            'anticipated_vacancy' => $arising,
+            'retirement_vacancy' => $counted($anticipated->filter(fn (VacancyPositionEntry $entry): bool => $entry->reason === VacancyReason::Retirement)),
+            'total_vacancy' => $total,
+            'final_quota' => $quota,
+            'final_total' => $total,
             'entries' => $active->map(fn (VacancyPositionEntry $entry): array => [
                 'uuid' => $entry->uuid,
                 'kind' => $entry->kind->value,
                 'reason' => $entry->reason->value,
-                'quota' => $entry->occupant_quota,
+                'officer_name' => $entry->officer_name,
                 'count' => $entry->vacancy_count,
                 'effective_date' => $entry->effective_date->toDateString(),
+                'deputation_from' => $entry->deputation_from?->toDateString(),
+                'deputation_to' => $entry->deputation_to?->toDateString(),
+                'promotion_made' => $entry->promotion_made,
                 'eligibility' => $entry->eligibility->value,
-                'reconciliation' => $entry->reconciliation?->value,
                 'counted' => $entry->isCounted(),
                 'order_number' => $entry->order_number,
                 'document_sha256' => $entry->sha256,
@@ -357,6 +341,17 @@ class VacancyMasterService
             'issues' => $issues,
             'complete' => $issues === [],
         ];
+    }
+
+    /**
+     * Whether a breakdown is of a record kept after 2026-10-30 (A + B + C). Older
+     * finalized records keep their own figures and are read the old way.
+     *
+     * @param  array<string, mixed>|null  $breakdown
+     */
+    public static function isPerPreDpc(?array $breakdown): bool
+    {
+        return (int) ($breakdown['scheme'] ?? 1) === 2;
     }
 
     /**
@@ -390,7 +385,10 @@ class VacancyMasterService
     /**
      * Open the draft for a post and year, or return the draft already open.
      *
-     * @throws WorkflowException when a finalized position exists (correct it by revision)
+     * A record belongs to the approved Pre-DPC of the department, post and year
+     * (2026-10-30): its year and post come from it, and so does the promotion share.
+     *
+     * @throws WorkflowException when no approved Pre-DPC exists, or a finalized record does (correct it by revision)
      */
     public function openDraft(Department $department, DepartmentPost $post, int $year, User $actor): VacancyPosition
     {
@@ -400,10 +398,20 @@ class VacancyMasterService
             throw new WorkflowException(__('vacancymaster.errors.post_not_in_department'));
         }
 
-        return DB::transaction(function () use ($department, $post, $year, $actor): VacancyPosition {
+        $preDpc = $this->approvedPreDpc($department->id, $post->name, $year);
+
+        if ($preDpc === null) {
+            throw new WorkflowException(__('vacancymaster.errors.no_approved_pre_dpc', ['post' => $post->name, 'year' => $year]));
+        }
+
+        return DB::transaction(function () use ($department, $post, $year, $actor, $preDpc): VacancyPosition {
             $current = $this->current($department->id, $post->name, $year);
 
             if ($current !== null && $current->isDraft()) {
+                if ($current->pre_dpc_proposal_id !== $preDpc->id) {
+                    $current->forceFill(['pre_dpc_proposal_id' => $preDpc->id])->save();
+                }
+
                 return $current;
             }
 
@@ -418,6 +426,7 @@ class VacancyMasterService
                 'department_id' => $department->id,
                 'post_name' => $post->name,
                 'department_post_id' => $mapping?->id,
+                'pre_dpc_proposal_id' => $preDpc->id,
                 'vacancy_year' => $year,
                 'revision' => 1,
                 'status' => VacancyPositionStatus::Draft->value,
@@ -429,10 +438,25 @@ class VacancyMasterService
             $this->record('vacancy_position.draft_opened', $position, __('vacancymaster.timeline.draft_opened', [
                 'post' => $position->post_name,
                 'year' => $year,
-            ]), [], $actor);
+            ]), ['pre_dpc' => $preDpc->pre_dpc_number], $actor);
 
             return $position;
         });
+    }
+
+    /**
+     * The approved, active Pre-DPC of a department's post for a DPC year — the one a
+     * Vacancy Management record is kept for.
+     */
+    public function approvedPreDpc(int $departmentId, string $postName, int $year): ?PreDpcProposal
+    {
+        return PreDpcProposal::query()
+            ->activeApproved()
+            ->where('department_id', $departmentId)
+            ->where('dpc_year', $year)
+            ->whereHas('promotionToPost', fn ($query) => $query->where('name', $postName))
+            ->latest('approved_at')
+            ->first();
     }
 
     /**
@@ -459,8 +483,7 @@ class VacancyMasterService
             throw new WorkflowException(__('vacancymaster.errors.correction_reason_required'), 'correction_reason');
         }
 
-        return DB::transaction(function () use ($position, $data, $document, $actor, $total, $previous, $reason): VacancyPositionSanctionedStrength {
-            $stored = $this->store($document, $position, 'sanctioned-strength');
+        return $this->withStored($document, $position, 'sanctioned-strength', function (array $stored) use ($position, $data, $actor, $total, $previous, $reason): VacancyPositionSanctionedStrength {
 
             $row = VacancyPositionSanctionedStrength::query()->create([
                 'vacancy_position_id' => $position->id,
@@ -476,6 +499,7 @@ class VacancyMasterService
 
             $position->forceFill(['sanctioned_strength_id' => $row->id])->save();
             $position->unsetRelation('sanctionedStrength');
+            $this->assertWithinSanctioned($position, 'sanctioned_total');
 
             $this->record(
                 $previous === null ? 'vacancy_position.sanctioned_strength_recorded' : 'vacancy_position.sanctioned_strength_corrected',
@@ -501,42 +525,18 @@ class VacancyMasterService
     }
 
     /**
-     * Record (or correct) the working strength as on 1 January.
+     * Record (or correct) the working strength as on 1 January: one figure, our own
+     * officers on the post, those away on deputation included. Officers of other
+     * departments working here on deputation are named row by row (B1) and added to
+     * it. The order and its PDF are optional.
      *
-     * @param  array{working_total: int, working_promotion?: int|null, working_direct?: int|null, working_deputation?: int|null, exceeds_sanctioned_acknowledged?: bool, order_number: string, order_date: string, remarks?: string|null, correction_reason?: string|null}  $data
+     * @param  array{working_total: int, order_number?: string|null, order_date?: string|null, remarks?: string|null, correction_reason?: string|null}  $data
      */
     public function saveWorkingStrength(VacancyPosition $position, array $data, ?UploadedFile $document, User $actor): VacancyPositionWorkingStrength
     {
         $this->assertDraft($position);
 
-        if ($document === null) {
-            throw new WorkflowException(__('vacancymaster.errors.document_required'), 'document');
-        }
-
         $total = (int) $data['working_total'];
-        $promotion = $data['working_promotion'] ?? null;
-        $direct = $data['working_direct'] ?? null;
-        $deputation = $data['working_deputation'] ?? null;
-        $split = [$promotion, $direct, $deputation];
-
-        if (in_array(null, $split, true) && array_filter($split, fn ($v): bool => $v !== null) !== []) {
-            throw new WorkflowException(__('vacancymaster.errors.split_all_or_none'), 'working_split');
-        }
-
-        if (! in_array(null, $split, true) && (int) $promotion + (int) $direct + (int) $deputation !== $total) {
-            throw new WorkflowException(__('vacancymaster.errors.split_must_sum', ['total' => $total]), 'working_split');
-        }
-
-        $sanctioned = $position->sanctionedStrength?->sanctioned_total;
-        $acknowledged = (bool) ($data['exceeds_sanctioned_acknowledged'] ?? false);
-
-        if ($sanctioned !== null && $total > $sanctioned && (! $acknowledged || trim((string) ($data['remarks'] ?? '')) === '')) {
-            throw new WorkflowException(__('vacancymaster.errors.exceeds_sanctioned', [
-                'working' => $total,
-                'sanctioned' => $sanctioned,
-            ]), 'exceeds_sanctioned_acknowledged');
-        }
-
         $previous = $position->workingStrength;
         $reason = trim((string) ($data['correction_reason'] ?? ''));
 
@@ -544,18 +544,13 @@ class VacancyMasterService
             throw new WorkflowException(__('vacancymaster.errors.correction_reason_required'), 'correction_reason');
         }
 
-        return DB::transaction(function () use ($position, $data, $document, $actor, $total, $promotion, $direct, $deputation, $acknowledged, $previous, $reason): VacancyPositionWorkingStrength {
-            $stored = $this->store($document, $position, 'working-strength');
-
+        return $this->withStored($document, $position, 'working-strength', function (array $stored) use ($position, $data, $actor, $total, $previous, $reason): VacancyPositionWorkingStrength {
             $row = VacancyPositionWorkingStrength::query()->create([
                 'vacancy_position_id' => $position->id,
                 'working_total' => $total,
-                'working_promotion' => $promotion === null ? null : (int) $promotion,
-                'working_direct' => $direct === null ? null : (int) $direct,
-                'working_deputation' => $deputation === null ? null : (int) $deputation,
-                'exceeds_sanctioned_acknowledged' => $acknowledged,
-                'order_number' => trim((string) $data['order_number']),
-                'order_date' => Carbon::parse((string) $data['order_date'])->toDateString(),
+                'exceeds_sanctioned_acknowledged' => false,
+                'order_number' => $this->clean($data['order_number'] ?? null),
+                'order_date' => empty($data['order_date']) ? null : Carbon::parse((string) $data['order_date'])->toDateString(),
                 ...$stored,
                 'remarks' => $this->clean($data['remarks'] ?? null),
                 'correction_reason' => $previous === null ? null : $reason,
@@ -564,6 +559,7 @@ class VacancyMasterService
             ]);
 
             $position->forceFill(['working_strength_id' => $row->id])->save();
+            $this->assertWithinSanctioned($position, 'working_total');
 
             $this->record(
                 $previous === null ? 'vacancy_position.working_strength_recorded' : 'vacancy_position.working_strength_corrected',
@@ -575,7 +571,7 @@ class VacancyMasterService
                     'to' => $total,
                 ]),
                 [
-                    'previous' => $previous?->only(['working_total', 'working_promotion', 'working_direct', 'working_deputation', 'order_number']),
+                    'previous' => $previous?->only(['working_total', 'order_number']),
                     'working_total' => $total,
                     'order_number' => $row->order_number,
                     'document_sha256' => $row->sha256,
@@ -589,7 +585,12 @@ class VacancyMasterService
     }
 
     /**
-     * Add one reason-wise vacancy entry.
+     * Add one row of the record: an officer here on deputation (B1), an officer of
+     * ours on deputation elsewhere (B2), or a retirement or promotion to a higher
+     * post during the year (C). One row is one officer and one post.
+     *
+     * Whether the row counts is decided here, from its dates and the Vacancy Year,
+     * and stated on it. Nothing waits for anyone's verification.
      *
      * @param  array<string, mixed>  $data
      */
@@ -597,82 +598,59 @@ class VacancyMasterService
     {
         $this->assertDraft($position);
 
-        if ($document === null) {
-            throw new WorkflowException(__('vacancymaster.errors.document_required'), 'document');
+        if ($position->sanctionedStrength === null || $position->workingStrength === null) {
+            throw new WorkflowException(__('vacancymaster.errors.figures_first'));
         }
 
-        $kind = VacancyEntryKind::from((string) $data['kind']);
-        $reason = VacancyReason::from((string) $data['reason']);
-        $effective = Carbon::parse((string) $data['effective_date'])->startOfDay();
+        $kind = VacancyEntryKind::tryFrom((string) ($data['kind'] ?? ''));
+
+        if ($kind === null || $kind === VacancyEntryKind::Existing) {
+            throw new WorkflowException(__('vacancymaster.errors.kind_invalid'), 'kind');
+        }
+
+        $name = trim((string) ($data['officer_name'] ?? ''));
+
+        if ($name === '') {
+            throw new WorkflowException(__('vacancymaster.errors.officer_name_required'), 'officer_name');
+        }
+
+        $this->assertNotDuplicate($position, $kind, $name);
+
         [$from, $to] = $this->engine->periodForYear($position->vacancy_year);
+        $attributes = match ($kind) {
+            VacancyEntryKind::DeputationIn => $this->deputationIn($data, $from, $to),
+            VacancyEntryKind::Deputation => $this->deputationOut($data, $to),
+            default => $this->anticipated($position, $data, $document, $from, $to),
+        };
 
-        // The Vacancy Year boundaries, both inclusive.
-        if ($kind === VacancyEntryKind::Anticipated && ! $effective->betweenIncluded($from->copy()->startOfDay(), $to)) {
-            throw new WorkflowException(__('vacancymaster.errors.anticipated_outside_year', [
-                'from' => $from->format('d-m-Y'),
-                'to' => $to->format('d-m-Y'),
-            ]), 'effective_date');
-        }
-
-        if ($kind === VacancyEntryKind::Existing && $effective->gt($from)) {
-            throw new WorkflowException(__('vacancymaster.errors.existing_after_opening', ['date' => $from->format('d-m-Y')]), 'effective_date');
-        }
-
-        $quota = $data['occupant_quota'] ?? null;
-        $reconciliation = isset($data['reconciliation']) && $data['reconciliation'] !== ''
-            ? VacancyReconciliation::from((string) $data['reconciliation'])
-            : null;
-
-        if ($kind === VacancyEntryKind::Anticipated && ($quota === null || $reconciliation === null)) {
-            throw new WorkflowException(__('vacancymaster.errors.anticipated_needs_quota_and_reconciliation'), 'occupant_quota');
-        }
-
-        $higher = $this->higherPostReference($position, $reason, $data);
-
-        $this->assertNotDuplicate($position, $kind, $reason, $effective, (string) $data['order_number'], $quota, $higher['higher_dpc_reference'] ?? null);
-
-        [$eligibility, $note] = $this->eligibilityFor($kind, $reason, $effective, $data);
-
-        return DB::transaction(function () use ($position, $data, $document, $actor, $kind, $reason, $effective, $quota, $reconciliation, $higher, $eligibility, $note): VacancyPositionEntry {
-            $stored = $this->store($document, $position, 'entries');
-
+        return $this->withStored($document, $position, 'entries', function (array $stored) use ($position, $data, $actor, $kind, $name, $attributes): VacancyPositionEntry {
             $entry = VacancyPositionEntry::query()->create([
                 'vacancy_position_id' => $position->id,
                 'kind' => $kind->value,
-                'reason' => $reason->value,
-                'occupant_quota' => $kind === VacancyEntryKind::Anticipated ? $quota : null,
-                'vacancy_count' => (int) $data['vacancy_count'],
-                'effective_date' => $effective->toDateString(),
-                'order_number' => trim((string) $data['order_number']),
-                'order_date' => Carbon::parse((string) $data['order_date'])->toDateString(),
+                'officer_name' => mb_substr($name, 0, 255),
+                'vacancy_count' => 1,
+                'order_number' => $this->clean($data['order_number'] ?? null),
+                'order_date' => empty($data['order_date']) ? null : Carbon::parse((string) $data['order_date'])->toDateString(),
                 ...$stored,
                 'remarks' => $this->clean($data['remarks'] ?? null),
-                'reconciliation' => $kind === VacancyEntryKind::Anticipated ? $reconciliation?->value : null,
-                ...$higher,
-                'deputation_to' => $reason === VacancyReason::Deputation && ! empty($data['deputation_to'])
-                    ? Carbon::parse((string) $data['deputation_to'])->toDateString() : null,
-                'deputation_expected_months' => $reason === VacancyReason::Deputation && ! empty($data['deputation_expected_months'])
-                    ? (int) $data['deputation_expected_months'] : null,
-                'against_sanctioned_post' => $reason === VacancyReason::Deputation && isset($data['against_sanctioned_post']) && $data['against_sanctioned_post'] !== ''
-                    ? (bool) (int) $data['against_sanctioned_post'] : null,
-                'cadre_details' => $reason === VacancyReason::Deputation ? $this->clean($data['cadre_details'] ?? null) : null,
-                'eligibility' => $eligibility->value,
-                'eligibility_note' => $note,
+                ...$attributes,
                 'status' => VacancyPositionEntry::STATUS_ACTIVE,
                 'recorded_by' => $actor->id,
             ]);
 
-            $this->record('vacancy_position.entry_added', $position, __('vacancymaster.timeline.entry_added', [
-                'count' => $entry->vacancy_count,
-                'reason' => $reason->label(),
+            $position->unsetRelation('entries');
+            $this->assertWithinSanctioned($position, 'kind');
+
+            $this->record('vacancy_position.entry_added', $position, __('vacancymaster.timeline.entry_added_named', [
                 'kind' => $kind->label(),
-                'eligibility' => $eligibility->label(),
+                'name' => $entry->officer_name,
+                'reason' => $entry->reason->label(),
+                'eligibility' => $entry->eligibility->label(),
             ]), [
                 'entry' => $entry->uuid,
                 'kind' => $kind->value,
-                'reason' => $reason->value,
-                'count' => $entry->vacancy_count,
-                'eligibility' => $eligibility->value,
+                'reason' => $entry->reason->value,
+                'counted' => $entry->isCounted(),
                 'document_sha256' => $entry->sha256,
             ], $actor);
 
@@ -863,6 +841,7 @@ class VacancyMasterService
                 'department_id' => $position->department_id,
                 'post_name' => $position->post_name,
                 'department_post_id' => $position->department_post_id,
+                'pre_dpc_proposal_id' => $position->pre_dpc_proposal_id,
                 'vacancy_year' => $position->vacancy_year,
                 'revision' => $position->revision + 1,
                 'status' => VacancyPositionStatus::Draft->value,
@@ -930,60 +909,147 @@ class VacancyMasterService
     }
 
     /**
-     * The eligibility an entry starts with, and why.
+     * B1: an officer of another department working here on deputation. In the
+     * working strength; the post falls vacant when the deputation ends inside the
+     * Vacancy Year. A deputation already over before 1 January is refused — that
+     * officer is not working here, and the post is in the clear vacancy.
      *
      * @param  array<string, mixed>  $data
-     * @return array{0: VacancyEntryEligibility, 1: string|null}
+     * @return array<string, mixed>
      */
-    private function eligibilityFor(VacancyEntryKind $kind, VacancyReason $reason, Carbon $effective, array $data): array
+    private function deputationIn(array $data, Carbon $from, Carbon $to): array
     {
-        if ($kind === VacancyEntryKind::Existing) {
-            return [VacancyEntryEligibility::Informational, __('vacancymaster.notes.existing')];
+        if (empty($data['deputation_from'])) {
+            throw new WorkflowException(__('vacancymaster.errors.deputation_came_required'), 'deputation_from');
         }
 
-        return match ($reason) {
-            VacancyReason::Retirement => [VacancyEntryEligibility::Eligible, __('vacancymaster.notes.retirement')],
-            VacancyReason::HigherPostPromotion => [VacancyEntryEligibility::PendingVerification, __('vacancymaster.notes.higher_post')],
-            VacancyReason::Death, VacancyReason::Other => [VacancyEntryEligibility::PendingVerification, __('vacancymaster.notes.unruled')],
-            VacancyReason::Deputation => $this->deputationEligibility($effective, $data),
-        };
+        if (empty($data['deputation_to'])) {
+            throw new WorkflowException(__('vacancymaster.errors.deputation_ends_required'), 'deputation_to');
+        }
+
+        $came = Carbon::parse((string) $data['deputation_from'])->startOfDay();
+        $ends = Carbon::parse((string) $data['deputation_to'])->startOfDay();
+
+        if ($ends->lt($came)) {
+            throw new WorkflowException(__('vacancymaster.errors.deputation_ends_before_came'), 'deputation_to');
+        }
+
+        if ($ends->lt($from)) {
+            throw new WorkflowException(__('vacancymaster.errors.deputation_already_ended', ['date' => $from->format('d-m-Y')]), 'deputation_to');
+        }
+
+        $counted = $ends->lte($to);
+
+        return [
+            'reason' => VacancyReason::Deputation->value,
+            'effective_date' => $ends->toDateString(),
+            'deputation_from' => $came->toDateString(),
+            'deputation_to' => $ends->toDateString(),
+            'eligibility' => ($counted ? VacancyEntryEligibility::Eligible : VacancyEntryEligibility::NotEligible)->value,
+            'eligibility_note' => __($counted ? 'vacancymaster.notes.deputation_in_ends' : 'vacancymaster.notes.deputation_in_continues', [
+                'date' => $ends->format('d-m-Y'),
+                'year' => $from->year,
+            ]),
+        ];
     }
 
     /**
-     * Rule 2.3: a post vacated by deputation against a sanctioned deputation post
-     * counts when the vacancy lasts more than one year. A deputation without a
-     * sanctioned setup is the rule's second sentence, which is left to the
-     * Administrator to confirm.
+     * B2 (rule 2.3): an officer of ours on deputation at another department. In the
+     * working strength; the post is a vacancy when the deputation is more than one
+     * year by 31 December and the department declares no promotion has been made
+     * against it.
      *
      * @param  array<string, mixed>  $data
-     * @return array{0: VacancyEntryEligibility, 1: string}
+     * @return array<string, mixed>
      */
-    private function deputationEligibility(Carbon $start, array $data): array
+    private function deputationOut(array $data, Carbon $to): array
     {
-        $against = isset($data['against_sanctioned_post']) && $data['against_sanctioned_post'] !== ''
-            ? (bool) (int) $data['against_sanctioned_post']
-            : null;
-
-        $months = null;
-
-        if (! empty($data['deputation_to'])) {
-            $end = Carbon::parse((string) $data['deputation_to'])->startOfDay();
-            $months = $end->gt($start->copy()->addYear()) ? 13 : 12;
-        } elseif (! empty($data['deputation_expected_months'])) {
-            $months = (int) $data['deputation_expected_months'];
+        if (empty($data['deputation_from'])) {
+            throw new WorkflowException(__('vacancymaster.errors.deputation_went_required'), 'deputation_from');
         }
 
-        if ($against === false) {
-            return [VacancyEntryEligibility::PendingVerification, __('vacancymaster.notes.deputation_no_setup')];
+        if (! isset($data['promotion_made']) || ! in_array((string) $data['promotion_made'], ['0', '1'], true)) {
+            throw new WorkflowException(__('vacancymaster.errors.promotion_made_required'), 'promotion_made');
         }
 
-        if ($against === null || $months === null) {
-            return [VacancyEntryEligibility::PendingVerification, __('vacancymaster.notes.deputation_undetermined')];
+        $went = Carbon::parse((string) $data['deputation_from'])->startOfDay();
+        $yearEnd = $to->copy()->startOfDay();
+
+        if ($went->gt($yearEnd)) {
+            throw new WorkflowException(__('vacancymaster.errors.deputation_went_after_year', ['date' => $yearEnd->format('d-m-Y')]), 'deputation_from');
         }
 
-        return $months > 12
-            ? [VacancyEntryEligibility::Eligible, __('vacancymaster.notes.deputation_over_a_year')]
-            : [VacancyEntryEligibility::NotEligible, __('vacancymaster.notes.deputation_within_a_year')];
+        $promotionMade = (string) $data['promotion_made'] === '1';
+        $overAYear = $went->copy()->addYear()->lt($yearEnd);
+        $counted = $overAYear && ! $promotionMade;
+
+        return [
+            'reason' => VacancyReason::Deputation->value,
+            'effective_date' => $went->toDateString(),
+            'deputation_from' => $went->toDateString(),
+            'promotion_made' => $promotionMade,
+            'eligibility' => ($counted ? VacancyEntryEligibility::Eligible : VacancyEntryEligibility::NotEligible)->value,
+            'eligibility_note' => __(match (true) {
+                $promotionMade => 'vacancymaster.notes.deputation_out_promotion_made',
+                ! $overAYear => 'vacancymaster.notes.deputation_out_within_a_year',
+                default => 'vacancymaster.notes.deputation_out_over_a_year',
+            }, ['date' => $yearEnd->format('d-m-Y')]),
+        ];
+    }
+
+    /**
+     * C: a retirement, or a promotion to a higher post, inside the Vacancy Year. A
+     * promotion carries the higher post, its DPC, the undertaking of rule 1.2 and the
+     * order with its PDF.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function anticipated(VacancyPosition $position, array $data, ?UploadedFile $document, Carbon $from, Carbon $to): array
+    {
+        $reason = VacancyReason::tryFrom((string) ($data['reason'] ?? ''));
+
+        if (! in_array($reason, [VacancyReason::Retirement, VacancyReason::HigherPostPromotion], true)) {
+            throw new WorkflowException(__('vacancymaster.errors.reason_invalid'), 'reason');
+        }
+
+        if (empty($data['effective_date'])) {
+            throw new WorkflowException(__('vacancymaster.errors.date_required'), 'effective_date');
+        }
+
+        $effective = Carbon::parse((string) $data['effective_date'])->startOfDay();
+
+        // The Vacancy Year boundaries, both inclusive.
+        if (! $effective->betweenIncluded($from->copy()->startOfDay(), $to)) {
+            throw new WorkflowException(__('vacancymaster.errors.anticipated_outside_year', [
+                'from' => $from->format('d-m-Y'),
+                'to' => $to->format('d-m-Y'),
+            ]), 'effective_date');
+        }
+
+        $higher = $this->higherPostReference($position, $reason, $data);
+
+        if ($reason === VacancyReason::HigherPostPromotion) {
+            if (trim((string) ($data['order_number'] ?? '')) === '') {
+                throw new WorkflowException(__('vacancymaster.errors.order_number_required'), 'order_number');
+            }
+
+            if (empty($data['order_date'])) {
+                throw new WorkflowException(__('vacancymaster.errors.order_date_required'), 'order_date');
+            }
+
+            if ($document === null) {
+                throw new WorkflowException(__('vacancymaster.errors.document_required'), 'document');
+            }
+        }
+
+        return [
+            'reason' => $reason->value,
+            'effective_date' => $effective->toDateString(),
+            ...$higher,
+            'eligibility' => VacancyEntryEligibility::Eligible->value,
+            'eligibility_note' => __($reason === VacancyReason::Retirement ? 'vacancymaster.notes.retirement' : 'vacancymaster.notes.higher_post_counted'),
+        ];
     }
 
     /**
@@ -1022,43 +1088,76 @@ class VacancyMasterService
             'higher_post_id' => $higher->id,
             'higher_dpc_reference' => mb_substr($reference, 0, 60),
             'higher_dpc_proposal_id' => $proposal?->id,
-            'promotion_order_number' => $this->clean($data['promotion_order_number'] ?? null),
-            'promotion_order_date' => empty($data['promotion_order_date']) ? null : Carbon::parse((string) $data['promotion_order_date'])->toDateString(),
+            'promotion_order_number' => $this->clean($data['order_number'] ?? null),
+            'promotion_order_date' => empty($data['order_date']) ? null : Carbon::parse((string) $data['order_date'])->toDateString(),
             'higher_post_undertaking_at' => now(),
         ];
     }
 
     /**
-     * The same order cannot be entered twice for the same vacancy, and one higher-
-     * post DPC can be cited by one entry only.
+     * One officer is one row of a kind: the same name cannot be entered twice.
      */
-    private function assertNotDuplicate(
-        VacancyPosition $position,
-        VacancyEntryKind $kind,
-        VacancyReason $reason,
-        Carbon $effective,
-        string $orderNumber,
-        ?string $quota,
-        ?string $higherReference,
-    ): void {
-        $active = VacancyPositionEntry::query()
+    private function assertNotDuplicate(VacancyPosition $position, VacancyEntryKind $kind, string $name): void
+    {
+        $exists = VacancyPositionEntry::query()
             ->where('vacancy_position_id', $position->id)
-            ->where('status', VacancyPositionEntry::STATUS_ACTIVE);
-
-        $duplicate = (clone $active)
+            ->where('status', VacancyPositionEntry::STATUS_ACTIVE)
             ->where('kind', $kind->value)
-            ->where('reason', $reason->value)
-            ->whereDate('effective_date', $effective->toDateString())
-            ->where('order_number', trim($orderNumber))
-            ->where(fn ($query) => $quota === null ? $query->whereNull('occupant_quota') : $query->where('occupant_quota', $quota))
+            ->whereRaw('LOWER(TRIM(officer_name)) = ?', [mb_strtolower($name)])
             ->exists();
 
-        if ($duplicate) {
-            throw new WorkflowException(__('vacancymaster.errors.duplicate_entry'));
+        if ($exists) {
+            throw new WorkflowException(__('vacancymaster.errors.duplicate_officer', ['name' => $name]), 'officer_name');
+        }
+    }
+
+    /**
+     * Neither the working strength nor the total vacancy may exceed the sanctioned
+     * strength. Called inside the write's transaction, after the write, so the
+     * figures are the ones that would be kept; throwing rolls the write back.
+     */
+    private function assertWithinSanctioned(VacancyPosition $position, string $field): void
+    {
+        $fresh = VacancyPosition::query()->findOrFail($position->id);
+        $breakdown = $this->breakdown($fresh);
+        $sanctioned = $breakdown['sanctioned'];
+
+        if ($sanctioned === null) {
+            return;
         }
 
-        if ($higherReference !== null && (clone $active)->where('higher_dpc_reference', $higherReference)->exists()) {
-            throw new WorkflowException(__('vacancymaster.errors.duplicate_higher_dpc', ['reference' => $higherReference]), 'higher_dpc_reference');
+        $working = $breakdown['working']['total'] ?? null;
+
+        if ($working !== null && $working > $sanctioned) {
+            throw new WorkflowException(__('vacancymaster.errors.working_over_sanctioned', ['working' => $working, 'sanctioned' => $sanctioned]), $field);
+        }
+
+        if ($breakdown['total_vacancy'] !== null && $breakdown['total_vacancy'] > $sanctioned) {
+            throw new WorkflowException(__('vacancymaster.errors.total_over_sanctioned', ['total' => $breakdown['total_vacancy'], 'sanctioned' => $sanctioned]), $field);
+        }
+    }
+
+    /**
+     * Store an optional PDF, then run the write in a transaction with it; a refused
+     * write removes the file it stored.
+     *
+     * @template T
+     *
+     * @param  callable(array<string, mixed>): T  $write
+     * @return T
+     */
+    private function withStored(?UploadedFile $document, VacancyPosition $position, string $folder, callable $write): mixed
+    {
+        $stored = $document === null ? [] : $this->store($document, $position, $folder);
+
+        try {
+            return DB::transaction(fn () => $write($stored));
+        } catch (\Throwable $e) {
+            if ($stored !== []) {
+                Storage::disk($stored['disk'])->delete($stored['path']);
+            }
+
+            throw $e;
         }
     }
 

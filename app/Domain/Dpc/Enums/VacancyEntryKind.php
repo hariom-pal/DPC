@@ -5,15 +5,17 @@ declare(strict_types=1);
 namespace App\Domain\Dpc\Enums;
 
 /**
- * Existing: a vacancy already open on 1 January. It is part of the opening position
- * (sanctioned − working) by definition, so it explains that figure and never adds
- * to it.
+ * The rows of a Vacancy Management record (decisions of 2026-10-30):
  *
- * Anticipated: a vacancy arising during the Vacancy Year — (C) on the screen.
+ * DeputationIn: (B1) an officer of another department working here on deputation.
+ * They are in the working strength; their post falls vacant when the deputation
+ * ends inside the Vacancy Year.
  *
- * Deputation (2026-10-30, MoM of 2026-10-29): (B) Clear Deputation Vacancy — one
- * officer of the working strength on deputation at another department, whose post
- * is a vacancy under rule 2.3.
+ * Deputation: (B2) an officer of ours on deputation at another department. They are
+ * in the working strength; their post is a vacancy when the deputation is more than
+ * one year by 31 December and no promotion has been made against it (rule 2.3).
+ *
+ * Anticipated: (C) a retirement or a promotion to a higher post during the year.
  *
  * (A) Clear is never entered: it is sanctioned − working. `Existing` belongs to
  * records kept before 2026-10-30 and is no longer offered.
@@ -21,6 +23,7 @@ namespace App\Domain\Dpc\Enums;
 enum VacancyEntryKind: string
 {
     case Existing = 'existing';
+    case DeputationIn = 'deputation_in';
     case Deputation = 'deputation';
     case Anticipated = 'anticipated';
 

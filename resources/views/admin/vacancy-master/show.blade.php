@@ -14,11 +14,13 @@
 
         $activeEntries = $position === null ? collect() : $position->entries->filter(fn ($entry) => $entry->isActive());
         $pendingEntries = $activeEntries->filter(fn ($entry) => $entry->eligibility->value === 'pending_verification')->count();
+        // A record kept before 2026-10-30 and frozen then is read the old way.
+        $perPreDpc = $position === null || $position->isDraft() || \App\Domain\Dpc\Services\VacancyMasterService::isPerPreDpc($b);
 
         // One question per step. Each step knows whether it is done.
         $steps = [
             'sanctioned' => ['n' => 1, 'state' => $sanctioned !== null ? 'done' : 'pending'],
-            'working' => ['n' => 2, 'state' => $working !== null && $working->hasQuotaSplit() ? 'done' : 'pending'],
+            'working' => ['n' => 2, 'state' => $working !== null && ($perPreDpc || $working->hasQuotaSplit()) ? 'done' : 'pending'],
             'vacancies' => ['n' => 3, 'state' => $pendingEntries > 0 ? 'pending' : ($activeEntries->isNotEmpty() ? 'done' : 'optional')],
             // Done only once finalized — "ready" is not done.
             'summary' => ['n' => 4, 'state' => $position !== null && ! $isDraft ? 'done' : 'pending'],
@@ -48,6 +50,18 @@
                 · {{ __('vacancymaster.year_window', ['from' => '01-01-'.$year, 'to' => '31-12-'.$year]) }}
             </div>
             <div class="text-muted small">{{ __('vacancymaster.seniority_reference', ['date' => $seniorityReference->format('d-m-Y')]) }}</div>
+            {{-- Not on a record finalized before 2026-10-30: it took its share from the Recruitment Rule. --}}
+            @if ($preDpc !== null && $perPreDpc)
+                <div class="small" id="vacancy-pre-dpc">
+                    {{ __('vacancymaster.pm.for_pre_dpc') }}:
+                    @if ($adminArea)
+                        <code>{{ $preDpc->pre_dpc_number ?? '—' }}</code>
+                    @else
+                        <a href="{{ route('pre-dpc.show', $preDpc) }}"><code>{{ $preDpc->pre_dpc_number ?? '—' }}</code></a>
+                    @endif
+                    · {{ __('vacancymaster.pm.promotion_share', ['pct' => $preDpc->promotion_recruitment_pct]) }}
+                </div>
+            @endif
         </div>
         <div class="text-end">
             @if ($position !== null)
@@ -102,7 +116,7 @@
             </ol>
         </nav>
 
-        @include('admin.vacancy-master.steps.'.$section)
+        @include('admin.vacancy-master.steps.'.$section.($perPreDpc || $section === 'sanctioned' ? '' : '-v1'))
 
         <div class="d-flex justify-content-between mb-3">
             <div>

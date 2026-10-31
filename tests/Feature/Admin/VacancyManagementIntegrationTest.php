@@ -110,11 +110,15 @@ class VacancyManagementIntegrationTest extends TestCase
         return $proposal;
     }
 
-    /** The promotion share the proposal's own Recruitment Rule gives. */
+    /**
+     * The promotion share: the Pre-DPC's, which a record kept per Pre-DPC reads
+     * (2026-10-30), and the Recruitment Rule's, which a chart reads.
+     */
     private function share(DpcProposal $proposal, string $promotion): void
     {
         $rule = $proposal->recruitment_rule_id === null ? $this->rule : RecruitmentRule::query()->findOrFail($proposal->recruitment_rule_id);
         $rule->forceFill(['promotion_recruitment_pct' => $promotion, 'direct_recruitment_pct' => 100 - (float) $promotion])->save();
+        $proposal->preDpcProposal?->forceFill(['promotion_recruitment_pct' => $promotion, 'direct_recruitment_pct' => 100 - (float) $promotion])->save();
     }
 
     private function pdf(): UploadedFile
@@ -123,27 +127,37 @@ class VacancyManagementIntegrationTest extends TestCase
     }
 
     /**
-     * The Administrator's record, through the service the screens use.
+     * The department's record, through the service the screens use: sanctioned,
+     * our working officers, and one retirement row per officer retiring on 30 June.
+     * Opened under the approved Pre-DPC of the post and year (2026-10-30).
      *
      * @param  list<array{reason: string, quota: string, count: int}>  $anticipated
      */
     private function finalize(int $sanctioned, int $promotion, int $direct, array $anticipated = [], ?Department $department = null, int $year = self::YEAR, ?DepartmentPost $post = null): VacancyPosition
     {
+        $department ??= $this->department;
+        $post ??= $this->to;
+        $feeder = $department->is($this->department) ? $this->from : $this->makePost('Feeder '.$post->id, $department);
+        $this->sanctioningPreDpc($feeder, $post, $year);
+
         $service = app(VacancyMasterService::class);
-        $position = $service->openDraft($department ?? $this->department, $post ?? $this->to, $year, $this->admin);
+        $position = $service->openDraft($department, $post, $year, $this->admin);
 
         $service->saveSanctionedStrength($position, ['sanctioned_total' => $sanctioned, 'order_number' => 'SANC/'.$year, 'order_date' => $year.'-01-02'], $this->pdf(), $this->admin);
         $service->saveWorkingStrength($position->fresh(), [
-            'working_total' => $promotion + $direct, 'working_promotion' => $promotion, 'working_direct' => $direct, 'working_deputation' => 0,
+            'working_total' => $promotion + $direct,
             'order_number' => 'EST/'.$year, 'order_date' => $year.'-01-02',
         ], $this->pdf(), $this->admin);
 
-        foreach ($anticipated as $i => $entry) {
-            $service->addEntry($position->fresh(), [
-                'kind' => 'anticipated', 'reason' => $entry['reason'], 'vacancy_count' => $entry['count'],
-                'effective_date' => $year.'-06-30', 'occupant_quota' => $entry['quota'], 'reconciliation' => 'counted_in_working',
-                'order_number' => 'RET/'.$i, 'order_date' => $year.'-01-10',
-            ], $this->pdf(), $this->admin);
+        $n = 0;
+
+        foreach ($anticipated as $entry) {
+            for ($i = 0; $i < $entry['count']; $i++) {
+                $service->addEntry($position->fresh(), [
+                    'kind' => 'anticipated', 'reason' => $entry['reason'], 'officer_name' => 'Retiring Officer '.(++$n),
+                    'effective_date' => $year.'-06-30',
+                ], null, $this->admin);
+            }
         }
 
         return $service->finalize($position->fresh(), $this->admin);
@@ -226,7 +240,7 @@ class VacancyManagementIntegrationTest extends TestCase
                 'corrected from 12 to 14',
                 'Revision 2 opened',
                 'finalized (revision 1)',
-                'vacancy/vacancies added',
+                'Anticipated — Retiring Officer 1',
                 'Working strength for Deputy Director, 2026 recorded',
                 'Sanctioned strength for Deputy Director, 2026 recorded: 12',
                 'draft opened',
@@ -262,6 +276,7 @@ class VacancyManagementIntegrationTest extends TestCase
             ->assertSee('Deputy Director')
             ->assertDontSee('id="vacancy-read-only"', false);
 
+        $this->sanctioningPreDpc($this->from, $this->to, self::YEAR);
         $this->actingAs($this->ao)->post(route('vacancy-records.open', [$this->department, self::YEAR, $this->to]))->assertRedirect();
         $this->assertSame(1, VacancyPosition::query()->where('department_id', $this->department->id)->count());
 
@@ -285,43 +300,44 @@ class VacancyManagementIntegrationTest extends TestCase
         $this->assertSame(['clear', 'from_deputation', 'from_promotion', 'from_retirement'], VacancyType::query()->orderBy('code')->pluck('code')->all());
     }
 
-    // ============================================= the same results as the chart
+    // ======================================== the figures a proposal reads
 
     /**
-     * @return array<string, array{0: int, 1: int, 2: int, 3: int, 4: string}>
+     * @return array<string, array{0: int, 1: int, 2: int, 3: string, 4: int, 5: int}>
      */
     public static function scenarios(): array
     {
         return [
-            // 12 × 75% = 9 promotion posts; 7 − 1 retiring held → 3 promotion, 1 direct.
-            'retirement in the year' => [12, 7, 2, 1, '75.00'],
-            // Rule 1.3: 10 × 55% = 5.5 → 6 to promotion (the .5 goes to promotion).
-            'rule 1.3 half to promotion' => [10, 3, 2, 0, '55.00'],
-            // Full promotion post, no direct quota.
-            'all promotion' => [8, 5, 0, 2, '100.00'],
+            // A = 12 − 9 = 3, C = 1 → 4; 4 × 75% = 3 promotion, 1 direct.
+            'retirement in the year' => [12, 9, 1, '75.00', 3, 1],
+            // A = 10 − 5 = 5 → 5; 5 × 55% = 2.75 → rule 1.3 rounds to 3 promotion, 2 direct.
+            'share rounded' => [10, 5, 0, '55.00', 3, 2],
+            // A = 8 − 5 = 3, C = 2 → 5; all promotion.
+            'all promotion' => [8, 5, 2, '100.00', 5, 0],
         ];
     }
 
+    /**
+     * A record kept per Pre-DPC (2026-10-30): total = A + B + C, the promotion
+     * vacancy the Pre-DPC's share of it, read by the proposal unchanged.
+     */
     #[DataProvider('scenarios')]
-    public function test_the_admin_record_gives_the_same_figures_as_the_chart(int $sanctioned, int $promotion, int $direct, int $retiring, string $share): void
+    public function test_the_proposal_reads_the_records_total_and_the_pre_dpc_share(int $sanctioned, int $working, int $retiring, string $share, int $promotion, int $direct): void
     {
-        $chart = $this->raise('chart');
         $master = $this->raise('vacancy_master');
         $this->share($master, $share);
 
         $anticipated = $retiring > 0 ? [['reason' => 'retirement', 'quota' => 'promotion', 'count' => $retiring]] : [];
-        $this->finalize($sanctioned, $promotion, $direct, $anticipated);
-        $this->chart($chart->fresh(), $sanctioned, $promotion, $direct, $retiring);
+        $this->finalize($sanctioned, $working, 0, $anticipated);
 
-        $calc = app(VacancyCalculationService::class);
-        $a = $calc->breakdown($chart->fresh());
-        $b = $calc->breakdown($master->fresh());
+        $b = app(VacancyCalculationService::class)->breakdown($master->fresh());
 
-        foreach (['sanctionedStrength', 'promotionPercentage', 'promotionChairs', 'directChairs', 'promotionChairsHeld', 'directChairsHeld', 'promotionVacancy', 'directRecruitmentVacancy', 'totalVacancy', 'retirementVacancy'] as $figure) {
-            $this->assertSame($a->{$figure}, $b->{$figure}, $figure);
-        }
-
-        $this->assertSame($calc->summary($chart->fresh())['required_seniority'], $calc->summary($master->fresh())['required_seniority']);
+        $this->assertSame($sanctioned, $b->sanctionedStrength);
+        $this->assertSame($working, $b->workingStrength);
+        $this->assertSame($sanctioned - $working + $retiring, $b->totalVacancy);
+        $this->assertSame($retiring, $b->retirementVacancy);
+        $this->assertSame($promotion, $b->promotionVacancy);
+        $this->assertSame($direct, $b->directRecruitmentVacancy);
     }
 
     // ===================================================== the AO's proposal
