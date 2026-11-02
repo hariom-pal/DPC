@@ -6,6 +6,7 @@ namespace Tests\Feature\Admin;
 
 use App\Domain\Authentication\Models\User;
 use App\Domain\Department\Models\Department;
+use App\Domain\Dpc\Enums\VacancyEntryKind;
 use App\Domain\Dpc\Enums\VacancyPositionStatus;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Models\VacancyPosition;
@@ -832,6 +833,31 @@ class VacancyMasterTest extends TestCase
         $this->assertSame(['One year' => false, 'A day more' => true, 'Promoted against' => false], $counted);
         $this->assertTrue(VacancyPositionEntry::query()->where('officer_name', 'Promoted against')->sole()->promotion_made);
         $this->assertSame(1, $this->breakdown()['deputation_out_vacancy']);
+    }
+
+    /**
+     * 2026-11-02: one officer is one vacancy. An Employee ID already on the record —
+     * in B1, B2 or C — is refused in every section, whatever its case or spacing; a
+     * withdrawn row frees it.
+     */
+    public function test_one_employee_id_is_counted_once_across_b1_b2_and_c(): void
+    {
+        $this->openDraft();
+        $this->saveWorking()->assertSessionHasNoErrors();
+
+        $this->addEntry(['kind' => 'deputation', 'officer_name' => 'C. Patel', 'employee_number' => 'E-9', 'deputation_from' => '2025-03-01', 'promotion_made' => '0'])->assertSessionHasNoErrors();
+
+        $this->addEntry(['officer_name' => 'C. Patel', 'employee_number' => ' e-9 ', 'effective_date' => '2026-06-30'])
+            ->assertSessionHasErrors(['employee_number' => __('vacancymaster.errors.duplicate_employee', ['number' => 'E-9', 'name' => 'C. Patel', 'section' => VacancyEntryKind::Deputation->label()])]);
+        $this->addEntry(['kind' => 'deputation_in', 'officer_name' => 'Someone Else', 'employee_number' => 'E-9', 'deputation_from' => '2024-07-01', 'deputation_to' => '2026-06-30'])
+            ->assertSessionHasErrors('employee_number');
+        $this->addEntry(['kind' => 'deputation', 'officer_name' => 'Another Name', 'employee_number' => 'E- 9', 'deputation_from' => '2025-03-01', 'promotion_made' => '0'])
+            ->assertSessionHasErrors('employee_number');
+        $this->assertSame(1, VacancyPositionEntry::query()->count());
+
+        $entry = VacancyPositionEntry::query()->sole();
+        $this->actingAs($this->ao)->post($this->url('entries.withdraw', [$entry]), ['withdrawal_reason' => 'Entered under the wrong section.'])->assertSessionHasNoErrors();
+        $this->addEntry(['officer_name' => 'C. Patel', 'employee_number' => 'E-9', 'effective_date' => '2026-06-30'])->assertSessionHasNoErrors();
     }
 
     public function test_anticipated_rows_are_retirements_or_promotions_inside_the_year_one_officer_each(): void

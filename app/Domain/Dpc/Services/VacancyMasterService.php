@@ -690,6 +690,7 @@ class VacancyMasterService
         }
 
         $this->assertNotDuplicate($position, $kind, $name);
+        $this->assertEmployeeNotEntered($position, $data['employee_number'] ?? null);
 
         [$from, $to] = $this->engine->periodForYear($position->vacancy_year);
         $attributes = match ($kind) {
@@ -1198,6 +1199,36 @@ class VacancyMasterService
 
         if ($exists) {
             throw new WorkflowException(__('vacancymaster.errors.duplicate_officer', ['name' => $name]), 'officer_name');
+        }
+    }
+
+    /**
+     * One officer is one vacancy (2026-11-02): an Employee ID already on a live row
+     * of the record — in B1, B2 or C — is refused, whatever the section, so the same
+     * officer can never be counted twice. Compared without case or spaces.
+     */
+    private function assertEmployeeNotEntered(VacancyPosition $position, mixed $employeeNumber): void
+    {
+        $normalise = fn (?string $number): string => mb_strtoupper((string) preg_replace('/\s+/u', '', (string) $number));
+        $number = $normalise(is_string($employeeNumber) ? $employeeNumber : null);
+
+        if ($number === '') {
+            return;
+        }
+
+        $existing = VacancyPositionEntry::query()
+            ->where('vacancy_position_id', $position->id)
+            ->where('status', VacancyPositionEntry::STATUS_ACTIVE)
+            ->whereNotNull('employee_number')
+            ->get()
+            ->first(fn (VacancyPositionEntry $entry): bool => $normalise($entry->employee_number) === $number);
+
+        if ($existing !== null) {
+            throw new WorkflowException(__('vacancymaster.errors.duplicate_employee', [
+                'number' => $existing->employee_number,
+                'name' => $existing->officer_name,
+                'section' => $existing->kind->label(),
+            ]), 'employee_number');
         }
     }
 

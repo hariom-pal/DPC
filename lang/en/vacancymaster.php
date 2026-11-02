@@ -255,6 +255,7 @@ return [
         'kind_invalid' => 'Choose what this row is.',
         'officer_name_required' => 'Enter the officer\'s name.',
         'duplicate_officer' => ':name is already entered in this list.',
+        'duplicate_employee' => 'Employee ID :number (:name) is already entered under :section. One officer can be counted only once.',
         'deputation_came_required' => 'Enter the date the officer came on deputation.',
         'deputation_ends_before_came' => 'The deputation cannot end before it began.',
         'deputation_already_ended' => 'This deputation ended before :date, so the officer is not working on the post and is not counted in the working strength. The post is already in the clear vacancy.',
