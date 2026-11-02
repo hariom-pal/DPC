@@ -182,6 +182,12 @@ final class DpcRowRules
                  | instance of item 4 unrecordable.
                  */
                 'deputation_to' => ['nullable', 'date', 'after_or_equal:deputation_from', 'prohibited_if:status,'.DpcWorkingOfficer::STATUS_VACANT],
+
+                // One of our officers away at another department (2026-11-01, B2).
+                'out_on_deputation' => ['nullable', 'boolean', 'prohibited_if:status,'.DpcWorkingOfficer::STATUS_VACANT],
+
+                // Optional, for the employee database (2026-11-02).
+                'email' => ['nullable', 'string', 'email', 'max:255', 'prohibited_if:status,'.DpcWorkingOfficer::STATUS_VACANT],
             ],
         );
     }

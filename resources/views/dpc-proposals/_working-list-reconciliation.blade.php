@@ -1,7 +1,7 @@
 {{--
     Step 1 of a Vacancy Management proposal: the AO's Working Officers List against the
-    finalized record. Figures that differ are marked; the Seniority List stays closed
-    until all four agree.
+    finalized record. Figures that differ are marked, and so is each row that does not
+    agree with B1/B2; the Seniority List stays closed until everything agrees.
     Expects: $reconciliation (ProposalVacancyPosition::reconcile()).
 --}}
 <div id="working-list-reconciliation" data-reconciled="{{ $reconciliation['matches'] ? 'yes' : 'no' }}">
@@ -33,6 +33,25 @@
                 </tbody>
             </table>
         </div>
+        {{-- Row by row against B1/B2 (2026-11-01). --}}
+        @if (($reconciliation['unmatched'] ?? []) !== [])
+            <div class="small text-danger mb-1" id="working-list-unmatched"><strong>{{ __('vacancymaster.proposal.working_list.match.unmatched_heading') }}</strong>
+                <ul class="mb-1">
+                    @foreach ($reconciliation['unmatched'] as $row)
+                        <li>{{ __('vacancymaster.proposal.working_list.match.row', ['sn' => $row['sn'], 'name' => $row['name'] ?? '—', 'message' => $row['message']]) }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+        @if (($reconciliation['missing'] ?? []) !== [])
+            <div class="small text-danger mb-2" id="working-list-unnamed"><strong>{{ __('vacancymaster.proposal.working_list.match.missing_heading') }}</strong>
+                <ul class="mb-1">
+                    @foreach ($reconciliation['missing'] as $entry)
+                        <li>{{ $entry['kind'] }}: {{ $entry['name'] }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
         @if ($reconciliation['matches'])
             <div class="alert alert-success py-2 small mb-0">{{ __('vacancymaster.proposal.working_list.matches') }}</div>
         @else

@@ -43,7 +43,6 @@
                             <td class="text-center">{{ $department->dpc_proposals_count }}</td>
                             <td><span class="badge text-bg-light border">{{ $department->status->label() }}</span></td>
                             <td class="text-end">
-                                <a href="{{ route('admin.departments.vacancy-master.index', $department) }}" class="btn btn-outline-secondary btn-sm">{{ __('vacancymaster.open_vacancy_master') }}</a>
                                 <a href="{{ route('admin.departments.edit', $department) }}" class="btn btn-outline-primary btn-sm">{{ __('ui.edit') }}</a>
                                 <form method="POST" action="{{ route('admin.departments.destroy', $department) }}" class="d-inline"
                                       data-confirm="{{ __('admin.departments.index.delete_this_department') }}">

@@ -10,12 +10,14 @@ use App\Domain\Authentication\Services\SecurityLog;
 use App\Domain\Dpc\Enums\DpcProposalStatus;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Models\DpcWorkingOfficer;
+use App\Domain\Employee\Services\EmployeeDirectory;
 use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\PromotionCrRule;
 use App\Domain\Master\Models\RecruitmentRule;
 use App\Domain\Master\Services\PromotionCrRules;
 use App\Domain\PreDpc\Models\PreDpcPromotionSource;
 use App\Domain\PreDpc\Models\PreDpcProposal;
+use App\Domain\Review\Models\DpcReviewLink;
 use App\Domain\Shared\Services\ActivityTimelineService;
 use App\Domain\Shared\Services\IdentifierSequenceService;
 use App\Domain\Shared\Workflow\WorkflowEngine;
@@ -70,6 +72,7 @@ class DpcProposalService
         private readonly VacancyCalculationRecorder $vacancyCalculations,
         private readonly PromotionCrRules $promotionRules,
         private readonly ProposalAllotmentService $allotments,
+        private readonly EmployeeDirectory $employees,
     ) {}
 
     /**
@@ -413,15 +416,20 @@ class DpcProposalService
                     // officer sitting on it (business instruction, 2026-09-07).
                     'seat_reservation_category_id' => $officer['seat_reservation_category_id'] ?? null,
                     'mobile' => $officer['mobile'] ?? null,
+                    'email' => $officer['email'] ?? null,
                     'roster_position' => $officer['roster_position'] ?? null,
                     'date_of_retirement' => $officer['date_of_retirement'] ?? null,
                     'deputation_from' => $officer['deputation_from'] ?? null,
                     'deputation_to' => $officer['deputation_to'] ?? null,
+                    'out_on_deputation' => $officer['out_on_deputation'] ?? null,
                 ]);
             }
         });
 
         $this->recordSectionUpdate($proposal, 'working_officers_updated', 'Working officers updated', count($officers), $actor);
+
+        // The employee database keeps each officer for future reference (2026-11-02).
+        $this->employees->recordWorkingOfficers($proposal);
 
         return $proposal->fresh(['workingOfficers']) ?? $proposal;
     }
@@ -524,6 +532,9 @@ class DpcProposalService
          | that the accounts are reported and the list is saved.
          */
         $this->lastCandidateProvisioning = $this->candidateAccounts->provision($proposal);
+
+        // After provisioning, so each officer is linked to the account just made.
+        $this->employees->recordSeniorityList($proposal);
 
         return $proposal->fresh(['seniorityEntries']) ?? $proposal;
     }
@@ -783,6 +794,14 @@ class DpcProposalService
             $def = $this->engine->assertAllowed('dpc_proposal', 'cancel', $from, $actor);
 
             $locked->forceFill(['status' => DpcProposalStatus::Cancelled->value, 'cancelled_at' => now()])->save();
+
+            // A cancelled Review never took effect: its link goes, so the original can
+            // be reviewed again (an original may carry only one link). The Review
+            // proposal keeps `original_dpc_proposal_id` and its timeline.
+            DpcReviewLink::query()
+                ->where('review_dpc_proposal_id', $locked->id)
+                ->whereNull('superseded_at')
+                ->delete();
 
             $this->revisions->recordCancellation($locked);
 

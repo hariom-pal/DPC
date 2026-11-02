@@ -16,12 +16,12 @@ Migrations named are under `database/migrations/2026_10_*`.
 | 2.1 PH 3 %, once in service, verification | Done **(decided: AH verifies; separate PH seats first)** | PH questionnaire with document for every PH employee; AH decision (650001); calculation sets aside PH seats for verified claims (`DpcCalculationService::placeOnLists`) |
 | 2.2 Departmental enquiry → sealed cover | Done **(decided)** | Master `sealed_cover_reasons` (590001); Employee Details section; sealed officer keeps the seat, remark `SCOVER` |
 | 2.3 Deputation | Done **(decided: question in Employee Details → NE)** | Vacancy entry date and eligibility; `unsanctioned_deputation` (620001) with order → Not Eligible |
-| 3.1 CR (4 a year, average truncated, highest authority, NRC, channel) | Done | Employee Details CR section; points from Eligible CR Grades |
+| 3.1 CR (4 a year, average truncated, highest authority, NRC, channel) | Done differently **(decided 2026-11-01: one CR a year, no average)** | Employee Details CR section: the authorities whose remarks the CR carries (ticked; one unticked needs an NRC) and the highest one's grade; a year left with several CRs from the earlier form is ungraded until re-entered; points from Eligible CR Grades |
 | 3.1 "Take previous year CR" (carry forward) | Not applied **(decided)** | A missing mandatory year needs its reason and document: CIR, else NE |
 | 3.2 Missing CR reasons with documents | Done **(decided: document per reason)** | Record Reason master names the document(s); suspension needs suspension + reinstatement orders (630001) |
 | 3.3 Class I → I merit-cum-seniority | NA in the document | — |
 | 3.4 Grade → 9/7/5/3/1 via master | Done | Eligible CR Grades with validity and grade code |
-| 3.5 Old grading intervals via master | Done | Class Master promotion rule: CR years, per-year minimum, qualifying total, tribal bonus (per year, not at the highest/lowest grade), fixed on the DPC when raised |
+| 3.5 Old grading intervals via master | Done | Class Master promotion rule: CR years, per-year minimum, qualifying total, tribal bonus per tribal CR year **at the grades ticked on the rule (2026-11-01)** — rules recorded before keep "not at the highest/lowest grade" — fixed on the DPC when raised |
 | 4.1 IPR, late IPR decision, duplicate check | Done | Employee Details Property section |
 | 4.3 DPC order, link to officers and committee, seniority from order date | Done **(decided)** | `dpc_promotion_orders` (660001); issued by the AH on the approved result; PDF (dompdf, English) signed; signed link by SMS/e-mail/in-app; superseded, never rewritten |
 | 4.3 Retrospective / joint DPC | NA in the document | — |

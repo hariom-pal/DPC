@@ -46,7 +46,9 @@
                                     'from' => $crRule->from_class, 'to' => $crRule->to_class, 'since' => $crRule->effective_from_year,
                                     'cr' => $crRule->cr_years, 'total' => $crRule->qualifying_total ?? '—', 'bonus' => $crRule->tribal_bonus,
                                 ]) }}
-                                @if ($crRule->tribal_bonus > 0 && $crRule->tribal_bonus_basis !== 'officer' && $crRule->tribal_bonus_skips_extremes)
+                                @if ($crRule->tribal_bonus > 0 && $crRule->tribal_bonus_basis !== 'officer' && $crRule->tribal_bonus_grades !== null)
+                                    ({{ __('admin.promotion_rules.tribal_value_grades', ['grades' => implode(', ', $crRule->tribal_bonus_grades)]) }})
+                                @elseif ($crRule->tribal_bonus > 0 && $crRule->tribal_bonus_basis !== 'officer' && $crRule->tribal_bonus_skips_extremes)
                                     ({{ __('admin.promotion_rules.tribal_value_skips') }})
                                 @endif
                             </dd>

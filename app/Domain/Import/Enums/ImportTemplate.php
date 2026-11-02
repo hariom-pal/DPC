@@ -188,6 +188,17 @@ enum ImportTemplate: string
 
         return match ($this) {
             self::CurrentlyWorkingUs => $shared + [
+                // The simple list's one question (2026-11-01): Y for an officer of
+                // another department working here on deputation.
+                'here_on_deputation' => 'here_on_deputation',
+                'on_deputation' => 'here_on_deputation',
+                // One of our officers away at another department (2026-11-01), matched with B2.
+                'out_on_deputation' => 'out_on_deputation',
+                // Optional, for the employee database (2026-11-02).
+                'email' => 'email',
+                'email_id' => 'email',
+                'e_mail' => 'email',
+                'email_address' => 'email',
                 'sn' => 'sn',
                 's_n' => 'sn',
                 'serial_no' => 'sn',

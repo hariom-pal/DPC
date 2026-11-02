@@ -47,6 +47,7 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property bool|null $against_sanctioned_post
  * @property string|null $cadre_details
  * @property string|null $officer_name
+ * @property string|null $employee_number optional, so the Working Officers List is matched by number before name (2026-11-01)
  * @property Carbon|null $deputation_from
  * @property bool|null $promotion_made
  * @property VacancyEntryEligibility $eligibility
@@ -77,6 +78,7 @@ class VacancyPositionEntry extends Model implements Auditable
         'occupant_quota',
         'vacancy_count',
         'officer_name',
+        'employee_number',
         'effective_date',
         'order_number',
         'order_date',

@@ -196,6 +196,19 @@ class DpcReportTest extends TestCase
         unset($draftRun);
     }
 
+    public function test_a_sealed_cover_on_the_main_list_is_not_counted_as_promoted(): void
+    {
+        $proposal = $this->proposal($this->mine, DpcProposalStatus::Approved);
+        $run = $this->calculationRun($proposal, mainList: 3, waitingList: 0);
+        // Rule 2.2: the seat is held under a sealed cover; nobody is promoted on it.
+        DpcCalculationResult::query()->where('dpc_calculation_run_id', $run->id)->where('sn', 1)
+            ->update(['verdict' => json_encode(['sealed_cover' => 'Departmental enquiry'])]);
+
+        $this->proceeding($proposal, DpcProceedingStatus::ResultApproved, $run);
+
+        $this->assertSame(2, app(DpcReportService::class)->outcomes($this->mine->id)['promoted']);
+    }
+
     public function test_a_proceeding_without_an_approved_result_contributes_nothing(): void
     {
         $proposal = $this->proposal($this->mine, DpcProposalStatus::Approved);

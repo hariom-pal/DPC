@@ -20,12 +20,14 @@ use Illuminate\Support\Collection;
  * Vacancy Management — the one entry point to the year-wise vacancy records.
  *
  * Since 2026-10-19 the department's Authorized Officer keeps and finalizes them (own
- * department only); the CGPSC Administrator sees every department read-only.
+ * department only) and its Administrative Head reads them. Since 2026-11-02 it is in
+ * neither the top menu nor the Administrator's area: a record is reached from its
+ * approved Pre-DPC.
  *
  * Choose Department → Post → Year and open that record's four steps (sanctioned
  * strength, working strength, vacancies, review and finalize — the existing
  * `VacancyMasterController` screens), or find any record by department, post, year,
- * status or name. The route group is `role:admin`, like every Administrator screen.
+ * status or name.
  */
 class VacancyManagementController extends Controller
 {
@@ -35,7 +37,7 @@ class VacancyManagementController extends Controller
     {
         $own = $this->ownDepartmentId($request);
         // A department's officers see their own department only.
-        $departmentId = $own ?? ($request->integer('department_id') ?: null);
+        $departmentId = $own;
         $year = $request->integer('year') ?: null;
         $status = $request->string('status')->toString();
         $search = trim($request->string('q')->toString());
@@ -45,7 +47,7 @@ class VacancyManagementController extends Controller
             // The latest revision of each department / post / year: the record's
             // history is on its own page.
             ->whereRaw('revision = (select max(v2.revision) from vacancy_positions v2 where v2.department_id = vacancy_positions.department_id and v2.post_name = vacancy_positions.post_name and v2.vacancy_year = vacancy_positions.vacancy_year)')
-            ->when($departmentId !== null, fn ($query) => $query->where('department_id', $departmentId))
+            ->where('department_id', $departmentId)
             ->when($year !== null, fn ($query) => $query->where('vacancy_year', $year))
             ->when(in_array($status, ['draft', 'finalized'], true), fn ($query) => $query->where('status', $status))
             ->when($search !== '', fn ($query) => $query->where('post_name', 'like', '%'.addcslashes($search, '%_\\').'%'))
@@ -57,8 +59,8 @@ class VacancyManagementController extends Controller
 
         return view('admin.vacancy-management.index', [
             ...$this->area($request),
-            'departments' => Department::query()->when($own !== null, fn ($q) => $q->whereKey($own))->orderBy('name')->get(['id', 'name']),
-            'posts' => $departmentId === null ? collect() : $this->postNames($departmentId),
+            'departments' => Department::query()->whereKey($own)->orderBy('name')->get(['id', 'name']),
+            'posts' => $this->postNames($departmentId),
             'years' => $this->years(),
             'records' => $records,
             'postIds' => $this->postIds($records->getCollection()),
@@ -91,7 +93,7 @@ class VacancyManagementController extends Controller
 
         $department = Department::query()->findOrFail($validated['department_id']);
         $own = $this->ownDepartmentId($request);
-        abort_if($own !== null && $own !== $department->id, 403);
+        abort_if($own !== $department->id, 403);
         $mappings = DepartmentPost::query()
             ->where('department_id', $department->id)
             ->where('name', $validated['post'])
@@ -108,15 +110,10 @@ class VacancyManagementController extends Controller
     }
 
     /**
-     * The Administrator sees every department (read-only); a department's officer,
-     * only their own.
+     * A department's officer sees only their own department.
      */
-    private function ownDepartmentId(Request $request): ?int
+    private function ownDepartmentId(Request $request): int
     {
-        if ($request->routeIs('admin.*')) {
-            return null;
-        }
-
         $id = $request->user()?->department_id;
         abort_if($id === null, 403);
 
@@ -124,18 +121,15 @@ class VacancyManagementController extends Controller
     }
 
     /**
-     * @return array{recordsRoute: string, management: string, layout: string, adminArea: bool, canManage: bool}
+     * @return array{recordsRoute: string, management: string, layout: string, canManage: bool}
      */
     private function area(Request $request): array
     {
-        $admin = $request->routeIs('admin.*');
-
         return [
-            'recordsRoute' => $admin ? 'admin.departments.vacancy-master' : 'vacancy-records',
-            'management' => $admin ? 'admin.vacancy-management' : 'vacancy-management',
-            'layout' => $admin ? 'layouts.admin' : 'layouts.app',
-            'adminArea' => $admin,
-            'canManage' => ! $admin && ($request->user()?->hasRole(Role::AuthorizedOfficer->value) ?? false),
+            'recordsRoute' => 'vacancy-records',
+            'management' => 'vacancy-management',
+            'layout' => 'layouts.app',
+            'canManage' => $request->user()?->hasRole(Role::AuthorizedOfficer->value) ?? false,
         ];
     }
 

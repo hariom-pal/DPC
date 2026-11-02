@@ -6,7 +6,6 @@
     <nav aria-label="{{ __('ui.screen.breadcrumb') }}">
         <ol class="breadcrumb small">
             <li class="breadcrumb-item"><a href="{{ route($management.'.index') }}">{{ __('vacancymaster.title') }}</a></li>
-            @if ($adminArea)<li class="breadcrumb-item"><a href="{{ route('admin.departments.edit', $department) }}">{{ $department->name }}</a></li>@endif
             <li class="breadcrumb-item active" aria-current="page">{{ __('vacancymaster.title') }}</li>
         </ol>
     </nav>

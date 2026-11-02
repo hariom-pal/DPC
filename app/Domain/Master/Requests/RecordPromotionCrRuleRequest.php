@@ -42,8 +42,19 @@ class RecordPromotionCrRuleRequest extends FormRequest
             'property_years' => ['required', 'integer', 'min:0', 'max:'.self::MAX_YEARS],
             'qualifying_total' => ['required', 'integer', 'min:1', 'max:1000'],
             'super_seat_grade' => ['nullable', 'integer', Rule::in($grades)],
-            'tribal_bonus' => ['required', 'integer', 'min:0', 'max:10'],
+            /*
+             | The tribal posting bonus (2026-11-01): Yes/No first. Yes needs points
+             | above zero (within the existing 1–10) and at least one grade of the
+             | Grade Master in force for the rule's year, none twice. No needs neither.
+             | A caller that does not say (older forms) gives the points alone, as before.
+             */
+            'tribal_bonus_applicable' => ['nullable', 'boolean'],
+            'tribal_bonus' => $this->has('tribal_bonus_applicable')
+                ? ($this->boolean('tribal_bonus_applicable') ? ['required', 'integer', 'min:1', 'max:10'] : ['nullable', 'integer', 'min:0', 'max:10'])
+                : ['required', 'integer', 'min:0', 'max:10'],
             'tribal_bonus_skips_extremes' => ['nullable', 'boolean'],
+            'tribal_bonus_grades' => $this->boolean('tribal_bonus_applicable') ? ['required', 'array', 'min:1'] : ['nullable', 'array'],
+            'tribal_bonus_grades.*' => ['integer', 'distinct', Rule::in($grades)],
             'remarks' => ['nullable', 'string', 'max:2000'],
             'years' => ['nullable', 'array'],
             'years.*.cr_min_marks' => ['nullable', 'integer', Rule::in($grades)],
@@ -90,6 +101,9 @@ class RecordPromotionCrRuleRequest extends FormRequest
             'qualifying_total' => __('admin.promotion_rules.qualifying_total'),
             'super_seat_grade' => __('admin.promotion_rules.super_seat_grade'),
             'tribal_bonus' => __('admin.promotion_rules.tribal_bonus'),
+            'tribal_bonus_applicable' => __('admin.promotion_rules.tribal_applicable'),
+            'tribal_bonus_grades' => __('admin.promotion_rules.tribal_grades'),
+            'tribal_bonus_grades.*' => __('admin.promotion_rules.tribal_grades'),
         ];
 
         for ($before = 1; $before <= self::MAX_YEARS; $before++) {
@@ -113,6 +127,6 @@ class RecordPromotionCrRuleRequest extends FormRequest
             ];
         }
 
-        $this->merge(['years' => $years, 'tribal_bonus' => $this->input('tribal_bonus', 0) === '' ? 0 : $this->input('tribal_bonus', 0)]);
+        $this->merge(['years' => $years, 'tribal_bonus' => in_array($this->input('tribal_bonus'), ['', null], true) && ! $this->boolean('tribal_bonus_applicable') ? 0 : $this->input('tribal_bonus')]);
     }
 }

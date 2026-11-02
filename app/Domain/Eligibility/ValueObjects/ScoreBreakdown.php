@@ -29,6 +29,8 @@ final class ScoreBreakdown
         public readonly array $yearsWithoutGrade = [],
         /** @var list<int> The years the tribal posting bonus was given for (a per-year rule). */
         public readonly array $tribalBonusYears = [],
+        /** @var array<int, int> The bonus added to each such year's CR points (2026-11-01). */
+        public readonly array $tribalBonusByYear = [],
     ) {}
 
     /**
@@ -72,6 +74,6 @@ final class ScoreBreakdown
             'scoring_years_required' => $this->scoringYearsRequired,
             'years_without_grade' => $this->yearsWithoutGrade,
             'incomplete_window' => $this->hasIncompleteWindow(),
-        ] + ($this->tribalBonusYears === [] ? [] : ['tribal_bonus_years' => $this->tribalBonusYears]);
+        ] + ($this->tribalBonusYears === [] ? [] : ['tribal_bonus_years' => $this->tribalBonusYears, 'tribal_bonus_by_year' => $this->tribalBonusByYear]);
     }
 }

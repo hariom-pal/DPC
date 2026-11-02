@@ -196,45 +196,40 @@ class VacancyManagementIntegrationTest extends TestCase
         $service->saveVacancies($proposal->refresh(), $this->ao);
     }
 
-    // ================================================== Admin: one entry point
+    // ======================================= The department's area, not the Admin's
 
-    public function test_the_admin_has_one_vacancy_management_entry_and_opens_a_record_by_department_post_and_year(): void
+    public function test_the_ao_opens_a_record_by_post_and_year_in_the_departments_area(): void
     {
-        $this->actingAs($this->admin)->get(route('admin.dashboard'))
-            ->assertOk()
-            ->assertSee(route('admin.vacancy-management.index'), false)
-            ->assertDontSee('admin/vacancy-types', false);
-
-        $this->actingAs($this->admin)
-            ->get(route('admin.vacancy-management.index', ['department_id' => $this->department->id]))
+        $this->actingAs($this->ao)
+            ->get(route('vacancy-management.index'))
             ->assertOk()
             ->assertSee('Deputy Director')
             ->assertSee('Lecturer');
 
-        $this->actingAs($this->admin)
-            ->get(route('admin.vacancy-management.go', ['department_id' => $this->department->id, 'post' => 'Deputy Director', 'year' => self::YEAR]))
-            ->assertRedirect(route('admin.departments.vacancy-master.show', [$this->department, self::YEAR, $this->to]));
+        $this->actingAs($this->ao)
+            ->get(route('vacancy-management.go', ['department_id' => $this->department->id, 'post' => 'Deputy Director', 'year' => self::YEAR]))
+            ->assertRedirect(route('vacancy-records.show', [$this->department, self::YEAR, $this->to]));
 
         // A post of another department is not offered through this one.
         $other = Department::query()->create(['code' => 'PW', 'name' => 'Public Works', 'status' => 'active']);
         $this->makePost('Assistant Engineer', $other);
 
-        $this->actingAs($this->admin)
-            ->get(route('admin.vacancy-management.go', ['department_id' => $this->department->id, 'post' => 'Assistant Engineer', 'year' => self::YEAR]))
+        $this->actingAs($this->ao)
+            ->get(route('vacancy-management.go', ['department_id' => $this->department->id, 'post' => 'Assistant Engineer', 'year' => self::YEAR]))
             ->assertSessionHasErrors('post');
     }
 
-    public function test_the_admin_sees_the_whole_trail_of_a_record_across_revisions(): void
+    public function test_the_whole_trail_of_a_record_is_shown_across_revisions(): void
     {
         $position = $this->finalize(12, 7, 2, [['reason' => 'retirement', 'quota' => 'promotion', 'count' => 1]]);
-        $draft = app(VacancyMasterService::class)->revise($position->fresh(), 'Strength revised.', $this->admin);
-        app(VacancyMasterService::class)->saveSanctionedStrength($draft, ['sanctioned_total' => 14, 'order_number' => 'SANC/2', 'order_date' => '2026-03-01', 'correction_reason' => 'New order.'], $this->pdf(), $this->admin);
+        $draft = app(VacancyMasterService::class)->revise($position->fresh(), 'Strength revised.', $this->ao);
+        app(VacancyMasterService::class)->saveSanctionedStrength($draft, ['sanctioned_total' => 14, 'order_number' => 'SANC/2', 'order_date' => '2026-03-01', 'correction_reason' => 'New order.'], $this->pdf(), $this->ao);
 
-        $this->actingAs($this->admin)
-            ->get(route('admin.departments.vacancy-master.show', [$this->department, self::YEAR, $this->to]))
+        $this->actingAs($this->ao)
+            ->get(route('vacancy-records.show', [$this->department, self::YEAR, $this->to]))
             ->assertOk()
             ->assertSee('id="vacancy-trail"', false)
-            ->assertSee($this->admin->name)
+            ->assertSee($this->ao->name)
             // Revision 1's steps and revision 2's, newest first.
             ->assertSeeInOrder([
                 'corrected from 12 to 14',
@@ -252,7 +247,7 @@ class VacancyManagementIntegrationTest extends TestCase
         $this->finalize(12, 7, 2, [], null, 2025);
         $this->finalize(20, 15, 2, [], null, 2026);
 
-        $this->actingAs($this->admin)->get(route('admin.vacancy-management.index', ['year' => 2025]))
+        $this->actingAs($this->ao)->get(route('vacancy-management.index', ['year' => 2025]))
             ->assertOk()
             ->assertSee('data-vacancy-record', false)
             ->assertSeeInOrder(['2025', 'Deputy Director', '12']);
@@ -262,19 +257,20 @@ class VacancyManagementIntegrationTest extends TestCase
     }
 
     /**
-     * 2026-10-19: the department's Authorized Officer keeps the records, in the
-     * department's own area and for the department only; the Administrator's area
-     * is read-only and stays closed to the AO.
+     * 2026-11-02: Vacancy Management is in neither the top menu nor the
+     * Administrator's area. The department's Authorized Officer keeps the records
+     * (own department only); the Administrator has no access.
      */
-    public function test_the_ao_keeps_own_department_records_and_the_admin_only_reads(): void
+    public function test_the_ao_keeps_own_department_records_and_the_admin_has_no_vacancy_management(): void
     {
-        $this->actingAs($this->ao)->get(route('admin.vacancy-management.index'))->assertForbidden();
-
-        $this->actingAs($this->ao)->get(route('dashboard'))->assertOk()->assertSee(route('vacancy-management.index'), false);
-        $this->actingAs($this->ao)->get(route('vacancy-management.index'))
+        $this->assertFalse(Route::has('admin.vacancy-management.index'));
+        $this->actingAs($this->admin)->get(route('admin.dashboard'))
             ->assertOk()
-            ->assertSee('Deputy Director')
-            ->assertDontSee('id="vacancy-read-only"', false);
+            ->assertDontSee(route('vacancy-management.index'), false)
+            ->assertDontSee('admin/vacancy-types', false);
+        $this->actingAs($this->admin)->get(route('vacancy-management.index'))->assertForbidden();
+
+        $this->actingAs($this->ao)->get(route('dashboard'))->assertOk()->assertDontSee('href="'.route('vacancy-management.index').'"', false);
 
         $this->sanctioningPreDpc($this->from, $this->to, self::YEAR);
         $this->actingAs($this->ao)->post(route('vacancy-records.open', [$this->department, self::YEAR, $this->to]))->assertRedirect();
@@ -285,8 +281,6 @@ class VacancyManagementIntegrationTest extends TestCase
         $this->actingAs($this->ao)
             ->get(route('vacancy-management.go', ['department_id' => $other->id, 'post' => 'Deputy Director', 'year' => self::YEAR]))
             ->assertForbidden();
-
-        $this->actingAs($this->admin)->get(route('admin.vacancy-management.index'))->assertOk()->assertSee('id="vacancy-read-only"', false);
     }
 
     public function test_the_vacancy_type_screens_are_gone_and_the_rows_survive(): void

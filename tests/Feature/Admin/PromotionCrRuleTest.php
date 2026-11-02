@@ -95,7 +95,7 @@ class PromotionCrRuleTest extends TestCase
             ->assertSee(__('admin.promotion_rules.year_label', ['n' => 1, 'year' => 2025]))
             ->assertSee('name="years[1][cr_min_marks]"', false)
             ->assertSee('name="tribal_bonus"', false)
-            ->assertSee('name="tribal_bonus_skips_extremes"', false);
+            ->assertSee('name="tribal_bonus_grades[]"', false);
 
         $this->record()->assertSessionHasNoErrors()->assertRedirect(route('admin.service-classes.promotion-rules.index', $this->classOne));
 
@@ -103,6 +103,9 @@ class PromotionCrRuleTest extends TestCase
         $this->assertSame(['I', 'I', 2026, 5, 5, 3], [$rule->to_class, $rule->from_class, $rule->effective_from_year, $rule->cr_years, $rule->loyalty_years, $rule->property_years]);
         // The tribal bonus is per tribal CR year, not at the highest or lowest grade by default.
         $this->assertSame(['year', true], [$rule->tribal_bonus_basis, $rule->tribal_bonus_skips_extremes]);
+
+        // A rule recorded without the grade list keeps the older exclusion.
+        $this->assertNull($rule->tribal_bonus_grades);
 
         // Qualifying is on the total; the average is the total over the CR years.
         $this->assertSame([9, 1, 30, '6.00'], [$rule->super_seat_grade, $rule->tribal_bonus, $rule->qualifying_total, (string) $rule->qualifying_average]);
@@ -285,5 +288,59 @@ class PromotionCrRuleTest extends TestCase
         $this->actingAs($officer)->patch(route('admin.cr-grades.deactivate', CrGradeValue::query()->firstOrFail()), [
             'effective_to' => now()->toDateString(), 'deactivation_reason' => 'x',
         ])->assertForbidden();
+    }
+
+    public function test_tribal_bonus_no_needs_neither_points_nor_grades_and_gives_none(): void
+    {
+        $this->record(['tribal_bonus_applicable' => '0', 'tribal_bonus' => ''])->assertSessionHasNoErrors();
+
+        $rule = PromotionCrRule::query()->sole();
+        $this->assertSame([false, 0, []], [$rule->tribal_bonus_applicable, $rule->tribal_bonus, $rule->tribal_bonus_grades]);
+
+        $this->actingAs($this->admin)->get(route('admin.service-classes.promotion-rules.index', $this->classOne))
+            ->assertOk()
+            ->assertSee(__('admin.promotion_rules.no_bonus'));
+    }
+
+    public function test_tribal_bonus_yes_needs_positive_points_and_at_least_one_valid_grade_once(): void
+    {
+        $yes = ['tribal_bonus_applicable' => '1'];
+
+        // Points: above zero, within the existing limit.
+        $this->record($yes + ['tribal_bonus' => '0', 'tribal_bonus_grades' => ['7']])->assertSessionHasErrors('tribal_bonus');
+        $this->record($yes + ['tribal_bonus' => '11', 'tribal_bonus_grades' => ['7']])->assertSessionHasErrors('tribal_bonus');
+        $this->record($yes + ['tribal_bonus' => '', 'tribal_bonus_grades' => ['7']])->assertSessionHasErrors('tribal_bonus');
+
+        // Grades: at least one, each a grade of the Grade Master in force, none twice.
+        $this->record($yes + ['tribal_bonus' => '2'])->assertSessionHasErrors('tribal_bonus_grades');
+        $this->record($yes + ['tribal_bonus' => '2', 'tribal_bonus_grades' => ['8']])->assertSessionHasErrors('tribal_bonus_grades.0');
+        $this->record($yes + ['tribal_bonus' => '2', 'tribal_bonus_grades' => ['7', '7']])->assertSessionHasErrors('tribal_bonus_grades.0');
+        $this->assertSame(0, PromotionCrRule::query()->count());
+
+        $this->record($yes + ['tribal_bonus' => '2', 'tribal_bonus_grades' => ['5', '9', '7']])->assertSessionHasNoErrors();
+
+        $rule = PromotionCrRule::query()->sole();
+        $this->assertSame([true, 2, [9, 7, 5]], [$rule->tribal_bonus_applicable, $rule->tribal_bonus, $rule->tribal_bonus_grades]);
+
+        $this->actingAs($this->admin)->get(route('admin.service-classes.promotion-rules.index', $this->classOne))
+            ->assertOk()
+            ->assertSee(__('admin.promotion_rules.tribal_value_grades', ['grades' => '9, 7, 5']), false);
+    }
+
+    public function test_a_new_version_starts_from_the_rule_in_force_and_a_grade_added_later_is_not_ticked(): void
+    {
+        $this->record(['tribal_bonus_applicable' => '1', 'tribal_bonus' => '2', 'tribal_bonus_grades' => ['9', '7']])->assertSessionHasNoErrors();
+
+        // A grade added to the Grade Master afterwards.
+        CrGradeValue::query()->create(['value' => 8, 'effective_from' => '2026-01-01']);
+
+        $html = $this->actingAs($this->admin)->get(route('admin.service-classes.promotion-rules.create', [$this->classOne, 'from' => 'I', 'year' => 2027]))
+            ->assertOk()->getContent();
+
+        $this->assertMatchesRegularExpression('/name="tribal_bonus_applicable" value="1" required\s+checked/', $html);
+        $this->assertMatchesRegularExpression('/name="tribal_bonus_grades\[\]" value="9"\s+checked/', $html);
+        $this->assertMatchesRegularExpression('/name="tribal_bonus_grades\[\]" value="7"\s+checked/', $html);
+        $this->assertMatchesRegularExpression('/name="tribal_bonus_grades\[\]" value="8"\s*>/', $html, 'Offered, but not ticked.');
+        $this->assertSame([9, 7], PromotionCrRule::query()->sole()->tribal_bonus_grades, 'The rule in force is unchanged.');
     }
 }

@@ -16,6 +16,7 @@ use App\Domain\Dpc\Models\VacancyPosition;
 use App\Domain\Dpc\Models\VacancyPositionEntry;
 use App\Domain\Dpc\Models\VacancyPositionSanctionedStrength;
 use App\Domain\Dpc\Models\VacancyPositionWorkingStrength;
+use App\Domain\Employee\Services\EmployeeDirectory;
 use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\RecruitmentRule;
 use App\Domain\PreDpc\Models\PreDpcProposal;
@@ -56,6 +57,7 @@ class VacancyMasterService
     public function __construct(
         private readonly VacancyEngine $engine,
         private readonly ActivityTimelineService $timeline,
+        private readonly EmployeeDirectory $employees,
     ) {}
 
     // ------------------------------------------------------------------ reading
@@ -328,6 +330,7 @@ class VacancyMasterService
                 'kind' => $entry->kind->value,
                 'reason' => $entry->reason->value,
                 'officer_name' => $entry->officer_name,
+                'employee_number' => $entry->employee_number,
                 'count' => $entry->vacancy_count,
                 'effective_date' => $entry->effective_date->toDateString(),
                 'deputation_from' => $entry->deputation_from?->toDateString(),
@@ -700,6 +703,7 @@ class VacancyMasterService
                 'vacancy_position_id' => $position->id,
                 'kind' => $kind->value,
                 'officer_name' => mb_substr($name, 0, 255),
+                'employee_number' => $this->clean($data['employee_number'] ?? null),
                 'vacancy_count' => 1,
                 'order_number' => $this->clean($data['order_number'] ?? null),
                 'order_date' => empty($data['order_date']) ? null : Carbon::parse((string) $data['order_date'])->toDateString(),
@@ -725,6 +729,9 @@ class VacancyMasterService
                 'counted' => $entry->isCounted(),
                 'document_sha256' => $entry->sha256,
             ], $actor);
+
+            // Our officers go into the employee database (2026-11-02).
+            $this->employees->recordVacancyEntry($entry);
 
             return $entry;
         });
@@ -984,7 +991,9 @@ class VacancyMasterService
      * B1: an officer of another department working here on deputation. In the
      * working strength; the post falls vacant when the deputation ends inside the
      * Vacancy Year. A deputation already over before 1 January is refused — that
-     * officer is not working here, and the post is in the clear vacancy.
+     * officer is not working here, and the post is in the clear vacancy. The end date
+     * is optional (2026-11-02): without one the deputation continues and is not
+     * counted.
      *
      * @param  array<string, mixed>  $data
      * @return array<string, mixed>
@@ -995,11 +1004,20 @@ class VacancyMasterService
             throw new WorkflowException(__('vacancymaster.errors.deputation_came_required'), 'deputation_from');
         }
 
+        $came = Carbon::parse((string) $data['deputation_from'])->startOfDay();
+
         if (empty($data['deputation_to'])) {
-            throw new WorkflowException(__('vacancymaster.errors.deputation_ends_required'), 'deputation_to');
+            return [
+                'reason' => VacancyReason::Deputation->value,
+                // The column is required; the date the officer came stands in.
+                'effective_date' => $came->toDateString(),
+                'deputation_from' => $came->toDateString(),
+                'deputation_to' => null,
+                'eligibility' => VacancyEntryEligibility::NotEligible->value,
+                'eligibility_note' => __('vacancymaster.notes.deputation_in_no_end'),
+            ];
         }
 
-        $came = Carbon::parse((string) $data['deputation_from'])->startOfDay();
         $ends = Carbon::parse((string) $data['deputation_to'])->startOfDay();
 
         if ($ends->lt($came)) {

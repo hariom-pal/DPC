@@ -225,30 +225,42 @@ final class ProposalVacancyPosition
      * each figure that does not agree, and `matches` is true only when a list is
      * uploaded, a record is finalized and all four figures agree.
      *
+     * A record kept per Pre-DPC (2026-11-01) also compares the officers away on
+     * deputation (B2), and matches every list row marked HERE or OUT ON DEPUTATION
+     * with its B1/B2 officer, by employee number before name: `unmatched` holds the
+     * rows that do not, `missing` the B1/B2 officers no row names. Either keeps
+     * `matches` false.
+     *
      * @return array{
-     *     uploaded: array{total: int, promotion: int, direct: int, deputation: int}|null,
-     *     record: array{total: int, promotion: int, direct: int, deputation: int}|null,
+     *     uploaded: array<string, int>|null,
+     *     record: array<string, int>|null,
      *     differences: array<string, array{uploaded: int, record: int}>,
      *     matches: bool,
-     *     figures: list<string>
+     *     figures: list<string>,
+     *     unmatched: list<array{sn: int, name: string|null, message: string}>,
+     *     missing: list<array{kind: string, name: string}>
      * }
      */
     public function reconcile(DpcProposal $proposal): array
     {
         $frozen = $this->for($proposal)?->breakdown;
         $working = $frozen['working'] ?? null;
+        $perPreDpc = VacancyMasterService::isPerPreDpc($frozen);
         // A record kept per Pre-DPC has no quota split: only the total and the
-        // officers here on deputation are compared.
-        $figures = VacancyMasterService::isPerPreDpc($frozen) ? ['deputation', 'total'] : ['promotion', 'direct', 'deputation', 'total'];
+        // officers on deputation, both ways, are compared.
+        $figures = $perPreDpc ? ['deputation', 'deputation_out', 'total'] : ['promotion', 'direct', 'deputation', 'total'];
         $record = is_array($working) ? [
             'total' => (int) ($working['total'] ?? 0),
             'promotion' => (int) ($working['promotion'] ?? 0),
             'direct' => (int) ($working['direct'] ?? 0),
             'deputation' => (int) ($working['deputation'] ?? 0),
+            'deputation_out' => count($this->deputationEntries($frozen, VacancyEntryKind::Deputation)),
         ] : null;
 
-        $officers = $proposal->workingOfficers()->get();
+        $officers = $proposal->workingOfficers()->orderBy('sn')->get();
         $uploaded = null;
+        $unmatched = [];
+        $missing = [];
 
         if ($officers->isNotEmpty()) {
             $serving = $officers->filter(fn (DpcWorkingOfficer $officer): bool => $officer->isWorking());
@@ -257,7 +269,27 @@ final class ProposalVacancyPosition
                 'promotion' => $serving->where('source', DpcWorkingOfficer::SOURCE_PROMOTION)->count(),
                 'direct' => $serving->where('source', DpcWorkingOfficer::SOURCE_DIRECT)->count(),
                 'deputation' => $serving->where('source', DpcWorkingOfficer::SOURCE_DEPUTATION)->count(),
+                'deputation_out' => $serving->filter(fn (DpcWorkingOfficer $officer): bool => $officer->out_on_deputation === true)->count(),
             ];
+
+            if ($perPreDpc) {
+                $rows = $serving->values()->map(fn (DpcWorkingOfficer $officer): array => [
+                    'employee_number' => $officer->employee_number,
+                    'name' => $officer->name,
+                    'here' => $officer->source === DpcWorkingOfficer::SOURCE_DEPUTATION,
+                    'out' => $officer->out_on_deputation === true,
+                ])->all();
+                $match = $this->matchDeputation($frozen, $rows);
+
+                foreach ($match['rows'] as $index => $message) {
+                    if ($message !== null) {
+                        $officer = $serving->values()[$index];
+                        $unmatched[] = ['sn' => $officer->sn, 'name' => $officer->name, 'message' => $message];
+                    }
+                }
+
+                $missing = $match['missing'];
+            }
         }
 
         $differences = [];
@@ -274,9 +306,105 @@ final class ProposalVacancyPosition
             'uploaded' => $uploaded,
             'record' => $record,
             'differences' => $differences,
-            'matches' => $uploaded !== null && $record !== null && $differences === [],
+            'matches' => $uploaded !== null && $record !== null && $differences === [] && $unmatched === [] && $missing === [],
             'figures' => $figures,
+            'unmatched' => $unmatched,
+            'missing' => $missing,
         ];
+    }
+
+    /**
+     * The Working Officers List matched with the record's B1 (officers of another
+     * department here on deputation) and B2 (ours away on deputation), 2026-11-01.
+     *
+     * A row is matched by employee number where the B1/B2 row carries one, otherwise
+     * by name (case, spacing, punctuation and an honorific such as Shri/Smt ignored).
+     * Nothing is mapped silently: each row gets a message when it does not agree —
+     * marked but not recorded, recorded but not marked, recorded on the other side,
+     * or the same officer as an earlier row — and every B1/B2 officer no row names is
+     * returned as missing. Only active B1/B2 rows count; their eligibility (B1 ending
+     * in the year, B2 over a year with no promotion) is the record's and untouched.
+     *
+     * @param  array<string, mixed>|null  $frozen  the record's breakdown
+     * @param  list<array{employee_number: string|null, name: string|null, here: bool, out: bool}>  $rows
+     * @return array{rows: array<int, string|null>, missing: list<array{kind: string, name: string}>}
+     */
+    public function matchDeputation(?array $frozen, array $rows): array
+    {
+        $entries = [
+            ...array_map(fn (array $entry): array => $entry + ['side' => 'B1'], $this->deputationEntries($frozen, VacancyEntryKind::DeputationIn)),
+            ...array_map(fn (array $entry): array => $entry + ['side' => 'B2'], $this->deputationEntries($frozen, VacancyEntryKind::Deputation)),
+        ];
+        $matched = [];
+        $results = [];
+
+        foreach ($rows as $index => $row) {
+            $number = self::normaliseNumber($row['employee_number']);
+            $name = self::normaliseName($row['name']);
+            $wanted = $row['here'] ? 'B1' : ($row['out'] ? 'B2' : null);
+            $found = null;
+
+            foreach ($entries as $i => $entry) {
+                $entryNumber = self::normaliseNumber($entry['employee_number'] ?? null);
+                $same = $entryNumber !== '' ? $entryNumber === $number : ($name !== '' && self::normaliseName($entry['officer_name'] ?? null) === $name);
+
+                if ($same) {
+                    $found = $i;
+
+                    break;
+                }
+            }
+
+            $results[$index] = match (true) {
+                $found === null && $wanted === null => null,
+                $found === null => __('vacancymaster.proposal.working_list.match.not_recorded', ['side' => $wanted]),
+                isset($matched[$found]) => __('vacancymaster.proposal.working_list.match.twice', ['side' => $entries[$found]['side'], 'name' => $entries[$found]['officer_name']]),
+                $wanted === null => __('vacancymaster.proposal.working_list.match.not_marked', ['side' => $entries[$found]['side'], 'name' => $entries[$found]['officer_name'], 'column' => $entries[$found]['side'] === 'B1' ? 'HERE ON DEPUTATION' : 'OUT ON DEPUTATION']),
+                $entries[$found]['side'] !== $wanted => __('vacancymaster.proposal.working_list.match.other_side', ['side' => $entries[$found]['side'], 'name' => $entries[$found]['officer_name']]),
+                default => null,
+            };
+
+            if ($found !== null && ! isset($matched[$found]) && $wanted !== null && $entries[$found]['side'] === $wanted) {
+                $matched[$found] = true;
+            }
+        }
+
+        $missing = [];
+
+        foreach ($entries as $i => $entry) {
+            if (! isset($matched[$i])) {
+                $missing[] = ['kind' => $entry['side'], 'name' => trim(($entry['officer_name'] ?? '').(($entry['employee_number'] ?? null) ? ' ('.$entry['employee_number'].')' : ''))];
+            }
+        }
+
+        return ['rows' => $results, 'missing' => $missing];
+    }
+
+    /**
+     * The record's active B1 or B2 rows.
+     *
+     * @param  array<string, mixed>|null  $frozen
+     * @return list<array<string, mixed>>
+     */
+    private function deputationEntries(?array $frozen, VacancyEntryKind $kind): array
+    {
+        return array_values(array_filter(
+            (array) ($frozen['entries'] ?? []),
+            fn ($entry): bool => is_array($entry) && ($entry['kind'] ?? null) === $kind->value,
+        ));
+    }
+
+    private static function normaliseNumber(?string $number): string
+    {
+        return mb_strtoupper((string) preg_replace('/\s+/u', '', (string) $number));
+    }
+
+    private static function normaliseName(?string $name): string
+    {
+        $name = mb_strtolower((string) preg_replace('/[^\p{L}\p{N}]+/u', ' ', (string) $name));
+        $name = (string) preg_replace('/^(?:(?:shri|smt|sushri|km|kumari|dr|mr|mrs|ms|श्री|श्रीमती|सुश्री|कु|डॉ)\s+)+/u', '', trim($name));
+
+        return trim((string) preg_replace('/\s+/u', ' ', $name));
     }
 
     /**

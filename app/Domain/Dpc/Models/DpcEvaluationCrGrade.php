@@ -88,10 +88,15 @@ class DpcEvaluationCrGrade extends Model
     }
 
     /**
-     * @param  array<string, string|null>  $report
+     * @param  array<string, mixed>  $report
      */
     public static function finalGradeOf(array $report): ?string
     {
+        // The one-CR form (2026-11-01) records the highest authority's grade itself.
+        if (isset($report['grade']) && $report['grade'] !== '') {
+            return (string) $report['grade'];
+        }
+
         foreach (['accepting_grade', 'reviewer_grade', 'reporter_grade'] as $role) {
             if (($report[$role] ?? null) !== null && $report[$role] !== '') {
                 return $report[$role];
@@ -102,9 +107,10 @@ class DpcEvaluationCrGrade extends Model
     }
 
     /**
-     * The year's points on the Eligible CR Grades (rule 3.4): several CRs averaged,
-     * the decimal dropped (rule 3.1). Null when the year carries no grade, or a grade
-     * the points do not name.
+     * The year's points on the Eligible CR Grades (rule 3.4): its one CR's. One CR a
+     * year and never an average (decision of 2026-11-01), so a year still holding
+     * several CRs from the earlier form is ungraded until it is entered again. Null
+     * when the year carries no grade, or a grade the points do not name.
      *
      * @param  array<string, int>  $points  grade code => points
      */
@@ -112,21 +118,11 @@ class DpcEvaluationCrGrade extends Model
     {
         $grades = $this->finalGrades();
 
-        if ($grades === []) {
+        if (count($grades) !== 1 || ! isset($points[$grades[0]])) {
             return null;
         }
 
-        $values = [];
-
-        foreach ($grades as $grade) {
-            if (! isset($points[$grade])) {
-                return null;
-            }
-
-            $values[] = $points[$grade];
-        }
-
-        return intdiv(array_sum($values), count($values));
+        return $points[$grades[0]];
     }
 
     /**

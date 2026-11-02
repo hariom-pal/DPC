@@ -12,6 +12,7 @@ use App\Domain\Dpc\Services\EvaluationCandidateService;
 use App\Domain\Dpc\Services\ProposalVacancyPosition;
 use App\Domain\Dpc\Services\SanctionedStrengthSource;
 use App\Domain\Dpc\Services\VacancyCalculationService;
+use App\Domain\Dpc\Services\VacancyMasterService;
 use App\Domain\Dpc\Validation\DpcRowRules;
 use App\Domain\Import\Enums\ImportBatchStatus;
 use App\Domain\Import\Enums\ImportTemplate;
@@ -110,6 +111,10 @@ class ExcelImportService
 
         if ($template === ImportTemplate::FinalSeniorityListUs) {
             $parsed = $this->checkSeniorityRows($proposal, $parsed);
+        }
+
+        if ($template === ImportTemplate::CurrentlyWorkingUs && $proposal->usesVacancyMaster()) {
+            $parsed = $this->checkWorkingRows($proposal, $parsed);
         }
 
         $valid = 0;
@@ -615,6 +620,62 @@ class ExcelImportService
         return $parsed;
     }
 
+    /**
+     * The simple Working Officers List of a Vacancy Management proposal, row by row
+     * (2026-11-01): each officer's EMPLOYEE NO is required and appears once, and each
+     * row marked HERE or OUT ON DEPUTATION is matched with its officer in the
+     * finalized record's B1/B2 — by number before name, never silently. A row that
+     * does not agree is refused with the reason; a B1/B2 officer the file leaves out
+     * is reported on the reconciliation after the commit.
+     *
+     * @param  list<array{row_number: int, payload: array<string, mixed>, errors: array<string, list<string>>}>  $parsed
+     * @return list<array{row_number: int, payload: array<string, mixed>, errors: array<string, list<string>>}>
+     */
+    private function checkWorkingRows(DpcProposal $proposal, array $parsed): array
+    {
+        $isOfficer = fn (array $row): bool => ($row['payload']['status'] ?? DpcWorkingOfficer::STATUS_WORKING) === DpcWorkingOfficer::STATUS_WORKING;
+        $number = fn (array $row): string => mb_strtoupper((string) preg_replace('/\s+/u', '', (string) ($row['payload']['employee_number'] ?? '')));
+
+        $counts = array_count_values(array_filter(array_map(
+            fn (array $row): string => $isOfficer($row) ? $number($row) : '',
+            $parsed,
+        )));
+
+        foreach ($parsed as $i => $row) {
+            if (! $isOfficer($row)) {
+                continue;
+            }
+
+            if ($number($row) === '') {
+                $parsed[$i]['errors']['employee_number'][] = 'EMPLOYEE NO is required: it is how the officer is identified and matched.';
+            } elseif (($counts[$number($row)] ?? 0) > 1) {
+                $parsed[$i]['errors']['employee_number'][] = 'EMPLOYEE NO '.$row['payload']['employee_number'].' appears more than once in this file.';
+            }
+        }
+
+        $frozen = app(ProposalVacancyPosition::class)->for($proposal)?->breakdown;
+
+        if (! VacancyMasterService::isPerPreDpc($frozen)) {
+            return $parsed;
+        }
+
+        $officerRows = array_values(array_filter(array_keys($parsed), fn (int $i): bool => $isOfficer($parsed[$i])));
+        $match = app(ProposalVacancyPosition::class)->matchDeputation($frozen, array_map(fn (int $i): array => [
+            'employee_number' => isset($parsed[$i]['payload']['employee_number']) ? (string) $parsed[$i]['payload']['employee_number'] : null,
+            'name' => isset($parsed[$i]['payload']['name']) ? (string) $parsed[$i]['payload']['name'] : null,
+            'here' => ($parsed[$i]['payload']['source'] ?? null) === DpcWorkingOfficer::SOURCE_DEPUTATION,
+            'out' => ($parsed[$i]['payload']['out_on_deputation'] ?? null) === true,
+        ], $officerRows));
+
+        foreach ($match['rows'] as $position => $message) {
+            if ($message !== null) {
+                $parsed[$officerRows[$position]]['errors']['deputation'][] = (string) $message;
+            }
+        }
+
+        return $parsed;
+    }
+
     private function assertProposalEditable(DpcProposal $proposal): void
     {
         if (! $proposal->status->isEditable()) {
@@ -921,6 +982,40 @@ class ExcelImportService
          | value is still reported.
          */
         if ($template === ImportTemplate::CurrentlyWorkingUs) {
+            // The simple list's two Y/N columns: HERE ON DEPUTATION is an officer of
+            // another department here (B1), OUT ON DEPUTATION one of ours away at
+            // another department (B2). Never both; blank or N, neither.
+            $here = $out = null;
+
+            foreach (['here_on_deputation' => 'HERE ON DEPUTATION', 'out_on_deputation' => 'OUT ON DEPUTATION'] as $field => $label) {
+                if (! array_key_exists($field, $payload)) {
+                    continue;
+                }
+
+                $flag = $this->parseFlag((string) $payload[$field]);
+                unset($payload[$field]);
+
+                if ($flag === null) {
+                    $errors[$field] = ["{$label}: expected Y or N."];
+                } elseif ($field === 'here_on_deputation') {
+                    $here = $flag;
+                } else {
+                    $out = $flag;
+                }
+            }
+
+            if ($here === true && $out === true) {
+                $errors['out_on_deputation'] = ['An officer cannot be both HERE ON DEPUTATION and OUT ON DEPUTATION: mark only one of them Y.'];
+            } else {
+                if ($here === true) {
+                    $payload['source'] = DpcWorkingOfficer::SOURCE_DEPUTATION;
+                }
+
+                if ($out !== null) {
+                    $payload['out_on_deputation'] = $out;
+                }
+            }
+
             if (($payload['status'] ?? '') === '') {
                 $payload['status'] = DpcWorkingOfficer::STATUS_WORKING;
             }

@@ -101,6 +101,29 @@ class CirculationSignatureTest extends TestCase
         $this->assertNull($this->propertyHold()->fresh()->released_at);
     }
 
+    public function test_an_officer_returned_for_more_evidence_can_be_circulated_again(): void
+    {
+        foreach ($this->circulation->items as $item) {
+            $this->commission()->decide($this->circulation, $item, $this->memberOne, CirculationDecision::Returned);
+        }
+
+        $this->commission()->sign(
+            $this->commission()->consent($this->circulation->fresh(), $this->memberOne, request()),
+            $this->memberOne,
+            request(),
+        );
+
+        // The hold is still open; a fresh note with the further evidence may cover it.
+        $again = app(CirculationService::class)->raise(
+            $this->proposal->fresh(),
+            $this->authorizedOfficer,
+            Carbon::parse('2026-08-25'),
+            $this->itemsFor($this->propertyHold()),
+        );
+
+        $this->assertNotSame($this->circulation->id, $again->id);
+    }
+
     public function test_a_note_that_is_never_signed_leaves_the_promotion_reserved(): void
     {
         $this->consentAll();

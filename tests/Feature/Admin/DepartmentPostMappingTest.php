@@ -354,8 +354,7 @@ class DepartmentPostMappingTest extends TestCase
 
         $this->actingAs($this->admin)->get(route('admin.department-posts.show', $post))
             ->assertOk()
-            ->assertSee(__('admin.department_posts.show.strength_in_vacancy_master'))
-            ->assertSee(route('admin.departments.vacancy-master.index', $post->department_id), false);
+            ->assertSee(__('admin.department_posts.show.strength_in_vacancy_master'));
 
         $this->actingAs($this->admin)->get(route('admin.department-posts.index'))
             ->assertOk()

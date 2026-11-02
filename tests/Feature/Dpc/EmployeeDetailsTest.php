@@ -108,22 +108,16 @@ class EmployeeDetailsTest extends TestCase
     }
 
     /**
-     * @param  list<array<string, string|null>>  $reports
+     * One CR a year (2026-11-01): the authorities whose remarks it carries, and the
+     * highest one's grade.
+     *
+     * @param  list<string>  $authorities
      */
-    private function saveCr(int $year, array $reports): TestResponse
+    private function saveCr(int $year, string $grade, array $authorities = ['reporter', 'reviewer', 'accepting']): TestResponse
     {
         return $this->actingAs($this->ao)->post($this->route('cr.save'), [
-            'year' => $year, 'put_up' => '1', 'has_grading' => '1', 'reports' => $reports,
+            'year' => $year, 'put_up' => '1', 'has_grading' => '1', 'authorities' => $authorities, 'grade' => $grade,
         ]);
-    }
-
-    private static function report(string $grade): array
-    {
-        return [
-            'reporter_designation' => 'Under Secretary', 'reporter_grade' => $grade,
-            'reviewer_designation' => 'Deputy Secretary', 'reviewer_grade' => $grade,
-            'accepting_designation' => 'Secretary', 'accepting_grade' => $grade,
-        ];
     }
 
     // ===================================================== the list and the screen
@@ -169,7 +163,7 @@ class EmployeeDetailsTest extends TestCase
             'service_record_undertaking' => '1',
         ])->assertSessionHasNoErrors();
 
-        $this->saveCr(2023, [self::report('क')])->assertSessionHasNoErrors();
+        $this->saveCr(2023, 'क')->assertSessionHasNoErrors();
 
         // Resume: the screen shows what was saved, and only that section moved on.
         $this->actingAs($this->ao)->get($this->route('show'))
@@ -185,40 +179,30 @@ class EmployeeDetailsTest extends TestCase
 
     // ===================================================================== CR
 
-    public function test_a_single_report_takes_the_accepting_officers_remark(): void
+    public function test_one_cr_a_year_records_the_highest_authoritys_grade_and_whose_remarks_it_carries(): void
     {
-        $this->saveCr(2023, [[
-            'reporter_grade' => 'ख', 'reviewer_grade' => 'क', 'accepting_grade' => 'क+',
-            'reporter_designation' => 'A', 'reviewer_designation' => 'B', 'accepting_designation' => 'C',
-        ]])->assertSessionHasNoErrors();
+        $this->saveCr(2023, 'क+')->assertSessionHasNoErrors();
 
-        $this->assertSame('क+', $this->row->crGrades()->where('year', 2023)->value('grade'));
+        $cr = $this->row->crGrades()->where('year', 2023)->firstOrFail();
+        $this->assertSame('क+', $cr->grade);
+        $this->assertSame([['authorities' => ['reporter', 'reviewer', 'accepting'], 'authority' => 'accepting', 'grade' => 'क+']], $cr->reports);
+
+        // The authorities and the grade are both needed for a graded CR.
+        $this->saveCr(2022, 'क', [])->assertSessionHasErrors();
+        $this->actingAs($this->ao)->post($this->route('cr.save'), ['year' => 2022, 'put_up' => '1', 'has_grading' => '1', 'authorities' => ['reporter']])
+            ->assertSessionHasErrors();
     }
 
-    public function test_a_missing_remark_falls_back_and_needs_an_nrc(): void
+    public function test_an_unticked_authority_needs_an_nrc(): void
     {
-        $this->saveCr(2023, [['reporter_grade' => 'ख', 'reviewer_grade' => 'क', 'accepting_grade' => null]])
-            ->assertSessionHasNoErrors();
+        $this->saveCr(2023, 'क', ['reporter', 'reviewer'])->assertSessionHasNoErrors();
 
-        $this->assertSame('क', $this->row->crGrades()->where('year', 2023)->value('grade'), 'Reviewer, when the accepting remark is missing.');
+        $this->assertSame('क', $this->row->crGrades()->where('year', 2023)->value('grade'));
         $this->assertContains('CR 2023: a reporting, reviewing or accepting remark is missing — upload the NRC.', $this->details()['sections']['cr']);
 
         $this->upload(EvaluationDocumentKind::CrNrc, 2023, false)->assertSessionHasNoErrors();
 
         $this->assertNotContains('CR 2023: a reporting, reviewing or accepting remark is missing — upload the NRC.', $this->details()['sections']['cr']);
-    }
-
-    public function test_several_reports_are_averaged_and_the_decimal_dropped(): void
-    {
-        // क+ = 4, ख = 2, ख = 2 → 8 / 3 = 2.67 → 2 = ख (never rounded up to क).
-        $this->saveCr(2023, [self::report('क+'), self::report('ख'), self::report('ख')])->assertSessionHasNoErrors();
-
-        $this->assertSame('ख', $this->row->crGrades()->where('year', 2023)->value('grade'));
-    }
-
-    public function test_at_most_four_reports_a_year(): void
-    {
-        $this->saveCr(2023, array_fill(0, 5, self::report('क')))->assertSessionHasErrors('reports');
     }
 
     public function test_a_cr_not_put_up_needs_its_reason_and_document(): void
@@ -258,7 +242,7 @@ class EmployeeDetailsTest extends TestCase
 
     public function test_a_cr_document_needs_the_no_duplicate_undertaking(): void
     {
-        $this->saveCr(2023, [self::report('क')]);
+        $this->saveCr(2023, 'क');
 
         $this->upload(EvaluationDocumentKind::CrReport, 2023, false)->assertSessionHasErrors('cr');
         $this->assertSame(0, DpcEvaluationDocument::query()->count());
@@ -269,8 +253,8 @@ class EmployeeDetailsTest extends TestCase
 
     public function test_the_cr_section_is_complete_with_its_documents_and_the_channel_undertaking(): void
     {
-        $this->saveCr(2023, [self::report('क')]);
-        $this->saveCr(2024, [self::report('क+')]);
+        $this->saveCr(2023, 'क');
+        $this->saveCr(2024, 'क+');
 
         $this->upload(EvaluationDocumentKind::CrReport, 2023);
         $this->upload(EvaluationDocumentKind::CrReport, 2024);
@@ -287,13 +271,13 @@ class EmployeeDetailsTest extends TestCase
 
     public function test_a_cr_year_after_the_dpc_year_is_refused(): void
     {
-        $this->saveCr(2027, [self::report('क')])->assertSessionHasErrors('cr');
+        $this->saveCr(2027, 'क')->assertSessionHasErrors('cr');
         $this->assertSame(0, $this->row->crGrades()->count());
     }
 
     public function test_cr_data_of_one_proposal_does_not_reach_another(): void
     {
-        $this->saveCr(2023, [self::report('क')]);
+        $this->saveCr(2023, 'क');
 
         $other = $this->raiseDpc($this->ao, $this->proposal->promotion_from_post_id, $this->proposal->promotion_to_post_id);
         app(DpcProposalService::class)->saveSeniorityEntries($other, [
@@ -305,8 +289,8 @@ class EmployeeDetailsTest extends TestCase
 
     public function test_saving_the_evaluation_chart_keeps_the_cr_questionnaire_unless_the_grade_changes(): void
     {
-        $this->saveCr(2023, [self::report('क')]);
-        $this->saveCr(2024, [self::report('क')]);
+        $this->saveCr(2023, 'क');
+        $this->saveCr(2024, 'क');
 
         $chart = fn (string $grade2024): array => [
             ['sn' => 1, 'employee_number' => 'E-1', 'cr_grades' => [['year' => 2023, 'grade' => 'क'], ['year' => 2024, 'grade' => $grade2024]]],
@@ -822,8 +806,8 @@ class EmployeeDetailsTest extends TestCase
     public function test_a_candidate_meeting_the_rule_is_shown_as_meeting_it(): void
     {
         $this->promotionRule();
-        $this->saveCr(2025, [self::report('क')])->assertSessionHasNoErrors();
-        $this->saveCr(2024, [self::report('क+')])->assertSessionHasNoErrors();
+        $this->saveCr(2025, 'क')->assertSessionHasNoErrors();
+        $this->saveCr(2024, 'क+')->assertSessionHasNoErrors();
 
         $check = $this->ruleCheck();
         $this->assertSame('meets', $check['status']);
@@ -843,28 +827,36 @@ class EmployeeDetailsTest extends TestCase
     public function test_the_highest_available_authority_counts_within_a_cr(): void
     {
         $this->promotionRule(min: 1, total: 2);
-        // Accepting क+ over a Reporting घ; without an Accepting remark the Reviewing one.
-        $this->saveCr(2025, [array_merge(self::report('घ'), ['accepting_grade' => 'क+'])])->assertSessionHasNoErrors();
-        $this->saveCr(2024, [array_merge(self::report('घ'), ['reviewer_grade' => 'ख', 'accepting_designation' => null, 'accepting_grade' => null])]);
+        // The grade of the highest authority on the CR, whichever it is.
+        $this->saveCr(2025, 'क+')->assertSessionHasNoErrors();
+        $this->saveCr(2024, 'ख', ['reporter', 'reviewer']);
 
         $this->assertSame([9, 5], array_column($this->ruleCheck()['years'], 'points'));
     }
 
-    public function test_several_crs_in_a_year_are_averaged_with_the_decimal_dropped(): void
+    public function test_a_year_is_never_averaged_and_one_left_with_several_crs_is_ungraded(): void
     {
         $this->promotionRule(min: 1, total: 2);
-        // क+ (9) and ग (3): 6. क+ (9) and क (7) and ग (3): 19 / 3 → 6.
-        $this->saveCr(2025, [self::report('क+'), self::report('ग')])->assertSessionHasNoErrors();
-        $this->saveCr(2024, [self::report('क+'), self::report('क'), self::report('ग')])->assertSessionHasNoErrors();
+        $this->saveCr(2025, 'क+')->assertSessionHasNoErrors();
+        $this->saveCr(2024, 'ग')->assertSessionHasNoErrors();
 
-        $this->assertSame([6, 6], array_column($this->ruleCheck()['years'], 'points'));
+        $this->assertSame([9, 3], array_column($this->ruleCheck()['years'], 'points'));
+
+        // A year still holding two CRs from the earlier form is not averaged: it scores
+        // nothing until it is entered again as one CR.
+        $this->row->crGrades()->where('year', 2024)->update(['reports' => json_encode([
+            ['reporter_grade' => 'क+', 'reviewer_grade' => null, 'accepting_grade' => null],
+            ['reporter_grade' => 'ग', 'reviewer_grade' => null, 'accepting_grade' => null],
+        ])]);
+
+        $this->assertSame([9, null], array_column($this->ruleCheck()['years'], 'points'));
     }
 
     public function test_a_cr_below_the_years_minimum_does_not_meet_the_rule(): void
     {
         $this->promotionRule(min: 7, total: 2);
-        $this->saveCr(2025, [self::report('ख')])->assertSessionHasNoErrors();
-        $this->saveCr(2024, [self::report('क')])->assertSessionHasNoErrors();
+        $this->saveCr(2025, 'ख')->assertSessionHasNoErrors();
+        $this->saveCr(2024, 'क')->assertSessionHasNoErrors();
 
         $check = $this->ruleCheck();
         $this->assertSame('does_not_meet', $check['status']);
@@ -877,7 +869,7 @@ class EmployeeDetailsTest extends TestCase
     public function test_a_missing_mandatory_cr_year_does_not_meet_the_rule(): void
     {
         $this->promotionRule();
-        $this->saveCr(2025, [self::report('क')])->assertSessionHasNoErrors();
+        $this->saveCr(2025, 'क')->assertSessionHasNoErrors();
 
         $check = $this->ruleCheck();
         $this->assertSame('does_not_meet', $check['status']);
@@ -887,8 +879,8 @@ class EmployeeDetailsTest extends TestCase
     public function test_a_total_below_the_qualifying_total_does_not_meet_the_rule(): void
     {
         $this->promotionRule(min: 1, total: 16);
-        $this->saveCr(2025, [self::report('क')])->assertSessionHasNoErrors();
-        $this->saveCr(2024, [self::report('क')])->assertSessionHasNoErrors();
+        $this->saveCr(2025, 'क')->assertSessionHasNoErrors();
+        $this->saveCr(2024, 'क')->assertSessionHasNoErrors();
 
         $check = $this->ruleCheck();
         $this->assertSame('does_not_meet', $check['status']);
@@ -898,8 +890,8 @@ class EmployeeDetailsTest extends TestCase
     public function test_a_mandatory_property_return_is_checked(): void
     {
         $this->promotionRule(min: 1, total: 2, propertyYears: 1);
-        $this->saveCr(2025, [self::report('क')])->assertSessionHasNoErrors();
-        $this->saveCr(2024, [self::report('क')])->assertSessionHasNoErrors();
+        $this->saveCr(2025, 'क')->assertSessionHasNoErrors();
+        $this->saveCr(2024, 'क')->assertSessionHasNoErrors();
 
         $this->assertContains(__('dpc.employee_details.rule.property_missing', ['year' => 2025]), $this->ruleCheck()['findings']);
     }

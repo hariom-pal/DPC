@@ -69,7 +69,7 @@
              `#` lines into the template, so the two cannot disagree. --}}
         @php
             $builder = app(\App\Domain\Import\Services\ImportTemplateBuilder::class);
-            $guideHeaders = $builder->headers($template, optional($proposal->proposal_date)->year ?? now()->year);
+            $guideHeaders = $builder->headers($template, optional($proposal->proposal_date)->year ?? now()->year, $proposal);
             $guide = $builder->columnGuide();
         @endphp
 

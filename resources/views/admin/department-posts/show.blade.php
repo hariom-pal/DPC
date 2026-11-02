@@ -54,11 +54,6 @@
                 <dt class="col-sm-3 fw-normal">{{ __('admin.department_posts.form.sanctioned_strength') }}</dt>
                 <dd class="col-sm-9">
                     {{ __('admin.department_posts.show.strength_in_vacancy_master') }}
-                    @if ($post->department)
-                        @if ($routePrefix === 'admin.department-posts')
-                            <a href="{{ route('admin.departments.vacancy-master.index', $post->department) }}">{{ __('admin.department_posts.show.open_vacancy_master') }}</a>
-                        @endif
-                    @endif
                 </dd>
                 <dt class="col-sm-3 fw-normal">{{ __('admin.department_posts.form.effective_from') }}</dt>
                 <dd class="col-sm-9">

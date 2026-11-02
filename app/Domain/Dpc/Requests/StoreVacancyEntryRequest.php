@@ -36,8 +36,11 @@ class StoreVacancyEntryRequest extends FormRequest
         return [
             'kind' => ['required', Rule::in([VacancyEntryKind::DeputationIn->value, VacancyEntryKind::Deputation->value, VacancyEntryKind::Anticipated->value])],
             'officer_name' => ['required', 'string', 'max:255'],
+            // Every officer with an Employee ID (2026-11-02).
+            'employee_number' => ['required', 'string', 'max:60'],
             'deputation_from' => [Rule::requiredIf(fn (): bool => $kindIs(VacancyEntryKind::DeputationIn)() || $kindIs(VacancyEntryKind::Deputation)()), 'nullable', 'date'],
-            'deputation_to' => [Rule::requiredIf($kindIs(VacancyEntryKind::DeputationIn)), 'nullable', 'date'],
+            // Optional (2026-11-02): without it the deputation continues and is not counted.
+            'deputation_to' => ['nullable', 'date'],
             'promotion_made' => [Rule::requiredIf($kindIs(VacancyEntryKind::Deputation)), 'nullable', Rule::in(['0', '1'])],
             'reason' => [Rule::requiredIf($kindIs(VacancyEntryKind::Anticipated)), 'nullable', Rule::in([VacancyReason::Retirement->value, VacancyReason::HigherPostPromotion->value])],
             'effective_date' => [Rule::requiredIf($kindIs(VacancyEntryKind::Anticipated)), 'nullable', 'date'],
@@ -62,6 +65,7 @@ class StoreVacancyEntryRequest extends FormRequest
         return [
             'kind' => __('vacancymaster.entries.kind'),
             'officer_name' => __('vacancymaster.entries.officer_name'),
+            'employee_number' => __('vacancymaster.entries.employee_number'),
             'deputation_from' => __('vacancymaster.entries.deputation_from'),
             'deputation_to' => __('vacancymaster.entries.deputation_to'),
             'promotion_made' => __('vacancymaster.entries.promotion_made'),

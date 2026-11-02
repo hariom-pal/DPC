@@ -36,7 +36,21 @@ class ScoringService
             scoringYearsRequired: $rules->scoringYears,
             yearsWithoutGrade: $yearsWithoutGrade,
             tribalBonusYears: $bonusYears,
+            // Each tribal year's bonus beside that year's CR points (2026-11-01).
+            tribalBonusByYear: $this->bonusByYear($bonusYears, $rules->tribalAreaBonus),
         );
+    }
+
+    /**
+     * @param  list<int>  $years
+     * @return array<int, int> year => bonus, oldest first
+     */
+    private function bonusByYear(array $years, int $bonus): array
+    {
+        $byYear = array_fill_keys($years, $bonus);
+        ksort($byYear);
+
+        return $byYear;
     }
 
     /**
@@ -44,8 +58,9 @@ class ScoringService
      *
      * PPT §5.2: a single bonus for having served in a tribal area, not one per year —
      * "+1 (else NO CHANGE)". A Class Master rule on the per-year basis (2026-10-21)
-     * gives it for each scored CR year served in a tribal area, and, when the rule
-     * says so, not for a year whose points are the highest or the lowest grade's.
+     * gives it for each scored CR year served in a tribal area — only at the grades the
+     * rule lists (2026-11-01), or, on a rule without a list, not for a year whose points
+     * are the highest or the lowest grade's.
      *
      * @param  array<int, int>  $marksByYear
      * @return array{0: int, 1: list<int>}
@@ -54,6 +69,14 @@ class ScoringService
     {
         $rule = $rules->classRule;
 
+        // No bonus where the rule gives none, or says it does not apply (2026-11-01).
+        if ($rules->tribalAreaBonus <= 0) {
+            return [0, []];
+        }
+
+        // Kept only to reproduce calculations recorded under the PPT's single bonus
+        // (runs without a Class Master rule, or recorded before the per-year terms). No
+        // rule the Promotion Rule Master records today takes this path.
         if ($rule === null || $rule['tribal_bonus_basis'] !== 'year') {
             return [$officer->hasTribalAreaService() ? $rules->tribalAreaBonus : 0, []];
         }
@@ -65,7 +88,13 @@ class ScoringService
                 continue;
             }
 
-            if ($rule['tribal_bonus_skips_extremes'] && ($mark === $rule['highest_points'] || $mark === $rule['lowest_points'])) {
+            // The rule's grade list, where it has one (2026-11-01); otherwise the older
+            // "not at the highest or lowest grade".
+            if ($rule['tribal_bonus_grades'] !== null) {
+                if (! in_array($mark, $rule['tribal_bonus_grades'], true)) {
+                    continue;
+                }
+            } elseif ($rule['tribal_bonus_skips_extremes'] && ($mark === $rule['highest_points'] || $mark === $rule['lowest_points'])) {
                 continue;
             }
 

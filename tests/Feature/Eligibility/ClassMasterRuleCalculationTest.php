@@ -14,6 +14,7 @@ use App\Domain\Eligibility\Models\DpcCalculationResult;
 use App\Domain\Eligibility\Models\DpcCalculationRun;
 use App\Domain\Eligibility\RuleSet;
 use App\Domain\Eligibility\Services\DpcCalculationService;
+use App\Domain\Master\Models\CrGradeValue;
 use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\PromotionCrRule;
 use App\Domain\Master\Models\RecordReason;
@@ -230,12 +231,13 @@ class ClassMasterRuleCalculationTest extends TestCase
         $this->assertStringContainsString('CR 2025 scored 3, below the minimum of 5', implode(' ', $result->verdict['failure_reasons']));
     }
 
-    public function test_several_crs_in_a_year_score_their_average_on_the_points(): void
+    public function test_a_year_with_several_crs_is_not_averaged(): void
     {
         $this->rule(total: 31);
         $row = $this->chart([$this->officer(1, $this->five('क'))])[1];
 
-        // 2025: one क+ and one क — (9 + 7) / 2 = 8, a value no single grade has.
+        // One CR a year (2026-11-01): a year still holding two CRs from the earlier form
+        // scores nothing — no average of क+ and क is taken.
         $row->crGrades()->where('year', 2025)->update(['reports' => json_encode([
             ['reporter_grade' => 'घ', 'reviewer_grade' => 'ख', 'accepting_grade' => 'क+'],
             ['reporter_grade' => 'क', 'reviewer_grade' => null, 'accepting_grade' => null],
@@ -243,8 +245,7 @@ class ClassMasterRuleCalculationTest extends TestCase
 
         $result = $this->resultFor($this->calculate(), 1);
 
-        $this->assertSame(8, (int) $result->score_breakdown['marks_by_year'][2025]);
-        $this->assertSame(36, $result->score_breakdown['total']);
+        $this->assertArrayNotHasKey(2025, (array) $result->score_breakdown['marks_by_year']);
     }
 
     public function test_a_mandatory_year_missing_is_refused_or_held_on_its_reason_and_document(): void
@@ -271,6 +272,24 @@ class ClassMasterRuleCalculationTest extends TestCase
         $this->assertStringContainsString('The CR for 2025 is mandatory under the promotion rule', json_encode($refused->verdict, JSON_UNESCAPED_UNICODE));
 
         $this->assertSame(RemarkCode::Circulation->value, $this->resultFor($run, 2)->remark);
+    }
+
+    public function test_one_justified_year_does_not_excuse_another_without_a_reason(): void
+    {
+        $rule = $this->rule(total: 31);
+        // 2024 mandatory too: officer 1 has neither 2024 nor 2025.
+        $rule->years()->where('years_before', 2)->update(['cr_mandatory' => true]);
+        $rows = $this->chart([$this->officer(1, [2019 => 'क', 2020 => 'क', 2021 => 'क', 2022 => 'क', 2023 => 'क'])]);
+
+        // Only 2025 has its reason and document (rule 3.2).
+        $rows[1]->recordGaps()->create([
+            'kind' => DpcEvaluationRecordGap::KIND_CR, 'year' => 2025,
+            'record_reason_id' => RecordReason::query()->where('code', 'record_not_available')->firstOrFail()->id,
+            'disk' => 'local', 'path' => 'gaps/cr-2025.pdf', 'original_name' => 'cr-2025.pdf',
+            'size_bytes' => 1024, 'sha256' => str_repeat('a', 64),
+        ]);
+
+        $this->assertSame(RemarkCode::NotEligible->value, $this->resultFor($this->calculate(), 1)->remark, 'NE, not CIR: 2024 is unexplained.');
     }
 
     public function test_super_seat_needs_every_year_at_the_rules_points(): void
@@ -302,6 +321,76 @@ class ClassMasterRuleCalculationTest extends TestCase
         $this->assertSame(29, $score['base_total']);
         $this->assertEqualsCanonicalizing([2021, 2023], $score['tribal_bonus_years']);
         $this->assertSame(4, $score['tribal_area_bonus']);
+        $this->assertSame(33, $score['total']);
+    }
+
+    public function test_the_tribal_bonus_is_added_year_by_year_where_posting_and_grade_both_qualify(): void
+    {
+        // Bonus 2 at क+ (9) and क (7) only.
+        $this->rule(total: 31)->forceFill(['tribal_bonus_applicable' => true, 'tribal_bonus_grades' => [9, 7]])->save();
+        // 2021 tribal, क → bonus; 2022 not tribal → none; 2023 tribal, ख → none; 2024 tribal, क+ → bonus.
+        $this->chart([$this->officer(1, [2021 => 'क', 2022 => 'क', 2023 => 'ख', 2024 => 'क+', 2025 => 'क'], [2021, 2023, 2024])]);
+
+        $score = $this->resultFor($this->calculate(), 1)->score_breakdown;
+
+        $this->assertEqualsCanonicalizing([2021, 2024], $score['tribal_bonus_years']);
+        $this->assertSame([2021 => 2, 2024 => 2], $score['tribal_bonus_by_year']);
+        $this->assertSame(7 + 7 + 5 + 9 + 7, $score['base_total'], 'The CR points themselves are the grades\' own.');
+        $this->assertSame(35 + 4, $score['total']);
+    }
+
+    public function test_no_tribal_bonus_when_the_rule_says_it_does_not_apply(): void
+    {
+        $this->rule(total: 31)->forceFill(['tribal_bonus_applicable' => false, 'tribal_bonus_grades' => [9, 7, 5, 3, 1]])->save();
+        $this->chart([$this->officer(1, $this->five('क'), self::YEARS)]);
+
+        $score = $this->resultFor($this->calculate(), 1)->score_breakdown;
+
+        $this->assertSame(0, $score['tribal_area_bonus']);
+        $this->assertArrayNotHasKey('tribal_bonus_years', $score);
+        $this->assertSame(35, $score['total']);
+    }
+
+    public function test_the_tribal_bonus_reads_the_years_one_final_cr_grade(): void
+    {
+        // Bonus at ख (5) only.
+        $this->rule(total: 31)->forceFill(['tribal_bonus_applicable' => true, 'tribal_bonus_grades' => [5]])->save();
+        $row = $this->chart([$this->officer(1, $this->five('क'), [2024, 2025])])[1];
+
+        // 2025: one CR, the Accepting officer's grade ख (the one-CR form, 2026-11-01).
+        $row->crGrades()->where('year', 2025)->update([
+            'grade' => 'ख',
+            'reports' => json_encode([['authorities' => ['reporter', 'reviewer', 'accepting'], 'authority' => 'accepting', 'grade' => 'ख']]),
+        ]);
+
+        $score = $this->resultFor($this->calculate(), 1)->score_breakdown;
+
+        $this->assertSame(5, (int) $score['marks_by_year'][2025]);
+        $this->assertSame([2025], $score['tribal_bonus_years'], 'क (7) in 2024 is not ticked; the final grade ख in 2025 is.');
+    }
+
+    public function test_a_grade_added_after_the_rule_is_not_eligible_for_the_bonus(): void
+    {
+        // The rule was recorded when the Grade Master had क+ 9 and क 7 only eligible.
+        $this->rule(total: 31)->forceFill(['tribal_bonus_applicable' => true, 'tribal_bonus_grades' => [9, 7]])->save();
+        // A grade added afterwards, worth 8.
+        CrGradeValue::query()->create(['value' => 8, 'grade_code' => 'क++', 'effective_from' => '2020-01-01']);
+        $this->chart([$this->officer(1, [2021 => 'क++', 2022 => 'क', 2023 => 'क', 2024 => 'क', 2025 => 'क'], [2021, 2022])]);
+
+        $score = $this->resultFor($this->calculate(), 1)->score_breakdown;
+
+        $this->assertSame([2022], $score['tribal_bonus_years'], 'क++ (8) was never ticked on this rule.');
+    }
+
+    public function test_the_tribal_bonus_is_given_only_at_the_grades_the_rule_lists(): void
+    {
+        // Bonus at क (7) and घ (1) only; क+ (9) and ख (5) earn none (2026-11-01).
+        $this->rule(total: 31)->forceFill(['tribal_bonus_grades' => [7, 1]])->save();
+        $this->chart([$this->officer(1, [2021 => 'क', 2022 => 'क+', 2023 => 'ख', 2024 => 'घ', 2025 => 'क'], [2021, 2022, 2023, 2024])]);
+
+        $score = $this->resultFor($this->calculate(), 1)->score_breakdown;
+
+        $this->assertEqualsCanonicalizing([2021, 2024], $score['tribal_bonus_years']);
         $this->assertSame(33, $score['total']);
     }
 

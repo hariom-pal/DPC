@@ -197,7 +197,9 @@ class CandidateDpcController extends Controller
         $result = DpcCalculationResult::query()
             ->where('dpc_calculation_run_id', $proceeding->final_calculation_run_id)
             ->where('employee_number', $request->user()->employee_number)
-            ->first(['list_type']);
+            // `verdict` too: a sealed cover is read from it, and without it every
+            // sealed officer on the Main List was told they were promoted.
+            ->first(['list_type', 'verdict']);
 
         if ($result === null) {
             return null;

@@ -55,8 +55,6 @@
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.department-posts.*') ? 'active' : '' }}"
                        href="{{ route('admin.department-posts.index') }}">{{ __('ui.layouts.admin.nav.department_posts') }}</a>
 
-                    <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.vacancy-management.*', 'admin.departments.vacancy-master.*') ? 'active' : '' }}"
-                       href="{{ route('admin.vacancy-management.index') }}">{{ __('vacancymaster.title') }}</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.service-classes.*') ? 'active' : '' }}"
                        href="{{ route('admin.service-classes.index') }}">{{ __('ui.layouts.admin.nav.class_master') }}</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.qualifications.*') ? 'active' : '' }}"
@@ -73,8 +71,6 @@
                        href="{{ route('admin.cr-grades.index') }}">{{ __('admin.cr_grades.title') }}</a>
                     <a class="list-group-item list-group-item-action fw-semibold {{ request()->routeIs('admin.users.*') ? 'active' : '' }}"
                        href="{{ route('admin.users.index') }}">{{ __('ui.layouts.admin.nav.user_management') }}</a>
-                    <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.assignment-requests.*') ? 'active' : '' }}"
-                       href="{{ route('admin.assignment-requests.index') }}">{{ __('assignments.admin_title') }}</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.reservation-categories.*') ? 'active' : '' }}"
                        href="{{ route('admin.reservation-categories.index') }}">{{ __('ui.layouts.admin.nav.reservation_categories') }}</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.dpc-types.*') ? 'active' : '' }}"
@@ -91,6 +87,11 @@
                        href="{{ route('admin.portal-notices.index') }}">{{ __('ui.layouts.admin.nav.portal_notices') }}</a>
                     <a class="list-group-item list-group-item-action fw-semibold {{ request()->routeIs('admin.pre-dpc-links.*') ? 'active' : '' }}"
                        href="{{ route('admin.pre-dpc-links.index') }}">{{ __('ui.layouts.admin.nav.pre_dpc_links') }}</a>
+                    {{-- Only where clearing is allowed: never in production. --}}
+                    @if (app(\App\Domain\Maintenance\DpcDataPurgeService::class)->allowed())
+                        <a class="list-group-item list-group-item-action text-danger {{ request()->routeIs('admin.dpc-data-purge.*') ? 'active' : '' }}"
+                           href="{{ route('admin.dpc-data-purge.index') }}">{{ __('admin.dpc_data_purge.title') }}</a>
+                    @endif
                 </div>
             </aside>
             <main class="col-12 col-md-9 col-lg-10 py-4">

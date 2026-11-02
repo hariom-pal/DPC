@@ -199,6 +199,18 @@ class CirculationConsentTest extends TestCase
         $this->assertSame(CirculationStatus::Submitted, $resubmitted->status);
     }
 
+    public function test_a_return_clears_the_decisions_so_the_resubmitted_note_is_decided_afresh(): void
+    {
+        foreach ($this->circulation->items as $item) {
+            $this->commission()->decide($this->circulation, $item, $this->memberOne, CirculationDecision::Consented);
+        }
+
+        $this->commission()->returnToDepartment($this->circulation->fresh(), $this->memberOne, 'More evidence please.', request());
+
+        $this->assertTrue($this->circulation->fresh()->items->every(fn ($item) => $item->decision === null));
+        $this->assertFalse($this->circulation->fresh()->isFullyDecided());
+    }
+
     public function test_there_is_no_refusal_decision(): void
     {
         // BD-12 is raised, not answered. S45 describes no power to refuse a

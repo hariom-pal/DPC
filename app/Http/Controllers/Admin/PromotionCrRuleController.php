@@ -45,6 +45,8 @@ class PromotionCrRuleController extends Controller
             // The form starts from the rule in force, so a change is typed once.
             'current' => $this->rules->ruleFor($classMaster->code, $from, $year),
             'grades' => $this->rules->gradesForYear($year),
+            // "क+ (9)" beside each grade's points, where the grade has a code.
+            'gradeLabels' => collect($this->rules->pointsForYear($year))->mapWithKeys(fn (int $points, string $code): array => [$points => "{$code} ({$points})"])->all(),
             'maxYears' => RecordPromotionCrRuleRequest::MAX_YEARS,
         ]);
     }

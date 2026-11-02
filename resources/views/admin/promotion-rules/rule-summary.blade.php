@@ -11,7 +11,7 @@
         @if ($rule->tribal_bonus === 0)
             {{ __('admin.promotion_rules.no_bonus') }}
         @else
-            {{ __('admin.promotion_rules.tribal_value_'.($rule->tribal_bonus_basis === 'officer' ? 'officer' : 'year'), ['bonus' => $rule->tribal_bonus]) }}@if ($rule->tribal_bonus_basis !== 'officer' && $rule->tribal_bonus_skips_extremes) — {{ __('admin.promotion_rules.tribal_value_skips') }}@endif
+            {{ __('admin.promotion_rules.tribal_value_'.($rule->tribal_bonus_basis === 'officer' ? 'officer' : 'year'), ['bonus' => $rule->tribal_bonus]) }}@if ($rule->tribal_bonus_basis !== 'officer' && $rule->tribal_bonus_grades !== null) — {{ __('admin.promotion_rules.tribal_value_grades', ['grades' => implode(', ', $rule->tribal_bonus_grades)]) }}@elseif ($rule->tribal_bonus_basis !== 'officer' && $rule->tribal_bonus_skips_extremes) — {{ __('admin.promotion_rules.tribal_value_skips') }}@endif
         @endif
     </dd>
 </dl>

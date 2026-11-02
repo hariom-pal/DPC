@@ -9,6 +9,7 @@ use App\Domain\Department\Models\Department;
 use App\Domain\Dpc\Enums\DpcProposalStatus;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Services\DpcProposalCompletenessService;
+use App\Domain\Dpc\Services\DpcProposalService;
 use App\Domain\Dpc\Services\VacancyCalculationService;
 use App\Domain\Master\Models\DpcType;
 use App\Domain\Master\Models\ReviewReason;
@@ -425,6 +426,21 @@ class ReviewDpcTest extends TestCase
 
         $this->expectException(WorkflowException::class);
         $this->raise();
+    }
+
+    public function test_a_cancelled_review_frees_the_original_for_another_review(): void
+    {
+        $this->concludeOriginal();
+        $first = $this->raise();
+
+        $this->actingAs($this->authorizedOfficer);
+        app(DpcProposalService::class)->cancel($first->fresh(), $this->authorizedOfficer, request());
+
+        $this->assertSame(DpcProposalStatus::Cancelled, $first->fresh()->status);
+        $this->assertTrue($this->reviews()->eligibleOriginals((int) $this->proposal->department_id)->contains('id', $this->proposal->id));
+
+        $second = $this->raise();
+        $this->assertNotSame($first->id, $second->id);
     }
 
     public function test_a_dpc_that_has_not_been_conducted_cannot_be_reviewed(): void

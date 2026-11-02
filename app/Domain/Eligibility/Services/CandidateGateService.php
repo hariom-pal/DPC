@@ -151,16 +151,18 @@ class CandidateGateService
         // ---- 3. Justified gaps (items 14, 15, 17, 19) --------------------
         $gapReasons = $this->gapFindings($officer, $requiredCrCount, $mandatoryCrYears);
 
-        if ($gapReasons['citations'] !== []) {
-            return CandidateGateVerdict::circulation($gapReasons['reasons'], $gapReasons['citations'])
+        // An *unjustified* shortfall is not CIR: item 19 opens that path only for a
+        // gap the officer has explained and evidenced. Reported as a rule failure —
+        // the mandatory record simply is not there, and nobody has said why. Checked
+        // first (rule 3.2): one justified year does not excuse another that has no
+        // reason or document.
+        if ($gapReasons['unjustified'] !== []) {
+            return CandidateGateVerdict::ruleNotSatisfied($gapReasons['unjustified'], $ruleFailureStatus)
                 ->with($advisories);
         }
 
-        // An *unjustified* shortfall is not CIR: item 19 opens that path only for a
-        // gap the officer has explained and evidenced. Reported as a rule failure —
-        // the mandatory record simply is not there, and nobody has said why.
-        if ($gapReasons['unjustified'] !== []) {
-            return CandidateGateVerdict::ruleNotSatisfied($gapReasons['unjustified'], $ruleFailureStatus)
+        if ($gapReasons['citations'] !== []) {
+            return CandidateGateVerdict::circulation($gapReasons['reasons'], $gapReasons['citations'])
                 ->with($advisories);
         }
 

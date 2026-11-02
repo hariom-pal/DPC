@@ -287,18 +287,32 @@ class FreshInstallToPromotionOrderTest extends TestCase
             return $preDpc->fresh();
         });
 
-        $this->step('4 Vacancy record 10/7 finalized', function () use ($ao, $department, $to): void {
+        $this->step('4 Vacancy Management from the Pre-DPC: 8 sanctioned, 5 + 1 working, total 3', function () use ($ao, $department, $to, $preDpc): void {
+            // The button on the approved Pre-DPC opens the record for its post and year.
+            $this->ok($this->actingAs($ao)->post(route('vacancy-management.pre-dpc', $preDpc)));
             $params = [$department, 2026, $to];
-            $this->ok($this->actingAs($ao)->post(route('vacancy-records.open', $params)));
-            $this->ok($this->actingAs($ao)->post(route('vacancy-records.sanctioned-strength', $params), [
-                'sanctioned_total' => 10, 'order_number' => 'PHE/SANC/2026', 'order_date' => '2026-01-01', 'document' => $this->pdf('s.pdf'),
+
+            // Step 1: both figures and the one sanctioning order.
+            $this->ok($this->actingAs($ao)->post(route('vacancy-records.strength', $params), [
+                'sanctioned_total' => 8, 'working_total' => 5,
+                'order_number' => 'PHE/SANC/2026', 'order_date' => '2026-01-01', 'document' => $this->pdf('s.pdf'),
             ]));
-            $this->ok($this->actingAs($ao)->post(route('vacancy-records.working-strength', $params), [
-                'working_total' => 7, 'working_promotion' => 7, 'working_direct' => 0, 'working_deputation' => 0,
-                'order_number' => 'PHE/EST/2026', 'order_date' => '2026-01-01', 'document' => $this->pdf('w.pdf'),
+
+            // Step 2: B1 — an officer of another department here on deputation ending
+            // in 2026 (working 6, +1); B2 — one of ours away since March 2026, under a
+            // year by 31 December, so not counted; C — none.
+            $this->ok($this->actingAs($ao)->post(route('vacancy-records.entries.store', $params), [
+                'kind' => 'deputation_in', 'officer_name' => 'Shri D. Deputationist', 'employee_number' => 'PHE/W/6', 'deputation_from' => '2024-07-01', 'deputation_to' => '2026-06-30',
             ]));
+            $this->ok($this->actingAs($ao)->post(route('vacancy-records.entries.store', $params), [
+                'kind' => 'deputation', 'officer_name' => 'Smt. E. Away', 'employee_number' => 'PHE/W/5', 'deputation_from' => '2026-03-01', 'promotion_made' => '0',
+            ]));
+
             $this->ok($this->actingAs($ao)->post(route('vacancy-records.finalize', $params)));
-            $this->assertSame(3, (int) VacancyPosition::query()->sole()->promotion_vacancy);
+            $position = VacancyPosition::query()->sole();
+            // A = 8 − 6 = 2, B1 = 1: total 3, all of it promotion (the Pre-DPC's 100%).
+            $this->assertSame([2, 1, 3], [$position->breakdown['clear_vacancy'], $position->breakdown['deputation_in_vacancy'], $position->breakdown['total_vacancy']]);
+            $this->assertSame(3, (int) $position->promotion_vacancy);
         });
 
         $proposal = $this->step('5.1 DPC Proposal', function () use ($ao, $preDpc): DpcProposal {
@@ -320,9 +334,23 @@ class FreshInstallToPromotionOrderTest extends TestCase
         });
 
         $this->step('6 CSV uploads', function () use ($ao, $proposal): void {
-            foreach ([['currently_working_us', 'working_officers_7_working_3_vacant.csv', []], ['final_seniority_list_us', 'seniority_list_10_officers.csv', ['seniority_list_as_on' => '2025-04-01']]] as [$template, $name, $extra]) {
+            // The simple Working Officers list, downloaded from this DPC and filled in:
+            // 5 of our officers (one of them away, B2) and the one here on deputation (B1),
+            // both matched by Employee ID, which every row of the record carries (2026-11-02).
+            $template = $this->actingAs($ao)->get(route('dpc-import-templates.download-for', [$proposal, 'currently_working_us']))->assertOk()->getContent();
+            $lines = array_values(array_filter(explode("\n", str_replace("\xEF\xBB\xBF", '', (string) $template)), fn (string $line): bool => trim($line) !== ''));
+            $this->assertSame('SN,"EMPLOYEE NO",NAME,DOB,MOBILE,EMAIL,"HERE ON DEPUTATION","OUT ON DEPUTATION"', trim($lines[0]));
+            $working = $lines[0]."\n";
+            for ($sn = 1; $sn <= 6; $sn++) {
+                $name = match ($sn) {
+                    5 => 'E. Away', 6 => 'D. Deputationist (PHE)', default => 'Working Officer '.$sn
+                };
+                $working .= implode(',', [$sn, 'PHE/W/'.$sn, $name, '01-01-1975', '', $sn === 1 ? 'officer1@example.gov.in' : '', $sn === 6 ? 'Y' : 'N', $sn === 5 ? 'Y' : 'N'])."\n";
+            }
+
+            foreach ([['currently_working_us', 'working.csv', [], $working], ['final_seniority_list_us', 'seniority_list_10_officers.csv', ['seniority_list_as_on' => '2025-04-01'], null]] as [$template, $name, $extra, $contents]) {
                 $copy = tempnam(sys_get_temp_dir(), 'e2e').'.csv';
-                copy(self::FIXTURES.$name, $copy);
+                $contents === null ? copy(self::FIXTURES.$name, $copy) : file_put_contents($copy, $contents);
                 $this->ok($this->actingAs($ao)->post(route('dpc-proposals.imports.store', $proposal), ['template' => $template, 'file' => new UploadedFile($copy, $name, 'text/csv', null, true)] + $extra));
                 $batch = ImportBatch::query()->latest('id')->firstOrFail();
                 $this->assertSame(0, (int) $batch->rejected_count);
@@ -335,8 +363,7 @@ class FreshInstallToPromotionOrderTest extends TestCase
             foreach ($proposal->evaluationRows()->orderBy('sn')->get() as $row) {
                 $this->ok($this->actingAs($ao)->put($route('basic', $row), ['dob_order_number' => 'SR/'.$row->sn, 'dob_order_date' => '1997-03-03', 'joining_order_number' => 'J/'.$row->sn, 'joining_order_date' => '1997-03-03', 'service_record_undertaking' => '1']));
                 foreach ([2021, 2022, 2023, 2024, 2025] as $year) {
-                    $this->ok($this->actingAs($ao)->post($route('cr.save', $row), ['year' => $year, 'put_up' => '1', 'has_grading' => '1', 'reports' => [[
-                        'reporter_designation' => 'SE', 'reporter_grade' => 'क', 'reviewer_designation' => 'CE', 'reviewer_grade' => 'क', 'accepting_designation' => 'Secy', 'accepting_grade' => 'क']]]));
+                    $this->ok($this->actingAs($ao)->post($route('cr.save', $row), ['year' => $year, 'put_up' => '1', 'has_grading' => '1', 'authorities' => ['reporter', 'reviewer', 'accepting'], 'grade' => 'क']));
                     $this->ok($this->actingAs($ao)->post($route('documents.store', $row), ['verified' => '1', 'kind' => 'cr_report', 'year' => $year, 'undertaking' => '1', 'document' => $this->pdf("cr{$row->sn}{$year}.pdf")]));
                     $this->ok($this->actingAs($ao)->post($route('property.save', $row), ['year' => $year, 'submitted' => '1', 'submitted_on' => ($year + 1).'-01-15', 'next_increment_date' => ($year + 1).'-07-01']));
                     $this->ok($this->actingAs($ao)->post($route('documents.store', $row), ['verified' => '1', 'kind' => 'property_return', 'year' => $year, 'undertaking' => '1', 'document' => $this->pdf("ipr{$row->sn}{$year}.pdf")]));

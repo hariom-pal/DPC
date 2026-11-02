@@ -106,7 +106,9 @@ final class OfficerRecord
         $tribalByYear = [];
 
         foreach ($row->crGrades as $crGrade) {
-            $grades[$crGrade->year] = $crGrade->grade;
+            // One CR a year and no average (2026-11-01): a year still holding several
+            // CRs from the earlier form is ungraded until it is entered again.
+            $grades[$crGrade->year] = count($crGrade->finalGrades()) > 1 ? null : $crGrade->grade;
 
             $yearPoints = $gradePoints === null ? null : $crGrade->pointsOn($gradePoints);
 

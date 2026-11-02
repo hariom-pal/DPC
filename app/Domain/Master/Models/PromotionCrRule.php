@@ -29,9 +29,11 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property string $qualifying_average
  * @property int|null $qualifying_total
  * @property string $tribal_bonus_basis `year` (each tribal CR year) or `officer` (one bonus, the PPT's)
- * @property bool $tribal_bonus_skips_extremes no bonus for a year at the highest or the lowest grade
+ * @property bool $tribal_bonus_skips_extremes no bonus for a year at the highest or the lowest grade (rules without a grade list)
+ * @property list<int>|null $tribal_bonus_grades the grade points a tribal CR year earns the bonus at; null on rules recorded before 2026-11-01
  * @property int|null $super_seat_grade
  * @property int $tribal_bonus
+ * @property bool $tribal_bonus_applicable whether the rule gives the tribal posting bonus at all (2026-11-01)
  * @property string|null $remarks
  * @property int|null $recorded_by
  * @property Carbon $created_at
@@ -43,8 +45,22 @@ class PromotionCrRule extends Model implements Auditable
 
     protected $fillable = [
         'to_class', 'from_class', 'effective_from_year', 'cr_years', 'loyalty_years', 'property_years',
-        'qualifying_average', 'qualifying_total', 'super_seat_grade', 'tribal_bonus', 'tribal_bonus_basis', 'tribal_bonus_skips_extremes', 'remarks', 'recorded_by',
+        'qualifying_average', 'qualifying_total', 'super_seat_grade', 'tribal_bonus', 'tribal_bonus_applicable', 'tribal_bonus_basis', 'tribal_bonus_skips_extremes', 'tribal_bonus_grades', 'remarks', 'recorded_by',
     ];
+
+    /**
+     * A rule created without saying whether the tribal bonus applies has it exactly
+     * when it carries bonus points — the reading every rule recorded before the
+     * Yes/No (2026-11-01) was given by its migration.
+     */
+    protected static function booted(): void
+    {
+        static::creating(function (self $rule): void {
+            if (! array_key_exists('tribal_bonus_applicable', $rule->getAttributes())) {
+                $rule->tribal_bonus_applicable = (int) $rule->tribal_bonus > 0;
+            }
+        });
+    }
 
     /**
      * @return list<string>
@@ -72,6 +88,8 @@ class PromotionCrRule extends Model implements Auditable
             'qualifying_average' => 'decimal:2',
             'qualifying_total' => 'integer',
             'tribal_bonus_skips_extremes' => 'boolean',
+            'tribal_bonus_grades' => 'array',
+            'tribal_bonus_applicable' => 'boolean',
             'super_seat_grade' => 'integer',
             'tribal_bonus' => 'integer',
         ];

@@ -198,6 +198,11 @@ class CirculationCommissionService
                 'return_remarks' => $remarks,
             ])->save();
 
+            // The resubmitted note is decided afresh: a decision taken on the evidence
+            // the Commission returned must not carry over to it. Each decision stays
+            // on the timeline, where `decide` recorded it.
+            $locked->items()->update(['decision' => null, 'decided_by' => null, 'decided_by_name' => null, 'decided_at' => null]);
+
             $this->record($locked, 'return_to_department', $from, $def, $actor, $request, $remarks);
 
             return $locked->fresh();

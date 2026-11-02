@@ -8,7 +8,6 @@ use App\Domain\Authentication\Models\User;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 
 /**
@@ -23,6 +22,8 @@ use RuntimeException;
  */
 final class UatCleanupService
 {
+    public function __construct(private readonly ForeignKeyGraph $graph = new ForeignKeyGraph) {}
+
     /**
      * Everything the cleanup would do, without doing it.
      *
@@ -111,16 +112,10 @@ final class UatCleanupService
             $clean = array_values(array_filter($tables, fn (string $t): bool => UatCleanupPlan::classify($t) === 'clean'));
 
             // 1. Break cycles: nullable references between two emptied tables go to NULL.
-            foreach ($clean as $table) {
-                foreach ($this->foreignKeys($table) as $fk) {
-                    if (in_array($fk['foreign_table'], $clean, true) && $this->nullable($table, $fk['columns'][0])) {
-                        $cleared += DB::table($table)->whereNotNull($fk['columns'][0])->update([$fk['columns'][0] => null]);
-                    }
-                }
-            }
+            $cleared = $this->graph->breakCycles($clean);
 
             // 2. Child before parent, from the remaining (non-null) references.
-            foreach ($this->deleteOrder($clean) as $table) {
+            foreach ($this->graph->deleteOrder($clean) as $table) {
                 $deleted[$table] = DB::table($table)->delete();
             }
 
@@ -132,7 +127,7 @@ final class UatCleanupService
             }
         });
 
-        return ['deleted' => $deleted, 'cleared_references' => $cleared, 'files' => $this->deleteFiles($files)];
+        return ['deleted' => $deleted, 'cleared_references' => $cleared, 'files' => $this->graph->deleteFiles($files, UatCleanupPlan::FILE_REFERENCES)];
     }
 
     /**
@@ -248,7 +243,7 @@ final class UatCleanupService
                 continue;   // its own rows go too
             }
 
-            foreach ($this->foreignKeys($table) as $fk) {
+            foreach ($this->graph->foreignKeys($table) as $fk) {
                 $target = $fk['foreign_table'];
                 $column = $fk['columns'][0];
                 $query = $this->survivors($table, $keep)->whereNotNull($column);
@@ -277,71 +272,6 @@ final class UatCleanupService
     }
 
     /**
-     * Emptied tables in an order where no table is deleted before a table that still
-     * references it.
-     *
-     * @param  list<string>  $clean
-     * @return list<string>
-     */
-    private function deleteOrder(array $clean): array
-    {
-        $references = [];
-
-        foreach ($clean as $table) {
-            foreach ($this->foreignKeys($table) as $fk) {
-                $parent = $fk['foreign_table'];
-
-                if ($parent !== $table && in_array($parent, $clean, true)
-                    && DB::table($table)->whereNotNull($fk['columns'][0])->exists()) {
-                    $references[$parent][$table] = true;   // $table must go before $parent
-                }
-            }
-        }
-
-        $order = [];
-        $remaining = $clean;
-
-        while ($remaining !== []) {
-            $ready = array_values(array_filter(
-                $remaining,
-                fn (string $t): bool => array_intersect(array_keys($references[$t] ?? []), $remaining) === [],
-            ));
-
-            if ($ready === []) {
-                throw new RuntimeException('Foreign keys form a cycle among: '.implode(', ', $remaining));
-            }
-
-            $order = [...$order, ...$ready];
-            $remaining = array_values(array_diff($remaining, $ready));
-        }
-
-        return $order;
-    }
-
-    /**
-     * @return list<array{columns: list<string>, foreign_table: string, on_delete: string|null}>
-     */
-    private function foreignKeys(string $table): array
-    {
-        return array_map(fn (array $fk): array => [
-            'columns' => array_values($fk['columns']),
-            'foreign_table' => (string) $fk['foreign_table'],
-            'on_delete' => $fk['on_delete'] ?? null,
-        ], Schema::getForeignKeys($table));
-    }
-
-    private function nullable(string $table, string $column): bool
-    {
-        foreach (Schema::getColumns($table) as $definition) {
-            if ($definition['name'] === $column) {
-                return (bool) $definition['nullable'];
-            }
-        }
-
-        return false;
-    }
-
-    /**
      * Files named by rows that will be emptied.
      *
      * @param  list<string>  $tables
@@ -356,82 +286,9 @@ final class UatCleanupService
                 continue;
             }
 
-            foreach ($pairs as [$disk, $path]) {
-                foreach (DB::table($table)->whereNotNull($path)->get() as $row) {
-                    $files[] = ['disk' => $this->diskOf($disk, $row), 'path' => (string) $row->{$path}];
-                }
-            }
+            $files = [...$files, ...$this->graph->filesOf(DB::table($table), $pairs)];
         }
 
         return array_values(array_unique($files, SORT_REGULAR));
-    }
-
-    /**
-     * After the commit: delete each collected file unless a remaining row names it.
-     *
-     * @param  list<array{disk: string, path: string}>  $files
-     * @return array{deleted: int, kept_shared: int, missing: int}
-     */
-    private function deleteFiles(array $files): array
-    {
-        $result = ['deleted' => 0, 'kept_shared' => 0, 'missing' => 0];
-
-        foreach ($files as $file) {
-            if ($this->stillReferenced($file)) {
-                $result['kept_shared']++;
-
-                continue;
-            }
-
-            $storage = Storage::disk($file['disk']);
-
-            if (! $storage->exists($file['path'])) {
-                $result['missing']++;
-
-                continue;
-            }
-
-            $storage->delete($file['path']);
-            $result['deleted']++;
-        }
-
-        return $result;
-    }
-
-    /**
-     * @param  array{disk: string, path: string}  $file
-     */
-    private function stillReferenced(array $file): bool
-    {
-        foreach (UatCleanupPlan::FILE_REFERENCES as $table => $pairs) {
-            if (! Schema::hasTable($table)) {
-                continue;
-            }
-
-            foreach ($pairs as [$disk, $path]) {
-                $query = DB::table($table)->where($path, $file['path']);
-
-                if (! str_starts_with($disk, 'config:')) {
-                    $query->where($disk, $file['disk']);
-                } elseif ($this->diskOf($disk, null) !== $file['disk']) {
-                    continue;
-                }
-
-                if ($query->exists()) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    }
-
-    private function diskOf(string $disk, ?object $row): string
-    {
-        if (str_starts_with($disk, 'config:')) {
-            return (string) config(substr($disk, 7), 'local');
-        }
-
-        return $row === null ? 'local' : (string) ($row->{$disk} ?? 'local');
     }
 }

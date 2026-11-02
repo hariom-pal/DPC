@@ -5,9 +5,9 @@ declare(strict_types=1);
 use Illuminate\Support\Facades\Route;
 
 /*
-| A department's year-wise vacancy records (Vacancy Management), loaded by two route
-| groups in web.php: the department's area, where its Authorized Officer keeps and
-| finalizes them (2026-10-19), and the Administrator's, where they are read-only.
+| A department's year-wise vacancy records (Vacancy Management), in the department's
+| area: its Authorized Officer keeps and finalizes them (2026-10-19), its
+| Administrative Head reads them. The Administrator's copy was removed (2026-11-02).
 | The controller decides who may write, not the route.
 */
 

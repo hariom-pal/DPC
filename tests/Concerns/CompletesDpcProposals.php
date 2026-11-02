@@ -325,11 +325,7 @@ trait CompletesDpcProposals
                 $cr->forceFill([
                     'put_up' => true,
                     'has_grading' => true,
-                    'reports' => [[
-                        'reporter_designation' => 'Reporting Officer', 'reporter_grade' => $grade,
-                        'reviewer_designation' => 'Reviewing Officer', 'reviewer_grade' => $grade,
-                        'accepting_designation' => 'Accepting Officer', 'accepting_grade' => $grade,
-                    ]],
+                    'reports' => [['authorities' => ['reporter', 'reviewer', 'accepting'], 'authority' => 'accepting', 'grade' => $grade]],
                     'grade' => $grade,
                 ])->save();
 

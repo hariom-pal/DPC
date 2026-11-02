@@ -129,20 +129,46 @@
                     @error('super_seat_grade')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     <div class="form-text">{{ __('admin.promotion_rules.super_seat_help') }}</div>
                 </div>
-                <div class="col-md-3">
+                {{-- The tribal posting bonus (2026-11-01): Yes/No, then — for Yes — the points and
+                     the Grade Master grades it is given at. A new version starts from the rule in
+                     force; a rule recorded before carried "not at the highest or lowest grade",
+                     and that reading is the starting tick. --}}
+                @php
+                    $tribalApplicable = (string) $val('tribal_bonus_applicable', $current === null ? '0' : ($current->tribal_bonus_applicable ? '1' : '0'));
+                    // Nothing ticked on a first rule: the Administrator chooses.
+                    $tribalDefault = $current === null ? [] : ($current->tribal_bonus_grades
+                        ?? array_values(array_filter($grades, fn ($points) => ! $current->tribal_bonus_skips_extremes || ($points !== max($grades) && $points !== min($grades)))));
+                    $tribalTicked = array_map('intval', (array) $val('tribal_bonus_grades', $tribalDefault));
+                @endphp
+                <div class="col-12">
+                    <span class="form-label d-block">{{ __('admin.promotion_rules.tribal_applicable') }}</span>
+                    @foreach (['1' => __('ui.yes'), '0' => __('ui.no')] as $value => $label)
+                        <label class="form-check form-check-inline">
+                            <input class="form-check-input @error('tribal_bonus_applicable') is-invalid @enderror" type="radio" name="tribal_bonus_applicable" value="{{ $value }}" required
+                                   @checked($tribalApplicable === (string) $value)>
+                            {{ $label }}
+                        </label>
+                    @endforeach
+                    @error('tribal_bonus_applicable')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                </div>
+                <div class="col-md-3" data-show-when="tribal_bonus_applicable=1">
                     <label class="form-label" for="tribal_bonus">{{ __('admin.promotion_rules.tribal_bonus') }}</label>
-                    <input type="number" min="0" max="10" class="form-control @error('tribal_bonus') is-invalid @enderror" id="tribal_bonus" name="tribal_bonus" value="{{ $val('tribal_bonus', $current?->tribal_bonus ?? 0) }}" required>
+                    <input type="number" min="1" max="10" class="form-control @error('tribal_bonus') is-invalid @enderror" id="tribal_bonus" name="tribal_bonus" value="{{ $val('tribal_bonus', $current !== null && $current->tribal_bonus > 0 ? $current->tribal_bonus : '') }}">
                     @error('tribal_bonus')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     <div class="form-text">{{ __('admin.promotion_rules.tribal_help') }}</div>
                 </div>
-                <div class="col-md-6">
-                    <input type="hidden" name="tribal_bonus_skips_extremes" value="0">
-                    <div class="form-check mt-md-4">
-                        <input class="form-check-input" type="checkbox" id="tribal_bonus_skips_extremes" name="tribal_bonus_skips_extremes" value="1"
-                               @checked((bool) $val('tribal_bonus_skips_extremes', $current?->tribal_bonus_skips_extremes ?? true))>
-                        <label class="form-check-label" for="tribal_bonus_skips_extremes">{{ __('admin.promotion_rules.tribal_skips_extremes') }}</label>
-                    </div>
-                    <div class="form-text">{{ __('admin.promotion_rules.tribal_skips_extremes_help') }}</div>
+                <div class="col-md-9" data-show-when="tribal_bonus_applicable=1">
+                    <span class="form-label d-block">{{ __('admin.promotion_rules.tribal_grades') }}</span>
+                    @foreach ($grades as $grade)
+                        <label class="form-check form-check-inline">
+                            <input class="form-check-input @error('tribal_bonus_grades') is-invalid @enderror" type="checkbox" name="tribal_bonus_grades[]" value="{{ $grade }}"
+                                   @checked(in_array((int) $grade, $tribalTicked, true))>
+                            {{ $gradeLabels[$grade] ?? $grade }}
+                        </label>
+                    @endforeach
+                    @error('tribal_bonus_grades')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                    @error('tribal_bonus_grades.*')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                    <div class="form-text">{{ __('admin.promotion_rules.tribal_grades_help') }}</div>
                 </div>
                 <div class="col-12">
                     <label class="form-label" for="remarks">{{ __('ui.remarks') }}</label>
@@ -158,4 +184,6 @@
 
 @push('scripts')
     <script src="@versioned('js/forms/promotion-rule.js')" defer></script>
+    {{-- Points and grades show only for "Yes": the shared ask-only-when-it-applies script. --}}
+    <script src="@versioned('js/forms/dpc-employee-details.js')" defer></script>
 @endpush

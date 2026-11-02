@@ -185,6 +185,8 @@ class ResetTransactionalDataCommand extends Command
     private const PRESERVED = [
         // People and access.
         'users',
+        // The employee database (2026-11-02): kept for future reference.
+        'employees',
         // Officer identity is account state, kept with the account (2026-10-27).
         'identity_verifications',
         'identity_corrections',

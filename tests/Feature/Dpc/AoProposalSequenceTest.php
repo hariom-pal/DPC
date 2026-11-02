@@ -117,16 +117,17 @@ class AoProposalSequenceTest extends TestCase
      */
     private function uploadWorkingList(int $promotion, int $direct, int $deputation, int $vacant = 0): TestResponse
     {
-        $rows = [['SN', 'STATUS', 'SOURCE', 'NAME', 'DOB', 'CAT']];
+        // EMPLOYEE NO identifies each officer on a Vacancy Management proposal (2026-11-01).
+        $rows = [['SN', 'STATUS', 'SOURCE', 'EMPLOYEE NO', 'NAME', 'DOB', 'CAT']];
 
         foreach (['promotion' => $promotion, 'direct' => $direct, 'deputation' => $deputation] as $source => $count) {
             for ($i = 0; $i < $count; $i++) {
-                $rows[] = [(string) count($rows), 'working', $source, 'Officer '.count($rows), '01-01-1975', 'UR'];
+                $rows[] = [(string) count($rows), 'working', $source, 'W-'.count($rows), 'Officer '.count($rows), '01-01-1975', 'UR'];
             }
         }
 
         for ($i = 0; $i < $vacant; $i++) {
-            $rows[] = [(string) count($rows), 'vacant', '', '', '', 'UR'];
+            $rows[] = [(string) count($rows), 'vacant', '', '', '', '', 'UR'];
         }
 
         $this->actingAs($this->ao)->post(route('dpc-proposals.imports.store', $this->proposal), [
@@ -287,11 +288,7 @@ class AoProposalSequenceTest extends TestCase
     private function saveCr(DpcEvaluationRow $row, int $year, string $grade): void
     {
         $this->actingAs($this->ao)->post(route('dpc-proposals.employees.cr.save', [$this->proposal, $row]), [
-            'year' => $year, 'put_up' => '1', 'has_grading' => '1', 'reports' => [[
-                'reporter_designation' => 'Joint Director', 'reporter_grade' => $grade,
-                'reviewer_designation' => 'Director', 'reviewer_grade' => $grade,
-                'accepting_designation' => 'Secretary', 'accepting_grade' => $grade,
-            ]],
+            'year' => $year, 'put_up' => '1', 'has_grading' => '1', 'authorities' => ['reporter', 'reviewer', 'accepting'], 'grade' => $grade,
         ])->assertSessionHasNoErrors();
     }
 

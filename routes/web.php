@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use App\Enums\Role;
 use App\Http\Controllers\Admin\AdminDashboardController;
-use App\Http\Controllers\Admin\AssignmentRequestController;
 use App\Http\Controllers\Admin\AuditTrailController;
 use App\Http\Controllers\Admin\CgpscChairmanController;
 use App\Http\Controllers\Admin\ClassMasterController;
@@ -15,6 +14,7 @@ use App\Http\Controllers\Admin\DepartmentInvitationController;
 use App\Http\Controllers\Admin\DepartmentPostController;
 use App\Http\Controllers\Admin\DesignationController;
 use App\Http\Controllers\Admin\DistrictController;
+use App\Http\Controllers\Admin\DpcDataPurgeController;
 use App\Http\Controllers\Admin\DpcTypeController;
 use App\Http\Controllers\Admin\IntegrationStatusController;
 use App\Http\Controllers\Admin\MasterDataController;
@@ -743,6 +743,11 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
             ->group(function (): void {
                 Route::get('/', [AdminDashboardController::class, 'index'])->name('dashboard');
                 Route::get('/integrations', IntegrationStatusController::class)->name('integrations');
+                // Clear every Pre-DPC and DPC record (2026-11-02); refused outside
+                // `dpc.dpc_data_purge.allowed_environments` and always in production.
+                Route::get('/dpc-data-purge', [DpcDataPurgeController::class, 'index'])->name('dpc-data-purge.index');
+                Route::delete('/dpc-data-purge', [DpcDataPurgeController::class, 'destroy'])
+                    ->middleware('throttle:5,1')->name('dpc-data-purge.destroy');
 
                 /*
                  | Search, CSV export and bulk upload, for every master the registry
@@ -779,23 +784,6 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
                 Route::post('department-invitations/{invitation}/resend', [DepartmentInvitationController::class, 'resend'])->name('department-invitations.resend');
                 Route::post('department-invitations/{invitation}/revoke', [DepartmentInvitationController::class, 'revoke'])->name('department-invitations.revoke');
 
-                /*
-                 | Vacancy Master — inside Department Management, for the department
-                 | in the URL (no department picker). Year-wise position of each
-                 | mapped post, in four steps: sanctioned strength for the year, working
-                 | strength on 1 January, vacancies during the year, summary.
-                 */
-                /*
-                 | Vacancy Management — the Administrator's one entry point: choose
-                 | Department → Post → Year, or find a record. The record's four steps
-                 | are the Vacancy Master routes below.
-                 */
-                Route::get('vacancy-management', [VacancyManagementController::class, 'index'])->name('vacancy-management.index');
-                Route::get('vacancy-management/open', [VacancyManagementController::class, 'go'])->name('vacancy-management.go');
-                Route::prefix('departments/{department}/vacancy-master')
-                    ->name('departments.vacancy-master.')
-                    ->controller(VacancyMasterController::class)
-                    ->group(base_path('routes/vacancy-records.php'));
                 Route::resource('districts', DistrictController::class)->except(['show']);
                 Route::resource('designations', DesignationController::class)->except(['show']);
                 // Class Master (change item 1). `service-classes` rather than
@@ -956,11 +944,6 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
                     ->name('users.assignments.store');
                 Route::delete('users/{user}/assignments', [UserAssignmentController::class, 'release'])
                     ->name('users.assignments.release');
-
-                // Transfer and additional-charge requests (Phases 7–8, 2026-10-27).
-                Route::get('assignment-requests', [AssignmentRequestController::class, 'index'])->name('assignment-requests.index');
-                Route::post('assignment-requests/{assignmentRequest}/decide', [AssignmentRequestController::class, 'decide'])->name('assignment-requests.decide');
-                Route::get('assignment-requests/{assignmentRequest}/order', [AssignmentRequestController::class, 'document'])->name('assignment-requests.document');
 
                 // Identity: status, correction, manual and forced re-verification (2026-10-27).
                 Route::get('users/{user}/identity', [UserIdentityController::class, 'show'])->name('users.identity');

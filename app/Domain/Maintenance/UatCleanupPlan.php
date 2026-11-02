@@ -147,6 +147,7 @@ final class UatCleanupPlan
         'vacancy_types' => 'Vacancy type master',
         'dpc_types' => 'DPC type master',
         'portal_notices' => 'Portal notices',
+        'employees' => 'Employee database (kept for future reference)',
         'migrations' => 'Migration history',
     ];
 

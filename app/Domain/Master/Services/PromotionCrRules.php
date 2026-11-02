@@ -190,10 +190,24 @@ final class PromotionCrRules
                 'qualifying_total' => (int) $data['qualifying_total'],
                 'qualifying_average' => round((int) $data['qualifying_total'] / max(1, (int) $data['cr_years']), 2),
                 'super_seat_grade' => ($data['super_seat_grade'] ?? '') === '' ? null : (int) $data['super_seat_grade'],
-                'tribal_bonus' => (int) ($data['tribal_bonus'] ?? 0),
+                // Yes/No (2026-11-01). A caller that does not say has a bonus exactly
+                // when it gives points, which is how every rule read before.
+                'tribal_bonus_applicable' => $applicable = array_key_exists('tribal_bonus_applicable', $data) && $data['tribal_bonus_applicable'] !== null
+                    ? (bool) $data['tribal_bonus_applicable']
+                    : (int) ($data['tribal_bonus'] ?? 0) > 0,
+                'tribal_bonus' => $applicable ? (int) ($data['tribal_bonus'] ?? 0) : 0,
                 // Given for each CR year served in a tribal area (2026-10-21).
                 'tribal_bonus_basis' => 'year',
                 'tribal_bonus_skips_extremes' => (bool) ($data['tribal_bonus_skips_extremes'] ?? true),
+                // The grades the bonus is given at (2026-11-01): the points of the Grade
+                // Master grades ticked, fixed on this version. A grade added later is not
+                // on it; a new version takes it. A rule recorded without the list keeps the
+                // highest/lowest exclusion above; a rule with no bonus has none.
+                'tribal_bonus_grades' => match (true) {
+                    ! $applicable => [],
+                    isset($data['tribal_bonus_grades']) => collect((array) $data['tribal_bonus_grades'])->map(fn ($points): int => (int) $points)->unique()->sortDesc()->values()->all(),
+                    default => null,
+                },
                 'remarks' => $data['remarks'] ?? null,
                 'recorded_by' => $actor->id,
             ]);

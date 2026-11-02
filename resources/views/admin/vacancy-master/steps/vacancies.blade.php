@@ -100,7 +100,7 @@
                 <tbody>
                     @forelse ($rows as $entry)
                         <tr @class(['text-muted' => ! $entry->isActive()]) data-entry-kind="{{ $kind }}">
-                            <td>{{ $entry->officer_name ?? '—' }}</td>
+                            <td>{{ $entry->officer_name ?? '—' }}@if ($entry->employee_number)<div class="text-muted">{{ $entry->employee_number }}</div>@endif</td>
                             <td>
                                 @if ($kind === 'deputation_in')
                                     {{ __('vacancymaster.pm.came_ends', ['from' => $entry->deputation_from?->format('d-m-Y') ?? '—', 'to' => $entry->deputation_to?->format('d-m-Y') ?? '—']) }}
@@ -196,6 +196,13 @@
                             <input type="text" maxlength="255" class="form-control form-control-sm @if ($err($kind, 'officer_name')) is-invalid @endif" id="{{ $card['id'] }}_name" name="officer_name" value="{{ $val($kind, 'officer_name') }}" required>
                             @if ($mine($kind)) @include('admin.vacancy-master.partials.field-error', ['field' => 'officer_name']) @endif
                         </div>
+                        {{-- Every officer with an Employee ID (2026-11-02); matched with the
+                             Working Officers List by number before name. --}}
+                        <div class="col-md-3">
+                            <label class="form-label small" for="{{ $card['id'] }}_employee_number">{{ __('vacancymaster.entries.employee_number') }}</label>
+                            <input type="text" maxlength="60" class="form-control form-control-sm @if ($err($kind, 'employee_number')) is-invalid @endif" id="{{ $card['id'] }}_employee_number" name="employee_number" value="{{ $val($kind, 'employee_number') }}" required>
+                            @if ($mine($kind)) @include('admin.vacancy-master.partials.field-error', ['field' => 'employee_number']) @endif
+                        </div>
                         @if ($kind === 'deputation_in')
                             <div class="col-md-3">
                                 <label class="form-label small" for="b1_from">{{ __('vacancymaster.pm.came_on') }}</label>
@@ -204,7 +211,7 @@
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label small" for="b1_to">{{ __('vacancymaster.pm.ends_on') }}</label>
-                                <input type="date" min="{{ $yearFrom }}" class="form-control form-control-sm @if ($err($kind, 'deputation_to')) is-invalid @endif" id="b1_to" name="deputation_to" value="{{ $val($kind, 'deputation_to') }}" required>
+                                <input type="date" min="{{ $yearFrom }}" class="form-control form-control-sm @if ($err($kind, 'deputation_to')) is-invalid @endif" id="b1_to" name="deputation_to" value="{{ $val($kind, 'deputation_to') }}">
                                 @if ($mine($kind)) @include('admin.vacancy-master.partials.field-error', ['field' => 'deputation_to']) @endif
                             </div>
                         @elseif ($kind === 'deputation')

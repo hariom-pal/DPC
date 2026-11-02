@@ -105,6 +105,10 @@ class ImportTemplateTest extends TestCase
             // against the M2 master while parsing. That translation is the
             // importer's documented behaviour, not a gap in the template.
             if ($field === 'reservation_category_id') {
+                if ($template === ImportTemplate::CurrentlyWorkingUs) {
+                    continue;
+                }
+
                 $this->assertContains('reservation_category', $offered);
 
                 continue;
@@ -112,6 +116,13 @@ class ImportTemplateTest extends TestCase
 
             // Only top-level scalar fields; the per-year rules address nested keys.
             if (str_contains((string) $field, '.')) {
+                continue;
+            }
+
+            // The simple Working Officers list (2026-11-01) leaves these to the
+            // importer: every row is a working officer, its source comes from HERE ON
+            // DEPUTATION, and the category is the single pool.
+            if ($template === ImportTemplate::CurrentlyWorkingUs && in_array($field, ['status', 'source'], true)) {
                 continue;
             }
 

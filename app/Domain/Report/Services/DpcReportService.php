@@ -131,7 +131,8 @@ class DpcReportService
         $results = DpcCalculationResult::query()->whereIn('dpc_calculation_run_id', $runIds);
 
         return [
-            'promoted' => (clone $results)->where('list_type', ListType::Main->value)->count(),
+            // A sealed cover (rule 2.2) holds the seat; nobody is promoted on it.
+            'promoted' => (clone $results)->where('list_type', ListType::Main->value)->whereNull('verdict->sealed_cover')->count(),
             'waiting' => (clone $results)->where('list_type', ListType::Waiting->value)->count(),
             'held' => $this->heldCount($departmentId),
             // Everything the engine placed on neither list. Counted as the

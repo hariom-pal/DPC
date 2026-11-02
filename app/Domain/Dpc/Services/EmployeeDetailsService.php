@@ -93,15 +93,11 @@ class EmployeeDetailsService
     // ------------------------------------------------------------------
 
     /**
-     * One CR year, answered the way page 3 asks: was a CR put up; does it carry a
-     * grading; and, if so, the reports written in the year (at most four), each with
-     * the reporting, reviewing and accepting officers' designations and grades.
+     * One CR year: was a CR put up; does it carry a grading; and, if so, the one CR of
+     * the year (decision of 2026-11-01): which authorities' remarks it carries, ticked,
+     * and the grade of the highest of them. One CR a year and no average.
      *
-     * The year's grade — the one value the engine reads — is derived, never typed:
-     * each report's final grade is the accepting officer's, else the reviewer's, else
-     * the reporter's; several reports are averaged on the configured marks and the
-     * decimal part dropped (rule 3.1). A year without a grading, or with no CR put up,
-     * keeps no grade.
+     * A year without a grading, or with no CR put up, keeps no grade.
      *
      * @param  array<string, mixed>  $data
      */
@@ -112,10 +108,17 @@ class EmployeeDetailsService
 
         $putUp = (bool) $data['put_up'];
         $hasGrading = $putUp ? (bool) ($data['has_grading'] ?? false) : null;
-        $reports = $putUp && $hasGrading ? $this->normaliseReports($data['reports'] ?? []) : null;
+        $reports = null;
 
-        if ($reports === []) {
-            throw new WorkflowException(__('dpc.employee_details.cr.reports_required'));
+        if ($putUp && $hasGrading) {
+            $authorities = array_values(array_intersect(self::CR_AUTHORITIES, (array) ($data['authorities'] ?? [])));
+            $grade = $this->blankToNull($data['grade'] ?? null);
+
+            if ($authorities === [] || $grade === null) {
+                throw new WorkflowException(__('dpc.employee_details.cr.reports_required'));
+            }
+
+            $reports = [['authorities' => $authorities, 'authority' => end($authorities), 'grade' => $grade]];
         }
 
         $grade = $reports === null ? null : $this->yearGrade($reports);
@@ -134,10 +137,14 @@ class EmployeeDetailsService
             'put_up' => $putUp,
             'has_grading' => $hasGrading,
             'grade' => $grade,
+            'authority' => $reports[0]['authority'] ?? null,
         ], $actor);
 
         return $record;
     }
+
+    /** The authorities a CR can carry remarks of, lowest first. */
+    public const CR_AUTHORITIES = ['reporter', 'reviewer', 'accepting'];
 
     public function removeCrYear(DpcEvaluationRow $row, int $year, User $actor): void
     {
@@ -169,43 +176,25 @@ class EmployeeDetailsService
     }
 
     /**
-     * The grade a year's reports come to (rule 3.1).
+     * The year's grade: its one CR's (decision of 2026-11-01 — one CR a year, never an
+     * average).
      *
-     * @param  list<array<string, string|null>>  $reports
-     * @param  array<string, int>|null  $marks  the scale of the proposal's year; configuration when null
+     * @param  list<array<string, mixed>>  $reports
      */
-    public function yearGrade(array $reports, ?array $marks = null): string
+    public function yearGrade(array $reports): string
     {
-        $marks ??= array_map('intval', (array) config('dpc.scoring.cr_grade_marks'));
-        $finals = array_map(fn (array $report): string => (string) $this->finalGrade($report), $reports);
-
-        if (count($finals) === 1) {
-            return $finals[0];
+        if (count($reports) !== 1) {
+            throw new WorkflowException(__('dpc.employee_details.cr.one_cr_per_year'));
         }
 
-        $sum = 0;
-
-        foreach ($finals as $grade) {
-            $sum += $marks[$grade];
-        }
-
-        // "If there is any decimal part then it should be omitted without changing
-        // the integer part" — truncation, never rounding.
-        $average = intdiv($sum, count($finals));
-        $grade = array_search($average, $marks, true);
-
-        if (! is_string($grade)) {
-            throw new WorkflowException(__('dpc.employee_details.cr.average_unmappable', ['mark' => $average]));
-        }
-
-        return $grade;
+        return (string) $this->finalGrade($reports[0]);
     }
 
     /**
      * Page 3: the final remark is the accepting officer's, else the reviewer's, else
      * the reporter's.
      *
-     * @param  array<string, string|null>  $report
+     * @param  array<string, mixed>  $report
      */
     public function finalGrade(array $report): ?string
     {
@@ -213,12 +202,17 @@ class EmployeeDetailsService
     }
 
     /**
-     * Page 3: an NRC is compulsory when any of the three remarks is missing.
+     * Page 3: an NRC is compulsory when any of the three remarks is missing — on the
+     * one-CR form, an authority left unticked.
      *
-     * @param  array<string, string|null>  $report
+     * @param  array<string, mixed>  $report
      */
     public function reportNeedsNrc(array $report): bool
     {
+        if (isset($report['authorities'])) {
+            return array_diff(self::CR_AUTHORITIES, (array) $report['authorities']) !== [];
+        }
+
         return ($report['reporter_grade'] ?? null) === null
             || ($report['reviewer_grade'] ?? null) === null
             || ($report['accepting_grade'] ?? null) === null;
@@ -999,41 +993,6 @@ class EmployeeDetailsService
 
             return $document;
         });
-    }
-
-    /**
-     * @return list<array<string, string|null>>
-     */
-    private function normaliseReports(mixed $reports): array
-    {
-        $normalised = [];
-
-        foreach ((array) $reports as $report) {
-            if (! is_array($report)) {
-                continue;
-            }
-
-            $entry = [];
-
-            foreach (['reporter', 'reviewer', 'accepting'] as $role) {
-                $entry["{$role}_designation"] = $this->blankToNull($report["{$role}_designation"] ?? null);
-                $entry["{$role}_grade"] = $this->blankToNull($report["{$role}_grade"] ?? null);
-            }
-
-            if ($this->finalGrade($entry) === null) {
-                continue; // An empty report block on the form.
-            }
-
-            $normalised[] = $entry;
-        }
-
-        $max = (int) config('dpc.employee_details.max_crs_per_year', 4);
-
-        if (count($normalised) > $max) {
-            throw new WorkflowException(__('dpc.employee_details.cr.too_many_reports', ['max' => $max]));
-        }
-
-        return $normalised;
     }
 
     private function assertEditable(DpcEvaluationRow $row): void

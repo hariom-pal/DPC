@@ -51,8 +51,21 @@ class ImportTemplateBuilder
      *
      * @return list<string>
      */
-    public function headers(ImportTemplate $template, ?int $asOnYear = null): array
+    public function headers(ImportTemplate $template, ?int $asOnYear = null, ?DpcProposal $proposal = null): array
     {
+        /*
+         | The simple Working Officers list (2026-11-01). A proposal whose vacancy
+         | figures come from Vacancy Management only reconciles the list — how many
+         | officers work on the post, and how many of them are here on deputation from
+         | another department — so it asks for nothing else. A proposal still calculated
+         | from the chart keeps the full template below. OUT ON DEPUTATION (2026-11-01) marks
+         | one of our officers away at another department, matched with B2. EMAIL
+         | (2026-11-02, optional) goes to the employee database.
+         */
+        if ($template === ImportTemplate::CurrentlyWorkingUs && ($proposal === null || $proposal->usesVacancyMaster())) {
+            return ['SN', 'EMPLOYEE NO', 'NAME', 'DOB', 'MOBILE', 'EMAIL', 'HERE ON DEPUTATION', 'OUT ON DEPUTATION'];
+        }
+
         $headers = match ($template) {
             /*
              | `STATUS` and `SOURCE` sit first, right after the serial number,
@@ -170,6 +183,7 @@ class ImportTemplateBuilder
             'NAME' => (string) __('imports.guide.name'),
             'NAME OF US' => (string) __('imports.guide.name'),
             'MOBILE' => (string) __('imports.guide.mobile'),
+            'EMAIL' => (string) __('imports.guide.email'),
             'DOB' => (string) __('imports.guide.dob'),
             'QUAL' => (string) __('imports.guide.qual'),
             'PROMOTION TO POST' => (string) __('imports.guide.promotion_to_post'),
@@ -184,6 +198,8 @@ class ImportTemplateBuilder
             'DEPUTATION DATE' => (string) __('imports.guide.deputation_date'),
             'DEPUTATION TO' => (string) __('imports.guide.deputation_to'),
             'DATE OF RETIREMENT' => (string) __('imports.guide.date_of_retirement'),
+            'HERE ON DEPUTATION' => (string) __('imports.guide.here_on_deputation'),
+            'OUT ON DEPUTATION' => (string) __('imports.guide.out_on_deputation'),
             'DOP' => (string) __('imports.guide.dop'),
             'TRIBAL AREA SERVICE YEARS' => (string) __('imports.guide.tribal_years'),
 
@@ -267,7 +283,7 @@ class ImportTemplateBuilder
             return '';
         }
 
-        $headers = $this->headers($template, $asOnYear);
+        $headers = $this->headers($template, $asOnYear, $proposal);
 
         fputcsv($handle, $headers);
 
@@ -436,10 +452,13 @@ class ImportTemplateBuilder
             'SN' => '1',
             'STATUS' => 'working',
             'SOURCE' => 'direct',
+            'HERE ON DEPUTATION' => 'N',
+            'OUT ON DEPUTATION' => 'N',
             'EMPLOYEE NO' => 'EMP/2011/0042',
             'NAME' => 'Shri Ram Kumar Sahu',
             'NAME OF US' => 'Shri Ram Kumar Sahu',
             'MOBILE' => '9425012345',
+            'EMAIL' => 'ramkumar.sahu@example.gov.in',
             'DOB' => '14-03-1974',
             'QUAL' => 'M.A., B.Ed.',
             'PROMOTION TO POST' => $proposal === null ? 'Deputy Secretary' : $proposal->promotionToPost->name,

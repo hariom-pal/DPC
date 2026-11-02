@@ -238,8 +238,11 @@
                                 <td>{{ $cr->put_up === null ? __('dpc.employee_details.not_answered') : ($cr->put_up ? __('ui.yes') : __('ui.no')) }}</td>
                                 <td>{{ $cr->has_grading === null ? '—' : ($cr->has_grading ? __('ui.yes') : __('ui.no')) }}</td>
                                 <td class="small">
-                                    @foreach ((array) $cr->reports as $i => $report)
-                                        <div>#{{ $i + 1 }}: {{ $grader->finalGrade($report) }}
+                                    @foreach ((array) $cr->reports as $report)
+                                        <div>{{ $grader->finalGrade($report) }}
+                                            @isset($report['authorities'])
+                                                <span class="text-muted">({{ collect($report['authorities'])->map(fn ($role) => __("dpc.employee_details.cr.authority_{$role}"))->implode(', ') }})</span>
+                                            @endisset
                                             @if ($grader->reportNeedsNrc($report))<span class="badge text-bg-light">{{ __('dpc.employee_details.cr.nrc_needed') }}</span>@endif
                                         </div>
                                     @endforeach
@@ -311,31 +314,36 @@
                     </div>
                     <p class="small text-muted mt-2 mb-1" data-show-when="put_up=0">{{ __('dpc.employee_details.cr.not_put_up_help') }}</p>
                     <p class="small text-muted mt-2 mb-1" data-show-when="has_grading=0">{{ __('dpc.employee_details.cr.no_grading_help') }}</p>
-                    <div data-show-when="has_grading=1">
-                        <p class="small text-muted mt-2 mb-1">{{ __('dpc.employee_details.cr.reports_help', ['max' => $maxReports]) }}</p>
-                        @for ($i = 0; $i < $maxReports; $i++)
-                            @php
-                                $existingReport = $editCr ? ((array) $editCr->reports)[$i] ?? [] : [];
-                            @endphp
-                            <div class="row g-1 mb-1 small">
-                                <div class="col-12 text-muted">{{ __('dpc.employee_details.cr.report_n', ['n' => $i + 1]) }}</div>
-                                @foreach (['reporter', 'reviewer', 'accepting'] as $role)
-                                    <div class="col-md-2">
-                                        <input class="form-control form-control-sm" name="reports[{{ $i }}][{{ $role }}_designation]"
-                                               placeholder="{{ __("dpc.employee_details.cr.{$role}_designation") }}" aria-label="{{ __("dpc.employee_details.cr.{$role}_designation") }}"
-                                               value="{{ old("reports.{$i}.{$role}_designation", $existingReport["{$role}_designation"] ?? '') }}">
-                                    </div>
-                                    <div class="col-md-2">
-                                        <select class="form-select form-select-sm" name="reports[{{ $i }}][{{ $role }}_grade]" aria-label="{{ __("dpc.employee_details.cr.{$role}_grade") }}">
-                                            <option value="">{{ __("dpc.employee_details.cr.{$role}_grade") }}</option>
-                                            @foreach ($crGrades as $grade)
-                                                <option value="{{ $grade }}" @selected(old("reports.{$i}.{$role}_grade", $existingReport["{$role}_grade"] ?? '') === $grade)>{{ $grade }}@isset($gradePoints[$grade]) ({{ $gradePoints[$grade] }})@endisset</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
+                    {{-- One CR a year (2026-11-01): whose remarks it carries, and the highest one's grade. --}}
+                    @php
+                        $existingReport = $editCr ? ((array) $editCr->reports)[0] ?? [] : [];
+                        $existingAuthorities = (array) ($existingReport['authorities'] ?? array_values(array_filter(
+                            \App\Domain\Dpc\Services\EmployeeDetailsService::CR_AUTHORITIES,
+                            fn ($role) => ($existingReport["{$role}_grade"] ?? null) !== null,
+                        )));
+                        $existingGrade = $editCr?->grade;
+                    @endphp
+                    <div data-show-when="has_grading=1" class="row g-2 mt-1">
+                        <div class="col-md-7">
+                            <span class="form-label small d-block">{{ __('dpc.employee_details.cr.q_authorities') }}</span>
+                            @foreach (\App\Domain\Dpc\Services\EmployeeDetailsService::CR_AUTHORITIES as $role)
+                                <label class="form-check form-check-inline small">
+                                    <input class="form-check-input" type="checkbox" name="authorities[]" value="{{ $role }}"
+                                           @checked(in_array($role, (array) old('authorities', $existingAuthorities), true))>
+                                    {{ __("dpc.employee_details.cr.authority_{$role}") }}
+                                </label>
+                            @endforeach
+                            <div class="form-text">{{ __('dpc.employee_details.cr.authorities_help') }}</div>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small" for="cr-grade">{{ __('dpc.employee_details.cr.final_grade') }}</label>
+                            <select class="form-select form-select-sm" id="cr-grade" name="grade">
+                                <option value="">—</option>
+                                @foreach ($crGrades as $grade)
+                                    <option value="{{ $grade }}" @selected(old('grade', $existingGrade) === $grade)>{{ $grade }}@isset($gradePoints[$grade]) ({{ $gradePoints[$grade] }})@endisset</option>
                                 @endforeach
-                            </div>
-                        @endfor
+                            </select>
+                        </div>
                     </div>
                     <button class="btn btn-success btn-sm mt-2">{{ __('dpc.employee_details.cr.save_year') }}</button>
                 </form>

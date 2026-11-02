@@ -30,6 +30,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $employee_number
  * @property string|null $name
  * @property string|null $mobile
+ * @property string|null $email
  * @property Carbon|null $dob
  * @property string|null $qualification
  * @property string|null $promotion_to_post
@@ -43,6 +44,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $date_of_retirement
  * @property Carbon|null $deputation_from
  * @property Carbon|null $deputation_to
+ * @property bool|null $out_on_deputation one of our officers away at another department (B2), from the simple list
  */
 class DpcWorkingOfficer extends Model
 {
@@ -73,6 +75,7 @@ class DpcWorkingOfficer extends Model
         'employee_number',
         'name',
         'mobile',
+        'email',
         'dob',
         'qualification',
         'promotion_to_post',
@@ -89,7 +92,7 @@ class DpcWorkingOfficer extends Model
         // and the register's test is whether it *overlaps* the vacancy period.
         'date_of_retirement',
         'deputation_from',
-        'deputation_to',
+        'deputation_to', 'out_on_deputation',
     ];
 
     /**
@@ -230,6 +233,7 @@ class DpcWorkingOfficer extends Model
             'date_of_retirement' => 'date',
             'deputation_from' => 'date',
             'deputation_to' => 'date',
+            'out_on_deputation' => 'boolean',
         ];
     }
 

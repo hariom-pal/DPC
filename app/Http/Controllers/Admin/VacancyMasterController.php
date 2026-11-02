@@ -349,32 +349,30 @@ class VacancyMasterController extends Controller
     }
 
     /**
-     * Who may see a department's vacancy records: the CGPSC Administrator (every
-     * department, read-only), and the department's own Authorized Officer and
-     * Administrative Head.
+     * Who may see a department's vacancy records: its own Authorized Officer and
+     * Administrative Head (read-only). Not the Administrator (2026-11-02).
      */
     private function assertCanView(Request $request, Department $department): void
     {
         $user = $request->user();
 
         abort_unless(
-            $user !== null && ($user->hasRole(Role::Admin->value)
-                || ($user->department_id === $department->id
-                    && $user->hasAnyRole([Role::AuthorizedOfficer->value, Role::AdministrativeHead->value]))),
+            $user !== null
+                && $user->department_id === $department->id
+                && $user->hasAnyRole([Role::AuthorizedOfficer->value, Role::AdministrativeHead->value]),
             403,
         );
     }
 
     /**
      * Who may change them (2026-10-19): the department's own Authorized Officer, who
-     * also finalizes. The Administrator's screens are read-only.
+     * also finalizes. The Administrative Head reads.
      */
     private function canManage(Request $request, Department $department): bool
     {
         $user = $request->user();
 
         return $user !== null
-            && ! $request->routeIs('admin.*')
             && $user->hasRole(Role::AuthorizedOfficer->value)
             && $user->department_id === $department->id;
     }
@@ -385,21 +383,18 @@ class VacancyMasterController extends Controller
     }
 
     /**
-     * The area the screen is shown in — the Administrator's (read-only) or the
-     * department's — so links, redirects and the layout stay in it.
+     * The routes and layout the screens use: the department's area only, since the
+     * Administrator's copy was removed (2026-11-02).
      *
-     * @return array{records: string, management: string, layout: string, canManage: bool, adminArea: bool}
+     * @return array{records: string, management: string, layout: string, canManage: bool}
      */
     private function context(Request $request, Department $department): array
     {
-        $admin = $request->routeIs('admin.*');
-
         return [
-            'records' => $admin ? 'admin.departments.vacancy-master' : 'vacancy-records',
-            'management' => $admin ? 'admin.vacancy-management' : 'vacancy-management',
-            'layout' => $admin ? 'layouts.admin' : 'layouts.app',
+            'records' => 'vacancy-records',
+            'management' => 'vacancy-management',
+            'layout' => 'layouts.app',
             'canManage' => $this->canManage($request, $department),
-            'adminArea' => $admin,
         ];
     }
 

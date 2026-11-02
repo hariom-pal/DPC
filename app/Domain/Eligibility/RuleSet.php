@@ -34,7 +34,7 @@ final class RuleSet
      * @param  array<string, string>  $lastYearForbiddenGrades
      * @param  array<string, int>  $qualifyingScores
      * @param  array<string, array{single_vacancy_size: int, multiplier: int, addend: int}>  $zoneRules
-     * @param  array{rule_id: int, pair: string, effective_from_year: int, dpc_year: int, qualifying_total: int, super_seat_points: int|null, minimum_by_year: array<int, int>, mandatory_years: list<int>, tribal_bonus_basis: string, tribal_bonus_skips_extremes: bool, highest_points: int|null, lowest_points: int|null}|null  $classRule  the Class Master promotion rule the run applies; null: the configured rules only
+     * @param  array{rule_id: int, pair: string, effective_from_year: int, dpc_year: int, qualifying_total: int, super_seat_points: int|null, minimum_by_year: array<int, int>, mandatory_years: list<int>, tribal_bonus_basis: string, tribal_bonus_skips_extremes: bool, tribal_bonus_grades: list<int>|null, highest_points: int|null, lowest_points: int|null}|null  $classRule  the Class Master promotion rule the run applies; null: the configured rules only
      */
     public function __construct(
         public readonly string $version,
@@ -98,7 +98,8 @@ final class RuleSet
             version: $base->version,
             crGradeMarks: $points,
             scoringYears: (int) $rule->cr_years,
-            tribalAreaBonus: (int) $rule->tribal_bonus,
+            // No bonus where the rule says the bonus does not apply (2026-11-01).
+            tribalAreaBonus: $rule->tribal_bonus_applicable ? (int) $rule->tribal_bonus : 0,
             disqualifyingGrade: $base->disqualifyingGrade,
             lastYearForbiddenGrades: $base->lastYearForbiddenGrades,
             qualifyingScores: [$pairKey => $total, 'default' => $total],
@@ -119,6 +120,7 @@ final class RuleSet
                 'mandatory_years' => $mandatory,
                 'tribal_bonus_basis' => $rule->tribal_bonus_basis === 'officer' ? 'officer' : 'year',
                 'tribal_bonus_skips_extremes' => (bool) $rule->tribal_bonus_skips_extremes,
+                'tribal_bonus_grades' => $rule->tribal_bonus_grades === null ? null : array_map('intval', $rule->tribal_bonus_grades),
                 'highest_points' => $points === [] ? null : max($points),
                 'lowest_points' => $points === [] ? null : min($points),
             ],
@@ -197,7 +199,7 @@ final class RuleSet
      * it was written in.
      *
      * @param  array<string, mixed>  $rule
-     * @return array{rule_id: int, pair: string, effective_from_year: int, dpc_year: int, qualifying_total: int, super_seat_points: int|null, minimum_by_year: array<int, int>, mandatory_years: list<int>, tribal_bonus_basis: string, tribal_bonus_skips_extremes: bool, highest_points: int|null, lowest_points: int|null}
+     * @return array{rule_id: int, pair: string, effective_from_year: int, dpc_year: int, qualifying_total: int, super_seat_points: int|null, minimum_by_year: array<int, int>, mandatory_years: list<int>, tribal_bonus_basis: string, tribal_bonus_skips_extremes: bool, tribal_bonus_grades: list<int>|null, highest_points: int|null, lowest_points: int|null}
      */
     private static function classRuleFrom(array $rule): array
     {
@@ -219,6 +221,8 @@ final class RuleSet
             // A run recorded before the tribal terms existed gave the single bonus.
             'tribal_bonus_basis' => ($rule['tribal_bonus_basis'] ?? 'officer') === 'year' ? 'year' : 'officer',
             'tribal_bonus_skips_extremes' => (bool) ($rule['tribal_bonus_skips_extremes'] ?? false),
+            // A run recorded before the grade list existed has none.
+            'tribal_bonus_grades' => isset($rule['tribal_bonus_grades']) ? array_values(array_map('intval', (array) $rule['tribal_bonus_grades'])) : null,
             'highest_points' => isset($rule['highest_points']) ? (int) $rule['highest_points'] : null,
             'lowest_points' => isset($rule['lowest_points']) ? (int) $rule['lowest_points'] : null,
         ];

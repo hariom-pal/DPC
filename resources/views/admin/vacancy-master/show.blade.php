@@ -48,7 +48,6 @@
     <nav aria-label="{{ __('ui.screen.breadcrumb') }}">
         <ol class="breadcrumb small">
             <li class="breadcrumb-item"><a href="{{ route($management.'.index') }}">{{ __('vacancymaster.title') }}</a></li>
-            @if ($adminArea)<li class="breadcrumb-item"><a href="{{ route('admin.departments.edit', $department) }}">{{ $department->name }}</a></li>@endif
             <li class="breadcrumb-item"><a href="{{ route($records.'.index', [$department, 'year' => $year]) }}">{{ __('vacancymaster.title') }} {{ $year }}</a></li>
             <li class="breadcrumb-item active" aria-current="page">{{ $post->name }}</li>
         </ol>
@@ -67,11 +66,7 @@
             @if ($preDpc !== null && $perPreDpc)
                 <div class="small" id="vacancy-pre-dpc">
                     {{ __('vacancymaster.pm.for_pre_dpc') }}:
-                    @if ($adminArea)
-                        <code>{{ $preDpc->pre_dpc_number ?? '—' }}</code>
-                    @else
-                        <a href="{{ route('pre-dpc.show', $preDpc) }}"><code>{{ $preDpc->pre_dpc_number ?? '—' }}</code></a>
-                    @endif
+                    <a href="{{ route('pre-dpc.show', $preDpc) }}"><code>{{ $preDpc->pre_dpc_number ?? '—' }}</code></a>
                     · {{ __('vacancymaster.pm.promotion_share', ['pct' => $preDpc->promotion_recruitment_pct]) }}
                 </div>
             @endif

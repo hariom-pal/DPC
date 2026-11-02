@@ -336,8 +336,12 @@ class CirculationService
         $alreadyCovered = DpcCirculationItem::query()
             ->whereIn('dpc_proceeding_hold_id', $holds->pluck('id'))
             ->whereHas('circulation', static function ($query): void {
+                // A signed circulation released the holds it consented to; a hold it
+                // still covers was returned for further evidence and may be
+                // circulated again.
                 $query->whereNotIn('status', [
                     CirculationStatus::Cancelled->value,
+                    CirculationStatus::Signed->value,
                 ]);
             })
             ->exists();

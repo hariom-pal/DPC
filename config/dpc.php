@@ -465,6 +465,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Clear DPC data (`php artisan dpc:purge-dpc-data`, Admin → Clear DPC data)
+    |--------------------------------------------------------------------------
+    |
+    | Every Pre-DPC and DPC record goes; accounts and masters stay. Allowed only in
+    | these environments, from the command line and from the browser alike.
+    | Production is refused regardless.
+    |
+    */
+
+    'dpc_data_purge' => [
+        'allowed_environments' => array_values(array_filter(array_map('trim', explode(',', (string) (env('DPC_DATA_PURGE_ENVIRONMENTS') ?: 'local,uat'))))),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Workflows (configuration-driven)
     |--------------------------------------------------------------------------
     |

@@ -25,6 +25,7 @@ use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Testing\TestResponse;
 use Tests\Concerns\CompletesDpcProposals;
@@ -182,12 +183,16 @@ class VacancyMasterTest extends TestCase
      */
     private function addEntry(array $overrides = []): TestResponse
     {
-        return $this->actingAs($this->ao)->post($this->url('entries.store'), array_replace([
+        $data = array_replace([
             'kind' => 'anticipated',
             'reason' => 'retirement',
             'officer_name' => 'R. Sharma',
             'effective_date' => '2026-06-01',
-        ], $overrides));
+        ], $overrides);
+        // Every officer has an Employee ID (2026-11-02); one per name unless given.
+        $data['employee_number'] ??= 'E-'.substr(md5((string) ($data['officer_name'] ?? '')), 0, 8);
+
+        return $this->actingAs($this->ao)->post($this->url('entries.store'), $data);
     }
 
     /**
@@ -221,24 +226,29 @@ class VacancyMasterTest extends TestCase
 
     // ------------------------------------------------------------ navigation
 
+    /**
+     * Since 2026-11-02 Vacancy Management is in neither the top menu nor the
+     * Administrator's area: a record is reached from its approved Pre-DPC.
+     */
     public function test_department_management_leads_to_the_departments_vacancy_master(): void
     {
         $other = Department::query()->create(['code' => 'HE', 'name' => 'Higher Education', 'status' => 'active']);
         $this->makePost($other, 'Professor', 40);
 
-        // The Administrator still finds every department's records, read-only.
+        $this->assertFalse(Route::has('admin.vacancy-management.index'));
+        $this->assertFalse(Route::has('admin.departments.vacancy-master.index'));
         $this->actingAs($this->admin)->get(route('admin.departments.index'))
             ->assertOk()
-            ->assertSee(route('admin.departments.vacancy-master.index', $this->department), false);
+            ->assertDontSee('/vacancy-master', false);
+        $this->actingAs($this->admin)->get(route('vacancy-records.index', [$this->department, 'year' => self::YEAR]))->assertForbidden();
 
-        $this->actingAs($this->admin)->get(route('admin.departments.vacancy-master.index', [$this->department, 'year' => self::YEAR]))
-            ->assertOk()
-            ->assertSee('School Education')
-            ->assertSee('Principal')
-            ->assertDontSee('Professor')
-            ->assertSee(__('vacancymaster.not_entered'));
+        foreach ([$this->ao, $this->ah] as $user) {
+            $this->actingAs($user)->get(route('pre-dpc.index'))
+                ->assertOk()
+                ->assertDontSee('href="'.route('vacancy-management.index').'"', false);
+        }
 
-        // The department's own officer reaches them from Vacancy Management.
+        // The department's own officer reaches them.
         $this->actingAs($this->ao)->get(route('vacancy-records.index', [$this->department, 'year' => self::YEAR]))
             ->assertOk()
             ->assertSee('Principal')
@@ -259,7 +269,7 @@ class VacancyMasterTest extends TestCase
         $this->actingAs($outsider)->get($this->url('show'))->assertForbidden();
         $this->actingAs($outsider)->post($this->url('open'))->assertForbidden();
         $this->actingAs($this->ah)->post($this->url('open'))->assertForbidden();
-        $this->actingAs($this->admin)->post(route('admin.departments.vacancy-master.open', [$this->department, self::YEAR, $this->principal]))->assertForbidden();
+        $this->actingAs($this->admin)->post($this->url('open'))->assertForbidden();
         $this->actingAs($outsider)->post(route('vacancy-management.pre-dpc', $this->preDpc))->assertForbidden();
 
         $this->assertSame(0, VacancyPosition::query()->count());
@@ -268,19 +278,19 @@ class VacancyMasterTest extends TestCase
 
         foreach ([$this->ah, $outsider] as $user) {
             $this->actingAs($user)->post($this->url('working-strength'), ['working_total' => '75'])->assertForbidden();
-            $this->actingAs($user)->post($this->url('entries.store'), ['kind' => 'anticipated', 'reason' => 'retirement', 'officer_name' => 'X', 'effective_date' => '2026-05-01'])->assertForbidden();
+            $this->actingAs($user)->post($this->url('entries.store'), ['kind' => 'anticipated', 'reason' => 'retirement', 'officer_name' => 'X', 'employee_number' => 'E-1', 'effective_date' => '2026-05-01'])->assertForbidden();
             $this->actingAs($user)->post($this->url('finalize'))->assertForbidden();
         }
 
-        $this->actingAs($this->admin)->post(route('admin.departments.vacancy-master.finalize', [$this->department, self::YEAR, $this->principal]))->assertForbidden();
+        $this->actingAs($this->admin)->post($this->url('finalize'))->assertForbidden();
         $this->assertNull(VacancyPosition::query()->sole()->working_strength_id);
 
-        // Reading: the Administrative Head here, the Administrator there — without forms.
-        $this->actingAs($this->ah)->get($this->url('show'))->assertOk()->assertSee('id="vacancy-read-only"', false);
-        $this->actingAs($this->admin)->get(route('admin.departments.vacancy-master.show', [$this->department, self::YEAR, $this->principal, 'section' => 'sanctioned']))
+        // Reading: the Administrative Head only — without forms. Not the Administrator.
+        $this->actingAs($this->ah)->get($this->url('show', ['section' => 'sanctioned']))
             ->assertOk()
             ->assertSee('id="vacancy-read-only"', false)
             ->assertDontSee('name="sanctioned_total"', false);
+        $this->actingAs($this->admin)->get($this->url('show'))->assertForbidden();
         $this->actingAs($this->ao)->get($this->url('show', ['section' => 'sanctioned']))
             ->assertOk()
             ->assertSee('name="sanctioned_total"', false);
@@ -571,7 +581,7 @@ class VacancyMasterTest extends TestCase
             'order_number' => 'SE/SANC/1', 'order_date' => '2026-01-02', 'document' => $this->pdf(),
         ])->assertSessionHasNoErrors();
 
-        $this->actingAs($this->ao)->post($this->url('entries.store'), ['kind' => 'deputation', 'officer_name' => 'C. Patel', 'deputation_from' => '2025-03-01', 'promotion_made' => '0'])
+        $this->actingAs($this->ao)->post($this->url('entries.store'), ['kind' => 'deputation', 'officer_name' => 'C. Patel', 'employee_number' => 'E-3', 'deputation_from' => '2025-03-01', 'promotion_made' => '0'])
             ->assertSessionHasNoErrors()
             ->assertRedirect($this->url('show', ['section' => 'vacancies', 'part' => 'b2']));
 
@@ -643,7 +653,7 @@ class VacancyMasterTest extends TestCase
         $this->assertStringNotContainsString('is-invalid', substr($html, (int) strpos($html, 'id="add-b1"'), (int) strpos($html, 'id="vacancy-b2"') - (int) strpos($html, 'id="add-b1"')));
 
         // A refused B2 row marks the B2 form only.
-        $this->actingAs($this->ao)->from($here)->post($this->url('entries.store'), ['kind' => 'deputation', 'officer_name' => 'K. Verma'])
+        $this->actingAs($this->ao)->from($here)->post($this->url('entries.store'), ['kind' => 'deputation', 'officer_name' => 'K. Verma', 'employee_number' => 'E-11'])
             ->assertSessionHasErrors(['deputation_from', 'promotion_made']);
         $html = $this->revisit($here)->assertOk()->getContent();
         $b2 = substr($html, (int) strpos($html, 'id="add-b2"'), (int) strpos($html, 'id="vacancy-c"') - (int) strpos($html, 'id="add-b2"'));
@@ -785,13 +795,15 @@ class VacancyMasterTest extends TestCase
         $this->assertSame(2, $position->opening_vacancy);
     }
 
-    public function test_a_deputation_here_must_end_after_it_began_and_not_before_the_year(): void
+    public function test_a_deputation_here_must_end_after_it_began_and_not_before_the_year_if_its_end_is_given(): void
     {
         $this->openDraft();
         $this->saveWorking()->assertSessionHasNoErrors();
         $row = ['kind' => 'deputation_in', 'officer_name' => 'A. Khan', 'deputation_from' => '2024-07-01'];
 
-        $this->addEntry([...$row, 'deputation_to' => null])->assertSessionHasErrors('deputation_to');
+        // No end date (optional since 2026-11-02): it continues, and is not counted.
+        $this->addEntry([...$row, 'officer_name' => 'D. Open', 'deputation_to' => null])->assertSessionHasNoErrors();
+        $this->assertSame(__('vacancymaster.notes.deputation_in_no_end'), VacancyPositionEntry::query()->where('officer_name', 'D. Open')->sole()->eligibility_note);
         $this->addEntry([...$row, 'deputation_to' => '2024-06-30'])->assertSessionHasErrors('deputation_to');
         // Already over before 1 January: not working here, so refused.
         $this->addEntry([...$row, 'deputation_to' => '2025-12-31'])->assertSessionHasErrors('deputation_to');
@@ -799,7 +811,7 @@ class VacancyMasterTest extends TestCase
         $this->addEntry([...$row, 'officer_name' => 'B. Rao', 'deputation_to' => '2026-12-31'])->assertSessionHasNoErrors();
         $this->addEntry([...$row, 'officer_name' => 'C. Patel', 'deputation_to' => '2027-01-01'])->assertSessionHasNoErrors();
 
-        $this->assertSame(2, $this->breakdown()['deputation_in_vacancy'], 'Ending on 1 January and on 31 December both count; 1 January next year does not.');
+        $this->assertSame(2, $this->breakdown()['deputation_in_vacancy'], 'Ending on 1 January and on 31 December both count; 1 January next year and no end date do not.');
     }
 
     public function test_our_officer_on_deputation_counts_after_more_than_a_year_with_no_promotion_made(): void
