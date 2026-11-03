@@ -321,6 +321,6 @@ class VacancyCalculationService
             return $level;
         }
 
-        return $level === null ? ServiceClass::I : (ServiceClass::tryFrom((string) $level) ?? ServiceClass::I);
+        return $level === null ? ServiceClass::from('I') : (ServiceClass::tryFrom((string) $level) ?? ServiceClass::from('I'));
     }
 }

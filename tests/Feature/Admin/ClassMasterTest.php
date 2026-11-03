@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Tests\Feature\Admin;
 
 use App\Domain\Authentication\Models\User;
+use App\Domain\Eligibility\Services\PromotionHierarchyService;
 use App\Domain\Master\Models\ClassMaster;
+use App\Domain\Master\Models\DepartmentPost;
 use App\Enums\Role;
 use App\Enums\ServiceClass;
 use Database\Seeders\RolesAndPermissionsSeeder;
@@ -63,14 +65,14 @@ class ClassMasterTest extends TestCase
                 'code' => 'I',
                 'name_en' => 'Class-I (Gazetted)',
                 'name_hi' => 'वर्ग-1 (राजपत्रित)',
-                'sort_order' => 10,
+                'level' => 1,
                 'status' => 'active',
             ])
             ->assertRedirect(route('admin.service-classes.index'));
 
         // The enum reads its label from the master, so the rename reaches the
         // thirty-odd view sites that call `label()` without any of them changing.
-        $this->assertSame('Class-I (Gazetted)', ServiceClass::I->label());
+        $this->assertSame('Class-I (Gazetted)', ServiceClass::from('I')->label());
     }
 
     public function test_the_hindi_name_is_used_when_the_locale_is_hindi(): void
@@ -79,10 +81,10 @@ class ClassMasterTest extends TestCase
         $classOne->forceFill(['name_hi' => 'वर्ग-1'])->save();
 
         app()->setLocale('hi');
-        $this->assertSame('वर्ग-1', ServiceClass::I->label());
+        $this->assertSame('वर्ग-1', ServiceClass::from('I')->label());
 
         app()->setLocale('en');
-        $this->assertSame('Class-I', ServiceClass::I->label());
+        $this->assertSame('Class-I', ServiceClass::from('I')->label());
     }
 
     public function test_a_class_with_no_hindi_name_falls_back_to_english(): void
@@ -92,21 +94,35 @@ class ClassMasterTest extends TestCase
 
         app()->setLocale('hi');
 
-        $this->assertSame('Class-I', ServiceClass::I->label());
+        $this->assertSame('Class-I', ServiceClass::from('I')->label());
     }
 
-    public function test_a_class_code_the_engine_has_no_rule_for_is_refused(): void
+    /**
+     * A new class can be added (2026-11-03), with a Level that places it in the
+     * hierarchy; the code is then fixed, and two classes never share a Level.
+     */
+    public function test_a_new_class_is_added_with_its_level(): void
     {
-        $this->actingAs($this->admin)
-            ->post(route('admin.service-classes.store'), [
-                'code' => 'IV',
-                'name_en' => 'Class-IV',
-                'sort_order' => 40,
-                'status' => 'active',
-            ])
+        $this->actingAs($this->admin)->get(route('admin.service-classes.index'))->assertOk()
+            ->assertSee(route('admin.service-classes.create'), false);
+        $this->actingAs($this->admin)->get(route('admin.service-classes.create'))->assertOk()->assertSee('value="4"', false);
+
+        $this->actingAs($this->admin)->post(route('admin.service-classes.store'), ['code' => 'IV', 'name_en' => 'Class-IV', 'level' => 2, 'status' => 'active'])
+            ->assertSessionHasErrors('level');
+        $this->actingAs($this->admin)->post(route('admin.service-classes.store'), ['code' => 'iv!', 'name_en' => 'Class-IV', 'level' => 4, 'status' => 'active'])
             ->assertSessionHasErrors('code');
 
-        $this->assertDatabaseMissing('service_classes', ['code' => 'IV']);
+        $this->actingAs($this->admin)->post(route('admin.service-classes.store'), ['code' => 'IV', 'name_en' => 'Class-IV', 'name_hi' => 'वर्ग-4', 'level' => 4, 'status' => 'active'])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(['I', 'II', 'III', 'IV'], array_map(fn (ServiceClass $class): string => $class->value, ServiceClass::cases()));
+        $this->assertSame(4, ServiceClass::from('IV')->level());
+        $this->assertSame('Class-IV', ServiceClass::from('IV')->label());
+
+        // The code never changes once created.
+        $four = ClassMaster::query()->where('code', 'IV')->sole();
+        $this->actingAs($this->admin)->put(route('admin.service-classes.update', $four), ['code' => 'V', 'name_en' => 'Class-V', 'level' => 4, 'status' => 'active'])
+            ->assertSessionHasErrors('code');
     }
 
     public function test_a_duplicate_class_code_is_refused(): void
@@ -133,7 +149,7 @@ class ClassMasterTest extends TestCase
 
         // The record of what class a post was does not disappear because the
         // class was later retired.
-        $this->assertSame('Class-III', ServiceClass::III->label());
+        $this->assertSame('Class-III', ServiceClass::from('III')->label());
     }
 
     public function test_a_label_still_resolves_when_the_master_holds_nothing(): void
@@ -144,7 +160,7 @@ class ClassMasterTest extends TestCase
         // A migrated-but-unseeded database, and every unit test that never
         // touches the master. A missing *label* is safe to derive; a missing
         // business value never is.
-        $this->assertSame('Class-II', ServiceClass::II->label());
+        $this->assertSame('Class-II', ServiceClass::from('II')->label());
     }
 
     public function test_a_non_administrator_cannot_reach_the_class_master(): void
@@ -153,5 +169,17 @@ class ClassMasterTest extends TestCase
         $member->assignRole(Role::Member->value);
 
         $this->actingAs($member)->get(route('admin.service-classes.index'))->assertForbidden();
+    }
+
+    /** The promotion-hierarchy check ranks a new class by its Level (2026-11-03). */
+    public function test_a_new_class_takes_its_place_in_the_promotion_hierarchy(): void
+    {
+        ClassMaster::query()->create(['code' => 'IV', 'name_en' => 'Class-IV', 'level' => 4, 'status' => 'active']);
+        $post = fn (string $class): DepartmentPost => new DepartmentPost(['class_level' => $class]);
+        $hierarchy = new PromotionHierarchyService;
+
+        $this->assertTrue($hierarchy->verdict($post('IV'), $post('III'))['valid'], 'IV into III goes up');
+        $this->assertFalse($hierarchy->verdict($post('III'), $post('IV'))['valid'], 'III into IV goes down');
+        $this->assertContains('class', $hierarchy->verdict($post('IV'), $post('III'))['checked']);
     }
 }

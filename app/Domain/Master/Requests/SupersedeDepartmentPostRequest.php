@@ -7,7 +7,6 @@ namespace App\Domain\Master\Requests;
 use App\Enums\ServiceClass;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\Rules\Enum;
 
 /**
  * A new Government Order replacing a Department Post Mapping.
@@ -31,7 +30,7 @@ class SupersedeDepartmentPostRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'class_level' => ['required', new Enum(ServiceClass::class)],
+            'class_level' => ['required', ServiceClass::rule()],
             'pay_scale_id' => ['nullable', Rule::exists('pay_scales', 'id')],
             'promotion_duration_years' => ['nullable', 'integer', 'min:0', 'max:40'],
 

@@ -9,9 +9,7 @@
          knows about. --}}
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h1 class="h4 mb-0">{{ __('ui.class_master') }}</h1>
-        @if ($canAddMore)
-            <a href="{{ route('admin.service-classes.create') }}" class="btn btn-success btn-sm">{{ __('admin.service_classes.index.new_class') }}</a>
-        @endif
+        <a href="{{ route('admin.service-classes.create') }}" class="btn btn-success btn-sm">{{ __('admin.service_classes.index.new_class') }}</a>
     </div>
 
     <div class="alert alert-secondary small">
@@ -22,7 +20,7 @@
         <div class="table-responsive">
             <table class="table table-striped mb-0 align-middle">
                 <thead>
-                    <tr><th>{{ __('ui.code') }}</th><th>{{ __('ui.name_en') }}</th><th>{{ __('ui.hi') }}</th><th>{{ __('ui.order') }}</th><th>{{ __('ui.status') }}</th><th class="text-end">{{ __('ui.actions') }}</th></tr>
+                    <tr><th>{{ __('ui.code') }}</th><th>{{ __('ui.name_en') }}</th><th>{{ __('ui.hi') }}</th><th>{{ __('admin.service_classes.form.level') }}</th><th>{{ __('ui.status') }}</th><th class="text-end">{{ __('ui.actions') }}</th></tr>
                 </thead>
                 <tbody>
                     @forelse ($classes as $class)
@@ -30,7 +28,7 @@
                             <td><code>{{ $class->code }}</code></td>
                             <td><a href="{{ route('admin.service-classes.promotion-rules.index', $class) }}" class="fw-semibold">{{ $class->name_en }}</a></td>
                             <td>{{ $class->name_hi ?? '—' }}</td>
-                            <td>{{ $class->sort_order }}</td>
+                            <td>{{ $class->level ?? '—' }}</td>
                             <td><x-status-badge :status="$class->status" /></td>
                             <td class="text-end">
                                 <a href="{{ route('admin.service-classes.promotion-rules.index', $class) }}" class="btn btn-outline-success btn-sm">{{ __('admin.promotion_rules.button') }}</a>

@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-use App\Enums\ServiceClass;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -63,11 +62,12 @@ return new class extends Migration
         $order = 0;
         $hindi = ['I' => 'वर्ग-1', 'II' => 'वर्ग-2', 'III' => 'वर्ग-3'];
 
-        foreach (ServiceClass::cases() as $class) {
+        // Literal codes: the class list is read from this very table since 2026-11-03.
+        foreach (['I', 'II', 'III'] as $code) {
             DB::table('service_classes')->insert([
-                'code' => $class->value,
-                'name_en' => 'Class-'.$class->value,
-                'name_hi' => $hindi[$class->value],
+                'code' => $code,
+                'name_en' => 'Class-'.$code,
+                'name_hi' => $hindi[$code],
                 'sort_order' => $order += 10,
                 'status' => 'active',
                 'created_at' => now(),

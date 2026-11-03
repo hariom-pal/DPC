@@ -84,7 +84,7 @@ class S33AnswerKeyGoldenTest extends TestCase
 
         return [
             $score,
-            $this->eligibility->assess($officer, $score, ServiceClass::I, ServiceClass::I, $this->rules),
+            $this->eligibility->assess($officer, $score, ServiceClass::from('I'), ServiceClass::from('I'), $this->rules),
             $this->superSeat->assess($officer, $score, $this->rules),
         ];
     }

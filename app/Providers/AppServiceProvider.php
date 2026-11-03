@@ -357,6 +357,28 @@ class AppServiceProvider extends ServiceProvider
                 ->withHeaders($headers));
         });
 
+        // Forgot password (2026-11-03), before anyone is signed in, so by address. An
+        // office shares one address, so the limit is generous: each e-mail and mobile
+        // is also held to the OTP service's own resend and hourly limits, and each
+        // code to its three attempts.
+        RateLimiter::for('forgot-password', function (Request $request): Limit {
+            return $request->isMethod('GET')
+                ? Limit::perMinute(60)->by('forgot-password|view|'.$request->ip())
+                : Limit::perMinute(20)->by('forgot-password|'.$request->ip());
+        });
+
+        // My Profile's e-mail / mobile change (2026-11-03): by the signed-in user, so
+        // officers sharing an office's address never throttle each other.
+        RateLimiter::for('account-contact', function (Request $request): Limit {
+            return Limit::perMinutes(
+                max(1, (int) round(((int) config('dpc.rate_limiting.otp_verify.decay_seconds')) / 60)),
+                (int) config('dpc.rate_limiting.otp_verify.max_attempts'),
+            )->by('account-contact|'.($request->user()?->getAuthIdentifier() ?? $request->ip()))
+                ->response(fn (Request $request, array $headers) => back()
+                    ->withErrors(['email_code' => __('Too many verification attempts. Please try again in a minute.')])
+                    ->withHeaders($headers));
+        });
+
         // CALCULATE (M5 Phase 4). Keyed by user and proposal: one user working
         // on two proposals is not abuse, and two officers of the same
         // department must not throttle each other.

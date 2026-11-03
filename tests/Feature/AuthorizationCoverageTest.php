@@ -87,6 +87,12 @@ class AuthorizationCoverageTest extends TestCase
         // 2026-10-28: the AO's / AH's own profile; ProfileController refuses anyone else.
         'profile.show' => 'An AO or AH sees only their own profile; ProfileController::officer() refuses every other account.',
         'profile.confirm' => 'As above; the only change it makes is the officer\'s own department.',
+        // 2026-11-03: My Profile, every account's own and nobody else's.
+        'account.show' => 'Every signed-in user sees only their own account; there is no user parameter.',
+        'account.contact.start' => 'Changes only the signed-in user\'s own e-mail / mobile, after OTP on both.',
+        'account.contact.verify' => 'As above.',
+        'account.contact.resend' => 'As above.',
+        'account.contact.cancel' => 'As above.',
         // Phase 6, 2026-10-27.
         'acting-department' => 'The department an officer with several assignments acts in. ActingAssignmentService::switchTo() '
             .'accepts only one of the account\'s own current assignments, and ResolveActiveRole re-checks it against the '

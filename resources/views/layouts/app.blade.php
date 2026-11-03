@@ -39,9 +39,11 @@
             <div class="collapse navbar-collapse" id="appNav">
                 <div class="ms-auto d-flex flex-wrap align-items-lg-center gap-2 py-2 py-lg-0">
                     @auth
-                        <span class="nav-user d-none d-md-inline me-1">
+                        {{-- My Profile, for everyone (2026-11-03). --}}
+                        <a class="nav-user d-none d-md-inline me-1 text-white text-decoration-none" href="{{ route('account.show') }}" title="{{ __('profile.account.link') }}">
                             {{ auth()->user()->name }}
-                        </span>
+                        </a>
+                        <a class="btn btn-sm btn-outline-light d-md-none" href="{{ route('account.show') }}">{{ __('profile.account.link') }}</a>
                         {{-- M11. Reaches every authenticated screen from here,
                              including the frozen ones. --}}
                         @include('partials.notification-bell')

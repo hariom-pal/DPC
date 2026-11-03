@@ -60,6 +60,7 @@
                                 <input type="password" class="form-control @error('password') is-invalid @enderror"
                                        id="password" name="password" autocomplete="current-password" required>
                                 @error('password')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                <div class="text-end mt-1"><a href="{{ route('password.forgot') }}" class="small">{{ __('authui.forgot.link') }}</a></div>
                             </div>
 
                             {{-- No "remember me" (Phase 1, 2026-10-27): every sign-in passes the OTP

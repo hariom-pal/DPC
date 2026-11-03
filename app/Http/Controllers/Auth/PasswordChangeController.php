@@ -29,8 +29,9 @@ class PasswordChangeController extends Controller
             'password_changed_at' => now(),
         ])->save();
 
+        // From My Profile, back to it (2026-11-03).
         return redirect()
-            ->route('dashboard')
+            ->route($request->input('return_to') === 'account' ? 'account.show' : 'dashboard')
             ->with('status', 'Your password has been updated.');
     }
 }

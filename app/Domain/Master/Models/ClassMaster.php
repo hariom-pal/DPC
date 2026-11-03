@@ -22,7 +22,7 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property string $code
  * @property string $name_en
  * @property string|null $name_hi
- * @property int $sort_order
+ * @property int|null $level
  * @property MasterStatus $status
  */
 class ClassMaster extends Model implements Auditable
@@ -38,7 +38,8 @@ class ClassMaster extends Model implements Auditable
         'code',
         'name_en',
         'name_hi',
-        'sort_order',
+        // Place in the hierarchy, 1 highest (replaced the display order, 2026-11-03).
+        'level',
     ];
 
     /**
@@ -46,7 +47,7 @@ class ClassMaster extends Model implements Auditable
      */
     protected function casts(): array
     {
-        return ['sort_order' => 'integer'];
+        return ['level' => 'integer'];
     }
 
     protected static function booted(): void

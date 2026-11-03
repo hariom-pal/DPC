@@ -48,7 +48,7 @@ class ReservationHierarchyTest extends TestCase
             ->post(route('post-mapping.store'), [
                 'department_id' => $department->id,
                 'name' => 'Additional Director',
-                'class_level' => ServiceClass::I->value,
+                'class_level' => ServiceClass::from('I')->value,
                 // Required since the MoM of 2026-10-29.
                 'pay_scale_id' => (string) PayScale::query()->firstOrCreate(['label' => 'Level-12 (78800-209200)'], ['code' => 'L12', 'minimum_pay' => 78800, 'status' => MasterStatus::Active->value])->id,
                 'status' => MasterStatus::Active->value,

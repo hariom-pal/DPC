@@ -33,12 +33,14 @@ class EligibilityServiceTest extends TestCase
 
     private function assess(
         array $crGrades,
-        ServiceClass $from = ServiceClass::I,
-        ServiceClass $to = ServiceClass::I,
+        ?ServiceClass $from = null,
+        ?ServiceClass $to = null,
         bool $reserved = false,
         ?int $tribalYears = null,
         array $ruleOverrides = [],
     ) {
+        $from ??= ServiceClass::from('I');
+        $to ??= ServiceClass::from('I');
         $officer = new OfficerRecord(
             name: 'Test Officer',
             crGrades: $crGrades,
@@ -92,7 +94,7 @@ class EligibilityServiceTest extends TestCase
     {
         // Same grades, Class-II to Class-II: no such gate, and the qualifying
         // score is 11, so this officer clears.
-        $verdict = $this->assess($this->fiveYears('क+', 'क', 'क+', 'क+', 'ग'), ServiceClass::II, ServiceClass::II);
+        $verdict = $this->assess($this->fiveYears('क+', 'क', 'क+', 'क+', 'ग'), ServiceClass::from('II'), ServiceClass::from('II'));
 
         $this->assertTrue($verdict->eligible);
         $this->assertSame(11, $verdict->requiredScore);
@@ -122,11 +124,11 @@ class EligibilityServiceTest extends TestCase
     {
         $grades = $this->fiveYears('ख', 'ख', 'ख', 'ख', 'ख'); // 10 marks
 
-        $this->assertSame(15, $this->assess($grades, ServiceClass::I, ServiceClass::I)->requiredScore);
-        $this->assertSame(13, $this->assess($grades, ServiceClass::II, ServiceClass::I)->requiredScore);
-        $this->assertSame(11, $this->assess($grades, ServiceClass::II, ServiceClass::II)->requiredScore);
+        $this->assertSame(15, $this->assess($grades, ServiceClass::from('I'), ServiceClass::from('I'))->requiredScore);
+        $this->assertSame(13, $this->assess($grades, ServiceClass::from('II'), ServiceClass::from('I'))->requiredScore);
+        $this->assertSame(11, $this->assess($grades, ServiceClass::from('II'), ServiceClass::from('II'))->requiredScore);
         // PPT "शेष" — all other cases.
-        $this->assertSame(10, $this->assess($grades, ServiceClass::III, ServiceClass::III)->requiredScore);
+        $this->assertSame(10, $this->assess($grades, ServiceClass::from('III'), ServiceClass::from('III'))->requiredScore);
     }
 
     public function test_the_threshold_is_inclusive(): void

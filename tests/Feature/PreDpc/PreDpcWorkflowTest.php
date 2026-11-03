@@ -459,7 +459,7 @@ class PreDpcWorkflowTest extends TestCase
             ->assertOk()
             ->assertSee(__('predpc.form.to_post_attributes', [
                 'scale' => 'Level-12 (₹56,100)',
-                'class' => ServiceClass::I->label(),
+                'class' => ServiceClass::from('I')->label(),
             ]));
     }
 

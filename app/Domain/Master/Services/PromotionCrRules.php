@@ -91,16 +91,21 @@ final class PromotionCrRules
 
     /**
      * The classes a promotion into `$to` may come from: the same class, and the one
-     * just below it in the Class Master's order.
+     * just below it — the next Level number (the Class Master's Level replaced its
+     * display order as the hierarchy, 2026-11-03).
      *
      * @return list<ClassMaster>
      */
     public function fromClasses(ClassMaster $to): array
     {
+        if ($to->level === null) {
+            return [$to];   // no place in the hierarchy, so no class below it
+        }
+
         $below = ClassMaster::query()
             ->where('status', MasterStatus::Active->value)
-            ->where('sort_order', '>', $to->sort_order)
-            ->orderBy('sort_order')
+            ->where('level', '>', $to->level)
+            ->orderBy('level')
             ->first();
 
         return $below === null ? [$to] : [$to, $below];

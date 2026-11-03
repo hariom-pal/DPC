@@ -26,7 +26,7 @@ class ZoneOfConsiderationServiceTest extends TestCase
 
     public function test_a_single_vacancy_takes_the_top_five(): void
     {
-        $zone = $this->zone->determine(ServiceClass::I, ServiceClass::I, 1, 20, $this->ruleSet());
+        $zone = $this->zone->determine(ServiceClass::from('I'), ServiceClass::from('I'), 1, 20, $this->ruleSet());
 
         $this->assertSame(5, $zone->size);
         $this->assertSame(5, $zone->effectiveSize);
@@ -36,7 +36,7 @@ class ZoneOfConsiderationServiceTest extends TestCase
     public function test_more_than_one_vacancy_uses_the_two_x_plus_four_formula(): void
     {
         // The PPT's own worked example: 2 vacancies -> 2 x 2 + 4 = 8.
-        $zone = $this->zone->determine(ServiceClass::I, ServiceClass::I, 2, 20, $this->ruleSet());
+        $zone = $this->zone->determine(ServiceClass::from('I'), ServiceClass::from('I'), 2, 20, $this->ruleSet());
 
         $this->assertSame(8, $zone->size);
         $this->assertSame('2 × 2 + 4', $zone->formula);
@@ -46,9 +46,9 @@ class ZoneOfConsiderationServiceTest extends TestCase
     {
         $rules = $this->ruleSet();
 
-        $this->assertSame(10, $this->zone->determine(ServiceClass::I, ServiceClass::I, 3, 50, $rules)->size);
-        $this->assertSame(12, $this->zone->determine(ServiceClass::I, ServiceClass::I, 4, 50, $rules)->size);
-        $this->assertSame(24, $this->zone->determine(ServiceClass::I, ServiceClass::I, 10, 50, $rules)->size);
+        $this->assertSame(10, $this->zone->determine(ServiceClass::from('I'), ServiceClass::from('I'), 3, 50, $rules)->size);
+        $this->assertSame(12, $this->zone->determine(ServiceClass::from('I'), ServiceClass::from('I'), 4, 50, $rules)->size);
+        $this->assertSame(24, $this->zone->determine(ServiceClass::from('I'), ServiceClass::from('I'), 10, 50, $rules)->size);
     }
 
     public function test_the_formula_is_configuration_driven(): void
@@ -57,15 +57,15 @@ class ZoneOfConsiderationServiceTest extends TestCase
             'I-I' => ['single_vacancy_size' => 7, 'multiplier' => 3, 'addend' => 1],
         ]]);
 
-        $this->assertSame(7, $this->zone->determine(ServiceClass::I, ServiceClass::I, 1, 50, $rules)->size);
-        $this->assertSame(10, $this->zone->determine(ServiceClass::I, ServiceClass::I, 3, 50, $rules)->size);
+        $this->assertSame(7, $this->zone->determine(ServiceClass::from('I'), ServiceClass::from('I'), 1, 50, $rules)->size);
+        $this->assertSame(10, $this->zone->determine(ServiceClass::from('I'), ServiceClass::from('I'), 3, 50, $rules)->size);
     }
 
     public function test_a_class_pair_without_a_rule_is_uncapped(): void
     {
         // PPT "other cases": every officer meeting the experience
         // qualification is considered, with no arithmetic cap.
-        $zone = $this->zone->determine(ServiceClass::II, ServiceClass::II, 3, 12, $this->ruleSet());
+        $zone = $this->zone->determine(ServiceClass::from('II'), ServiceClass::from('II'), 3, 12, $this->ruleSet());
 
         $this->assertNull($zone->size);
         $this->assertTrue($zone->isUncapped());
@@ -74,7 +74,7 @@ class ZoneOfConsiderationServiceTest extends TestCase
 
     public function test_the_zone_cannot_exceed_the_officers_actually_available(): void
     {
-        $zone = $this->zone->determine(ServiceClass::I, ServiceClass::I, 4, 6, $this->ruleSet());
+        $zone = $this->zone->determine(ServiceClass::from('I'), ServiceClass::from('I'), 4, 6, $this->ruleSet());
 
         $this->assertSame(12, $zone->size);
         $this->assertSame(6, $zone->effectiveSize);
@@ -84,7 +84,7 @@ class ZoneOfConsiderationServiceTest extends TestCase
 
     public function test_no_vacancy_means_no_zone(): void
     {
-        $zone = $this->zone->determine(ServiceClass::I, ServiceClass::I, 0, 20, $this->ruleSet());
+        $zone = $this->zone->determine(ServiceClass::from('I'), ServiceClass::from('I'), 0, 20, $this->ruleSet());
 
         $this->assertSame(0, $zone->size);
         $this->assertSame(0, $zone->effectiveSize);
@@ -95,7 +95,7 @@ class ZoneOfConsiderationServiceTest extends TestCase
         // Architect directive: a stored result must be explainable from its
         // own data. "8 officers were considered" is not defensible; the
         // arithmetic that produced 8 is.
-        $zone = $this->zone->determine(ServiceClass::I, ServiceClass::I, 2, 20, $this->ruleSet());
+        $zone = $this->zone->determine(ServiceClass::from('I'), ServiceClass::from('I'), 2, 20, $this->ruleSet());
 
         $this->assertStringContainsString('2 × 2 + 4 = 8', $zone->explanation);
         $this->assertStringContainsString('Class-I to Class-I', $zone->explanation);
@@ -106,7 +106,7 @@ class ZoneOfConsiderationServiceTest extends TestCase
     public function test_a_reserved_shortfall_is_flagged_never_expanded(): void
     {
         $zone = $this->zone->determine(
-            ServiceClass::I, ServiceClass::I, 2, 20, $this->ruleSet(),
+            ServiceClass::from('I'), ServiceClass::from('I'), 2, 20, $this->ruleSet(),
             vacanciesByCategory: ['ST' => 1, 'UR' => 1],
             eligibleByCategory: ['ST' => 0, 'UR' => 5],
         );
@@ -123,7 +123,7 @@ class ZoneOfConsiderationServiceTest extends TestCase
     public function test_a_category_with_enough_eligible_officers_is_not_flagged(): void
     {
         $zone = $this->zone->determine(
-            ServiceClass::I, ServiceClass::I, 2, 20, $this->ruleSet(),
+            ServiceClass::from('I'), ServiceClass::from('I'), 2, 20, $this->ruleSet(),
             vacanciesByCategory: ['ST' => 1],
             eligibleByCategory: ['ST' => 3],
         );
@@ -134,7 +134,7 @@ class ZoneOfConsiderationServiceTest extends TestCase
     public function test_a_category_with_no_vacancy_is_not_flagged(): void
     {
         $zone = $this->zone->determine(
-            ServiceClass::I, ServiceClass::I, 2, 20, $this->ruleSet(),
+            ServiceClass::from('I'), ServiceClass::from('I'), 2, 20, $this->ruleSet(),
             vacanciesByCategory: ['ST' => 0],
             eligibleByCategory: ['ST' => 0],
         );
@@ -147,7 +147,7 @@ class ZoneOfConsiderationServiceTest extends TestCase
         // When Q5 is ruled and the flag is turned on, these stop being pending
         // decisions and become the engine's job.
         $zone = $this->zone->determine(
-            ServiceClass::I, ServiceClass::I, 2, 20,
+            ServiceClass::from('I'), ServiceClass::from('I'), 2, 20,
             $this->ruleSet(['zoneExpansionEnabled' => true]),
             vacanciesByCategory: ['ST' => 1],
             eligibleByCategory: ['ST' => 0],

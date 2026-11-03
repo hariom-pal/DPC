@@ -14,11 +14,8 @@
                 <div class="row">
                     <div class="col-md-2 mb-3">
                         <label class="form-label" for="code">{{ __('ui.code') }}</label>
-                        <select class="form-select @error('code') is-invalid @enderror" id="code" name="code" required>
-                            @foreach ($codes as $code)
-                                <option value="{{ $code }}" @selected(old('code', $classMaster->code) === $code)>{{ $code }}</option>
-                            @endforeach
-                        </select>
+                        <input type="text" maxlength="5" class="form-control text-uppercase @error('code') is-invalid @enderror" id="code" name="code"
+                               value="{{ old('code', $classMaster->code) }}" required @readonly($classMaster->exists) placeholder="IV">
                         @error('code')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         <div class="form-text">{{ __('admin.service_classes.form.hint_code') }}</div>
                     </div>
@@ -36,11 +33,12 @@
                         <div class="form-text">{{ __('admin.service_classes.form.hint_name_hi') }}</div>
                     </div>
                     <div class="col-md-1 mb-3">
-                        <label class="form-label" for="sort_order">{{ __('ui.order') }}</label>
-                        <input type="number" min="0" max="9999" class="form-control @error('sort_order') is-invalid @enderror"
-                               id="sort_order" name="sort_order" value="{{ old('sort_order', $classMaster->sort_order ?? 0) }}" required>
-                        @error('sort_order')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        <label class="form-label" for="level">{{ __('admin.service_classes.form.level') }}</label>
+                        <input type="number" min="1" max="99" class="form-control @error('level') is-invalid @enderror"
+                               id="level" name="level" value="{{ old('level', $classMaster->level) }}" required>
+                        @error('level')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
+                    <div class="col-12 mb-3 form-text mt-0">{{ __('admin.service_classes.form.hint_level') }}</div>
                     <div class="col-md-2 mb-3">
                         <label class="form-label" for="status">{{ __('ui.status') }}</label>
                         <select class="form-select" id="status" name="status" required>

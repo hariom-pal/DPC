@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Domain\Master\Requests;
 
 use App\Enums\MasterStatus;
-use App\Enums\ServiceClass;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Enum;
@@ -31,17 +30,24 @@ class ClassMasterRequest extends FormRequest
      */
     public function rules(): array
     {
-        $id = $this->route('classMaster')?->id;
+        $current = $this->route('classMaster');
+        $id = $current?->id;
 
         return [
+            /*
+             | A new class may be added (2026-11-03). Its code is what every post and
+             | proposal stores, so it is short, upper-case, and never changed once
+             | created: a renamed code would orphan every post of the class.
+             */
             'code' => [
-                'required',
-                new Enum(ServiceClass::class),
+                'required', 'string', 'max:5', 'regex:/^[A-Z0-9]+$/',
                 Rule::unique('service_classes', 'code')->withoutTrashed()->ignore($id),
+                ...($current !== null ? [Rule::in([$current->code])] : []),
             ],
             'name_en' => ['required', 'string', 'max:255'],
             'name_hi' => ['nullable', 'string', 'max:255'],
-            'sort_order' => ['required', 'integer', 'min:0', 'max:9999'],
+            // Place in the hierarchy, 1 highest; two classes never share one.
+            'level' => ['required', 'integer', 'min:1', 'max:99', Rule::unique('service_classes', 'level')->withoutTrashed()->ignore($id)],
             'status' => ['required', new Enum(MasterStatus::class)],
         ];
     }
@@ -52,10 +58,10 @@ class ClassMasterRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'code.Illuminate\Validation\Rules\Enum' => 'The service classes are fixed by the service rules. '
-                .'Only '.implode(' / ', array_column(ServiceClass::cases(), 'value')).' exist — '
-                .'rename a class here, but do not invent one.',
+            'code.regex' => (string) __('admin.service_classes.form.code_format'),
+            'code.in' => (string) __('admin.service_classes.form.code_fixed'),
             'code.unique' => 'That class is already in the master. Edit the existing row instead.',
+            'level.unique' => (string) __('admin.service_classes.form.level_taken'),
         ];
     }
 }

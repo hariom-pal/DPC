@@ -21,7 +21,7 @@ use App\Enums\ServiceClass;
  *
  * | Check | Compares | Skipped when |
  * |---|---|---|
- * | Class | `ServiceClass` rank — I above II above III | never; a post always has a class |
+ * | Class | the Class Master's Level — 1 above 2 above 3 (I, II, III) | the master gives either class no Level |
  * | Pay Scale | `pay_scales.level` | either scale has no level recorded |
  * | Grade Pay | `pay_scales.grade_pay` | either scale has no grade pay recorded |
  *
@@ -73,9 +73,13 @@ class PromotionHierarchyService
         $fromClass = $this->rank($from->class_level);
         $toClass = $this->rank($to->class_level);
 
-        $checked[] = 'class';
+        if ($fromClass === null || $toClass === null) {
+            $skipped[] = 'class';
+        } else {
+            $checked[] = 'class';
+        }
 
-        if ($toClass < $fromClass) {
+        if ($fromClass !== null && $toClass !== null && $toClass < $fromClass) {
             $failures[] = sprintf(
                 'Promotion is from Class-%s into Class-%s, which is a demotion. A promotion must be to an '
                 .'equal or higher class.',
@@ -105,7 +109,7 @@ class PromotionHierarchyService
         }
 
         // ---- Same class: the pay scale has to do the promoting ------------
-        if ($toClass === $fromClass) {
+        if ($from->class_level === $to->class_level) {
             if ($fromLevel === null || $toLevel === null) {
                 $skipped[] = 'same_class_pay_scale';
             } else {
@@ -162,17 +166,14 @@ class PromotionHierarchyService
     /**
      * How senior a class is, as a number that can be compared.
      *
-     * Class-I is the most senior, so the mapping inverts the numeral. Written out
-     * rather than derived from the enum's declaration order, because relying on that
-     * order would make reordering the enum silently change which promotions are
-     * lawful.
+     * The class's Level from the Class Master (2026-11-03), 1 the most senior, so
+     * the rank is its negation: a higher rank is a higher class. Null when the
+     * master gives the class no Level, and then the class check is skipped.
      */
-    private function rank(ServiceClass $class): int
+    private function rank(ServiceClass $class): ?int
     {
-        return match ($class) {
-            ServiceClass::I => 3,
-            ServiceClass::II => 2,
-            ServiceClass::III => 1,
-        };
+        $level = $class->level();
+
+        return $level === null ? null : -$level;
     }
 }

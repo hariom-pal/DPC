@@ -46,9 +46,9 @@ class HigherEducationPostSeeder extends Seeder
         // Promotion Duration is the qualifying service in the feeder post: a
         // Pre-DPC copies it from the Promotion From Post.
         $posts = [
-            ['name' => 'Assistant Professor', 'class' => ServiceClass::II, 'scale' => 'L10', 'sanctioned' => 100, 'duration' => 10],
-            ['name' => 'Professor', 'class' => ServiceClass::I, 'scale' => 'L13A', 'sanctioned' => 30, 'duration' => 5],
-            ['name' => 'Principal, Government College', 'class' => ServiceClass::I, 'scale' => 'L14', 'sanctioned' => 20, 'duration' => null],
+            ['name' => 'Assistant Professor', 'class' => ServiceClass::from('II'), 'scale' => 'L10', 'sanctioned' => 100, 'duration' => 10],
+            ['name' => 'Professor', 'class' => ServiceClass::from('I'), 'scale' => 'L13A', 'sanctioned' => 30, 'duration' => 5],
+            ['name' => 'Principal, Government College', 'class' => ServiceClass::from('I'), 'scale' => 'L14', 'sanctioned' => 20, 'duration' => null],
         ];
 
         foreach ($posts as $post) {

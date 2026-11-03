@@ -43,7 +43,7 @@ class ZoneAndSuperSeatGoldenTest extends TestCase
 
     public function test_the_shipped_configuration_matches_the_ppt_zone_and_super_seat_rules(): void
     {
-        $rule = $this->rules->zoneRuleFor(ServiceClass::I, ServiceClass::I);
+        $rule = $this->rules->zoneRuleFor(ServiceClass::from('I'), ServiceClass::from('I'));
 
         $this->assertSame(5, $rule['single_vacancy_size']);
         $this->assertSame(2, $rule['multiplier']);
@@ -51,7 +51,7 @@ class ZoneAndSuperSeatGoldenTest extends TestCase
         $this->assertSame('क+', $this->rules->superSeatGrade);
 
         // Class pairs other than I->I have no numeric zone (PPT "other cases").
-        $this->assertNull($this->rules->zoneRuleFor(ServiceClass::II, ServiceClass::II));
+        $this->assertNull($this->rules->zoneRuleFor(ServiceClass::from('II'), ServiceClass::from('II')));
 
         // Q5 is unruled, so the reserved expansion must ship disabled.
         $this->assertFalse($this->rules->reservedZoneExpansionEnabled);
@@ -62,7 +62,7 @@ class ZoneAndSuperSeatGoldenTest extends TestCase
     {
         // Slide 17/18: two vacancies on the Deputy Secretary post, ten Under
         // Secretaries on the seniority list. The deck prints the answer: 8.
-        $zone = $this->zone->determine(ServiceClass::I, ServiceClass::I, 2, 10, $this->rules);
+        $zone = $this->zone->determine(ServiceClass::from('I'), ServiceClass::from('I'), 2, 10, $this->rules);
 
         $this->assertSame(8, $zone->size);
         $this->assertSame(8, $zone->effectiveSize);
@@ -72,7 +72,7 @@ class ZoneAndSuperSeatGoldenTest extends TestCase
 
     public function test_a_single_vacancy_on_the_same_post_would_take_the_top_five(): void
     {
-        $zone = $this->zone->determine(ServiceClass::I, ServiceClass::I, 1, 10, $this->rules);
+        $zone = $this->zone->determine(ServiceClass::from('I'), ServiceClass::from('I'), 1, 10, $this->rules);
 
         $this->assertSame(5, $zone->size);
     }
@@ -130,7 +130,7 @@ class ZoneAndSuperSeatGoldenTest extends TestCase
         // retirement. If no ST officer clears eligibility, the 7x expansion
         // (Q5) is exactly the unruled rule that would decide the outcome.
         $zone = $this->zone->determine(
-            ServiceClass::I, ServiceClass::I, 2, 10, $this->rules,
+            ServiceClass::from('I'), ServiceClass::from('I'), 2, 10, $this->rules,
             vacanciesByCategory: ['UR' => 1, 'ST' => 1],
             eligibleByCategory: ['UR' => 4, 'ST' => 0],
         );
@@ -177,9 +177,9 @@ class ZoneAndSuperSeatGoldenTest extends TestCase
         $old = RuleSet::fromSnapshot($snapshot);
 
         $this->assertSame('2025.4', $old->version);
-        $this->assertSame(13, $old->qualifyingScoreFor(ServiceClass::I, ServiceClass::I));
+        $this->assertSame(13, $old->qualifyingScoreFor(ServiceClass::from('I'), ServiceClass::from('I')));
         // The current rules are untouched by reconstructing an old set.
-        $this->assertSame(15, $this->rules->qualifyingScoreFor(ServiceClass::I, ServiceClass::I));
+        $this->assertSame(15, $this->rules->qualifyingScoreFor(ServiceClass::from('I'), ServiceClass::from('I')));
     }
 
     public function test_an_incomplete_snapshot_is_rejected_rather_than_silently_defaulted(): void
@@ -195,7 +195,7 @@ class ZoneAndSuperSeatGoldenTest extends TestCase
     {
         // Architect directive: Explain Result must work from stored data
         // alone — no inference.
-        $zone = $this->zone->determine(ServiceClass::I, ServiceClass::I, 2, 10, $this->rules);
+        $zone = $this->zone->determine(ServiceClass::from('I'), ServiceClass::from('I'), 2, 10, $this->rules);
         $stored = $zone->toArray();
 
         $this->assertSame(8, $stored['size']);

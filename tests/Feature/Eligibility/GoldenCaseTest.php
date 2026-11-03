@@ -67,7 +67,7 @@ class GoldenCaseTest extends TestCase
 
         $score = $this->scoring->score($officer, $this->rules);
 
-        return [$score, $this->eligibility->assess($officer, $score, ServiceClass::I, ServiceClass::I, $this->rules)];
+        return [$score, $this->eligibility->assess($officer, $score, ServiceClass::from('I'), ServiceClass::from('I'), $this->rules)];
     }
 
     public function test_the_shipped_configuration_matches_the_ppt_rule_set(): void
@@ -75,15 +75,15 @@ class GoldenCaseTest extends TestCase
         // C4: क+=4, क=3, ख=2, ग=1, घ=0.
         $this->assertSame(['क+' => 4, 'क' => 3, 'ख' => 2, 'ग' => 1, 'घ' => 0], $this->rules->crGradeMarks);
         // §5.4 thresholds.
-        $this->assertSame(15, $this->rules->qualifyingScoreFor(ServiceClass::I, ServiceClass::I));
-        $this->assertSame(13, $this->rules->qualifyingScoreFor(ServiceClass::II, ServiceClass::I));
-        $this->assertSame(11, $this->rules->qualifyingScoreFor(ServiceClass::II, ServiceClass::II));
-        $this->assertSame(10, $this->rules->qualifyingScoreFor(ServiceClass::III, ServiceClass::III));
+        $this->assertSame(15, $this->rules->qualifyingScoreFor(ServiceClass::from('I'), ServiceClass::from('I')));
+        $this->assertSame(13, $this->rules->qualifyingScoreFor(ServiceClass::from('II'), ServiceClass::from('I')));
+        $this->assertSame(11, $this->rules->qualifyingScoreFor(ServiceClass::from('II'), ServiceClass::from('II')));
+        $this->assertSame(10, $this->rules->qualifyingScoreFor(ServiceClass::from('III'), ServiceClass::from('III')));
         // §5.1–§5.3.
         $this->assertSame(5, $this->rules->scoringYears);
         $this->assertSame(1, $this->rules->tribalAreaBonus);
         $this->assertSame('घ', $this->rules->disqualifyingGrade);
-        $this->assertSame('ग', $this->rules->lastYearForbiddenGradeFor(ServiceClass::I, ServiceClass::I));
+        $this->assertSame('ग', $this->rules->lastYearForbiddenGradeFor(ServiceClass::from('I'), ServiceClass::from('I')));
         // Q5/Q6 remain unruled, so relaxation must ship disabled.
         $this->assertFalse($this->rules->reservedRelaxationEnabled);
     }

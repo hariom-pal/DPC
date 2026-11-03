@@ -630,11 +630,16 @@ return [
     ],
     'service_classes' => [
         'form' => [
-            'hint_code' => 'The code is validated against the service classes the scoring engine knows, and cannot be changed after creation.',
+            'hint_code' => 'Short and upper-case, e.g. IV. It is stored on every post of the class, so it cannot be changed after creation.',
+            'code_format' => 'The code is up to 5 capital letters or digits, e.g. IV.',
+            'code_fixed' => 'A class\'s code cannot be changed after creation; add a new class instead.',
+            'level' => 'Level',
+            'hint_level' => 'Level is the class\'s place in the hierarchy: 1 is the highest (Class I = 1, II = 2, III = 3). A promotion must go to an equal or higher class, i.e. an equal or lower Level number. A new class with no eligibility rules of its own follows the "all other cases" rules.',
+            'level_taken' => 'Another class already has this Level.',
             'hint_name_hi' => 'The label shown on Hindi screens.',
         ],
         'index' => [
-            'lead' => 'The Class labels shown across the portal. The codes themselves are fixed, because the scoring engine keys its zone rules on them.',
+            'lead' => 'The service classes and their names across the portal. Level orders them, 1 highest, and is what a promotion\'s class check compares.',
             'named' => 'Named',
             'new_class' => '+ New Class',
             'no_classes_yet' => 'No classes yet.',

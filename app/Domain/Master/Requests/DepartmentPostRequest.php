@@ -85,7 +85,7 @@ class DepartmentPostRequest extends FormRequest
                     ->whereNotNull('active_flag')
                     ->ignore($id),
             ],
-            'class_level' => ['required', new Enum(ServiceClass::class)],
+            'class_level' => ['required', ServiceClass::rule()],
             // Required (MoM of 2026-10-29): a Pre-DPC promotes only to a higher
             // pay scale, so every post's class and scale must be mapped.
             'pay_scale_id' => ['required', Rule::exists('pay_scales', 'id')],

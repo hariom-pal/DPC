@@ -22,7 +22,9 @@
                 <span>{{ __('ui.layouts.admin.e_dpc_portal_administration') }}</span>
             </a>
             <div class="d-flex align-items-center gap-2">
-                <span class="text-white small d-none d-md-inline">{{ auth()->user()->name }}</span>
+                {{-- My Profile, for everyone (2026-11-03). --}}
+                <a class="text-white small d-none d-md-inline text-decoration-none" href="{{ route('account.show') }}" title="{{ __('profile.account.link') }}">{{ auth()->user()->name }}</a>
+                <a class="btn btn-sm btn-outline-light d-md-none" href="{{ route('account.show') }}">{{ __('profile.account.link') }}</a>
                 {{-- M11. The administration shell is a separate layout, so the
                      bell is included here too and the composer is registered for
                      both — a notification an Admin never sees is one that was not

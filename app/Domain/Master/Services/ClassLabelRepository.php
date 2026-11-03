@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Domain\Master\Services;
 
 use App\Domain\Master\Models\ClassMaster;
+use App\Enums\MasterStatus;
+use App\Enums\ServiceClass;
 use Illuminate\Support\Collection;
 
 /**
@@ -52,6 +54,36 @@ class ClassLabelRepository
         return app()->getLocale() === 'hi' && $row->name_hi !== null && $row->name_hi !== ''
             ? $row->name_hi
             : $row->name_en;
+    }
+
+    /**
+     * The class's level, 1 highest (2026-11-03). With no row in the master, the
+     * statutory three keep their seeded levels, so a unit test that never touches
+     * the master still ranks Class I above Class II; any other code has none.
+     */
+    public function levelFor(string $code): ?int
+    {
+        $row = $this->rows()->get($code);
+
+        if ($row === null) {
+            return ServiceClass::STATUTORY[$code] ?? null;
+        }
+
+        return $row->level === null ? null : (int) $row->level;
+    }
+
+    /**
+     * The classes in use (not withdrawn, Active), highest level first.
+     *
+     * @return list<ClassMaster>
+     */
+    public function inUse(): array
+    {
+        return $this->rows()
+            ->filter(fn (ClassMaster $row): bool => ! $row->trashed() && $row->status === MasterStatus::Active)
+            ->sortBy(fn (ClassMaster $row): string => sprintf('%05d-%s', $row->level ?? 99999, $row->code))
+            ->values()
+            ->all();
     }
 
     /**

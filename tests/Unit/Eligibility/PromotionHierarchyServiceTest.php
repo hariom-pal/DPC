@@ -30,21 +30,21 @@ final class PromotionHierarchyServiceTest extends TestCase
         return [
             // ---- The ordinary promotion -----------------------------------
             'lower class to higher class' => [
-                ServiceClass::II, 10, 4200, ServiceClass::I, 12, 5400, true, null,
+                ServiceClass::from('II'), 10, 4200, ServiceClass::from('I'), 12, 5400, true, null,
             ],
             'same class, higher scale' => [
-                ServiceClass::I, 12, 5400, ServiceClass::I, 14, 6600, true, null,
+                ServiceClass::from('I'), 12, 5400, ServiceClass::from('I'), 14, 6600, true, null,
             ],
 
             // ---- The register's three rejections --------------------------
             'higher class to lower class' => [
-                ServiceClass::I, 12, 5400, ServiceClass::II, 10, 4200, false, 'a demotion',
+                ServiceClass::from('I'), 12, 5400, ServiceClass::from('II'), 10, 4200, false, 'a demotion',
             ],
             'higher pay scale to lower pay scale' => [
-                ServiceClass::I, 14, 5400, ServiceClass::I, 12, 5400, false, 'a lower scale',
+                ServiceClass::from('I'), 14, 5400, ServiceClass::from('I'), 12, 5400, false, 'a lower scale',
             ],
             'higher grade pay to lower grade pay' => [
-                ServiceClass::I, 12, 6600, ServiceClass::I, 12, 5400, false, 'grade pay',
+                ServiceClass::from('I'), 12, 6600, ServiceClass::from('I'), 12, 5400, false, 'grade pay',
             ],
 
             /*
@@ -58,10 +58,10 @@ final class PromotionHierarchyServiceTest extends TestCase
              | now refused.
              */
             'identical on all three' => [
-                ServiceClass::I, 12, 5400, ServiceClass::I, 12, 5400, false, 'the same pay scale',
+                ServiceClass::from('I'), 12, 5400, ServiceClass::from('I'), 12, 5400, false, 'the same pay scale',
             ],
             'same class, same scale, higher grade pay is still not a promotion' => [
-                ServiceClass::II, 10, 4200, ServiceClass::II, 10, 4800, false, 'the same pay scale',
+                ServiceClass::from('II'), 10, 4200, ServiceClass::from('II'), 10, 4800, false, 'the same pay scale',
             ],
 
             /*
@@ -71,7 +71,7 @@ final class PromotionHierarchyServiceTest extends TestCase
              | the wrong pairs.
              */
             'lower class to higher class on the same scale' => [
-                ServiceClass::III, 10, 4200, ServiceClass::II, 10, 4200, true, null,
+                ServiceClass::from('III'), 10, 4200, ServiceClass::from('II'), 10, 4200, true, null,
             ],
 
             /*
@@ -80,7 +80,7 @@ final class PromotionHierarchyServiceTest extends TestCase
              | same reason: an incomplete master must not become a promotion freeze.
              */
             'same class with no levels recorded is skipped, not failed' => [
-                ServiceClass::I, null, null, ServiceClass::I, null, null, true, null,
+                ServiceClass::from('I'), null, null, ServiceClass::from('I'), null, null, true, null,
             ],
 
             /*
@@ -92,10 +92,10 @@ final class PromotionHierarchyServiceTest extends TestCase
              | master would become a promotion freeze.
              */
             'pay scale with no level recorded is skipped, not failed' => [
-                ServiceClass::II, null, null, ServiceClass::I, null, null, true, null,
+                ServiceClass::from('II'), null, null, ServiceClass::from('I'), null, null, true, null,
             ],
             'a demotion is still caught when only the class is recorded' => [
-                ServiceClass::I, null, null, ServiceClass::III, null, null, false, 'a demotion',
+                ServiceClass::from('I'), null, null, ServiceClass::from('III'), null, null, false, 'a demotion',
             ],
         ];
     }
@@ -141,8 +141,8 @@ final class PromotionHierarchyServiceTest extends TestCase
     public function test_a_verdict_says_which_comparisons_it_could_make(): void
     {
         $verdict = (new PromotionHierarchyService)->verdict(
-            $this->post(ServiceClass::II, null, 4200),
-            $this->post(ServiceClass::I, 12, null),
+            $this->post(ServiceClass::from('II'), null, 4200),
+            $this->post(ServiceClass::from('I'), 12, null),
         );
 
         $this->assertTrue($verdict['valid']);
@@ -160,8 +160,8 @@ final class PromotionHierarchyServiceTest extends TestCase
     public function test_all_three_failures_are_reported_together(): void
     {
         $verdict = (new PromotionHierarchyService)->verdict(
-            $this->post(ServiceClass::I, 14, 6600),
-            $this->post(ServiceClass::III, 10, 4200),
+            $this->post(ServiceClass::from('I'), 14, 6600),
+            $this->post(ServiceClass::from('III'), 10, 4200),
         );
 
         $this->assertFalse($verdict['valid']);

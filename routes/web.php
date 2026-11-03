@@ -35,7 +35,9 @@ use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\UserIdentityController;
 use App\Http\Controllers\Admin\VacancyManagementController;
 use App\Http\Controllers\Admin\VacancyMasterController;
+use App\Http\Controllers\Auth\AccountController;
 use App\Http\Controllers\Auth\ActingDepartmentController;
+use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\IdentityController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\PasswordChangeController;
@@ -97,6 +99,15 @@ Route::get('/lang/{locale}', function (string $locale) {
  */
 Route::get('/login', [LoginController::class, 'create'])->name('login');
 Route::post('/login', [LoginController::class, 'store'])->middleware('throttle:login')->name('login.store');
+
+// Forgot password (2026-11-03): OTP on the account's e-mail and mobile, then a new password.
+Route::middleware('throttle:forgot-password')->group(function (): void {
+    Route::get('/forgot-password', [ForgotPasswordController::class, 'create'])->name('password.forgot');
+    Route::post('/forgot-password', [ForgotPasswordController::class, 'store'])->name('password.forgot.send');
+    Route::get('/forgot-password/verify', [ForgotPasswordController::class, 'edit'])->name('password.forgot.verify');
+    Route::post('/forgot-password/verify', [ForgotPasswordController::class, 'update'])->name('password.forgot.update');
+    Route::post('/forgot-password/resend', [ForgotPasswordController::class, 'resend'])->name('password.forgot.resend');
+});
 
 /*
  | Department Admin registration by invitation (business decision, 2026-10-26).
@@ -249,6 +260,14 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
         // The AO's and AH's profile at every sign-in (2026-10-28).
         Route::get('/profile', [ProfileController::class, 'show'])->name('profile.show');
         Route::post('/profile', [ProfileController::class, 'confirm'])->name('profile.confirm');
+
+        // My Profile, for everyone (2026-11-03): the account in full, and an e-mail /
+        // mobile change proved by OTP on both.
+        Route::get('/my-profile', [AccountController::class, 'show'])->name('account.show');
+        Route::post('/my-profile/contact', [AccountController::class, 'start'])->middleware('throttle:account-contact')->name('account.contact.start');
+        Route::post('/my-profile/contact/verify', [AccountController::class, 'verify'])->middleware('throttle:account-contact')->name('account.contact.verify');
+        Route::post('/my-profile/contact/resend', [AccountController::class, 'resend'])->middleware('throttle:account-contact')->name('account.contact.resend');
+        Route::post('/my-profile/contact/cancel', [AccountController::class, 'cancel'])->name('account.contact.cancel');
 
         /*
          | The sitting, from a committee member's side (business instruction,

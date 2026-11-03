@@ -20,7 +20,6 @@ use App\Domain\PreDpc\Models\PreDpcProposal;
 use App\Domain\PreDpc\Services\PreDpcProposalService;
 use App\Enums\MasterStatus;
 use App\Enums\Role;
-use App\Enums\ServiceClass;
 use Database\Seeders\Support\PptPromotionRules;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
@@ -63,30 +62,30 @@ class DemoMasterSeeder extends Seeder
      * the Recruitment Rule screen look like it can only ever hold one, and the
      * real rules routinely do not.
      *
-     * @var array{go:string, effective_from:string, posts:list<array{name:string, class:ServiceClass, scale:string, dr:int, pr:int, promotionSources?:list<array{name:string, pct:int, experience:int, qualification:string}>}>}
+     * @var array{go:string, effective_from:string, posts:list<array{name:string, class:string, scale:string, dr:int, pr:int, promotionSources?:list<array{name:string, pct:int, experience:int, qualification:string}>}>}
      */
     public const LADDER = [
         'go' => 'F-2-14/2025/20-Three',
         'effective_from' => '2026-01-01',
         'posts' => [
-            ['name' => 'Teacher', 'class' => ServiceClass::III, 'scale' => 'L10', 'dr' => 100, 'pr' => 0],
-            ['name' => 'Head Master, Middle School', 'class' => ServiceClass::III, 'scale' => 'L10', 'dr' => 0, 'pr' => 100, 'promotionSources' => [
+            ['name' => 'Teacher', 'class' => 'III', 'scale' => 'L10', 'dr' => 100, 'pr' => 0],
+            ['name' => 'Head Master, Middle School', 'class' => 'III', 'scale' => 'L10', 'dr' => 0, 'pr' => 100, 'promotionSources' => [
                 ['name' => 'Teacher', 'pct' => 100, 'experience' => 5, 'qualification' => 'B.Ed.'],
             ]],
-            ['name' => 'Lecturer', 'class' => ServiceClass::II, 'scale' => 'L11', 'dr' => 50, 'pr' => 50, 'promotionSources' => [
+            ['name' => 'Lecturer', 'class' => 'II', 'scale' => 'L11', 'dr' => 50, 'pr' => 50, 'promotionSources' => [
                 ['name' => 'Teacher', 'pct' => 25, 'experience' => 8, 'qualification' => 'Post-Graduate with B.Ed.'],
                 ['name' => 'Head Master, Middle School', 'pct' => 25, 'experience' => 4, 'qualification' => 'Post-Graduate with B.Ed.'],
             ]],
-            ['name' => 'Principal, Higher Secondary School', 'class' => ServiceClass::II, 'scale' => 'L12', 'dr' => 25, 'pr' => 75, 'promotionSources' => [
+            ['name' => 'Principal, Higher Secondary School', 'class' => 'II', 'scale' => 'L12', 'dr' => 25, 'pr' => 75, 'promotionSources' => [
                 ['name' => 'Lecturer', 'pct' => 75, 'experience' => 5, 'qualification' => 'Post-Graduate with B.Ed.'],
             ]],
-            ['name' => 'Block Education Officer', 'class' => ServiceClass::II, 'scale' => 'L12', 'dr' => 0, 'pr' => 100, 'promotionSources' => [
+            ['name' => 'Block Education Officer', 'class' => 'II', 'scale' => 'L12', 'dr' => 0, 'pr' => 100, 'promotionSources' => [
                 ['name' => 'Principal, Higher Secondary School', 'pct' => 100, 'experience' => 5, 'qualification' => 'Post-Graduate'],
             ]],
-            ['name' => 'District Education Officer', 'class' => ServiceClass::I, 'scale' => 'L12', 'dr' => 0, 'pr' => 100, 'promotionSources' => [
+            ['name' => 'District Education Officer', 'class' => 'I', 'scale' => 'L12', 'dr' => 0, 'pr' => 100, 'promotionSources' => [
                 ['name' => 'Principal, Higher Secondary School', 'pct' => 100, 'experience' => 7, 'qualification' => 'Post-Graduate'],
             ]],
-            ['name' => 'Joint Director, Education', 'class' => ServiceClass::I, 'scale' => 'L13', 'dr' => 0, 'pr' => 100, 'promotionSources' => [
+            ['name' => 'Joint Director, Education', 'class' => 'I', 'scale' => 'L13', 'dr' => 0, 'pr' => 100, 'promotionSources' => [
                 ['name' => 'District Education Officer', 'pct' => 100, 'experience' => 5, 'qualification' => 'Post-Graduate'],
             ]],
             /*
@@ -102,11 +101,11 @@ class DemoMasterSeeder extends Seeder
              | The two shares divide the 100% promotion quota; they do not change how
              | many chairs are promotion chairs, which is what `pr` decides.
              */
-            ['name' => 'Additional Director, Education', 'class' => ServiceClass::I, 'scale' => 'L13A', 'dr' => 0, 'pr' => 100, 'promotionSources' => [
+            ['name' => 'Additional Director, Education', 'class' => 'I', 'scale' => 'L13A', 'dr' => 0, 'pr' => 100, 'promotionSources' => [
                 ['name' => 'Joint Director, Education', 'pct' => 60, 'experience' => 4, 'qualification' => 'Post-Graduate'],
                 ['name' => 'Block Education Officer', 'pct' => 40, 'experience' => 5, 'qualification' => 'Post-Graduate'],
             ]],
-            ['name' => 'Director, Public Instruction', 'class' => ServiceClass::I, 'scale' => 'L14', 'dr' => 0, 'pr' => 100, 'promotionSources' => [
+            ['name' => 'Director, Public Instruction', 'class' => 'I', 'scale' => 'L14', 'dr' => 0, 'pr' => 100, 'promotionSources' => [
                 ['name' => 'Additional Director, Education', 'pct' => 100, 'experience' => 3, 'qualification' => 'Post-Graduate'],
             ]],
         ],
@@ -276,7 +275,7 @@ class DemoMasterSeeder extends Seeder
             $mapping = DepartmentPost::query()->updateOrCreate(
                 ['department_id' => $department->id, 'name' => $post['name']],
                 [
-                    'class_level' => $post['class']->value,
+                    'class_level' => $post['class'],
                     'pay_scale_id' => $scales[$post['scale']] ?? null,
                     'promotion_duration_years' => $duration,
                     'effective_from' => $ladder['effective_from'],
