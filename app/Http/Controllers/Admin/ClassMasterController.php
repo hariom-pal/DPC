@@ -35,9 +35,10 @@ class ClassMasterController extends Controller
              | them, so on a healthy installation there is nothing to add and the
              | button would only ever produce a uniqueness error. It reappears if
              | a class has genuinely been removed from the master, which is the
-             | one case where adding is the right repair.
+             | one case where adding is the right repair — a withdrawn (deleted)
+             | class included, which adding brings back (2026-11-03).
              */
-            'canAddMore' => ClassMaster::query()->withTrashed()->count() < count(ServiceClass::cases()),
+            'canAddMore' => ClassMaster::query()->count() < count(ServiceClass::cases()),
         ]);
     }
 

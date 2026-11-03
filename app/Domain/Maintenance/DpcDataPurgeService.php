@@ -6,6 +6,9 @@ namespace App\Domain\Maintenance;
 
 use App\Domain\Authentication\Models\User;
 use App\Domain\Authentication\Services\SecurityLog;
+use App\Domain\Department\Models\Department;
+use App\Domain\UserManagement\Models\UserDepartmentAssignment;
+use App\Enums\DepartmentStatus;
 use App\Enums\Role;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Relation;
@@ -119,7 +122,7 @@ final class DpcDataPurgeService
     /**
      * Do it. `$confirmation` must be the connected database's name.
      *
-     * @return array{deleted: array<string, int>, total: int, cleared_references: int, files: array{deleted: int, kept_shared: int, missing: int}, users: int}
+     * @return array{deleted: array<string, int>, total: int, cleared_references: int, files: array{deleted: int, kept_shared: int, missing: int}, users: int, unregistered: int}
      */
     public function apply(string $confirmation, ?User $actor = null, bool $withUsers = false): array
     {
@@ -144,7 +147,7 @@ final class DpcDataPurgeService
                 throw new RuntimeException('Blocked: '.implode(' ', $blockers));
             }
 
-            $result = $this->purge() + ['users' => 0];
+            $result = $this->purge() + ['users' => 0, 'unregistered' => 0];
 
             if ($withUsers) {
                 $removed = $this->users->apply(self::KEPT_ROLES);
@@ -154,6 +157,15 @@ final class DpcDataPurgeService
 
                 // The Administrators are left able to sign in.
                 User::role(self::KEPT_ROLES)->update(['is_active' => true]);
+
+                // A department is Registered by its Department Admin's invitation; with
+                // every Department Admin gone it is Unregistered again (2026-11-03), so
+                // the dashboard's "registered" count does not count departments nobody
+                // can sign in to.
+                $result['unregistered'] = Department::query()
+                    ->where('status', '!=', DepartmentStatus::Unregistered->value)
+                    ->whereNotIn('id', UserDepartmentAssignment::query()->current()->where('role', Role::DepartmentAdmin->value)->select('department_id'))
+                    ->update(['status' => DepartmentStatus::Unregistered->value, 'registered_at' => null]);
             }
         } finally {
             flock($lock, LOCK_UN);

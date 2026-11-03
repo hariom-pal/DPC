@@ -10,6 +10,7 @@ use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Maintenance\DpcDataPurgePlan;
 use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\PreDpc\Models\PreDpcProposal;
+use App\Enums\DepartmentStatus;
 use App\Enums\MasterStatus;
 use App\Enums\Role;
 use Database\Seeders\LookupMasterSeeder;
@@ -210,15 +211,18 @@ class PurgeDpcDataTest extends TestCase
         $chairman = User::factory()->create();
         $chairman->assignRole(Role::Chairman->value);
         $this->admin->forceFill(['is_active' => false])->save();
+        // Registered by its Department Admin, who goes with the users.
+        User::factory()->assignedTo($this->department, Role::DepartmentAdmin)->create();
+        $this->department->forceFill(['status' => DepartmentStatus::Registered->value, 'registered_at' => now()])->save();
         $posts = DB::table('department_posts')->count();
 
         $this->artisan('dpc:purge-dpc-data', ['--with-users' => true])
-            ->expectsOutputToContain('Accounts to delete: 3')
+            ->expectsOutputToContain('Accounts to delete: 4')
             ->assertSuccessful();
-        $this->assertSame(4, User::query()->count(), 'the dry run deletes nobody');
+        $this->assertSame(5, User::query()->count(), 'the dry run deletes nobody');
 
         $this->artisan('dpc:purge-dpc-data', ['--apply' => true, '--with-users' => true, '--confirm' => $this->database])
-            ->expectsOutputToContain('3 account(s) deleted')
+            ->expectsOutputToContain('4 account(s) deleted')
             ->assertSuccessful();
 
         $this->assertDpcDataGone();
@@ -228,6 +232,9 @@ class PurgeDpcDataTest extends TestCase
         $this->assertSame(0, DB::table('user_department_assignments')->count());
         $this->assertSame($posts, DB::table('department_posts')->count());
         $this->assertSame(1, DB::table('departments')->count());
+        // No Department Admin is left, so no department is Registered.
+        $this->assertSame(DepartmentStatus::Unregistered, $this->department->fresh()->status);
+        $this->assertNull($this->department->fresh()->registered_at);
     }
 
     public function test_the_administrator_deletes_the_users_from_the_browser_too(): void
