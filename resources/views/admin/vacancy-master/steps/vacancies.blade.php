@@ -172,7 +172,7 @@
 
         @if ($canAdd)
             <div @class(['collapse border-top', 'show' => $mine($kind)]) id="add-{{ $card['id'] }}-panel"><div class="card-body">
-                <form method="POST" enctype="multipart/form-data" action="{{ route($records.'.entries.store', [$department, $year, $post]) }}" id="add-{{ $card['id'] }}">
+                <form method="POST" enctype="multipart/form-data" action="{{ route($records.'.entries.store', [$department, $year, $post]) }}" id="add-{{ $card['id'] }}" data-employee-row>
                     @csrf
                     <input type="hidden" name="kind" value="{{ $kind }}">
                     @if ($mine($kind))
@@ -191,17 +191,20 @@
                                 @if ($mine($kind)) @include('admin.vacancy-master.partials.field-error', ['field' => 'reason']) @endif
                             </div>
                         @endif
-                        <div class="col-md-3">
-                            <label class="form-label small" for="{{ $card['id'] }}_name">{{ __('vacancymaster.entries.officer_name') }}</label>
-                            <input type="text" maxlength="255" class="form-control form-control-sm @if ($err($kind, 'officer_name')) is-invalid @endif" id="{{ $card['id'] }}_name" name="officer_name" value="{{ $val($kind, 'officer_name') }}" required>
-                            @if ($mine($kind)) @include('admin.vacancy-master.partials.field-error', ['field' => 'officer_name']) @endif
-                        </div>
-                        {{-- Every officer with an Employee ID (2026-11-02); matched with the
-                             Working Officers List by number before name. --}}
+                        {{-- Employee ID first (UAT, 2026-11-02): an officer already in the
+                             employee database fills the name in; matched with the Working
+                             Officers List by number before name. --}}
                         <div class="col-md-3">
                             <label class="form-label small" for="{{ $card['id'] }}_employee_number">{{ __('vacancymaster.entries.employee_number') }}</label>
-                            <input type="text" maxlength="60" class="form-control form-control-sm @if ($err($kind, 'employee_number')) is-invalid @endif" id="{{ $card['id'] }}_employee_number" name="employee_number" value="{{ $val($kind, 'employee_number') }}" required>
+                            <input type="text" maxlength="60" class="form-control form-control-sm @if ($err($kind, 'employee_number')) is-invalid @endif" id="{{ $card['id'] }}_employee_number" name="employee_number" value="{{ $val($kind, 'employee_number') }}" required
+                                   data-employee-lookup="{{ route('vacancy-management.employee') }}">
+                            <div class="form-text small d-none" data-employee-found>{{ __('vacancymaster.entries.employee_found') }}</div>
                             @if ($mine($kind)) @include('admin.vacancy-master.partials.field-error', ['field' => 'employee_number']) @endif
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small" for="{{ $card['id'] }}_name">{{ __('vacancymaster.entries.officer_name') }}</label>
+                            <input type="text" maxlength="255" class="form-control form-control-sm @if ($err($kind, 'officer_name')) is-invalid @endif" id="{{ $card['id'] }}_name" name="officer_name" value="{{ $val($kind, 'officer_name') }}" required data-employee-field="name">
+                            @if ($mine($kind)) @include('admin.vacancy-master.partials.field-error', ['field' => 'officer_name']) @endif
                         </div>
                         @if ($kind === 'deputation_in')
                             <div class="col-md-3">
@@ -213,6 +216,22 @@
                                 <label class="form-label small" for="b1_to">{{ __('vacancymaster.pm.ends_on') }}</label>
                                 <input type="date" min="{{ $yearFrom }}" class="form-control form-control-sm @if ($err($kind, 'deputation_to')) is-invalid @endif" id="b1_to" name="deputation_to" value="{{ $val($kind, 'deputation_to') }}">
                                 @if ($mine($kind)) @include('admin.vacancy-master.partials.field-error', ['field' => 'deputation_to']) @endif
+                            </div>
+                            {{-- UAT, 2026-11-02: a post only for deputation is never counted. --}}
+                            <div class="col-md-6">
+                                <fieldset>
+                                    <legend class="form-label small mb-1">{{ __('vacancymaster.entries.deputation_only_post') }}</legend>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="radio" name="deputation_only_post" id="b1_only_no" value="0" @checked($val($kind, 'deputation_only_post') === '0') required>
+                                        <label class="form-check-label small" for="b1_only_no">{{ __('ui.no') }}</label>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="radio" name="deputation_only_post" id="b1_only_yes" value="1" @checked($val($kind, 'deputation_only_post') === '1')>
+                                        <label class="form-check-label small" for="b1_only_yes">{{ __('ui.yes') }}</label>
+                                    </div>
+                                </fieldset>
+                                <div class="form-text small">{{ __('vacancymaster.entries.deputation_only_post_help') }}</div>
+                                @if ($mine($kind)) @include('admin.vacancy-master.partials.field-error', ['field' => 'deputation_only_post']) @endif
                             </div>
                         @elseif ($kind === 'deputation')
                             <div class="col-md-3">
@@ -236,7 +255,11 @@
                             </div>
                         @else
                             <div class="col-md-3">
-                                <label class="form-label small" for="c_date">{{ __('vacancymaster.pm.date_in_year') }}</label>
+                                {{-- The date named by the reason (UAT, 2026-11-02). --}}
+                                <label class="form-label small" for="c_date">
+                                    <span data-reason-label="retirement">{{ __('vacancymaster.pm.date_retirement') }}</span>
+                                    <span data-reason-label="higher_post_promotion" hidden>{{ __('vacancymaster.pm.date_higher_dpc') }}</span>
+                                </label>
                                 <input type="date" min="{{ $yearFrom }}" max="{{ $yearTo }}" class="form-control form-control-sm @if ($err($kind, 'effective_date')) is-invalid @endif" id="c_date" name="effective_date" value="{{ $val($kind, 'effective_date') }}" required>
                                 @if ($mine($kind)) @include('admin.vacancy-master.partials.field-error', ['field' => 'effective_date']) @endif
                             </div>
@@ -253,6 +276,7 @@
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label small" for="c_document">{{ __('vacancymaster.document') }}</label>
+                                <div class="form-text small mt-0 mb-1" data-higher-fields>{{ __('vacancymaster.entries.document_not_needed_on_portal') }}</div>
                                 <input type="file" accept="application/pdf" class="form-control form-control-sm @if ($err($kind, 'document')) is-invalid @endif" id="c_document" name="document">
                                 @if ($mine($kind)) @include('admin.vacancy-master.partials.field-error', ['field' => 'document']) @endif
                             </div>
@@ -311,3 +335,6 @@
     </div>
 @endif
 
+@push('scripts')
+    <script src="@versioned('js/forms/employee-lookup.js')" defer></script>
+@endpush

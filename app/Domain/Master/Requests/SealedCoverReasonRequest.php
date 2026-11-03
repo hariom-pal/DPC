@@ -34,7 +34,7 @@ class SealedCoverReasonRequest extends FormRequest
         $id = $this->route('sealedCoverReason')?->id;
 
         return [
-            'code' => ['required', 'string', 'max:40', Rule::unique('sealed_cover_reasons', 'code')->ignore($id)],
+            'code' => ['required', 'string', 'max:40', Rule::unique('sealed_cover_reasons', 'code')->withoutTrashed()->ignore($id)],
             'name_en' => ['required', 'string', 'max:255'],
             'name_hi' => ['required', 'string', 'max:255'],
             'effect' => ['required', Rule::in(SealedCoverReason::effects())],

@@ -24,7 +24,7 @@ class ReservationCategoryRequest extends FormRequest
         $id = $this->route('reservationCategory')?->id;
 
         return [
-            'code' => ['required', 'string', 'max:40', Rule::unique('reservation_categories', 'code')->ignore($id)],
+            'code' => ['required', 'string', 'max:40', Rule::unique('reservation_categories', 'code')->withoutTrashed()->ignore($id)],
             'name_en' => ['required', 'string', 'max:255'],
             'name_hi' => ['required', 'string', 'max:255'],
             'is_reserved' => ['required', 'boolean'],

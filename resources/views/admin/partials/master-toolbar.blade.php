@@ -18,6 +18,9 @@
 --}}
 @php
     $definition = \App\Domain\Master\Support\MasterRegistry::find($master);
+    // Export and upload are the Administrator's routes; elsewhere the search alone.
+    $adminArea = request()->routeIs('admin.*');
+    $upload = $adminArea && $definition?->importable;
 @endphp
 
 @if ($definition !== null)
@@ -35,6 +38,7 @@
             @endif
         </form>
 
+        @if ($adminArea)
         <div class="ms-auto d-flex flex-wrap gap-2">
             {{-- Carries the current `?q=`, so "export" means "export what I am
                  looking at" rather than "export everything". --}}
@@ -42,11 +46,14 @@
                href="{{ route('admin.master-data.export', ['master' => $master, 'q' => request('q')]) }}">
                 {{ __('admin.master_data.export_csv') }}
             </a>
-            <button type="button" class="btn btn-sm btn-outline-primary text-nowrap"
-                    data-bs-toggle="modal" data-bs-target="#bulk-upload-{{ $master }}">
-                {{ __('admin.master_data.bulk_upload') }}
-            </button>
+            @if ($upload)
+                <button type="button" class="btn btn-sm btn-outline-primary text-nowrap"
+                        data-bs-toggle="modal" data-bs-target="#bulk-upload-{{ $master }}">
+                    {{ __('admin.master_data.bulk_upload') }}
+                </button>
+            @endif
         </div>
+        @endif
     </div>
 
     @error('file')
@@ -60,6 +67,7 @@
         </div>
     @enderror
 
+    @if ($upload)
     <div class="modal fade" id="bulk-upload-{{ $master }}" tabindex="-1"
          aria-labelledby="bulk-upload-{{ $master }}-title" aria-hidden="true">
         <div class="modal-dialog">
@@ -101,4 +109,5 @@
             </form>
         </div>
     </div>
+    @endif
 @endif

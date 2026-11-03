@@ -33,13 +33,17 @@ class ReservationHierarchyTest extends TestCase
         return $admin;
     }
 
-    public function test_admin_can_create_a_post(): void
+    /**
+     * Since 2026-11-02 a post is mapped by the department's Authorized Officer.
+     */
+    public function test_the_authorized_officer_can_create_a_post(): void
     {
-        $admin = $this->admin();
+        $this->admin();
         $department = Department::query()->where('code', 'SE')->firstOrFail();
+        $ao = User::factory()->assignedTo($department->id, Role::AuthorizedOfficer)->create();
 
-        $this->actingAs($admin)
-            ->post(route('admin.department-posts.store'), [
+        $this->actingAs($ao)
+            ->post(route('post-mapping.store'), [
                 'department_id' => $department->id,
                 'name' => 'Additional Director',
                 'class_level' => ServiceClass::I->value,
@@ -54,7 +58,7 @@ class ReservationHierarchyTest extends TestCase
             ->assertSessionHasNoErrors()
             // The details page, which is where the Government Order and its PDF
             // are shown.
-            ->assertRedirect(route('admin.department-posts.show', DepartmentPost::query()->latest('id')->firstOrFail()));
+            ->assertRedirect(route('post-mapping.show', DepartmentPost::query()->latest('id')->firstOrFail()));
 
         $this->assertDatabaseHas('department_posts', ['name' => 'Additional Director', 'department_id' => $department->id]);
     }

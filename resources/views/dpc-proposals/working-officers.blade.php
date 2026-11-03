@@ -232,7 +232,9 @@
 
     <template id="officer-template">
         <div class="card border-0 shadow-sm mb-2 officer-card">
-            <div class="card-body row g-2">
+            {{-- Employee ID first: an officer of the employee database fills the
+                 rest of the row in (UAT, 2026-11-03). --}}
+            <div class="card-body row g-2" data-employee-row>
                 <div class="col-md-1"><label class="form-label">{{ __('ui.sn') }}</label>
                     <input type="number" min="1" class="form-control form-control-sm" name="officers[__O__][sn]" required></div>
                 {{-- Officer or empty chair. A vacant row carries a category and
@@ -252,9 +254,11 @@
                         <option value="direct">{{ __('dpc.working_officers.source_direct') }}</option>
                     </select></div>
                 <div class="col-md-2"><label class="form-label">{{ __('ui.employee_no') }}</label>
-                    <input type="text" class="form-control form-control-sm" name="officers[__O__][employee_number]"></div>
+                    <input type="text" class="form-control form-control-sm" name="officers[__O__][employee_number]"
+                           data-employee-lookup="{{ route('vacancy-management.employee') }}">
+                    <div class="form-text small d-none" data-employee-found>{{ __('vacancymaster.entries.employee_found') }}</div></div>
                 <div class="col-md-3"><label class="form-label">{{ __('ui.name') }}</label>
-                    <input type="text" class="form-control form-control-sm" name="officers[__O__][name]"></div>
+                    <input type="text" class="form-control form-control-sm" name="officers[__O__][name]" data-employee-field="name"></div>
 
                 {{-- The number the officer signs in with, and where their OTP goes
 
@@ -264,11 +268,11 @@
 
                     <input type="text" inputmode="numeric" maxlength="10" class="form-control form-control-sm"
 
-                           name="officers[__O__][mobile]"></div>
+                           name="officers[__O__][mobile]" data-employee-field="mobile"></div>
                 <div class="col-md-2"><label class="form-label">{{ __('ui.dob') }}</label>
-                    <input type="date" class="form-control form-control-sm" name="officers[__O__][dob]"></div>
+                    <input type="date" class="form-control form-control-sm" name="officers[__O__][dob]" data-employee-field="date_of_birth"></div>
                 <div class="col-md-2"><label class="form-label">{{ __('ui.qualification') }}</label>
-                    <input type="text" class="form-control form-control-sm" name="officers[__O__][qualification]"></div>
+                    <input type="text" class="form-control form-control-sm" name="officers[__O__][qualification]" data-employee-field="qualification"></div>
                 <div class="col-md-2 d-flex align-items-end"><button type="button" class="btn btn-outline-danger btn-sm remove-row">{{ __('ui.remove_2') }}</button></div>
 
                 <div class="col-md-3"><label class="form-label">{{ __('ui.promotion_to_post') }}</label>
@@ -313,14 +317,14 @@
                      vacancies are counted from. Both optional — most officers are
                      neither retiring in the DPC Year nor on deputation. --}}
                 <div class="col-md-2"><label class="form-label">{{ __('dpc.working_officers.date_of_retirement') }}</label>
-                    <input type="date" class="form-control form-control-sm" name="officers[__O__][date_of_retirement]"></div>
+                    <input type="date" class="form-control form-control-sm" name="officers[__O__][date_of_retirement]" data-employee-field="date_of_retirement"></div>
                 <div class="col-md-2"><label class="form-label">{{ __('dpc.working_officers.deputation_from') }}</label>
                     <input type="date" class="form-control form-control-sm" name="officers[__O__][deputation_from]"></div>
                 <div class="col-md-2"><label class="form-label">{{ __('dpc.working_officers.deputation_to') }}</label>
                     <input type="date" class="form-control form-control-sm" name="officers[__O__][deputation_to]"></div>
 
                 <div class="col-md-4"><label class="form-label">{{ __('dpc.working_officers.date_of_joining_service') }}</label>
-                    <input type="date" class="form-control form-control-sm" name="officers[__O__][date_of_joining_service]"></div>
+                    <input type="date" class="form-control form-control-sm" name="officers[__O__][date_of_joining_service]" data-employee-field="date_of_joining_service"></div>
                 <div class="col-md-4"><label class="form-label">{{ __('ui.date_of_posting_on_promotion_to_post') }}</label>
                     <input type="date" class="form-control form-control-sm" name="officers[__O__][date_of_posting_on_promotion_to_post]"></div>
                 <div class="col-md-4"><label class="form-label">{{ __('ui.date_of_posting_on_promotion_from_post') }}</label>
@@ -332,4 +336,5 @@
 
 @push('scripts')
     <script src="@versioned('js/forms/dpc-working-officers.js')" defer></script>
+    <script src="@versioned('js/forms/employee-lookup.js')" defer></script>
 @endpush

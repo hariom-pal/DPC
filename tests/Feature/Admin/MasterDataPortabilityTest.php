@@ -136,9 +136,11 @@ final class MasterDataPortabilityTest extends TestCase
      */
     public static function masters(): array
     {
+        // Only the masters with a bulk upload: Post Mapping is entered on its screen by
+        // the department's Authorized Officer (2026-11-02).
         return array_map(
             static fn (string $key): array => [$key],
-            array_keys(MasterRegistry::all()),
+            array_keys(array_filter(MasterRegistry::all(), static fn ($definition): bool => $definition->importable)),
         );
     }
 

@@ -15,7 +15,9 @@ use App\Domain\Dpc\Services\DpcProposalCompletenessService;
 use App\Domain\Dpc\Services\VacancyCalculationService;
 use App\Domain\Dpc\Services\VacancyEngine;
 use App\Domain\Dpc\Services\VacancyMasterService;
+use App\Domain\Employee\Models\Employee;
 use App\Domain\Master\Models\DepartmentPost;
+use App\Domain\Master\Models\PayScale;
 use App\Domain\Master\Models\RecruitmentRule;
 use App\Domain\PreDpc\Models\PreDpcProposal;
 use App\Domain\Shared\Models\ActivityTimeline;
@@ -192,6 +194,10 @@ class VacancyMasterTest extends TestCase
         ], $overrides);
         // Every officer has an Employee ID (2026-11-02); one per name unless given.
         $data['employee_number'] ??= 'E-'.substr(md5((string) ($data['officer_name'] ?? '')), 0, 8);
+        // B1 asks whether the post is only for deputation (2026-11-02); a usual post unless said.
+        if (($data['kind'] ?? null) === 'deputation_in') {
+            $data['deputation_only_post'] ??= '0';
+        }
 
         return $this->actingAs($this->ao)->post($this->url('entries.store'), $data);
     }
@@ -494,15 +500,22 @@ class VacancyMasterTest extends TestCase
         // The old step key lands on the same screen.
         $screen('working')->assertSee('id="strength-form"', false);
 
+        // Closed until the strength is saved (2026-11-02): both land on step 1.
+        $screen('vacancies')->assertSee('id="strength-form"', false)->assertDontSee('id="vacancy-b1"', false);
+        $screen('summary')->assertSee('id="strength-form"', false)->assertDontSee(__('vacancymaster.finalize'));
+
+        $this->saveStrength([
+            'sanctioned_total' => '10', 'working_total' => '6',
+            'order_number' => 'SE/SANC/1', 'order_date' => '2026-01-02', 'document' => $this->pdf('sanction.pdf'),
+        ])->assertSessionHasNoErrors();
+
         $screen('vacancies')->assertSee('id="vacancy-b1"', false)
             ->assertSee('id="vacancy-b2"', false)
             ->assertSee('id="vacancy-c"', false)
-            ->assertSee(__('vacancymaster.errors.figures_first'))
             ->assertDontSee('name="working_total"', false);
 
-        $screen('summary')->assertSee(__('vacancymaster.steps.missing_heading'))
-            ->assertSee(__('vacancymaster.issues.sanctioned_not_entered', ['year' => self::YEAR]))
-            ->assertSee(__('vacancymaster.finalize'));
+        // The vacancies step has nothing it must save, so the summary opens too.
+        $screen('summary')->assertSee(__('vacancymaster.finalize'));
     }
 
     // ------------------------------- step 1: sanctioned and working together
@@ -572,6 +585,62 @@ class VacancyMasterTest extends TestCase
             ->assertSessionHasNoErrors();
         $position = $this->position();
         $this->assertSame([6, 5], [$position->sanctionedStrength->sanctioned_total, $position->workingStrength->working_total]);
+    }
+
+    /**
+     * UAT, 2026-11-02: without saving a step there is no going on. Until the strength
+     * is saved the later steps are closed — the tab, the Next button and the URL.
+     */
+    public function test_a_step_opens_only_after_the_one_before_is_saved(): void
+    {
+        $this->openDraft();
+
+        $this->actingAs($this->ao)->get($this->url('show', ['section' => 'vacancies']))
+            ->assertOk()
+            ->assertSee('name="sanctioned_total"', false)
+            ->assertSee('id="vacancy-save-first"', false)
+            ->assertSee('aria-disabled="true"', false)
+            ->assertDontSee('name="officer_name"', false);
+
+        $this->saveWorking()->assertSessionHasNoErrors();
+
+        $this->actingAs($this->ao)->get($this->url('show', ['section' => 'vacancies']))
+            ->assertOk()
+            ->assertSee('name="officer_name"', false)
+            ->assertDontSee('id="vacancy-save-first"', false);
+    }
+
+    /**
+     * UAT, 2026-11-02: Employee ID comes before the name, and an officer of the
+     * department's employee database fills the name in. Another department's
+     * officer is not found; the Administrator has no lookup.
+     */
+    public function test_the_employee_id_comes_first_and_finds_the_departments_officer(): void
+    {
+        $this->openDraft();
+        $this->saveWorking()->assertSessionHasNoErrors();
+
+        $this->actingAs($this->ao)->get($this->url('show', ['section' => 'vacancies']))
+            ->assertOk()
+            ->assertSeeInOrder(['name="employee_number"', 'name="officer_name"'], false)
+            ->assertSee('data-employee-lookup', false)
+            ->assertSee('data-employee-field="name"', false);
+
+        Employee::query()->create([
+            'employee_number' => 'SE/42', 'name' => 'Shri R. Sharma', 'mobile' => '9876543210', 'date_of_birth' => '1975-04-01',
+            'qualification' => 'M.Sc.', 'department_id' => $this->department->id, 'source' => Employee::SOURCE_WORKING_LIST,
+        ]);
+        $other = Department::query()->create(['code' => 'HE', 'name' => 'Higher Education', 'status' => 'active']);
+        Employee::query()->create(['employee_number' => 'HE/1', 'name' => 'Someone Else', 'department_id' => $other->id, 'source' => Employee::SOURCE_WORKING_LIST]);
+
+        $this->actingAs($this->ao)->getJson(route('vacancy-management.employee', ['employee_number' => ' se/42 ']))
+            ->assertOk()->assertExactJson([
+                'found' => true, 'employee_number' => 'SE/42', 'name' => 'Shri R. Sharma', 'mobile' => '9876543210',
+                'date_of_birth' => '1975-04-01', 'qualification' => 'M.Sc.', 'date_of_joining_service' => null, 'date_of_retirement' => null,
+            ]);
+        $this->actingAs($this->ah)->getJson(route('vacancy-management.employee', ['employee_number' => 'SE/42']))->assertJson(['found' => true]);
+        $this->actingAs($this->ao)->getJson(route('vacancy-management.employee', ['employee_number' => 'HE/1']))->assertExactJson(['found' => false]);
+        $this->actingAs($this->admin)->getJson(route('vacancy-management.employee', ['employee_number' => 'SE/42']))->assertForbidden();
     }
 
     public function test_after_a_row_is_added_the_screen_returns_to_its_part(): void
@@ -812,7 +881,12 @@ class VacancyMasterTest extends TestCase
         $this->addEntry([...$row, 'officer_name' => 'B. Rao', 'deputation_to' => '2026-12-31'])->assertSessionHasNoErrors();
         $this->addEntry([...$row, 'officer_name' => 'C. Patel', 'deputation_to' => '2027-01-01'])->assertSessionHasNoErrors();
 
-        $this->assertSame(2, $this->breakdown()['deputation_in_vacancy'], 'Ending on 1 January and on 31 December both count; 1 January next year and no end date do not.');
+        // A post only for deputation is never counted, even ending inside the year (2026-11-02).
+        $this->addEntry([...$row, 'officer_name' => 'E. Deputation Post', 'deputation_to' => '2026-06-30', 'deputation_only_post' => '1'])->assertSessionHasNoErrors();
+        $this->addEntry([...$row, 'officer_name' => 'F. Unanswered', 'deputation_to' => '2026-06-30', 'deputation_only_post' => ''])->assertSessionHasErrors('deputation_only_post');
+        $this->assertSame(__('vacancymaster.notes.deputation_only_post'), VacancyPositionEntry::query()->where('officer_name', 'E. Deputation Post')->sole()->eligibility_note);
+
+        $this->assertSame(2, $this->breakdown()['deputation_in_vacancy'], 'Ending on 1 January and on 31 December both count; 1 January next year, no end date and a deputation-only post do not.');
     }
 
     public function test_our_officer_on_deputation_counts_after_more_than_a_year_with_no_promotion_made(): void
@@ -907,6 +981,40 @@ class VacancyMasterTest extends TestCase
         $this->assertSame('SE/PROM/2026/9', $entry->promotion_order_number);
         $this->assertTrue($entry->isCounted(), 'Counted when saved — nobody verifies it afterwards.');
         $this->assertSame(1, $this->breakdown()['anticipated_vacancy']);
+    }
+
+    /**
+     * UAT, 2026-11-02: only posts on a higher pay scale are offered as the higher post,
+     * and a DPC of this department on the portal needs no supporting document.
+     */
+    public function test_a_higher_post_is_on_a_higher_pay_scale_and_a_portal_dpc_needs_no_document(): void
+    {
+        $scale = fn (string $code, int $pay): int => PayScale::query()->create(['code' => $code, 'label' => $code, 'minimum_pay' => $pay, 'status' => 'active'])->id;
+        $this->principal->forceFill(['pay_scale_id' => $scale('L10', 56100)])->save();
+        $higher = $this->makePost($this->department, 'Joint Director', 10);
+        $higher->forceFill(['pay_scale_id' => $scale('L12', 78800)])->save();
+        $lower = $this->makePost($this->department, 'Lecturer', 10);
+        $lower->forceFill(['pay_scale_id' => $scale('L8', 47600)])->save();
+
+        $this->openDraft();
+        $this->saveWorking()->assertSessionHasNoErrors();
+
+        $this->actingAs($this->ao)->get($this->url('show', ['section' => 'vacancies']))
+            ->assertOk()
+            ->assertSee('<option value="'.$higher->id.'"', false)
+            ->assertDontSee('<option value="'.$lower->id.'"', false)
+            ->assertSee(__('vacancymaster.pm.date_retirement'))
+            ->assertSee(__('vacancymaster.pm.date_higher_dpc'));
+
+        $portal = $this->raiseDpc($this->ao, $this->makePost($this->department, 'Assistant Director', null), $higher);
+        $row = ['reason' => 'higher_post_promotion', 'officer_name' => 'H. Joshi', 'effective_date' => '2026-08-01',
+            'higher_post_id' => (string) $higher->id, 'higher_dpc_reference' => (string) $portal->dpc_code, 'higher_post_undertaking' => '1',
+            'order_number' => 'SE/PROM/2026/9', 'order_date' => '2026-01-20'];
+
+        $this->addEntry([...$row, 'higher_post_id' => (string) $lower->id])->assertSessionHasErrors('higher_post_id');
+        $this->addEntry([...$row, 'higher_dpc_reference' => 'DPC-OFFLINE-1'])->assertSessionHasErrors('document');
+        $this->addEntry($row)->assertSessionHasNoErrors();
+        $this->assertSame($portal->id, VacancyPositionEntry::query()->sole()->higher_dpc_proposal_id);
     }
 
     /**

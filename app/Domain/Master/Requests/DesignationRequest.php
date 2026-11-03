@@ -24,8 +24,8 @@ class DesignationRequest extends FormRequest
         $id = $this->route('designation')?->id;
 
         return [
-            'name' => ['required', 'string', 'max:255', Rule::unique('designations', 'name')->ignore($id)],
-            'code' => ['nullable', 'string', 'max:40', Rule::unique('designations', 'code')->ignore($id)],
+            'name' => ['required', 'string', 'max:255', Rule::unique('designations', 'name')->withoutTrashed()->ignore($id)],
+            'code' => ['nullable', 'string', 'max:40', Rule::unique('designations', 'code')->withoutTrashed()->ignore($id)],
             'status' => ['required', new Enum(MasterStatus::class)],
         ];
     }

@@ -399,6 +399,24 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
                 Route::delete('/{preDpc}', [PreDpcProposalController::class, 'destroy'])->name('destroy');
             });
 
+        // Department Post Mapping (UAT, 2026-11-02): the department's Authorized Officer
+        // maps and supersedes; its Administrative Head reads. The controller decides.
+        Route::middleware('role:'.Role::AuthorizedOfficer->value.'|'.Role::AdministrativeHead->value)
+            ->prefix('post-mapping')
+            ->name('post-mapping.')
+            ->group(function (): void {
+                Route::get('/{post}/supersede', [DepartmentPostController::class, 'supersedeForm'])->name('supersede.form');
+                Route::post('/{post}/supersede', [DepartmentPostController::class, 'supersede'])->name('supersede');
+                Route::get('/{post}/orders/{order}', [DepartmentPostController::class, 'downloadDocument'])->name('documents.download');
+                Route::get('/', [DepartmentPostController::class, 'index'])->name('index');
+                Route::get('/create', [DepartmentPostController::class, 'create'])->name('create');
+                Route::post('/', [DepartmentPostController::class, 'store'])->name('store');
+                Route::get('/{post}', [DepartmentPostController::class, 'show'])->name('show');
+                Route::get('/{post}/edit', [DepartmentPostController::class, 'edit'])->name('edit');
+                Route::put('/{post}', [DepartmentPostController::class, 'update'])->name('update');
+                Route::delete('/{post}', [DepartmentPostController::class, 'destroy'])->name('destroy');
+            });
+
         // Vacancy Management — the department's own year-wise vacancy records, kept and
         // finalized by its Authorized Officer; its Administrative Head reads them.
         Route::middleware('role:'.Role::AuthorizedOfficer->value.'|'.Role::AdministrativeHead->value)
@@ -406,6 +424,8 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
             ->group(function (): void {
                 Route::get('/', [VacancyManagementController::class, 'index'])->name('vacancy-management.index');
                 Route::get('/open', [VacancyManagementController::class, 'go'])->name('vacancy-management.go');
+                // The name of one of the department's officers by Employee ID (2026-11-02).
+                Route::get('/employee', [VacancyManagementController::class, 'employee'])->middleware('throttle:120,1')->name('vacancy-management.employee');
                 // From an approved Pre-DPC: its post and year are the record's (2026-10-30).
                 Route::post('/pre-dpc/{preDpc}', [VacancyMasterController::class, 'fromPreDpc'])->name('vacancy-management.pre-dpc');
                 Route::prefix('departments/{department}')

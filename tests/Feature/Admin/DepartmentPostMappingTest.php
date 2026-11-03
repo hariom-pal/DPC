@@ -37,6 +37,9 @@ class DepartmentPostMappingTest extends TestCase
 
     private User $admin;
 
+    /** The department's Authorized Officer, who maps posts (UAT, 2026-11-02). */
+    private User $ao;
+
     private Department $department;
 
     private PayScale $level13;
@@ -54,6 +57,8 @@ class DepartmentPostMappingTest extends TestCase
         $this->department = Department::query()->create([
             'code' => 'HE', 'name' => 'Higher Education', 'status' => 'active',
         ]);
+
+        $this->ao = User::factory()->assignedTo($this->department->id, Role::AuthorizedOfficer)->create();
 
         $this->level13 = PayScale::query()->create(['label' => 'Level-13', 'status' => MasterStatus::Active->value]);
         $this->level14 = PayScale::query()->create(['label' => 'Level-14', 'status' => MasterStatus::Active->value]);
@@ -92,8 +97,8 @@ class DepartmentPostMappingTest extends TestCase
 
     private function mapping(): DepartmentPost
     {
-        $this->actingAs($this->admin)
-            ->post(route('admin.department-posts.store'), $this->payload())
+        $this->actingAs($this->ao)
+            ->post(route('post-mapping.store'), $this->payload())
             ->assertSessionHasNoErrors();
 
         return DepartmentPost::query()->latest('id')->firstOrFail();
@@ -123,7 +128,7 @@ class DepartmentPostMappingTest extends TestCase
 
     public function test_the_order_is_optional_because_older_mappings_have_none(): void
     {
-        $this->actingAs($this->admin)->post(route('admin.department-posts.store'), $this->payload([
+        $this->actingAs($this->ao)->post(route('post-mapping.store'), $this->payload([
             'orders' => [[]],
         ]))->assertSessionHasNoErrors();
 
@@ -136,8 +141,8 @@ class DepartmentPostMappingTest extends TestCase
 
     public function test_a_pdf_is_stored_hashed_and_downloadable(): void
     {
-        $this->actingAs($this->admin)->post(
-            route('admin.department-posts.store'),
+        $this->actingAs($this->ao)->post(
+            route('post-mapping.store'),
             $this->payload([
                 'orders' => [[
                     'government_order_number' => 'F-12/2026',
@@ -156,8 +161,8 @@ class DepartmentPostMappingTest extends TestCase
         $this->assertTrue($order->isIntact());
         Storage::disk((string) $order->disk)->assertExists((string) $order->path);
 
-        $this->actingAs($this->admin)
-            ->get(route('admin.department-posts.documents.download', [$post, $order]))
+        $this->actingAs($this->ao)
+            ->get(route('post-mapping.documents.download', [$post, $order]))
             ->assertOk()
             ->assertHeader('content-type', 'application/pdf');
     }
@@ -174,26 +179,59 @@ class DepartmentPostMappingTest extends TestCase
             'dpc.documents.disk' => 'unwritable',
         ]);
 
-        $this->actingAs($this->admin)->from(route('admin.department-posts.create'))->post(
-            route('admin.department-posts.store'),
+        $this->actingAs($this->ao)->from(route('post-mapping.create'))->post(
+            route('post-mapping.store'),
             $this->payload(['orders' => [['government_order_number' => 'F-12/2026', 'government_order_date' => '2026-01-01', 'document' => $this->pdf('F-12-2026.pdf')]]]),
-        )->assertRedirect(route('admin.department-posts.create'))
+        )->assertRedirect(route('post-mapping.create'))
             ->assertSessionHasErrors(['orders' => __('admin.department_posts.storage_failed')]);
 
         $this->assertSame(0, DepartmentPost::query()->count());
     }
 
     /**
-     * The Department Admin's own department is preselected and not offered (2026-10-29).
+     * The officer's own department is preselected and not offered (2026-10-29).
      */
-    public function test_the_department_admins_department_is_preselected(): void
+    public function test_the_officers_department_is_preselected(): void
     {
-        $da = User::factory()->assignedTo($this->department, Role::DepartmentAdmin)->create();
-
-        $this->actingAs($da)->get(route('department.posts.create'))->assertOk()
+        $this->actingAs($this->ao)->get(route('post-mapping.create'))->assertOk()
             ->assertSee('name="department_id" value="'.$this->department->id.'"', false)
             ->assertSee('value="Higher Education" readonly', false)
             ->assertDontSee('<select class="form-select" id="department_id"', false);
+    }
+
+    /**
+     * UAT, 2026-11-02: Post Mapping is the Authorized Officer's. The Administrative
+     * Head, the Department Admin and the CGPSC Administrator read it — no form, no
+     * edit, no upload — and every write is refused.
+     */
+    public function test_only_the_authorized_officer_maps_posts_and_the_others_read(): void
+    {
+        $post = $this->mapping();
+        $ah = User::factory()->assignedTo($this->department->id, Role::AdministrativeHead)->create();
+        $da = User::factory()->assignedTo($this->department, Role::DepartmentAdmin)->create();
+
+        $this->actingAs($this->ao)->get(route('post-mapping.index'))->assertOk()
+            ->assertSee(route('post-mapping.create'), false)
+            ->assertDontSee('id="post-mapping-read-only"', false);
+
+        foreach ([[$ah, 'post-mapping'], [$da, 'department.posts'], [$this->admin, 'admin.department-posts']] as [$user, $prefix]) {
+            $this->actingAs($user)->get(route($prefix.'.index'))->assertOk()
+                ->assertSee('Joint Director')
+                ->assertSee('id="post-mapping-read-only"', false)
+                ->assertDontSee(route($prefix.'.create'), false)
+                ->assertDontSee(route($prefix.'.edit', $post), false);
+            $this->actingAs($user)->get(route($prefix.'.show', $post))->assertOk()->assertDontSee(route($prefix.'.supersede.form', $post), false);
+
+            $this->actingAs($user)->get(route($prefix.'.create'))->assertForbidden();
+            $this->actingAs($user)->post(route($prefix.'.store'), $this->payload(['name' => 'Director']))->assertForbidden();
+            $this->actingAs($user)->get(route($prefix.'.edit', $post))->assertForbidden();
+            $this->actingAs($user)->delete(route($prefix.'.destroy', $post))->assertForbidden();
+            $this->actingAs($user)->get(route($prefix.'.supersede.form', $post))->assertForbidden();
+        }
+
+        $this->actingAs($this->admin)->get(route('admin.department-posts.index'))->assertDontSee(__('admin.master_data.bulk_upload'));
+        $this->actingAs($this->admin)->get(route('admin.master-data.template', 'department-posts'))->assertNotFound();
+        $this->assertSame(1, DepartmentPost::query()->count());
     }
 
     /**
@@ -202,8 +240,8 @@ class DepartmentPostMappingTest extends TestCase
      */
     public function test_a_mapping_may_hold_several_government_orders(): void
     {
-        $this->actingAs($this->admin)->post(
-            route('admin.department-posts.store'),
+        $this->actingAs($this->ao)->post(
+            route('post-mapping.store'),
             $this->payload([
                 'orders' => [
                     ['government_order_number' => 'F-12/2026', 'government_order_date' => '2026-01-01',
@@ -249,11 +287,11 @@ class DepartmentPostMappingTest extends TestCase
 
     public function test_an_order_row_needs_both_its_number_and_its_date(): void
     {
-        $this->actingAs($this->admin)->post(route('admin.department-posts.store'), $this->payload([
+        $this->actingAs($this->ao)->post(route('post-mapping.store'), $this->payload([
             'orders' => [['government_order_number' => 'F-12/2026']],
         ]))->assertSessionHasErrors('orders.0.government_order_date');
 
-        $this->actingAs($this->admin)->post(route('admin.department-posts.store'), $this->payload([
+        $this->actingAs($this->ao)->post(route('post-mapping.store'), $this->payload([
             'orders' => [['government_order_date' => '2026-01-01']],
         ]))->assertSessionHasErrors('orders.0.government_order_number');
 
@@ -269,8 +307,8 @@ class DepartmentPostMappingTest extends TestCase
             // with: the right extension over the wrong content type.
             UploadedFile::fake()->create('order.pdf', 20, 'application/x-msdownload'),
         ] as $file) {
-            $this->actingAs($this->admin)->post(
-                route('admin.department-posts.store'),
+            $this->actingAs($this->ao)->post(
+                route('post-mapping.store'),
                 $this->payload([
                     'name' => 'Post '.$file->getClientOriginalName(),
                     'orders' => [[
@@ -338,25 +376,25 @@ class DepartmentPostMappingTest extends TestCase
      */
     public function test_the_mapping_no_longer_carries_a_sanctioned_strength(): void
     {
-        $this->actingAs($this->admin)->get(route('admin.department-posts.create'))
+        $this->actingAs($this->ao)->get(route('post-mapping.create'))
             ->assertOk()
             ->assertDontSee('name="sanctioned_strength"', false);
 
-        $this->actingAs($this->admin)
-            ->post(route('admin.department-posts.store'), $this->payload(['sanctioned_strength' => 7]))
+        $this->actingAs($this->ao)
+            ->post(route('post-mapping.store'), $this->payload(['sanctioned_strength' => 7]))
             ->assertSessionHasNoErrors();
         $post = DepartmentPost::query()->latest('id')->firstOrFail();
         $this->assertNull($post->getRawOriginal('sanctioned_strength'));
 
-        $this->actingAs($this->admin)->get(route('admin.department-posts.supersede.form', $post))
+        $this->actingAs($this->ao)->get(route('post-mapping.supersede.form', $post))
             ->assertOk()
             ->assertDontSee('name="sanctioned_strength"', false);
 
-        $this->actingAs($this->admin)->get(route('admin.department-posts.show', $post))
+        $this->actingAs($this->ao)->get(route('post-mapping.show', $post))
             ->assertOk()
             ->assertSee(__('admin.department_posts.show.strength_in_vacancy_master'));
 
-        $this->actingAs($this->admin)->get(route('admin.department-posts.index'))
+        $this->actingAs($this->ao)->get(route('post-mapping.index'))
             ->assertOk()
             ->assertDontSee(__('admin.department_posts.form.sanctioned_strength'));
     }
@@ -365,9 +403,9 @@ class DepartmentPostMappingTest extends TestCase
     {
         $post = $this->mapping();
 
-        $html = $this->actingAs($this->admin)->get(route('admin.department-posts.index'))
+        $html = $this->actingAs($this->ao)->get(route('post-mapping.index'))
             ->assertOk()
-            ->assertSee(route('admin.department-posts.show', $post), false)
+            ->assertSee(route('post-mapping.show', $post), false)
             ->assertSee(__('admin.department_posts.index.details_hint'))
             ->getContent();
 
@@ -376,7 +414,7 @@ class DepartmentPostMappingTest extends TestCase
         $this->assertStringNotContainsString(__('ui.promotion_duration'), $html);
 
         // Still there, one click away.
-        $this->actingAs($this->admin)->get(route('admin.department-posts.show', $post))
+        $this->actingAs($this->ao)->get(route('post-mapping.show', $post))
             ->assertOk()
             ->assertSee(__('ui.promotion_duration'))
             ->assertSee(__('admin.department_posts.form.effective_from'));
@@ -387,7 +425,7 @@ class DepartmentPostMappingTest extends TestCase
         $post = $this->mapping();
         $originalId = $post->id;
 
-        $this->actingAs($this->admin)->post(route('admin.department-posts.supersede', $post), [
+        $this->actingAs($this->ao)->post(route('post-mapping.supersede', $post), [
             'class_level' => 'I',
             'pay_scale_id' => $this->level13->id,
             'promotion_duration_years' => 6,
@@ -423,33 +461,33 @@ class DepartmentPostMappingTest extends TestCase
      */
     public function test_a_draft_mapping_is_not_shown_as_superseded(): void
     {
-        $this->actingAs($this->admin)
-            ->post(route('admin.department-posts.store'), $this->payload(['status' => MasterStatus::Draft->value]))
+        $this->actingAs($this->ao)
+            ->post(route('post-mapping.store'), $this->payload(['status' => MasterStatus::Draft->value]))
             ->assertSessionHasNoErrors();
         $draft = DepartmentPost::query()->latest('id')->firstOrFail();
 
         $this->assertFalse($draft->isInForce());
         $this->assertFalse($draft->isSuperseded());
 
-        $this->get(route('admin.department-posts.index'))->assertOk()
+        $this->get(route('post-mapping.index'))->assertOk()
             ->assertDontSee(__('admin.department_posts.show.superseded'))
-            ->assertSee(route('admin.department-posts.edit', $draft), false);
-        $this->get(route('admin.department-posts.show', $draft))->assertOk()
+            ->assertSee(route('post-mapping.edit', $draft), false);
+        $this->get(route('post-mapping.show', $draft))->assertOk()
             ->assertDontSee(__('admin.department_posts.show.superseded'));
-        $this->get(route('admin.department-posts.edit', $draft))->assertOk();
+        $this->get(route('post-mapping.edit', $draft))->assertOk();
 
         // Activated later from its own edit form.
-        $this->put(route('admin.department-posts.update', $draft), $this->payload(['status' => MasterStatus::Active->value, 'orders' => []]))
+        $this->put(route('post-mapping.update', $draft), $this->payload(['status' => MasterStatus::Active->value, 'orders' => []]))
             ->assertSessionHasNoErrors();
         $this->assertTrue($draft->fresh()->isInForce());
 
         // A superseded mapping is history: not editable.
-        $this->post(route('admin.department-posts.supersede', $draft), [
+        $this->post(route('post-mapping.supersede', $draft), [
             'class_level' => 'I', 'pay_scale_id' => $this->level13->id, 'promotion_duration_years' => 6,
             'government_order_number' => 'F-45/2026', 'government_order_date' => '2026-08-01', 'effective_from' => '2026-09-01',
         ])->assertSessionHasNoErrors();
         $this->assertTrue($draft->fresh()->isSuperseded());
-        $this->get(route('admin.department-posts.edit', $draft))->assertForbidden();
+        $this->get(route('post-mapping.edit', $draft))->assertForbidden();
     }
 
     public function test_only_one_mapping_is_in_force_at_a_time(): void
@@ -510,8 +548,8 @@ class DepartmentPostMappingTest extends TestCase
         // No order row: the mapping already carries F-45/2026 from the
         // supersession, and re-posting it would collide with itself. Editing the
         // terms does not re-cite the order.
-        $this->actingAs($this->admin)->put(
-            route('admin.department-posts.update', $inForce),
+        $this->actingAs($this->ao)->put(
+            route('post-mapping.update', $inForce),
             $this->payload(['effective_from' => '2026-09-01', 'orders' => [[]]]),
         )->assertSessionHasNoErrors();
     }
@@ -520,7 +558,7 @@ class DepartmentPostMappingTest extends TestCase
     {
         $post = $this->mapping();
 
-        $this->actingAs($this->admin)->post(route('admin.department-posts.supersede', $post), [
+        $this->actingAs($this->ao)->post(route('post-mapping.supersede', $post), [
             'class_level' => 'I',
             'government_order_number' => 'F-45/2025',
             'government_order_date' => '2025-12-01',
@@ -554,7 +592,7 @@ class DepartmentPostMappingTest extends TestCase
     {
         $post = $this->mapping();
 
-        $this->actingAs($this->admin)->post(route('admin.department-posts.supersede', $post), [
+        $this->actingAs($this->ao)->post(route('post-mapping.supersede', $post), [
             'class_level' => 'I',
             'effective_from' => '2026-09-01',
         ])->assertSessionHasErrors(['government_order_number', 'government_order_date']);
@@ -570,7 +608,7 @@ class DepartmentPostMappingTest extends TestCase
         $service = app(DepartmentPostMappingService::class);
         $service->recordOrder($post, 'F-31/2026', Carbon::parse('2026-04-15'), $this->pdf('second.pdf'), $this->admin);
 
-        $this->actingAs($this->admin)->get(route('admin.department-posts.show', $post))
+        $this->actingAs($this->ao)->get(route('post-mapping.show', $post))
             ->assertOk()
             ->assertSee('F-12/2026')
             ->assertSee('F-31/2026')
@@ -588,7 +626,7 @@ class DepartmentPostMappingTest extends TestCase
             'effective_from' => '2026-09-01',
         ], $this->admin);
 
-        $this->actingAs($this->admin)->get(route('admin.department-posts.show', $replacement))
+        $this->actingAs($this->ao)->get(route('post-mapping.show', $replacement))
             ->assertOk()
             ->assertSee('F-45/2026')
             // The version it replaced is on the page, which is what makes the chain
@@ -609,8 +647,8 @@ class DepartmentPostMappingTest extends TestCase
             'effective_from' => '2026-01-01',
         ]);
 
-        $this->actingAs($this->admin)
-            ->get(route('admin.department-posts.documents.download', [$other, $order]))
+        $this->actingAs($this->ao)
+            ->get(route('post-mapping.documents.download', [$other, $order]))
             ->assertNotFound();
     }
 
@@ -660,10 +698,10 @@ class DepartmentPostMappingTest extends TestCase
         $officer = User::factory()->create();
         $officer->assignRole(Role::AuthorizedOfficer->value);
 
-        $this->actingAs($officer)->get(route('admin.department-posts.show', $post))->assertForbidden();
-        $this->actingAs($officer)->get(route('admin.department-posts.supersede.form', $post))->assertForbidden();
+        $this->actingAs($officer)->get(route('post-mapping.show', $post))->assertForbidden();
+        $this->actingAs($officer)->get(route('post-mapping.supersede.form', $post))->assertForbidden();
         $this->actingAs($officer)
-            ->get(route('admin.department-posts.documents.download', [$post, $order]))
+            ->get(route('post-mapping.documents.download', [$post, $order]))
             ->assertForbidden();
     }
 }

@@ -66,6 +66,10 @@
                                 </ul>
                             </div>
                         @endif
+                        {{-- Department Post Mapping (UAT, 2026-11-02): the AO maps, the AH reads. --}}
+                        @if (auth()->user()->hasAnyRole([\App\Enums\Role::AuthorizedOfficer->value, \App\Enums\Role::AdministrativeHead->value]))
+                            <a class="btn btn-sm btn-outline-light" href="{{ route('post-mapping.index') }}">{{ __('ui.layouts.admin.nav.department_posts') }}</a>
+                        @endif
                         {{-- M11. Every role has a reports screen; it scopes itself. --}}
                         <a class="btn btn-sm btn-outline-light d-none d-lg-inline" href="{{ route('reports.index') }}">{{ __('ui.reports') }}</a>
 
@@ -172,6 +176,7 @@
 <script src="@versioned('js/searchable-select.js')" defer></script>
 <script src="@versioned('js/multiselect-dropdown.js')" defer></script>
 <script src="@versioned('js/table-hscroll.js')" defer></script>
+<script src="@versioned('js/date-input.js')" defer></script>
 <script src="@versioned('js/forms/whole-number.js')" defer></script>
 @stack('scripts')
 </body>

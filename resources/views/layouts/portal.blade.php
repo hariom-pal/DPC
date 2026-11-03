@@ -225,6 +225,7 @@
 {{-- Every dropdown is searchable (2026-10-26), the public pages included. --}}
 <script src="@versioned('js/searchable-select.js')" defer></script>
 <script src="@versioned('js/table-hscroll.js')" defer></script>
+<script src="@versioned('js/date-input.js')" defer></script>
 @stack('scripts')
 </body>
 </html>

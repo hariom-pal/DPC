@@ -77,11 +77,14 @@ class DepartmentPostController extends Controller
 
     public function create(Request $request): View
     {
+        $this->assertCanWrite($request);
+
         return $this->page($request, 'admin.department-posts.form', $this->formData(new DepartmentPost, $this->scope($request)));
     }
 
     public function store(DepartmentPostRequest $request): RedirectResponse
     {
+        $this->assertCanWrite($request);
         $scope = $this->scope($request);
         abort_if($scope !== null && $request->integer('department_id') !== $scope, 403);
 
@@ -127,6 +130,7 @@ class DepartmentPostController extends Controller
 
     public function edit(Request $request, DepartmentPost $post): View
     {
+        $this->assertCanWrite($request);
         $this->assertManages($request, $post);
         // A superseded mapping is history; a new order supersedes the one in force.
         abort_if($post->isSuperseded(), 403);
@@ -136,6 +140,7 @@ class DepartmentPostController extends Controller
 
     public function update(DepartmentPostRequest $request, DepartmentPost $post): RedirectResponse
     {
+        $this->assertCanWrite($request);
         $this->assertManages($request, $post);
         abort_if($post->isSuperseded(), 403);
         $scope = $this->scope($request);
@@ -160,6 +165,7 @@ class DepartmentPostController extends Controller
      */
     public function supersedeForm(Request $request, DepartmentPost $post): View
     {
+        $this->assertCanWrite($request);
         $this->assertManages($request, $post);
 
         return $this->page($request, 'admin.department-posts.supersede', $this->formData($post, $this->scope($request)));
@@ -167,6 +173,7 @@ class DepartmentPostController extends Controller
 
     public function supersede(SupersedeDepartmentPostRequest $request, DepartmentPost $post): RedirectResponse
     {
+        $this->assertCanWrite($request);
         $this->assertManages($request, $post);
 
         try {
@@ -190,6 +197,7 @@ class DepartmentPostController extends Controller
 
     public function destroy(Request $request, DepartmentPost $post): RedirectResponse
     {
+        $this->assertCanWrite($request);
         $this->assertManages($request, $post);
         $this->crud->delete($post);
 
@@ -278,13 +286,21 @@ class DepartmentPostController extends Controller
     }
 
     /**
-     * Whose mappings this request may touch (2026-10-28): every department's for
-     * the CGPSC Administrator (null), the own department's for its Department
-     * Admin, and nobody else's.
+     * Whose mappings this request may touch: every department's for the CGPSC
+     * Administrator (null); the own department's for its Department Admin
+     * (2026-10-28) and, in the officers' area, its Authorized Officer and
+     * Administrative Head (2026-11-02); nobody else's.
      */
     private function scope(Request $request): ?int
     {
         $user = $request->user();
+
+        if ($request->routeIs('post-mapping.*')) {
+            abort_unless($user instanceof User && $user->department_id !== null
+                && $user->hasAnyRole([Role::AuthorizedOfficer->value, Role::AdministrativeHead->value]), 403);
+
+            return (int) $user->department_id;
+        }
 
         if ($user instanceof User && $user->hasRole(Role::Admin->value) && ! $request->routeIs('department.*')) {
             return null;
@@ -295,6 +311,26 @@ class DepartmentPostController extends Controller
         return (int) $user->department_id;
     }
 
+    /**
+     * Post Mapping is the Authorized Officer's (UAT, 2026-11-02): the department's
+     * AO maps and supersedes; the Administrative Head, the Department Admin and the
+     * CGPSC Administrator read.
+     */
+    private function canWrite(Request $request): bool
+    {
+        $user = $request->user();
+
+        return $request->routeIs('post-mapping.*')
+            && $user instanceof User
+            && $user->hasRole(Role::AuthorizedOfficer->value);
+    }
+
+    private function assertCanWrite(Request $request): void
+    {
+        $this->scope($request);
+        abort_unless($this->canWrite($request), 403);
+    }
+
     private function assertManages(Request $request, DepartmentPost $post): void
     {
         $scope = $this->scope($request);
@@ -303,7 +339,11 @@ class DepartmentPostController extends Controller
 
     private function prefix(Request $request): string
     {
-        return $request->routeIs('department.*') ? 'department.posts' : 'admin.department-posts';
+        return match (true) {
+            $request->routeIs('post-mapping.*') => 'post-mapping',
+            $request->routeIs('department.*') => 'department.posts',
+            default => 'admin.department-posts',
+        };
     }
 
     /**
@@ -314,11 +354,12 @@ class DepartmentPostController extends Controller
      */
     private function page(Request $request, string $view, array $data): View
     {
-        $department = $request->routeIs('department.*');
+        $department = $request->routeIs('department.*', 'post-mapping.*');
 
         return view($view, $data + [
             'routePrefix' => $this->prefix($request),
             'layout' => $department ? 'layouts.app' : 'layouts.admin',
+            'canWrite' => $this->canWrite($request),
         ]);
     }
 }

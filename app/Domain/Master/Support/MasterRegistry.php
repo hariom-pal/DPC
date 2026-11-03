@@ -80,15 +80,19 @@ final class MasterRegistry
                     // `level` and `grade_pay` are what `PromotionHierarchyService`
                     // compares, and a master without them makes two of its three
                     // checks unanswerable — so the template asks for them.
-                    'level' => 'level', 'grade_pay' => 'grade_pay', 'status' => 'status',
+                    'level' => 'level', 'grade_pay' => 'grade_pay',
+                    // The entry pay (MoM of 2026-10-29): what orders one scale above
+                    // another, so it is required here as on the screen.
+                    'minimum_pay' => 'minimum_pay', 'status' => 'status',
                 ],
-                required: ['code', 'label'],
+                required: ['code', 'label', 'minimum_pay'],
                 searchable: ['label', 'code'],
                 unique: ['code'],
                 sample: [
-                    ['code' => 'L12', 'label' => 'Level-12 (78800-209200)', 'level' => '12', 'grade_pay' => '7600', 'status' => 'active'],
-                    ['code' => 'L13', 'label' => 'Level-13 (123100-215900)', 'level' => '13', 'grade_pay' => '8700', 'status' => 'active'],
+                    ['code' => 'L12', 'label' => 'Level-12 (78800-209200)', 'level' => '12', 'grade_pay' => '7600', 'minimum_pay' => '78800', 'status' => 'active'],
+                    ['code' => 'L13', 'label' => 'Level-13 (123100-215900)', 'level' => '13', 'grade_pay' => '8700', 'minimum_pay' => '123100', 'status' => 'active'],
                 ],
+                integers: ['level', 'grade_pay', 'minimum_pay'],
             ),
 
             new MasterDefinition(
@@ -192,6 +196,9 @@ final class MasterRegistry
                 sample: [
                     ['department' => 'School Education Department', 'post_name' => 'Block Education Officer', 'class_level' => 'II', 'pay_scale' => 'L12', 'promotion_duration_years' => '5', 'effective_from' => '2020-01-01', 'status' => 'active'],
                 ],
+                // The department's Authorized Officer maps posts, with their orders,
+                // on the screen only (UAT, 2026-11-02): no bulk upload.
+                importable: false,
             ),
         ];
 

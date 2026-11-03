@@ -36,9 +36,9 @@ class DepartmentRequest extends FormRequest
         return [
             'code' => [
                 'required', 'string', 'max:20', 'regex:/^[A-Z0-9]+$/',
-                Rule::unique('departments', 'code')->ignore($id),
+                Rule::unique('departments', 'code')->withoutTrashed()->ignore($id),
             ],
-            'name' => ['required', 'string', 'max:255', Rule::unique('departments', 'name')->ignore($id)],
+            'name' => ['required', 'string', 'max:255', Rule::unique('departments', 'name')->withoutTrashed()->ignore($id)],
             'district_id' => ['nullable', Rule::exists('districts', 'id')],
             'place' => ['nullable', 'string', 'max:255'],
             'pin' => ['nullable', 'digits:6'],

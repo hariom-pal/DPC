@@ -166,13 +166,17 @@
 
     <template id="entry-template">
         <div class="card border-0 shadow-sm mb-2 entry-card">
-            <div class="card-body row g-2">
+            {{-- Employee ID first: an officer of the employee database fills the
+                 rest of the row in (UAT, 2026-11-03). --}}
+            <div class="card-body row g-2" data-employee-row>
                 <div class="col-md-1"><label class="form-label">{{ __('ui.s_n') }}</label>
                     <input type="number" min="1" class="form-control form-control-sm" name="entries[__E__][seniority_number]" required></div>
                 <div class="col-md-2"><label class="form-label">{{ __('ui.employee_no') }}</label>
-                    <input type="text" class="form-control form-control-sm" name="entries[__E__][employee_number]" required></div>
+                    <input type="text" class="form-control form-control-sm" name="entries[__E__][employee_number]" required
+                           data-employee-lookup="{{ route('vacancy-management.employee') }}">
+                    <div class="form-text small d-none" data-employee-found>{{ __('vacancymaster.entries.employee_found') }}</div></div>
                 <div class="col-md-3"><label class="form-label">{{ __('ui.name') }}</label>
-                    <input type="text" class="form-control form-control-sm" name="entries[__E__][name]" required></div>
+                    <input type="text" class="form-control form-control-sm" name="entries[__E__][name]" required data-employee-field="name"></div>
 
                 {{-- The number the officer signs in with, and where their OTP goes
 
@@ -182,11 +186,11 @@
 
                     <input type="text" inputmode="numeric" maxlength="10" class="form-control form-control-sm"
 
-                           name="entries[__E__][mobile]"></div>
+                           name="entries[__E__][mobile]" data-employee-field="mobile"></div>
                 <div class="col-md-2"><label class="form-label">{{ __('ui.dob') }}</label>
-                    <input type="date" class="form-control form-control-sm" name="entries[__E__][dob]" required></div>
+                    <input type="date" class="form-control form-control-sm" name="entries[__E__][dob]" required data-employee-field="date_of_birth"></div>
                 <div class="col-md-2"><label class="form-label">{{ __('ui.qualification') }}</label>
-                    <input type="text" class="form-control form-control-sm" name="entries[__E__][qualification]"></div>
+                    <input type="text" class="form-control form-control-sm" name="entries[__E__][qualification]" data-employee-field="qualification"></div>
                 <div class="col-md-2 d-flex align-items-end"><button type="button" class="btn btn-outline-danger btn-sm remove-row">{{ __('ui.remove_2') }}</button></div>
 
                 <div class="col-md-3"><label class="form-label">{{ __('ui.promotion_to_post') }}</label>
@@ -227,7 +231,7 @@
                     </select></div>
                 @endif
                 <div class="col-md-3"><label class="form-label">{{ __('dpc.seniority_list.date_of_joining') }}</label>
-                    <input type="date" class="form-control form-control-sm" name="entries[__E__][date_of_joining_service]" required></div>
+                    <input type="date" class="form-control form-control-sm" name="entries[__E__][date_of_joining_service]" required data-employee-field="date_of_joining_service"></div>
                 <div class="col-md-3"><label class="form-label">{{ __('ui.date_of_posting_on_promotion_to_post') }}</label>
                     <input type="date" class="form-control form-control-sm" name="entries[__E__][date_of_posting_on_promotion_to_post]"></div>
                 <div class="col-md-3"><label class="form-label">{{ __('ui.date_of_posting_on_promotion_from_post') }}</label>
@@ -299,4 +303,5 @@
 
 @push('scripts')
     <script src="@versioned('js/forms/dpc-seniority-list.js')" defer></script>
+    <script src="@versioned('js/forms/employee-lookup.js')" defer></script>
 @endpush

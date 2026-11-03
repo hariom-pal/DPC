@@ -129,6 +129,29 @@ class DpcSeniorityListTest extends TestCase
             ->assertSee(__('dpc.imports.upload.upload_from_excel'));
     }
 
+    /**
+     * Employee ID first (UAT, 2026-11-03): the row looks the ID up in the employee
+     * database and fills the rest in. Asserted on the markup the script reads, and
+     * on the Working Officers screen too, which uses the same script.
+     */
+    public function test_the_employee_id_comes_first_and_fills_the_row(): void
+    {
+        $this->actingAs($this->ao)
+            ->get(route('dpc-proposals.seniority-list', $this->proposal))
+            ->assertOk()
+            ->assertSeeInOrder(['name="entries[__E__][employee_number]"', 'data-employee-lookup', 'name="entries[__E__][name]"'], false)
+            ->assertSee('data-employee-row', false)
+            ->assertSee('data-employee-field="date_of_birth"', false)
+            ->assertSee('js/forms/employee-lookup.js', false);
+
+        $this->actingAs($this->ao)
+            ->get(route('dpc-proposals.working-officers', $this->proposal))
+            ->assertOk()
+            ->assertSeeInOrder(['name="officers[__O__][employee_number]"', 'data-employee-lookup', 'name="officers[__O__][name]"'], false)
+            ->assertSee('data-employee-field="date_of_retirement"', false)
+            ->assertSee('js/forms/employee-lookup.js', false);
+    }
+
     public function test_seniority_entry_stores_the_full_standard_employee_snapshot(): void
     {
         // Architect directive, 2026-08-13: every proposal snapshot table

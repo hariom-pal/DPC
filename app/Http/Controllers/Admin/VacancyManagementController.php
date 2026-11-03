@@ -8,10 +8,12 @@ use App\Domain\Department\Models\Department;
 use App\Domain\Dpc\Enums\VacancyPositionStatus;
 use App\Domain\Dpc\Models\VacancyPosition;
 use App\Domain\Dpc\Services\VacancyMasterService;
+use App\Domain\Employee\Models\Employee;
 use App\Domain\Master\Models\DepartmentPost;
 use App\Enums\Role;
 use App\Http\Controllers\Controller;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -107,6 +109,42 @@ class VacancyManagementController extends Controller
         $post = $this->vacancies->mappingInForce($mappings, (int) $validated['year']) ?? $mappings->first();
 
         return redirect()->route($this->area($request)['recordsRoute'].'.show', [$department, (int) $validated['year'], $post]);
+    }
+
+    /**
+     * The officer of the employee database with this Employee ID, in the user's own
+     * department (UAT, 2026-11-02) — so a form fills the officer's details in from the
+     * Employee ID (Vacancy Management, Working Officers and Seniority List rows).
+     */
+    public function employee(Request $request): JsonResponse
+    {
+        $number = mb_strtoupper((string) preg_replace('/\s+/u', '', (string) $request->query('employee_number', '')));
+
+        if ($number === '' || mb_strlen($number) > 60) {
+            return response()->json(['found' => false]);
+        }
+
+        $employee = Employee::query()
+            ->where('department_id', $this->ownDepartmentId($request))
+            ->whereRaw("UPPER(REPLACE(employee_number, ' ', '')) = ?", [$number])
+            ->first();
+
+        if ($employee === null) {
+            return response()->json(['found' => false]);
+        }
+
+        // What the department's own forms ask for (2026-11-03): the Working Officers
+        // and Seniority List rows fill these in; Vacancy Management takes the name.
+        return response()->json([
+            'found' => true,
+            'employee_number' => $employee->employee_number,
+            'name' => $employee->name,
+            'mobile' => $employee->mobile,
+            'date_of_birth' => $employee->date_of_birth?->format('Y-m-d'),
+            'qualification' => $employee->qualification,
+            'date_of_joining_service' => $employee->date_of_joining_service?->format('Y-m-d'),
+            'date_of_retirement' => $employee->date_of_retirement?->format('Y-m-d'),
+        ]);
     }
 
     /**

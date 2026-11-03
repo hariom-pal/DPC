@@ -290,6 +290,24 @@ class PromotionCrRuleTest extends TestCase
         ])->assertForbidden();
     }
 
+    /**
+     * UAT, 2026-11-02: "Is a super seat applicable?" Yes needs the grade; No records
+     * none, whatever grade was left in the hidden field; the next version starts from it.
+     */
+    public function test_super_seat_is_a_yes_no_question_and_the_grade_only_follows_yes(): void
+    {
+        $this->record(['super_seat_applicable' => '1', 'super_seat_grade' => ''])->assertSessionHasErrors('super_seat_grade');
+
+        $this->record(['super_seat_applicable' => '0', 'super_seat_grade' => '9'])->assertSessionHasNoErrors();
+        $this->assertNull(PromotionCrRule::query()->sole()->super_seat_grade);
+
+        $html = $this->actingAs($this->admin)->get(route('admin.service-classes.promotion-rules.create', [$this->classOne, 'from' => 'I', 'year' => 2027]))->assertOk()->getContent();
+        $this->assertMatchesRegularExpression('/name="super_seat_applicable" value="0" required\s+checked/', (string) $html);
+
+        $this->record(['effective_from_year' => '2027', 'super_seat_applicable' => '1', 'super_seat_grade' => '9'])->assertSessionHasNoErrors();
+        $this->assertSame(9, PromotionCrRule::query()->where('effective_from_year', 2027)->sole()->super_seat_grade);
+    }
+
     public function test_tribal_bonus_no_needs_neither_points_nor_grades_and_gives_none(): void
     {
         $this->record(['tribal_bonus_applicable' => '0', 'tribal_bonus' => ''])->assertSessionHasNoErrors();

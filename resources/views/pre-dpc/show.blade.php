@@ -195,6 +195,19 @@
                 </div>
             </div>
 
+            {{-- What would stop Vacancy Management later, shown before anyone signs
+                 (2026-11-03). Submit and approve are refused on the server too. --}}
+            @if ($blockers !== [])
+                <div class="alert alert-warning" id="pre-dpc-blockers" role="alert">
+                    <div class="fw-semibold mb-1">{{ __('predpc.blockers.title') }}</div>
+                    <ul class="mb-0">
+                        @foreach ($blockers as $blocker)
+                            <li>{{ $blocker }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
+
             {{-- Workflow actions --}}
             <div class="card border-0 shadow-sm mb-3">
                 <div class="card-body d-flex flex-wrap gap-2">
@@ -206,7 +219,7 @@
                              (MoM of 2026-10-29; shown on this page since 2026-10-30). --}}
                         <form method="GET" action="{{ route('esign.show', ['kind' => 'pre-dpc-submit', 'uuid' => $proposal->uuid]) }}" class="w-100 order-first" id="pre-dpc-declaration">
                             @include('partials.declaration', ['key' => 'pre_dpc_submit'])
-                            <button class="btn btn-success btn-sm mt-2" data-esign>{{ __('esign.button.submit') }}</button>
+                            <button class="btn btn-success btn-sm mt-2" data-esign @disabled($blockers !== [])>{{ __('esign.button.submit') }}</button>
                         </form>
                     @endcan
                     @can('update', $proposal)
@@ -230,7 +243,11 @@
                     @endcan
 
                     @can('approve', $proposal)
-                        <a href="{{ route('esign.show', ['kind' => 'pre-dpc-approve', 'uuid' => $proposal->uuid]) }}" class="btn btn-success btn-sm" data-esign>{{ __('esign.button.approve') }}</a>
+                        @if ($blockers === [])
+                            <a href="{{ route('esign.show', ['kind' => 'pre-dpc-approve', 'uuid' => $proposal->uuid]) }}" class="btn btn-success btn-sm" data-esign>{{ __('esign.button.approve') }}</a>
+                        @else
+                            <button type="button" class="btn btn-success btn-sm" disabled>{{ __('esign.button.approve') }}</button>
+                        @endif
                     @endcan
 
                     @can('amend', $proposal)

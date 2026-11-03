@@ -24,7 +24,7 @@ class DpcTypeRequest extends FormRequest
         $id = $this->route('dpcType')?->id;
 
         return [
-            'code' => ['required', 'string', 'max:40', Rule::unique('dpc_types', 'code')->ignore($id)],
+            'code' => ['required', 'string', 'max:40', Rule::unique('dpc_types', 'code')->withoutTrashed()->ignore($id)],
             'name_en' => ['required', 'string', 'max:255'],
             'name_hi' => ['required', 'string', 'max:255'],
             'status' => ['required', new Enum(MasterStatus::class)],

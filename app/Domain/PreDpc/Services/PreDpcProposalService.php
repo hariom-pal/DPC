@@ -8,6 +8,7 @@ use App\Domain\Allotment\Services\ProposalAllotmentService;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Authentication\Services\SecurityLog;
 use App\Domain\Department\Models\Department;
+use App\Domain\Dpc\Services\VacancyMasterService;
 use App\Domain\Master\Enums\ExperienceUnit;
 use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Services\PostAttributeResolver;
@@ -26,6 +27,7 @@ use App\Enums\Feature;
 use App\Enums\MasterStatus;
 use App\Enums\Role;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -56,7 +58,47 @@ class PreDpcProposalService
         private readonly IdentifierSequenceService $identifiers,
         private readonly ActivityTimelineService $timeline,
         private readonly ProposalAllotmentService $allotments,
+        private readonly VacancyMasterService $vacancies,
     ) {}
+
+    /**
+     * What would stop this Pre-DPC's Vacancy Management from being finalized and can
+     * already be known now (UAT, 2026-11-03): "Pre-DPC finalize karne se pehle hi agar
+     * kuch necessary hai to wo aa jaaye".
+     *
+     * Vacancy Management counts the Vacancy Year from 1 January and needs the
+     * Promotion To Post's mapping in force on that day. A mapping saved with today as
+     * its Effective From (the form's default) is not, and the AO only found out when
+     * finalizing the vacancies. The other finalize checks (sanctioned and working
+     * strength, pending rows) are about figures entered in Vacancy Management itself.
+     *
+     * @return list<string>
+     */
+    public function vacancyBlockers(PreDpcProposal $proposal): array
+    {
+        $post = $proposal->promotionToPost;
+
+        if ($post === null || $proposal->dpc_year === null) {
+            return [];
+        }
+
+        $year = (int) $proposal->dpc_year;
+        $chain = DepartmentPost::query()->where('department_id', $proposal->department_id)->where('name', $post->name)->get();
+
+        if ($this->vacancies->mappingInForce($chain, $year) !== null) {
+            return [];
+        }
+
+        [$from] = $this->vacancies->period($year);
+        $earliest = $chain->min(fn (DepartmentPost $mapping): ?string => $mapping->effective_from?->toDateString());
+
+        return [(string) __('predpc.blockers.mapping_not_in_force', [
+            'post' => $post->name,
+            'date' => $from->format('d-m-Y'),
+            'year' => $year,
+            'from' => $earliest === null ? '—' : Carbon::parse($earliest)->format('d-m-Y'),
+        ])];
+    }
 
     /**
      * @param  array<string, mixed>  $data
@@ -167,6 +209,8 @@ class PreDpcProposalService
         // is configured is a deployment fault, not a workflow one, and it should
         // not hold a row lock while it says so.
         $this->assertSignatureAvailable();
+        // A mapping changed after submission is caught before the AH signs.
+        $this->guardVacancyReady($proposal);
 
         $this->signed($actor, $proposal, 'approve', fn () => DB::transaction(function () use ($proposal, $actor, $request): void {
             $locked = $this->lock($proposal);
@@ -562,6 +606,17 @@ class PreDpcProposalService
 
         if (($proposal->government_order_number === null) || ($proposal->effective_from === null)) {
             throw new WorkflowException('The Adyatan Vibhagiy Bharti Niyam and its Publish Date are required before submitting.');
+        }
+
+        $this->guardVacancyReady($proposal);
+    }
+
+    private function guardVacancyReady(PreDpcProposal $proposal): void
+    {
+        $blockers = $this->vacancyBlockers($proposal);
+
+        if ($blockers !== []) {
+            throw new WorkflowException($blockers[0]);
         }
     }
 

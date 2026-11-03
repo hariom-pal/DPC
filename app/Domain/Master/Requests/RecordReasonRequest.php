@@ -50,7 +50,7 @@ class RecordReasonRequest extends FormRequest
         $id = $this->route('recordReason')?->id;
 
         return [
-            'code' => ['required', 'string', 'max:40', Rule::unique('record_reasons', 'code')->ignore($id)],
+            'code' => ['required', 'string', 'max:40', Rule::unique('record_reasons', 'code')->withoutTrashed()->ignore($id)],
             'name_en' => ['required', 'string', 'max:255'],
             'name_hi' => ['required', 'string', 'max:255'],
             'requires_remarks' => ['required', 'boolean'],

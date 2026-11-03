@@ -285,12 +285,18 @@ a.gov-card:hover { color: inherit; }
     --bs-btn-disabled-color: #055160; --bs-btn-disabled-border-color: #0a8aa3;
 }
 
-.table { --bs-table-border-color: var(--gov-line); }
+/* Every table bordered, with a header that stands apart from the rows (UAT,
+   2026-11-02): a ruled grid reads as a register, and the solid header says where
+   the columns are named. */
+.table { --bs-table-border-color: #d3dde9; }
+.table:not(.table-borderless) > :not(caption) > * > * { border: 1px solid var(--bs-table-border-color); }
 .table > thead th {
-    background: var(--gov-blue-light); color: var(--gov-blue-darker);
+    background: var(--gov-blue); color: #fff;
     font-size: .78rem; text-transform: uppercase; letter-spacing: .045em;
-    font-weight: 700; border-bottom: 2px solid #cddcf0; white-space: nowrap;
+    font-weight: 700; border-color: #0a447f; white-space: nowrap;
 }
+.table > thead th a, .table > thead th a:hover { color: #fff; }
+.table > thead .th-note { color: rgba(255, 255, 255, .85); }
 .table > tbody > tr:hover > * { background-color: #f6f9fe; }
 .table td, .table th { vertical-align: middle; }
 
@@ -590,3 +596,20 @@ details > summary.card-header { cursor: pointer; }
 .vm-parts .nav-link.active { color: #fff; background: var(--gov-blue); border-color: var(--gov-blue); }
 .vm-parts .nav-link.active .badge { color: var(--gov-blue-darker); }
 .vm-part-card { border-top: 3px solid var(--gov-blue) !important; border-top-left-radius: 0; }
+
+/* Dates typed as DD-MM-YYYY with a calendar button (js/date-input.js, 2026-11-02).
+   The native input stays in the form for its value and its picker, out of sight. */
+.date-input { position: relative; }
+.date-input > .date-input-native {
+    position: absolute; right: 0; bottom: 0; width: 1px; height: 1px;
+    padding: 0; border: 0; opacity: 0; pointer-events: none;
+}
+.date-input > .date-input-button {
+    border-top-right-radius: var(--bs-border-radius) !important;
+    border-bottom-right-radius: var(--bs-border-radius) !important;
+}
+.input-group-sm.date-input > .date-input-button {
+    border-top-right-radius: var(--bs-border-radius-sm) !important;
+    border-bottom-right-radius: var(--bs-border-radius-sm) !important;
+}
+.date-input:has(.is-invalid) ~ .invalid-feedback { display: block; }

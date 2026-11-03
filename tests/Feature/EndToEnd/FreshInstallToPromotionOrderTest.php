@@ -178,21 +178,6 @@ class FreshInstallToPromotionOrderTest extends TestCase
             }
         });
 
-        [$from, $to] = $this->step('1.3 posts', function () use ($admin, $department): array {
-            foreach ([['Assistant Engineer', 'II', 'L12', 5], ['Executive Engineer', 'I', 'L13', null]] as [$name, $class, $scale, $duration]) {
-                $this->ok($this->actingAs($admin)->post(route('admin.department-posts.store'), [
-                    'department_id' => $department->id, 'designation_id' => Designation::query()->where('name', $name)->value('id'),
-                    'class_level' => $class, 'pay_scale_id' => PayScale::query()->where('code', $scale)->value('id'),
-                    'promotion_duration_years' => $duration, 'status' => 'active', 'effective_from' => '2026-01-01',
-                ]));
-            }
-
-            return [
-                DepartmentPost::query()->where('department_id', $department->id)->where('name', 'Assistant Engineer')->sole(),
-                DepartmentPost::query()->where('department_id', $department->id)->where('name', 'Executive Engineer')->sole(),
-            ];
-        });
-
         $this->step('1.5 Promotion CR rule II -> I 2026', function () use ($admin): void {
             $years = [];
             foreach (range(1, 5) as $before) {
@@ -212,7 +197,7 @@ class FreshInstallToPromotionOrderTest extends TestCase
             return $this->firstLogin('member.test@cgpsc.gov.in', $this->shownPassword($page));
         });
 
-        [$ao, $ah, $deptAdmin, $preDpc] = $this->step('2 Invitation (department + e-mail) -> Department Admin (OTP + DigiLocker) -> opens and fills the Pre-DPC, then allots AO and AH', function () use ($admin, $department, $from, $to): array {
+        [$ao, $ah, $deptAdmin, $preDpc, $from, $to] = $this->step('2 Invitation (department + e-mail) -> Department Admin (OTP + DigiLocker); AO maps the posts -> Department Admin opens and fills the Pre-DPC, then allots AO and AH', function () use ($admin, $department): array {
             $designation = fn (string $name): int => (int) Designation::query()->where('name', $name)->value('id');
             // The department and its own e-mail (2026-10-28); both OTPs, the mobile
             // proved with the fixed code as on the local environment.
@@ -257,6 +242,19 @@ class FreshInstallToPromotionOrderTest extends TestCase
             }
             $ao = User::query()->where('email', 'ao.phe@cg.gov.in')->sole();
             $ah = User::query()->where('email', 'ah.phe@cg.gov.in')->sole();
+            $aoReady = $this->firstLogin('ao.phe@cg.gov.in', $officers['ao']);
+            $ahReady = $this->firstLogin('ah.phe@cg.gov.in', $officers['ah']);
+
+            // Post Mapping is the AO's (UAT, 2026-11-02): the posts before the Pre-DPC.
+            foreach ([['Assistant Engineer', 'II', 'L12', 5], ['Executive Engineer', 'I', 'L13', null]] as [$name, $class, $scale, $duration]) {
+                $this->ok($this->actingAs($aoReady)->post(route('post-mapping.store'), [
+                    'department_id' => $department->id, 'designation_id' => Designation::query()->where('name', $name)->value('id'),
+                    'class_level' => $class, 'pay_scale_id' => PayScale::query()->where('code', $scale)->value('id'),
+                    'promotion_duration_years' => $duration, 'status' => 'active', 'effective_from' => '2026-01-01',
+                ]));
+            }
+            $from = DepartmentPost::query()->where('department_id', $department->id)->where('name', 'Assistant Engineer')->sole();
+            $to = DepartmentPost::query()->where('department_id', $department->id)->where('name', 'Executive Engineer')->sole();
             // The Department Admin opens the Pre-DPC, fills all of it in, and
             // assigns its AO and AH as the last step (2026-10-28).
             $this->ok($this->actingAs($deptAdmin->fresh())->post(route('department.allotments.pre-dpc.store'), [
@@ -274,7 +272,7 @@ class FreshInstallToPromotionOrderTest extends TestCase
             $this->ok($this->signedAllot($preDpc, ['ao_user_id' => $ao->id, 'ah_user_id' => $ah->id]));
             $this->assertSame([$ao->id, $ah->id], [$preDpc->fresh()->currentAllotment->ao_user_id, $preDpc->fresh()->currentAllotment->ah_user_id]);
 
-            return [$this->firstLogin('ao.phe@cg.gov.in', $officers['ao']), $this->firstLogin('ah.phe@cg.gov.in', $officers['ah']), $deptAdmin, $preDpc];
+            return [$aoReady, $ahReady, $deptAdmin, $preDpc, $from, $to];
         });
 
         $preDpc = $this->step('3 AO reviews and submits the Pre-DPC with eSign, AH approves with eSign; Recruitment Rule created', function () use ($ao, $ah, $preDpc, $to): PreDpcProposal {
@@ -302,7 +300,7 @@ class FreshInstallToPromotionOrderTest extends TestCase
             // in 2026 (working 6, +1); B2 — one of ours away since March 2026, under a
             // year by 31 December, so not counted; C — none.
             $this->ok($this->actingAs($ao)->post(route('vacancy-records.entries.store', $params), [
-                'kind' => 'deputation_in', 'officer_name' => 'Shri D. Deputationist', 'employee_number' => 'PHE/W/6', 'deputation_from' => '2024-07-01', 'deputation_to' => '2026-06-30',
+                'kind' => 'deputation_in', 'officer_name' => 'Shri D. Deputationist', 'employee_number' => 'PHE/W/6', 'deputation_from' => '2024-07-01', 'deputation_to' => '2026-06-30', 'deputation_only_post' => '0',
             ]));
             $this->ok($this->actingAs($ao)->post(route('vacancy-records.entries.store', $params), [
                 'kind' => 'deputation', 'officer_name' => 'Smt. E. Away', 'employee_number' => 'PHE/W/5', 'deputation_from' => '2026-03-01', 'promotion_made' => '0',

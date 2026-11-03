@@ -30,6 +30,8 @@ final readonly class MasterDefinition
      * @param  list<string>  $unique  the attributes that identify a row for update-or-create
      * @param  array<string, string>  $lookups  attribute => `table.column` a CSV **name** is resolved through
      * @param  list<array<string, string>>  $sample  rows written into the downloadable template
+     * @param  list<string>  $integers  attributes that must be whole numbers
+     * @param  bool  $importable  false where rows are written only on their own screen
      */
     public function __construct(
         public string $key,
@@ -41,6 +43,8 @@ final readonly class MasterDefinition
         public array $unique,
         public array $lookups = [],
         public array $sample = [],
+        public array $integers = [],
+        public bool $importable = true,
     ) {}
 
     /**

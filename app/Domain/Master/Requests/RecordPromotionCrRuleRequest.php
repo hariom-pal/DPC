@@ -41,7 +41,9 @@ class RecordPromotionCrRuleRequest extends FormRequest
             'loyalty_years' => ['required', 'integer', 'min:0', 'max:'.self::MAX_YEARS],
             'property_years' => ['required', 'integer', 'min:0', 'max:'.self::MAX_YEARS],
             'qualifying_total' => ['required', 'integer', 'min:1', 'max:1000'],
-            'super_seat_grade' => ['nullable', 'integer', Rule::in($grades)],
+            // Super seat (2026-11-02): Yes needs the grade; No records none.
+            'super_seat_applicable' => ['nullable', 'boolean'],
+            'super_seat_grade' => [$this->input('super_seat_applicable') === '1' ? 'required' : 'nullable', 'integer', Rule::in($grades)],
             /*
              | The tribal posting bonus (2026-11-01): Yes/No first. Yes needs points
              | above zero (within the existing 1–10) and at least one grade of the
@@ -99,6 +101,7 @@ class RecordPromotionCrRuleRequest extends FormRequest
             'loyalty_years' => __('admin.promotion_rules.loyalty_years'),
             'property_years' => __('admin.promotion_rules.property_years'),
             'qualifying_total' => __('admin.promotion_rules.qualifying_total'),
+            'super_seat_applicable' => __('admin.promotion_rules.super_seat_applicable'),
             'super_seat_grade' => __('admin.promotion_rules.super_seat_grade'),
             'tribal_bonus' => __('admin.promotion_rules.tribal_bonus'),
             'tribal_bonus_applicable' => __('admin.promotion_rules.tribal_applicable'),

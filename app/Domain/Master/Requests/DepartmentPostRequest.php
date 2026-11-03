@@ -67,7 +67,7 @@ class DepartmentPostRequest extends FormRequest
 
         return [
             // A Department Admin maps posts for their own department only (2026-10-28).
-            'department_id' => array_merge(['required', Rule::exists('departments', 'id')], $this->routeIs('department.*')
+            'department_id' => array_merge(['required', Rule::exists('departments', 'id')], $this->routeIs('department.*', 'post-mapping.*')
                 ? [Rule::in([(int) $this->user()?->department_id])]
                 : []),
             'name' => [

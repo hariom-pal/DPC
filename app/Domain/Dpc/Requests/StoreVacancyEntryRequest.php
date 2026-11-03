@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Domain\Dpc\Requests;
 
+use App\Domain\Department\Models\Department;
 use App\Domain\Dpc\Enums\VacancyEntryKind;
 use App\Domain\Dpc\Enums\VacancyReason;
+use App\Domain\Dpc\Services\VacancyMasterService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -42,17 +44,28 @@ class StoreVacancyEntryRequest extends FormRequest
             // Optional (2026-11-02): without it the deputation continues and is not counted.
             'deputation_to' => ['nullable', 'date'],
             'promotion_made' => [Rule::requiredIf($kindIs(VacancyEntryKind::Deputation)), 'nullable', Rule::in(['0', '1'])],
+            // B1 (2026-11-02): is the post only for deputation? Yes: not counted.
+            'deputation_only_post' => [Rule::requiredIf($kindIs(VacancyEntryKind::DeputationIn)), 'nullable', Rule::in(['0', '1'])],
             'reason' => [Rule::requiredIf($kindIs(VacancyEntryKind::Anticipated)), 'nullable', Rule::in([VacancyReason::Retirement->value, VacancyReason::HigherPostPromotion->value])],
             'effective_date' => [Rule::requiredIf($kindIs(VacancyEntryKind::Anticipated)), 'nullable', 'date'],
             'order_number' => [Rule::requiredIf($higher), 'nullable', 'string', 'max:120'],
             'order_date' => [Rule::requiredIf($higher), 'nullable', 'date', 'before_or_equal:today'],
-            'document' => [Rule::requiredIf($higher), 'nullable', 'file', 'mimes:pdf', 'max:'.(int) config('dpc.documents.max_kb', 10240)],
+            // Not needed when the higher post's DPC is one of this portal's (2026-11-02).
+            'document' => [Rule::requiredIf(fn (): bool => $higher() && ! $this->citesPortalDpc()), 'nullable', 'file', 'mimes:pdf', 'max:'.(int) config('dpc.documents.max_kb', 10240)],
             'remarks' => ['nullable', 'string', 'max:2000'],
             'higher_post_id' => [Rule::requiredIf($higher), 'nullable', 'integer'],
             'higher_dpc_reference' => [Rule::requiredIf($higher), 'nullable', 'string', 'max:60'],
             // Rule 1.2: the undertaking that the higher post's DPC is forwarded or the promotion finalized.
             'higher_post_undertaking' => $higher() ? ['accepted'] : ['nullable'],
         ];
+    }
+
+    private function citesPortalDpc(): bool
+    {
+        $department = $this->route('department');
+
+        return $department instanceof Department
+            && VacancyMasterService::portalDpc($department->id, (string) $this->input('higher_dpc_reference', '')) !== null;
     }
 
     /**
@@ -69,6 +82,7 @@ class StoreVacancyEntryRequest extends FormRequest
             'deputation_from' => __('vacancymaster.entries.deputation_from'),
             'deputation_to' => __('vacancymaster.entries.deputation_to'),
             'promotion_made' => __('vacancymaster.entries.promotion_made'),
+            'deputation_only_post' => __('vacancymaster.entries.deputation_only_post'),
             'reason' => __('vacancymaster.entries.reason'),
             'effective_date' => __('vacancymaster.entries.date'),
             'order_number' => __('vacancymaster.order_number'),

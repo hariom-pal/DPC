@@ -187,7 +187,12 @@
     document.querySelectorAll('[data-higher-toggle]').forEach(function (select) {
         var fields = select.form && select.form.querySelector('[data-higher-fields]');
         if (!fields) { return; }
-        var sync = function () { fields.hidden = select.value !== 'higher_post_promotion'; };
+        var labels = select.form.querySelectorAll('[data-reason-label]');
+        var sync = function () {
+            select.form.querySelectorAll('[data-higher-fields]').forEach(function (el) { el.hidden = select.value !== 'higher_post_promotion'; });
+            // The date's label follows the reason (2026-11-02).
+            labels.forEach(function (label) { label.hidden = label.getAttribute('data-reason-label') !== select.value; });
+        };
         select.addEventListener('change', sync);
         sync();
     });

@@ -39,6 +39,17 @@
         }
         $stepLabel = fn (string $key): string => __('vacancymaster.steps.'.($perPreDpc && $key === 'sanctioned' ? 'strength' : $key));
         $order = array_keys($steps);
+        // Without saving a step there is no going on to the next (UAT, 2026-11-02): a
+        // step opens only once every step before it is saved (or has nothing to save).
+        $reachable = [];
+        $open = true;
+        foreach ($steps as $key => $step) {
+            $reachable[$key] = $open;
+            $open = $open && $step['state'] !== 'pending';
+        }
+        if (! ($reachable[$section] ?? false)) {
+            $section = collect($order)->last(fn (string $key): bool => $reachable[$key]) ?? $order[0];
+        }
         $index = array_search($section, $order, true);
         $previous = $index > 0 ? $order[$index - 1] : null;
         $next = $index < count($order) - 1 ? $order[$index + 1] : null;
@@ -109,8 +120,9 @@
             <ol class="nav nav-pills flex-column flex-md-row gap-2 list-unstyled mb-0">
                 @foreach ($steps as $key => $step)
                     <li class="nav-item flex-md-fill">
-                        <a href="{{ $stepUrl($key) }}"
-                           @class(['nav-link border h-100', 'active' => $section === $key])
+                        <a @if ($reachable[$key]) href="{{ $stepUrl($key) }}" @else aria-disabled="true" title="{{ __('vacancymaster.steps.save_first') }}" @endif
+                           @class(['nav-link border h-100', 'active' => $section === $key, 'disabled' => ! $reachable[$key]])
+                           data-step="{{ $key }}"
                            @if ($section === $key) aria-current="step" @endif>
                             <span class="fw-semibold">{{ $step['n'] }}. {{ $stepLabel($key) }}</span>
                             <span @class(['badge ms-1',
@@ -133,8 +145,11 @@
                 @endif
             </div>
             <div>
-                @if ($next)
+                @if ($next && $reachable[$next])
                     <a class="btn btn-outline-primary btn-sm" href="{{ $stepUrl($next) }}">{{ __('vacancymaster.steps.next', ['step' => $stepLabel($next)]) }} &rarr;</a>
+                @elseif ($next)
+                    <span class="small text-muted me-2" id="vacancy-save-first">{{ __('vacancymaster.steps.save_first') }}</span>
+                    <button type="button" class="btn btn-outline-primary btn-sm" disabled>{{ __('vacancymaster.steps.next', ['step' => $stepLabel($next)]) }} &rarr;</button>
                 @endif
             </div>
         </div>

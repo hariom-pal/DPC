@@ -37,7 +37,7 @@ class ClassMasterRequest extends FormRequest
             'code' => [
                 'required',
                 new Enum(ServiceClass::class),
-                Rule::unique('service_classes', 'code')->ignore($id),
+                Rule::unique('service_classes', 'code')->withoutTrashed()->ignore($id),
             ],
             'name_en' => ['required', 'string', 'max:255'],
             'name_hi' => ['nullable', 'string', 'max:255'],

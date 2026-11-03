@@ -183,6 +183,42 @@ class PreDpcTransitionLockTest extends TestCase
     // Fixture
     // ------------------------------------------------------------------
 
+    /**
+     * Found at the Pre-DPC, not at Vacancy Management (UAT, 2026-11-03): a Promotion
+     * To Post whose mapping takes effect after 1 January of the DPC Year would stop the
+     * vacancies being finalized, so the Pre-DPC says so and is not signed until fixed.
+     */
+    public function test_a_mapping_not_in_force_on_1_january_is_found_before_signing(): void
+    {
+        $proposal = $this->draft();
+        $mapping = $proposal->promotionToPost;
+        $mapping->forceFill(['effective_from' => '2026-10-30'])->save();
+
+        $this->actingAs($this->ao)->get(route('pre-dpc.show', $proposal))
+            ->assertOk()
+            ->assertSee('id="pre-dpc-blockers"', false)
+            ->assertSee('is not in force on 01-01-2026', false);
+
+        try {
+            $this->service->submit($proposal, $this->ao, Request::create('/', 'POST', ['declaration' => '1']));
+            $this->fail('A Pre-DPC whose post is not mapped on 1 January was submitted.');
+        } catch (WorkflowException $e) {
+            $this->assertStringContainsString('30-10-2026', $e->getMessage());
+        }
+        $this->assertSame(PreDpcStatus::Draft, $proposal->fresh()->status);
+
+        // The AO back-dates the mapping; the Pre-DPC goes on.
+        $mapping->forceFill(['effective_from' => '2026-01-01'])->save();
+        $this->actingAs($this->ao)->get(route('pre-dpc.show', $proposal))->assertOk()->assertDontSee('id="pre-dpc-blockers"', false);
+        $this->service->submit($proposal->fresh(), $this->ao, Request::create('/', 'POST', ['declaration' => '1']));
+        $this->assertSame(PreDpcStatus::Submitted, $proposal->fresh()->status);
+
+        // Changed again after submission: the AH is stopped before signing.
+        $mapping->forceFill(['effective_from' => '2026-03-01'])->save();
+        $this->expectException(WorkflowException::class);
+        $this->service->approve($proposal->fresh(), $this->ah, Request::create('/', 'POST'));
+    }
+
     private function draft(): PreDpcProposal
     {
         $target = DepartmentPost::query()->create([

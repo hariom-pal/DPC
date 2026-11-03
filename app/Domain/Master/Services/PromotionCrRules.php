@@ -189,7 +189,9 @@ final class PromotionCrRules
                 // that total over the CR years, kept for reading.
                 'qualifying_total' => (int) $data['qualifying_total'],
                 'qualifying_average' => round((int) $data['qualifying_total'] / max(1, (int) $data['cr_years']), 2),
-                'super_seat_grade' => ($data['super_seat_grade'] ?? '') === '' ? null : (int) $data['super_seat_grade'],
+                'super_seat_grade' => ($data['super_seat_grade'] ?? '') === '' || (array_key_exists('super_seat_applicable', $data) && $data['super_seat_applicable'] !== null && ! (bool) $data['super_seat_applicable'])
+                    ? null
+                    : (int) $data['super_seat_grade'],
                 // Yes/No (2026-11-01). A caller that does not say has a bonus exactly
                 // when it gives points, which is how every rule read before.
                 'tribal_bonus_applicable' => $applicable = array_key_exists('tribal_bonus_applicable', $data) && $data['tribal_bonus_applicable'] !== null

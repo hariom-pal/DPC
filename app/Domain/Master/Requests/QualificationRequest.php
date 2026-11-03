@@ -24,11 +24,11 @@ class QualificationRequest extends FormRequest
         $id = $this->route('qualification')?->id;
 
         return [
-            'code' => ['required', 'string', 'max:40', Rule::unique('qualifications', 'code')->ignore($id)],
+            'code' => ['required', 'string', 'max:40', Rule::unique('qualifications', 'code')->withoutTrashed()->ignore($id)],
             // Unique on the display name too, not just the code: two rows reading
             // "B.Ed." with codes BED and B_ED would put the same qualification in
             // the dropdown twice, which is the problem this master exists to fix.
-            'name_en' => ['required', 'string', 'max:255', Rule::unique('qualifications', 'name_en')->ignore($id)],
+            'name_en' => ['required', 'string', 'max:255', Rule::unique('qualifications', 'name_en')->withoutTrashed()->ignore($id)],
             'name_hi' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:1000'],
             'status' => ['required', new Enum(MasterStatus::class)],

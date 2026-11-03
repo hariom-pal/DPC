@@ -5,8 +5,14 @@
 @section('content')
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h1 class="h4 mb-0">{{ __('admin.department_posts.index.department_posts') }}</h1>
-        <a href="{{ route($routePrefix.'.create') }}" class="btn btn-success btn-sm">{{ __('admin.department_posts.index.new_department_post') }}</a>
+        @if ($canWrite)
+            <a href="{{ route($routePrefix.'.create') }}" class="btn btn-success btn-sm">{{ __('admin.department_posts.index.new_department_post') }}</a>
+        @endif
     </div>
+    @unless ($canWrite)
+        {{-- Post Mapping is the department's Authorized Officer's (UAT, 2026-11-02). --}}
+        <p class="text-muted small" id="post-mapping-read-only">{{ __('admin.department_posts.index.read_only') }}</p>
+    @endunless
 
     <div class="card border-0 shadow-sm">
         @include('admin.partials.master-toolbar', ['master' => 'department-posts'])
@@ -48,14 +54,14 @@
                             </td>
                             <td class="text-end text-nowrap">
                                 <a href="{{ route($routePrefix.'.show', $post) }}" class="btn btn-outline-secondary btn-sm">{{ __('ui.view') }}</a>
-                                @unless ($post->isSuperseded())
+                                @if ($canWrite && ! $post->isSuperseded())
                                     <a href="{{ route($routePrefix.'.edit', $post) }}" class="btn btn-outline-primary btn-sm">{{ __('ui.edit') }}</a>
                                     <form method="POST" action="{{ route($routePrefix.'.destroy', $post) }}" class="d-inline"
                                           data-confirm="{{ __('admin.department_posts.index.delete_this_post') }}">
                                         @csrf @method('DELETE')
                                         <button class="btn btn-outline-danger btn-sm">{{ __('ui.delete') }}</button>
                                     </form>
-                                @endunless
+                                @endif
                             </td>
                         </tr>
                     @empty

@@ -118,16 +118,31 @@
                     @error('qualifying_total')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     <div class="form-text">{{ __('admin.promotion_rules.qualifying_help') }}</div>
                 </div>
+                {{-- Super seat (UAT, 2026-11-02): Yes/No first; the grade only for Yes. --}}
+                @php
+                    $superApplicable = (string) $val('super_seat_applicable', $current?->super_seat_grade !== null ? '1' : '0');
+                @endphp
                 <div class="col-md-4">
-                    <label class="form-label" for="super_seat_grade">{{ __('admin.promotion_rules.super_seat_grade') }}</label>
-                    <select class="form-select @error('super_seat_grade') is-invalid @enderror" id="super_seat_grade" name="super_seat_grade">
-                        <option value="">{{ __('admin.promotion_rules.none') }}</option>
-                        @foreach ($grades as $grade)
-                            <option value="{{ $grade }}" @selected((string) $val('super_seat_grade', $current?->super_seat_grade) === (string) $grade)>{{ $grade }}</option>
-                        @endforeach
-                    </select>
-                    @error('super_seat_grade')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                    <div class="form-text">{{ __('admin.promotion_rules.super_seat_help') }}</div>
+                    <span class="form-label d-block">{{ __('admin.promotion_rules.super_seat_applicable') }}</span>
+                    @foreach (['1' => __('ui.yes'), '0' => __('ui.no')] as $value => $label)
+                        <label class="form-check form-check-inline">
+                            <input class="form-check-input @error('super_seat_applicable') is-invalid @enderror" type="radio" name="super_seat_applicable" value="{{ $value }}" required
+                                   @checked($superApplicable === (string) $value)>
+                            {{ $label }}
+                        </label>
+                    @endforeach
+                    @error('super_seat_applicable')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                    <div class="mt-2" data-show-when="super_seat_applicable=1">
+                        <label class="form-label" for="super_seat_grade">{{ __('admin.promotion_rules.super_seat_grade') }}</label>
+                        <select class="form-select @error('super_seat_grade') is-invalid @enderror" id="super_seat_grade" name="super_seat_grade">
+                            <option value="">—</option>
+                            @foreach ($grades as $grade)
+                                <option value="{{ $grade }}" @selected((string) $val('super_seat_grade', $current?->super_seat_grade) === (string) $grade)>{{ $gradeLabels[$grade] ?? $grade }}</option>
+                            @endforeach
+                        </select>
+                        @error('super_seat_grade')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        <div class="form-text">{{ __('admin.promotion_rules.super_seat_help') }}</div>
+                    </div>
                 </div>
                 {{-- The tribal posting bonus (2026-11-01): Yes/No, then — for Yes — the points and
                      the Grade Master grades it is given at. A new version starts from the rule in

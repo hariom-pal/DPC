@@ -50,6 +50,7 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property string|null $employee_number optional, so the Working Officers List is matched by number before name (2026-11-01)
  * @property Carbon|null $deputation_from
  * @property bool|null $promotion_made
+ * @property bool|null $deputation_only_post
  * @property VacancyEntryEligibility $eligibility
  * @property string|null $eligibility_note
  * @property string|null $verification_basis
@@ -101,6 +102,7 @@ class VacancyPositionEntry extends Model implements Auditable
         'cadre_details',
         'deputation_from',
         'promotion_made',
+        'deputation_only_post',
         'eligibility',
         'eligibility_note',
         'verification_basis',
@@ -147,6 +149,7 @@ class VacancyPositionEntry extends Model implements Auditable
             'against_sanctioned_post' => 'boolean',
             'deputation_from' => 'date',
             'promotion_made' => 'boolean',
+            'deputation_only_post' => 'boolean',
             'size_bytes' => 'integer',
             'verified_at' => 'datetime',
             'withdrawn_at' => 'datetime',

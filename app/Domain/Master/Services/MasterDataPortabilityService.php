@@ -8,6 +8,7 @@ use App\Domain\Master\Support\MasterDefinition;
 use App\Domain\Master\Support\MasterRegistry;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -191,6 +192,12 @@ class MasterDataPortabilityService
                     continue;
                 }
 
+                if ($value !== '' && in_array($attribute, $definition->integers, true) && preg_match('/^\d+$/', $value) !== 1) {
+                    $errors[] = (string) __('admin.master_data.errors.integer', ['line' => $line, 'column' => $header]);
+
+                    continue;
+                }
+
                 $attributes[$attribute] = $value === '' ? null : $value;
             }
 
@@ -212,8 +219,12 @@ class MasterDataPortabilityService
             /** @var Model $model */
             $model = new $definition->model;
 
+            // A deleted entry uploaded again comes back (2026-11-02) instead of
+            // colliding with its own deleted row on the unique index.
+            $softDeletes = in_array(SoftDeletes::class, class_uses_recursive($model), true);
+
             foreach ($prepared as $attributes) {
-                $query = $model->newQuery();
+                $query = $softDeletes ? $model->newQuery()->withTrashed() : $model->newQuery();   // @phpstan-ignore method.notFound
 
                 /*
                  | Matched case-insensitively, on every database. MySQL's collation
@@ -229,13 +240,17 @@ class MasterDataPortabilityService
                         : $query->whereRaw('LOWER('.$model->getConnection()->getQueryGrammar()->wrap($key).') = ?', [Str::lower((string) $value)]);
                 }
 
-                $existing = $query->first();
+                $existing = $query->first() ?? app(MasterCrudService::class)->deletedTwin($model, $attributes);
 
                 if ($existing === null) {
                     $model->newQuery()->create($attributes);
                     $created++;
 
                     continue;
+                }
+
+                if ($softDeletes && $existing->trashed()) {
+                    $existing->restore();
                 }
 
                 // The identifying columns keep their stored spelling: an upload that

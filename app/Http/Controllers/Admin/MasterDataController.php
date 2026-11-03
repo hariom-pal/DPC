@@ -55,7 +55,10 @@ class MasterDataController extends Controller
 
     public function template(string $master): StreamedResponse
     {
-        return $this->portability->template($this->definition($master));
+        $definition = $this->definition($master);
+        abort_unless($definition->importable, 404);
+
+        return $this->portability->template($definition);
     }
 
     /**
@@ -68,6 +71,7 @@ class MasterDataController extends Controller
     public function import(Request $request, string $master): RedirectResponse
     {
         $definition = $this->definition($master);
+        abort_unless($definition->importable, 404);
 
         $request->validate([
             /*

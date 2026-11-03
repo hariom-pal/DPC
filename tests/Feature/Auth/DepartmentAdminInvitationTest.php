@@ -196,7 +196,11 @@ class DepartmentAdminInvitationTest extends TestCase
         $this->assertNotNull(IdentityVerification::query()->where('user_id', $second->id)->oldest('id')->first()?->revoked_at);
     }
 
-    public function test_the_department_admin_maps_posts_only_for_their_own_department(): void
+    /**
+     * The Department Admin reads the own department's mappings only; since 2026-11-02
+     * the department's Authorized Officer maps them, for the own department only.
+     */
+    public function test_the_department_admin_reads_posts_only_for_their_own_department(): void
     {
         $admin = User::factory()->assignedTo($this->department, Role::DepartmentAdmin)->create();
         $foreign = DepartmentPost::query()->create(['department_id' => $this->other->id, 'name' => 'Professor', 'class_level' => 'I', 'status' => 'active']);
@@ -206,8 +210,12 @@ class DepartmentAdminInvitationTest extends TestCase
         $this->get(route('department.posts.show', $own))->assertOk();
         $this->get(route('department.posts.show', $foreign))->assertForbidden();
         $this->get(route('department.posts.edit', $foreign))->assertForbidden();
-        $this->get(route('department.posts.create'))->assertOk()->assertSee($this->department->name)->assertDontSee($this->other->name);
-        $this->post(route('department.posts.store'), ['department_id' => $this->other->id, 'name' => 'Lecturer', 'class_level' => 'I', 'status' => 'active'])->assertSessionHasErrors('department_id');
+        $this->get(route('department.posts.create'))->assertForbidden();
+
+        $ao = User::factory()->assignedTo($this->department, Role::AuthorizedOfficer)->create();
+        $this->actingAs($ao)->get(route('post-mapping.create'))->assertOk()->assertSee($this->department->name)->assertDontSee($this->other->name);
+        $this->post(route('post-mapping.store'), ['department_id' => $this->other->id, 'name' => 'Lecturer', 'class_level' => 'I', 'status' => 'active'])->assertSessionHasErrors('department_id');
+        $this->get(route('post-mapping.show', $foreign))->assertForbidden();
         $this->assertFalse(DepartmentPost::query()->where('name', 'Lecturer')->exists());
 
         // The Commission's Administrator keeps every department's.

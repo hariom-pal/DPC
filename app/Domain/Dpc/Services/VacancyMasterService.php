@@ -103,6 +103,16 @@ class VacancyMasterService
     }
 
     /**
+     * The Vacancy Year's first and last day.
+     *
+     * @return array{0: Carbon, 1: Carbon}
+     */
+    public function period(int $year): array
+    {
+        return $this->engine->periodForYear($year);
+    }
+
+    /**
      * The mapping row in force on 1 January of `$year` among one post's rows.
      *
      * @param  Collection<int, DepartmentPost>  $mappings
@@ -336,6 +346,7 @@ class VacancyMasterService
                 'deputation_from' => $entry->deputation_from?->toDateString(),
                 'deputation_to' => $entry->deputation_to?->toDateString(),
                 'promotion_made' => $entry->promotion_made,
+                'deputation_only_post' => $entry->deputation_only_post,
                 'eligibility' => $entry->eligibility->value,
                 'counted' => $entry->isCounted(),
                 'order_number' => $entry->order_number,
@@ -1006,6 +1017,8 @@ class VacancyMasterService
         }
 
         $came = Carbon::parse((string) $data['deputation_from'])->startOfDay();
+        // A post only for deputation (2026-11-02) goes to the next deputationist: never counted.
+        $deputationOnly = (string) ($data['deputation_only_post'] ?? '') === '1';
 
         if (empty($data['deputation_to'])) {
             return [
@@ -1014,8 +1027,9 @@ class VacancyMasterService
                 'effective_date' => $came->toDateString(),
                 'deputation_from' => $came->toDateString(),
                 'deputation_to' => null,
+                'deputation_only_post' => $deputationOnly,
                 'eligibility' => VacancyEntryEligibility::NotEligible->value,
-                'eligibility_note' => __('vacancymaster.notes.deputation_in_no_end'),
+                'eligibility_note' => __($deputationOnly ? 'vacancymaster.notes.deputation_only_post' : 'vacancymaster.notes.deputation_in_no_end'),
             ];
         }
 
@@ -1029,18 +1043,21 @@ class VacancyMasterService
             throw new WorkflowException(__('vacancymaster.errors.deputation_already_ended', ['date' => $from->format('d-m-Y')]), 'deputation_to');
         }
 
-        $counted = $ends->lte($to);
+        $counted = ! $deputationOnly && $ends->lte($to);
 
         return [
             'reason' => VacancyReason::Deputation->value,
             'effective_date' => $ends->toDateString(),
             'deputation_from' => $came->toDateString(),
             'deputation_to' => $ends->toDateString(),
+            'deputation_only_post' => $deputationOnly,
             'eligibility' => ($counted ? VacancyEntryEligibility::Eligible : VacancyEntryEligibility::NotEligible)->value,
-            'eligibility_note' => __($counted ? 'vacancymaster.notes.deputation_in_ends' : 'vacancymaster.notes.deputation_in_continues', [
-                'date' => $ends->format('d-m-Y'),
-                'year' => $from->year,
-            ]),
+            'eligibility_note' => $deputationOnly
+                ? __('vacancymaster.notes.deputation_only_post')
+                : __($counted ? 'vacancymaster.notes.deputation_in_ends' : 'vacancymaster.notes.deputation_in_continues', [
+                    'date' => $ends->format('d-m-Y'),
+                    'year' => $from->year,
+                ]),
         ];
     }
 
@@ -1129,7 +1146,7 @@ class VacancyMasterService
                 throw new WorkflowException(__('vacancymaster.errors.order_date_required'), 'order_date');
             }
 
-            if ($document === null) {
+            if ($document === null && ($higher['higher_dpc_proposal_id'] ?? null) === null) {
                 throw new WorkflowException(__('vacancymaster.errors.document_required'), 'document');
             }
         }
@@ -1157,7 +1174,10 @@ class VacancyMasterService
 
         $higher = DepartmentPost::query()->find((int) ($data['higher_post_id'] ?? 0));
 
-        if ($higher === null || $higher->department_id !== $position->department_id || $higher->name === $position->post_name) {
+        $own = $this->mappingFor($position);
+
+        if ($higher === null || $higher->department_id !== $position->department_id || $higher->name === $position->post_name
+            || ($own !== null && ! $this->higherPostsThan($own)->contains('id', $higher->id))) {
             throw new WorkflowException(__('vacancymaster.errors.higher_post_invalid'), 'higher_post_id');
         }
 
@@ -1172,8 +1192,9 @@ class VacancyMasterService
             throw new WorkflowException(__('vacancymaster.errors.higher_undertaking_required'), 'higher_post_undertaking');
         }
 
-        // Linked when the reference is a DPC this portal holds, so its status can be read.
-        $proposal = DpcProposal::query()->where('dpc_code', $reference)->first();
+        // Linked when the reference is a DPC of this department on this portal, so its
+        // status can be read — and then no supporting document is needed (2026-11-02).
+        $proposal = self::portalDpc($position->department_id, $reference);
 
         return [
             'higher_post_id' => $higher->id,
@@ -1183,6 +1204,38 @@ class VacancyMasterService
             'promotion_order_date' => empty($data['order_date']) ? null : Carbon::parse((string) $data['order_date'])->toDateString(),
             'higher_post_undertaking_at' => now(),
         ];
+    }
+
+    /**
+     * The department's DPC on this portal a higher-post row cites by its number.
+     */
+    public static function portalDpc(int $departmentId, string $reference): ?DpcProposal
+    {
+        $reference = trim($reference);
+
+        return $reference === '' ? null : DpcProposal::query()->where('department_id', $departmentId)->where('dpc_code', $reference)->first();
+    }
+
+    /**
+     * The department's posts on a higher pay scale than this one (UAT, 2026-11-02),
+     * by entry pay. A post whose scale carries no entry pay cannot be compared, so
+     * then every other post is offered rather than none.
+     *
+     * @return Collection<int, DepartmentPost>
+     */
+    public function higherPostsThan(DepartmentPost $post): Collection
+    {
+        $own = $post->payScale?->minimum_pay;
+
+        return DepartmentPost::query()
+            ->with('payScale')
+            ->where('department_id', $post->department_id)
+            ->where('name', '!=', $post->name)
+            ->whereNotNull('active_flag')
+            ->orderBy('name')
+            ->get()
+            ->filter(fn (DepartmentPost $higher): bool => $own === null || ($higher->payScale->minimum_pay ?? 0) > $own)
+            ->values();
     }
 
     /**

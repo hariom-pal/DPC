@@ -97,12 +97,8 @@ class VacancyMasterController extends Controller
                 ->orderByDesc('occurred_at')
                 ->orderByDesc('id')
                 ->get(),
-            'higherPosts' => DepartmentPost::query()
-                ->where('department_id', $department->id)
-                ->where('name', '!=', $post->name)
-                ->whereNotNull('active_flag')
-                ->orderBy('name')
-                ->get(),
+            // Only posts on a higher pay scale (UAT, 2026-11-02).
+            'higherPosts' => $this->vacancies->higherPostsThan($post),
             'kinds' => [VacancyEntryKind::DeputationIn, VacancyEntryKind::Deputation, VacancyEntryKind::Anticipated],
             'reasons' => [VacancyReason::Retirement, VacancyReason::HigherPostPromotion],
             'preDpc' => $position !== null && $position->preDpcProposal !== null ? $position->preDpcProposal : $this->vacancies->approvedPreDpc($department->id, $post->name, $year),
