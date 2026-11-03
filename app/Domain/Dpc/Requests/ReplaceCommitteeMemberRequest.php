@@ -6,6 +6,7 @@ namespace App\Domain\Dpc\Requests;
 
 use App\Domain\Committee\Enums\MemberCategory;
 use App\Domain\Dpc\Models\DpcCommitteeMember;
+use App\Support\OfficialEmail;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -55,7 +56,7 @@ class ReplaceCommitteeMemberRequest extends FormRequest
             // The same two shapes the composition form enforces (2026-09-06):
             // ten digits starting 6-9, and a government address.
             'mobile' => ['nullable', 'string', 'regex:/^[6-9]\\d{9}$/'],
-            'email' => ['nullable', 'email', 'max:255', 'regex:/@(?:[A-Za-z0-9-]+\\.)*gov\\.in$/i'],
+            'email' => ['nullable', 'email', 'max:255', OfficialEmail::RULE],
         ];
 
         foreach (DpcCommitteeMember::ATTRIBUTE_COLUMNS as $column) {

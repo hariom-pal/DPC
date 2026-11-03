@@ -17,6 +17,7 @@ use App\Http\Middleware\EnsureAccountReady;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use RuntimeException;
 
 /**
  * The CGPSC Administrator's provisioning of accounts.
@@ -164,6 +165,12 @@ class UserProvisioningService
      */
     public function setActive(User $user, bool $active, ?User $actor = null): void
     {
+        // The Administrator is never deactivated (2026-11-03): with it inactive nobody
+        // can sign in to administer the portal, or to activate it again.
+        if (! $active && $user->hasRole(Role::Admin->value)) {
+            throw new RuntimeException((string) __('admin.users.admin_never_deactivated'));
+        }
+
         $user->forceFill(['is_active' => $active])->save();
 
         if (! $active) {

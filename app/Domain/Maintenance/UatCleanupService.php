@@ -27,6 +27,8 @@ final class UatCleanupService
     /**
      * Everything the cleanup would do, without doing it.
      *
+     *
+     * @param  list<string>|null  $preserveRoles  the roles whose accounts stay; the configured ones when null
      * @return array{
      *   database: string,
      *   preserve_roles: list<string>,
@@ -39,10 +41,10 @@ final class UatCleanupService
      *   files: int
      * }
      */
-    public function plan(): array
+    public function plan(?array $preserveRoles = null): array
     {
         $tables = $this->tables();
-        $keep = $this->keptUserIds();
+        $keep = $this->keptUserIds($preserveRoles);
         $deletedUsers = DB::table('users')->whereNotIn('id', $keep)->count();
 
         $rows = [];
@@ -73,7 +75,7 @@ final class UatCleanupService
 
         return [
             'database' => DB::connection()->getDatabaseName(),
-            'preserve_roles' => $this->preserveRoles(),
+            'preserve_roles' => $this->preserveRoles($preserveRoles),
             'kept_users' => User::query()->whereIn('id', $keep)->orderBy('id')->get()
                 ->map(fn (User $user): array => [
                     'id' => (int) $user->id,
@@ -92,12 +94,13 @@ final class UatCleanupService
     /**
      * Do it: one transaction, foreign-key checks on, files after the commit.
      *
+     * @param  list<string>|null  $preserveRoles
      * @return array{deleted: array<string, int>, cleared_references: int, files: array{deleted: int, kept_shared: int, missing: int}}
      */
-    public function apply(): array
+    public function apply(?array $preserveRoles = null): array
     {
         $tables = $this->tables();
-        $keep = $this->keptUserIds();
+        $keep = $this->keptUserIds($preserveRoles);
         [, $blockers] = $this->preflight($tables, $keep);
 
         if ($blockers !== []) {
@@ -134,11 +137,12 @@ final class UatCleanupService
      * The users who survive: holders of a preserved role. At least one CGPSC
      * Administrator must be among them, or the portal could not be administered.
      *
+     * @param  list<string>|null  $preserveRoles
      * @return list<int>
      */
-    public function keptUserIds(): array
+    public function keptUserIds(?array $preserveRoles = null): array
     {
-        $roles = $this->preserveRoles();
+        $roles = $this->preserveRoles($preserveRoles);
 
         $ids = DB::table('model_has_roles')
             ->join('roles', 'roles.id', '=', 'model_has_roles.role_id')
@@ -165,11 +169,14 @@ final class UatCleanupService
     }
 
     /**
+     * Clear DPC data's "delete the users too" keeps the Administrators only (2026-11-03).
+     *
+     * @param  list<string>|null  $override
      * @return list<string>
      */
-    public function preserveRoles(): array
+    public function preserveRoles(?array $override = null): array
     {
-        $roles = array_values(array_filter(array_map('trim', (array) config('dpc.uat_cleanup.preserve_roles', ['admin', 'chairman']))));
+        $roles = array_values(array_filter(array_map('trim', $override ?? (array) config('dpc.uat_cleanup.preserve_roles', ['admin', 'chairman']))));
 
         return in_array('admin', $roles, true) ? $roles : ['admin', ...$roles];
     }

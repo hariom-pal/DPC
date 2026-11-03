@@ -13,6 +13,7 @@ use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\Designation;
 use App\Domain\Master\Models\District;
 use App\Domain\UserManagement\Models\UserDepartmentAssignment;
+use App\Domain\UserManagement\Services\DepartmentAssignmentService;
 use App\Domain\UserManagement\Services\DepartmentUserAuthority;
 use App\Enums\DepartmentStatus;
 use App\Enums\Role;
@@ -197,10 +198,27 @@ class DepartmentAdminInvitationTest extends TestCase
     }
 
     /**
-     * The Department Admin reads the own department's mappings only; since 2026-11-02
-     * the department's Authorized Officer maps them, for the own department only.
+     * The Administrator who once held a department's Department Admin posting is not
+     * deactivated when a new Department Admin takes it over (2026-11-03).
      */
-    public function test_the_department_admin_reads_posts_only_for_their_own_department(): void
+    public function test_a_new_department_admin_never_deactivates_the_administrator(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(Role::Admin->value);
+        app(DepartmentAssignmentService::class)->assign($admin, $this->department, Role::DepartmentAdmin);
+
+        $this->invite();
+        $this->register($this->token());
+
+        $this->assertTrue((bool) $admin->fresh()->is_active);
+        $this->assertTrue($admin->fresh()->hasRole(Role::Admin->value));
+    }
+
+    /**
+     * The Department Admin maps the own department's posts only; so does the
+     * department's Authorized Officer (2026-11-02, Department Admin kept 2026-11-03).
+     */
+    public function test_the_department_admin_maps_posts_only_for_their_own_department(): void
     {
         $admin = User::factory()->assignedTo($this->department, Role::DepartmentAdmin)->create();
         $foreign = DepartmentPost::query()->create(['department_id' => $this->other->id, 'name' => 'Professor', 'class_level' => 'I', 'status' => 'active']);
@@ -210,7 +228,8 @@ class DepartmentAdminInvitationTest extends TestCase
         $this->get(route('department.posts.show', $own))->assertOk();
         $this->get(route('department.posts.show', $foreign))->assertForbidden();
         $this->get(route('department.posts.edit', $foreign))->assertForbidden();
-        $this->get(route('department.posts.create'))->assertForbidden();
+        $this->get(route('department.posts.create'))->assertOk()->assertSee($this->department->name)->assertDontSee($this->other->name);
+        $this->post(route('department.posts.store'), ['department_id' => $this->other->id, 'name' => 'Lecturer', 'class_level' => 'I', 'status' => 'active'])->assertSessionHasErrors('department_id');
 
         $ao = User::factory()->assignedTo($this->department, Role::AuthorizedOfficer)->create();
         $this->actingAs($ao)->get(route('post-mapping.create'))->assertOk()->assertSee($this->department->name)->assertDontSee($this->other->name);

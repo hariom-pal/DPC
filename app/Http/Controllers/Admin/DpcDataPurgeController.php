@@ -21,24 +21,26 @@ class DpcDataPurgeController extends Controller
 
     public function index(): View
     {
-        return view('admin.dpc-data-purge.index', ['plan' => $this->purge->plan()]);
+        return view('admin.dpc-data-purge.index', ['plan' => $this->purge->plan(), 'users' => $this->purge->usersPlan()]);
     }
 
     public function destroy(Request $request): RedirectResponse
     {
         abort_unless($this->purge->allowed(), 403);
 
-        $request->validate(['confirmation' => ['required', 'string', 'max:128']]);
+        $request->validate(['confirmation' => ['required', 'string', 'max:128'], 'with_users' => ['nullable', 'boolean']]);
+        $withUsers = $request->boolean('with_users');
 
         try {
-            $result = $this->purge->apply((string) $request->input('confirmation'), $request->user());
+            $result = $this->purge->apply((string) $request->input('confirmation'), $request->user(), $withUsers);
         } catch (RuntimeException $exception) {
             return back()->withErrors(['confirmation' => $exception->getMessage()]);
         }
 
-        return redirect()->route('admin.dpc-data-purge.index')->with('status', __('admin.dpc_data_purge.done', [
+        return redirect()->route('admin.dpc-data-purge.index')->with('status', __($withUsers ? 'admin.dpc_data_purge.done_with_users' : 'admin.dpc_data_purge.done', [
             'rows' => $result['total'],
             'files' => $result['files']['deleted'],
+            'users' => $result['users'],
         ]));
     }
 }

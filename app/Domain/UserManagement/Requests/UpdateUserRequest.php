@@ -6,6 +6,7 @@ namespace App\Domain\UserManagement\Requests;
 
 use App\Domain\Authentication\Models\User;
 use App\Enums\Role;
+use App\Support\OfficialEmail;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -36,7 +37,7 @@ class UpdateUserRequest extends FormRequest
             // The .gov.in rule binds a new address only (2026-10-30): an account
             // that already holds another one could otherwise not be saved at all,
             // whatever was being changed.
-            'email' => ['required', 'email', 'max:255', ...($this->emailChanged($current) ? ['regex:/@([A-Za-z0-9\-]+\.)*gov\.in$/i'] : []), Rule::unique('users', 'email')->ignore($id)],
+            'email' => ['required', 'email', 'max:255', ...($this->emailChanged($current) ? [OfficialEmail::RULE] : []), Rule::unique('users', 'email')->ignore($id)],
             'mobile' => ['required', 'digits:10', Rule::unique('users', 'mobile')->ignore($id)],
             'designation_id' => ['nullable', Rule::exists('designations', 'id')],
             'role' => ['required', Rule::in(Role::provisionableValues())],
@@ -72,7 +73,7 @@ class UpdateUserRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'email.regex' => 'The email must be an official .gov.in address.',
+            'email.regex' => 'The email must be an official .gov.in or .nic.in address.',
             'department_id.required' => 'An Authorized Officer or Administrative Head is an officer *of a department*. Choose which one.',
             'department_id.prohibited_unless' => 'A Commission role holds no department. Leave Department blank.',
         ];

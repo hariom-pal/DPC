@@ -311,7 +311,11 @@ class DepartmentInvitationService
             $this->assignments->end($previous, $today, 'Replaced by a new Department Admin invited by the CGPSC', $invitation->inviter);
             $this->sessions->invalidate($previous->user, 'department_admin_replaced', $invitation->inviter);
 
-            if (! UserDepartmentAssignment::query()->current()->where('user_id', $previous->user_id)->exists()) {
+            // A Commission account (the Administrator above all) holds no posting
+            // and is never deactivated for losing this one (2026-11-03).
+            $commission = $previous->user->hasAnyRole([Role::Admin->value, Role::CgpscStaff->value, Role::Chairman->value, Role::Member->value]);
+
+            if (! $commission && ! UserDepartmentAssignment::query()->current()->where('user_id', $previous->user_id)->exists()) {
                 $previous->user->forceFill(['is_active' => false])->save();
                 $this->log->record('account.deactivated', $previous->user, context: ['reason' => 'department_admin_replaced'], actor: $invitation->inviter);
             }

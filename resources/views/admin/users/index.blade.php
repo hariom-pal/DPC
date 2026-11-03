@@ -43,10 +43,13 @@
                                 @endif
                                 <a href="{{ route('admin.users.assignments.index', $user) }}" class="btn btn-outline-info btn-sm">{{ __('admin.users.index.assignments') }}</a>
                                 <a href="{{ route('admin.users.identity', $user) }}" class="btn btn-outline-secondary btn-sm">{{ __('identity.field_status') }}</a>
-                                <form method="POST" action="{{ route('admin.users.toggle-active', $user) }}" class="d-inline">
-                                    @csrf
-                                    <button @class(['btn btn-sm', 'btn-outline-danger' => $user->is_active, 'btn-outline-success' => ! $user->is_active])>{{ $user->is_active ? __('ui.screen.deactivate') : __('ui.screen.activate') }}</button>
-                                </form>
+                                {{-- The Administrator is never deactivated (2026-11-03). --}}
+                                @unless ($user->is_active && $user->hasRole(\App\Enums\Role::Admin->value))
+                                    <form method="POST" action="{{ route('admin.users.toggle-active', $user) }}" class="d-inline">
+                                        @csrf
+                                        <button @class(['btn btn-sm', 'btn-outline-danger' => $user->is_active, 'btn-outline-success' => ! $user->is_active])>{{ $user->is_active ? __('ui.screen.deactivate') : __('ui.screen.activate') }}</button>
+                                    </form>
+                                @endunless
                                 <form method="POST" action="{{ route('admin.users.reset-password', $user) }}" class="d-inline"
                                       data-confirm="{{ __('admin.users.index.issue_a_new_temporary_password') }}">
                                     @csrf

@@ -202,6 +202,9 @@ class ResetTransactionalDataCommand extends Command
         // Masters.
         'departments',
         'department_posts',
+        // The AO's Post Mapping requests and the Department Admin's decisions on them
+        // (2026-11-03): the history of the master, kept with it.
+        'department_post_changes',
 
         /*
          | The reasons a mandatory record may be unavailable (change register of

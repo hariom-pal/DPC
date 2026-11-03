@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\UserManagement\Requests;
 
 use App\Enums\Role;
+use App\Support\OfficialEmail;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -22,7 +23,7 @@ class StoreUserRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255', 'regex:/@([A-Za-z0-9\-]+\.)*gov\.in$/i', Rule::unique('users', 'email')],
+            'email' => ['required', 'email', 'max:255', OfficialEmail::RULE, Rule::unique('users', 'email')],
             'mobile' => ['required', 'digits:10', Rule::unique('users', 'mobile')],
             'designation_id' => ['nullable', Rule::exists('designations', 'id')],
             'role' => ['required', Rule::in(Role::provisionableValues())],
@@ -57,7 +58,7 @@ class StoreUserRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'email.regex' => 'The email must be an official .gov.in address.',
+            'email.regex' => 'The email must be an official .gov.in or .nic.in address.',
             'department_id.required' => 'An Authorized Officer or Administrative Head is an officer *of a department*. Choose which one.',
             'department_id.prohibited_unless' => 'A Commission role holds no department. Leave Department blank.',
         ];

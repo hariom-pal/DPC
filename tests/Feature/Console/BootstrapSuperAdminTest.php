@@ -124,4 +124,23 @@ class BootstrapSuperAdminTest extends TestCase
         $this->assertSame(1, $code);
         $this->assertSame(0, User::query()->count());
     }
+
+    /** An inactive Super Admin cannot sign in to activate itself (2026-11-03). */
+    public function test_activate_brings_back_an_inactive_super_admin(): void
+    {
+        $this->seed(RolesAndPermissionsSeeder::class);
+        $this->bootstrap();
+        $admin = User::query()->where('email', 'superadmin@cgpsc.gov.in')->sole();
+        $admin->forceFill(['is_active' => false])->save();
+        $password = $admin->password;
+
+        [$code] = $this->bootstrap(['--activate' => true, '--email' => 'nobody@cgpsc.gov.in']);
+        $this->assertSame(1, $code);
+
+        [$code, $output] = $this->bootstrap(['--activate' => true, '--email' => 'SuperAdmin@cgpsc.gov.in']);
+        $this->assertSame(0, $code);
+        $this->assertStringContainsString('active again', $output);
+        $this->assertTrue((bool) $admin->fresh()->is_active);
+        $this->assertSame($password, $admin->fresh()->password, 'the password is unchanged');
+    }
 }

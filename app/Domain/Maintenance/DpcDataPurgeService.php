@@ -6,6 +6,7 @@ namespace App\Domain\Maintenance;
 
 use App\Domain\Authentication\Models\User;
 use App\Domain\Authentication\Services\SecurityLog;
+use App\Enums\Role;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\Query\Builder;
@@ -25,13 +26,40 @@ use RuntimeException;
  *
  * Never in production, whatever the configuration says; elsewhere only in the
  * environments of `dpc.dpc_data_purge.allowed_environments`.
+ *
+ * **Users too, when asked** (2026-11-03: "sirf admin rakhna hai active mode pe baaki
+ * sab delete hona hai"): every account except the Administrators goes, with what
+ * only an account owns (postings, sessions, OTPs, identity records, invitations,
+ * the security log, audits, timelines), through `UatCleanupService` keeping the
+ * `admin` role only. The Administrators are left active. Masters stay.
  */
 final class DpcDataPurgeService
 {
+    /** The only role whose accounts survive "delete the users too". */
+    public const KEPT_ROLES = [Role::Admin->value];
+
     public function __construct(
         private readonly SecurityLog $securityLog,
+        private readonly UatCleanupService $users,
         private readonly ForeignKeyGraph $graph = new ForeignKeyGraph,
     ) {}
+
+    /**
+     * What "delete the users too" would do: the accounts that go, the ones kept,
+     * and anything that stops it.
+     *
+     * @return array{delete: int, kept: list<array{id: int, name: string, roles: list<string>}>, blockers: list<string>}
+     */
+    public function usersPlan(): array
+    {
+        try {
+            $plan = $this->users->plan(self::KEPT_ROLES);
+        } catch (RuntimeException $e) {
+            return ['delete' => 0, 'kept' => [], 'blockers' => [$e->getMessage()]];
+        }
+
+        return ['delete' => $plan['deleted_users'], 'kept' => $plan['kept_users'], 'blockers' => $plan['blockers']];
+    }
 
     public function allowed(): bool
     {
@@ -91,9 +119,9 @@ final class DpcDataPurgeService
     /**
      * Do it. `$confirmation` must be the connected database's name.
      *
-     * @return array{deleted: array<string, int>, total: int, cleared_references: int, files: array{deleted: int, kept_shared: int, missing: int}}
+     * @return array{deleted: array<string, int>, total: int, cleared_references: int, files: array{deleted: int, kept_shared: int, missing: int}, users: int}
      */
-    public function apply(string $confirmation, ?User $actor = null): array
+    public function apply(string $confirmation, ?User $actor = null, bool $withUsers = false): array
     {
         if (! $this->allowed()) {
             throw new RuntimeException('Refused: clearing DPC data is not allowed in the '.app()->environment().' environment.');
@@ -110,7 +138,23 @@ final class DpcDataPurgeService
         }
 
         try {
-            $result = $this->purge();
+            // Checked before anything goes, so a blocked user cleanup never leaves
+            // the DPC data half-cleared behind it.
+            if ($withUsers && ($blockers = $this->usersPlan()['blockers']) !== []) {
+                throw new RuntimeException('Blocked: '.implode(' ', $blockers));
+            }
+
+            $result = $this->purge() + ['users' => 0];
+
+            if ($withUsers) {
+                $removed = $this->users->apply(self::KEPT_ROLES);
+                $result['users'] = (int) ($removed['deleted']['users'] ?? 0);
+                $result['total'] += array_sum($removed['deleted']);
+                $result['files']['deleted'] += $removed['files']['deleted'];
+
+                // The Administrators are left able to sign in.
+                User::role(self::KEPT_ROLES)->update(['is_active' => true]);
+            }
         } finally {
             flock($lock, LOCK_UN);
             fclose($lock);
@@ -123,6 +167,7 @@ final class DpcDataPurgeService
             'database' => $this->database(),
             'rows' => $result['total'],
             'files' => $result['files']['deleted'],
+            'users' => $result['users'],
         ], $actor);
 
         return $result;

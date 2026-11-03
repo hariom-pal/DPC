@@ -7,6 +7,7 @@ namespace Tests\Feature\Admin;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Department\Models\Department;
 use App\Domain\Master\Models\DepartmentPost;
+use App\Domain\Master\Models\DepartmentPostChange;
 use App\Domain\Master\Models\PayScale;
 use App\Domain\Master\Models\ReservationCategory;
 use App\Domain\Master\Models\ReservationRoster;
@@ -34,7 +35,8 @@ class ReservationHierarchyTest extends TestCase
     }
 
     /**
-     * Since 2026-11-02 a post is mapped by the department's Authorized Officer.
+     * The department's Authorized Officer maps a post by request, applied once the
+     * Department Admin approves (2026-11-03).
      */
     public function test_the_authorized_officer_can_create_a_post(): void
     {
@@ -56,9 +58,12 @@ class ReservationHierarchyTest extends TestCase
                 'effective_from' => now()->toDateString(),
             ])
             ->assertSessionHasNoErrors()
-            // The details page, which is where the Government Order and its PDF
-            // are shown.
-            ->assertRedirect(route('post-mapping.show', DepartmentPost::query()->latest('id')->firstOrFail()));
+            ->assertRedirect(route('post-mapping.index'));
+        $this->assertDatabaseMissing('department_posts', ['name' => 'Additional Director']);
+
+        $da = User::factory()->assignedTo($department, Role::DepartmentAdmin)->create();
+        $this->actingAs($da)->post(route('department.posts.changes.approve', DepartmentPostChange::query()->sole()))
+            ->assertRedirect(route('department.posts.show', DepartmentPost::query()->latest('id')->firstOrFail()));
 
         $this->assertDatabaseHas('department_posts', ['name' => 'Additional Director', 'department_id' => $department->id]);
     }

@@ -201,6 +201,11 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
                 Route::get('/posts/{post}/supersede', [DepartmentPostController::class, 'supersedeForm'])->name('posts.supersede.form');
                 Route::post('/posts/{post}/supersede', [DepartmentPostController::class, 'supersede'])->name('posts.supersede');
                 Route::get('/posts/{post}/orders/{order}', [DepartmentPostController::class, 'downloadDocument'])->name('posts.documents.download');
+                // The Authorized Officer's Post Mapping requests, approved here (2026-11-03).
+                Route::get('/posts/changes/{change}', [DepartmentPostController::class, 'change'])->name('posts.changes.show');
+                Route::post('/posts/changes/{change}/approve', [DepartmentPostController::class, 'approveChange'])->name('posts.changes.approve');
+                Route::post('/posts/changes/{change}/reject', [DepartmentPostController::class, 'rejectChange'])->name('posts.changes.reject');
+                Route::get('/posts/changes/{change}/documents/{index}', [DepartmentPostController::class, 'changeDocument'])->whereNumber('index')->name('posts.changes.document');
                 Route::resource('posts', DepartmentPostController::class)->parameters(['posts' => 'post']);
 
                 // The AO / AH picker (2026-10-28): suggest as the e-mail is typed, find by
@@ -408,6 +413,9 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
                 Route::get('/{post}/supersede', [DepartmentPostController::class, 'supersedeForm'])->name('supersede.form');
                 Route::post('/{post}/supersede', [DepartmentPostController::class, 'supersede'])->name('supersede');
                 Route::get('/{post}/orders/{order}', [DepartmentPostController::class, 'downloadDocument'])->name('documents.download');
+                // A request awaiting (or decided by) the Department Admin (2026-11-03).
+                Route::get('/changes/{change}', [DepartmentPostController::class, 'change'])->name('changes.show');
+                Route::get('/changes/{change}/documents/{index}', [DepartmentPostController::class, 'changeDocument'])->whereNumber('index')->name('changes.document');
                 Route::get('/', [DepartmentPostController::class, 'index'])->name('index');
                 Route::get('/create', [DepartmentPostController::class, 'create'])->name('create');
                 Route::post('/', [DepartmentPostController::class, 'store'])->name('store');
@@ -876,6 +884,11 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
                  */
                 Route::get('department-posts/{post}/orders/{order}', [DepartmentPostController::class, 'downloadDocument'])
                     ->name('department-posts.documents.download');
+                // Requests awaiting a Department Admin, seen read-only (2026-11-03).
+                Route::get('department-posts/changes/{change}', [DepartmentPostController::class, 'change'])
+                    ->name('department-posts.changes.show');
+                Route::get('department-posts/changes/{change}/documents/{index}', [DepartmentPostController::class, 'changeDocument'])
+                    ->whereNumber('index')->name('department-posts.changes.document');
 
                 // `{post}` rather than `{department_post}`, matching the three
                 // routes above and the controller's own signatures.

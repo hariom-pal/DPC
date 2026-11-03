@@ -9,6 +9,7 @@ use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\DepartmentPostOrder;
 use App\Domain\Shared\Services\ActivityTimelineService;
 use App\Enums\MasterStatus;
+use Illuminate\Http\File;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -51,9 +52,10 @@ class DepartmentPostMappingService
         DepartmentPost $incumbent,
         array $attributes,
         User $actor,
-        ?UploadedFile $document = null,
+        UploadedFile|File|null $document = null,
+        ?string $documentName = null,
     ): DepartmentPost {
-        return DB::transaction(function () use ($incumbent, $attributes, $actor, $document): DepartmentPost {
+        return DB::transaction(function () use ($incumbent, $attributes, $actor, $document, $documentName): DepartmentPost {
             $current = DepartmentPost::query()
                 ->whereKey($incumbent->getKey())
                 ->lockForUpdate()
@@ -128,6 +130,7 @@ class DepartmentPostMappingService
                 Carbon::parse((string) $attributes['government_order_date']),
                 $document,
                 $actor,
+                $documentName,
             );
 
             $this->timeline->record(
@@ -163,15 +166,19 @@ class DepartmentPostMappingService
      * **The hash is what makes the file evidence**, and it is taken from the bytes
      * that were received rather than re-read from disk afterwards — a hash computed
      * from the stored copy would certify the copy against itself.
+     *
+     * `$file` is a `File` (with `$originalName`) when the PDF was received earlier
+     * and held for the Department Admin's approval (2026-11-03).
      */
     public function recordOrder(
         DepartmentPost $post,
         string $number,
         Carbon $date,
-        ?UploadedFile $file,
+        UploadedFile|File|null $file,
         User $actor,
+        ?string $originalName = null,
     ): DepartmentPostOrder {
-        return DB::transaction(function () use ($post, $number, $date, $file, $actor): DepartmentPostOrder {
+        return DB::transaction(function () use ($post, $number, $date, $file, $actor, $originalName): DepartmentPostOrder {
             $attributes = [
                 'department_post_id' => $post->id,
                 'government_order_number' => trim($number),
@@ -207,7 +214,7 @@ class DepartmentPostMappingService
 
                     // Sanitised, and only ever displayed. A filename from a browser
                     // is user input, and it is never used to build the stored path.
-                    'original_name' => mb_substr((string) $file->getClientOriginalName(), 0, 255),
+                    'original_name' => mb_substr($file instanceof UploadedFile ? (string) $file->getClientOriginalName() : ($originalName ?? $file->getFilename()), 0, 255),
 
                     'size_bytes' => $file->getSize() ?: 0,
                     'sha256' => hash('sha256', $contents),

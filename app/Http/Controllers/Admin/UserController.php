@@ -18,6 +18,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use RuntimeException;
 
 class UserController extends Controller
 {
@@ -73,7 +74,11 @@ class UserController extends Controller
 
     public function toggleActive(Request $request, User $user): RedirectResponse
     {
-        $this->provisioning->setActive($user, ! $user->is_active, $request->user());
+        try {
+            $this->provisioning->setActive($user, ! $user->is_active, $request->user());
+        } catch (RuntimeException $e) {
+            return redirect()->route('admin.users.index')->withErrors(['user' => $e->getMessage()]);
+        }
 
         return redirect()->route('admin.users.index')
             ->with('status', $user->is_active ? 'Account deactivated.' : 'Account activated.');

@@ -223,7 +223,7 @@ return [
         'use_existing_user' => 'Use Existing User',
         'validation' => [
             'mobile_shape' => 'A mobile number is ten digits, and begins with 6, 7, 8 or 9. Enter the digits only.',
-            'email_domain' => 'A committee member\'s e-mail address must be a government address ending in gov.in.',
+            'email_domain' => 'A committee member\'s e-mail address must be a government address ending in gov.in or nic.in.',
             'capacity_not_selectable' => 'Only ordinary members may be added here. The CGPSC Chairman\'s seat is added automatically.',
             'duplicate_email' => 'The same e-mail address cannot appear on more than one committee member.',
             'duplicate_mobile' => 'The same mobile number cannot appear on more than one committee member.',

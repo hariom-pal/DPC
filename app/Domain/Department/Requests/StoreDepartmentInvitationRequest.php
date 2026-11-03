@@ -8,6 +8,7 @@ use App\Domain\Department\Exceptions\InvitationRefused;
 use App\Domain\Department\Models\Department;
 use App\Domain\Department\Services\DepartmentInvitationService;
 use App\Enums\Role;
+use App\Support\OfficialEmail;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -31,7 +32,7 @@ class StoreDepartmentInvitationRequest extends FormRequest
     {
         return [
             'department_id' => ['required', 'integer', Rule::exists('departments', 'id')],
-            'email' => ['required', 'email', 'max:255', 'regex:/@([A-Za-z0-9\-]+\.)*gov\.in$/i'],
+            'email' => ['required', 'email', 'max:255', OfficialEmail::RULE],
         ];
     }
 

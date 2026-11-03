@@ -52,6 +52,14 @@ class UserManagementTest extends TestCase
                 'name' => 'X', 'email' => 'x@gmail.com', 'mobile' => '9812345678', 'role' => Role::Member->value,
             ])
             ->assertSessionHasErrors('email');
+
+        // A NIC mailbox is official (UAT, 2026-11-03).
+        $this->actingAs($this->admin())
+            ->post(route('admin.users.store'), [
+                'date_of_birth' => '1979-09-09', 'gender' => 'M',
+                'name' => 'Shri Nic Officer', 'email' => 'officer@cg.nic.in', 'mobile' => '9812345679', 'role' => Role::Member->value,
+            ])
+            ->assertSessionDoesntHaveErrors('email');
     }
 
     /**
@@ -96,7 +104,7 @@ class UserManagementTest extends TestCase
             ->assertSessionHasNoErrors();
         $this->assertSame('9811111111', $member->fresh()->mobile);
 
-        // A new address must still be .gov.in.
+        // A new address must still be .gov.in or .nic.in.
         $this->actingAs($admin)
             ->put(route('admin.users.update', $member), [
                 'name' => 'Shri Member', 'email' => 'member@gmail.com', 'mobile' => '9811111111',
@@ -136,5 +144,23 @@ class UserManagementTest extends TestCase
         $officer->assignRole(Role::AuthorizedOfficer->value);
 
         $this->actingAs($officer)->get(route('admin.users.index'))->assertForbidden();
+    }
+
+    /**
+     * The Administrator is never deactivated (2026-11-03): no button, and the route
+     * refuses.
+     */
+    public function test_the_administrator_cannot_be_deactivated(): void
+    {
+        $admin = $this->admin();
+        $other = User::factory()->create();
+        $other->assignRole(Role::Admin->value);
+
+        $this->actingAs($admin)->get(route('admin.users.index'))->assertOk()
+            ->assertDontSee(route('admin.users.toggle-active', $other), false)
+            ->assertDontSee(route('admin.users.toggle-active', $admin), false);
+        $this->actingAs($admin)->post(route('admin.users.toggle-active', $other))
+            ->assertSessionHasErrors('user');
+        $this->assertTrue((bool) $other->fresh()->is_active);
     }
 }

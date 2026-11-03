@@ -13,7 +13,7 @@ return [
         'edit_title' => 'Edit User',
         'create_submit' => 'Create and show password',
         'designation' => 'Designation',
-        'email' => 'Official e-mail (.gov.in)',
+        'email' => 'Official e-mail (.gov.in / .nic.in)',
         'role_fixed' => '(the role cannot be changed here)',
         'department_fixed' => 'The department is always your own department.',
         'change_resets_verification' => 'Changing the e-mail or mobile clears its verification; it is verified again by OTP at the next login.',
@@ -71,7 +71,7 @@ return [
             'open_work' => ':name is still the AO or AH of a Pre-DPC or DPC in progress. Allot another officer to it first, then release.',
         ],
         'validation' => [
-            'gov_email' => 'The e-mail must be an official .gov.in address.',
+            'gov_email' => 'The e-mail must be an official .gov.in or .nic.in address.',
             'mobile' => 'Enter a 10-digit mobile number starting with 6, 7, 8 or 9.',
             'role' => 'Choose Authorized Officer or Administrative Head.',
         ],

@@ -16,6 +16,7 @@ use App\Domain\Dpc\Services\EmployeeDetailsService;
 use App\Domain\Import\Models\ImportBatch;
 use App\Domain\Master\Models\ClassMaster;
 use App\Domain\Master\Models\DepartmentPost;
+use App\Domain\Master\Models\DepartmentPostChange;
 use App\Domain\Master\Models\Designation;
 use App\Domain\Master\Models\District;
 use App\Domain\Master\Models\DpcType;
@@ -245,13 +246,17 @@ class FreshInstallToPromotionOrderTest extends TestCase
             $aoReady = $this->firstLogin('ao.phe@cg.gov.in', $officers['ao']);
             $ahReady = $this->firstLogin('ah.phe@cg.gov.in', $officers['ah']);
 
-            // Post Mapping is the AO's (UAT, 2026-11-02): the posts before the Pre-DPC.
+            // The AO requests the posts and the Department Admin approves them
+            // (2026-11-03), before the Pre-DPC.
             foreach ([['Assistant Engineer', 'II', 'L12', 5], ['Executive Engineer', 'I', 'L13', null]] as [$name, $class, $scale, $duration]) {
                 $this->ok($this->actingAs($aoReady)->post(route('post-mapping.store'), [
                     'department_id' => $department->id, 'designation_id' => Designation::query()->where('name', $name)->value('id'),
                     'class_level' => $class, 'pay_scale_id' => PayScale::query()->where('code', $scale)->value('id'),
                     'promotion_duration_years' => $duration, 'status' => 'active', 'effective_from' => '2026-01-01',
                 ]));
+            }
+            foreach (DepartmentPostChange::query()->pending()->orderBy('id')->get() as $change) {
+                $this->ok($this->actingAs($deptAdmin->fresh())->post(route('department.posts.changes.approve', $change)));
             }
             $from = DepartmentPost::query()->where('department_id', $department->id)->where('name', 'Assistant Engineer')->sole();
             $to = DepartmentPost::query()->where('department_id', $department->id)->where('name', 'Executive Engineer')->sole();

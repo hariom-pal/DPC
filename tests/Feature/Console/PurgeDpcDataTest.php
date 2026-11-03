@@ -199,4 +199,51 @@ class PurgeDpcDataTest extends TestCase
 
         $this->assertSame(1, DpcProposal::query()->count());
     }
+
+    /**
+     * "Sirf admin rakhna hai active mode pe baaki sab delete hona hai" (2026-11-03):
+     * with the users option every account but the Administrator goes, a chairman's
+     * included, the masters stay, and the Administrator is left active.
+     */
+    public function test_with_users_only_the_administrator_remains_and_is_active(): void
+    {
+        $chairman = User::factory()->create();
+        $chairman->assignRole(Role::Chairman->value);
+        $this->admin->forceFill(['is_active' => false])->save();
+        $posts = DB::table('department_posts')->count();
+
+        $this->artisan('dpc:purge-dpc-data', ['--with-users' => true])
+            ->expectsOutputToContain('Accounts to delete: 3')
+            ->assertSuccessful();
+        $this->assertSame(4, User::query()->count(), 'the dry run deletes nobody');
+
+        $this->artisan('dpc:purge-dpc-data', ['--apply' => true, '--with-users' => true, '--confirm' => $this->database])
+            ->expectsOutputToContain('3 account(s) deleted')
+            ->assertSuccessful();
+
+        $this->assertDpcDataGone();
+        $this->assertSame([$this->admin->id], User::query()->pluck('id')->all());
+        $this->assertTrue((bool) $this->admin->fresh()->is_active);
+        $this->assertTrue($this->admin->fresh()->hasRole(Role::Admin->value));
+        $this->assertSame(0, DB::table('user_department_assignments')->count());
+        $this->assertSame($posts, DB::table('department_posts')->count());
+        $this->assertSame(1, DB::table('departments')->count());
+    }
+
+    public function test_the_administrator_deletes_the_users_from_the_browser_too(): void
+    {
+        $this->actingAs($this->admin)->get(route('admin.dpc-data-purge.index'))
+            ->assertOk()
+            ->assertSee('id="dpc-data-purge-users"', false)
+            ->assertSee(__('admin.dpc_data_purge.with_users', ['count' => 2]));
+
+        // Unticked, every account stays.
+        $this->actingAs($this->admin)->delete(route('admin.dpc-data-purge.destroy'), ['confirmation' => $this->database]);
+        $this->assertSame(3, User::query()->count());
+
+        $this->actingAs($this->admin)->delete(route('admin.dpc-data-purge.destroy'), ['confirmation' => $this->database, 'with_users' => '1'])
+            ->assertRedirect(route('admin.dpc-data-purge.index'));
+        $this->assertSame([$this->admin->id], User::query()->pluck('id')->all());
+        $this->assertTrue((bool) $this->admin->fresh()->is_active);
+    }
 }

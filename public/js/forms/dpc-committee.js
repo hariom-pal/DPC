@@ -80,7 +80,7 @@
     // literals rather than shipped from PHP: a regex crossing a data attribute is a
     // regex in two dialects, and the server's is the one that decides anyway.
     var MOBILE = /^[6-9]\d{9}$/;
-    var GOV_EMAIL = /@(?:[A-Za-z0-9-]+\.)*gov\.in$/i;
+    var GOV_EMAIL = /@(?:[A-Za-z0-9-]+\.)*(?:gov|nic)\.in$/i;   // App\Support\OfficialEmail
 
     /* One in-flight lookup per card. A slow answer for "94" must never overwrite
        the answer for the full number the officer has since finished typing, which

@@ -89,6 +89,7 @@ final class UatCleanupPlan
         'identity_verifications' => 'Officer identity verifications (DigiLocker, manual)',
         'identity_corrections' => 'Officer identity corrections',
         'assignment_requests' => 'Transfer and additional-charge requests',
+        'department_post_changes' => 'Post Mapping requests of the Authorized Officers (2026-11-03)',
         'otp_verifications' => 'OTP records',
         'password_reset_tokens' => 'Password reset tokens',
         'sessions' => 'Database sessions (everybody is logged out)',

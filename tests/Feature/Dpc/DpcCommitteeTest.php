@@ -708,7 +708,7 @@ class DpcCommitteeTest extends TestCase
     }
 
     /**
-     * A committee member's address is a government address.
+     * A committee member's address is a government address (gov.in or nic.in).
      *
      * `notgov.in` is in the set on purpose: it is what an `ends_with:gov.in` rule
      * would wrongly accept, and it is the reason the rule is anchored on `@`.
@@ -721,6 +721,10 @@ class DpcCommitteeTest extends TestCase
             'department' => ['member@cg.gov.in', true],
             'commission' => ['member@cgpsc.gov.in', true],
             'bare gov.in' => ['member@gov.in', true],
+            // NIC mailboxes are official too (UAT, 2026-11-03).
+            'nic' => ['member@nic.in', true],
+            'nic subdomain' => ['member@cg.nic.in', true],
+            'lookalike nic' => ['member@notnic.in', false],
             'lookalike domain' => ['member@notgov.in', false],
             'public mailbox' => ['member@gmail.com', false],
         ];

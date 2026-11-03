@@ -20,6 +20,7 @@ use App\Enums\OtpChannel;
 use App\Enums\OtpPurpose;
 use App\Enums\Role;
 use App\Http\Controllers\Controller;
+use App\Support\OfficialEmail;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -39,7 +40,7 @@ use Illuminate\Validation\Rule;
  */
 class DepartmentOfficerController extends Controller
 {
-    private const GOV_EMAIL = 'regex:/@([A-Za-z0-9\-]+\.)*gov\.in$/i';
+    private const GOV_EMAIL = OfficialEmail::RULE;
 
     public function __construct(
         private readonly DepartmentUserAuthority $authority,

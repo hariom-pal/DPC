@@ -8,6 +8,7 @@ use App\Domain\Authentication\Models\User;
 use App\Domain\Shared\Services\ActivityTimelineService;
 use App\Domain\UserManagement\Services\UserProvisioningService;
 use App\Enums\Role;
+use App\Support\OfficialEmail;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Validator;
 use Spatie\Permission\Models\Role as SpatieRole;
@@ -31,9 +32,10 @@ class BootstrapSuperAdminCommand extends Command
 {
     protected $signature = 'dpc:bootstrap-super-admin
         {--name= : Full name}
-        {--email= : Official e-mail (.gov.in)}
+        {--email= : Official e-mail (.gov.in / .nic.in)}
         {--mobile= : 10-digit mobile number}
         {--recover : Issue a new temporary password to the existing Super Admin named by --email}
+        {--activate : Activate the existing Super Admin named by --email (password unchanged)}
         {--reason= : Why the password is being recovered (required with --recover)}';
 
     protected $description = 'Create the Portal Super Admin (fresh installation) or recover its password';
@@ -46,7 +48,37 @@ class BootstrapSuperAdminCommand extends Command
             return self::FAILURE;
         }
 
-        return $this->option('recover') ? $this->recover($provisioning, $timeline) : $this->create($provisioning);
+        return match (true) {
+            (bool) $this->option('activate') => $this->activate($provisioning),
+            (bool) $this->option('recover') => $this->recover($provisioning, $timeline),
+            default => $this->create($provisioning),
+        };
+    }
+
+    /**
+     * An Administrator left inactive cannot sign in to activate itself (2026-11-03).
+     */
+    private function activate(UserProvisioningService $provisioning): int
+    {
+        $email = mb_strtolower(trim((string) $this->option('email')));
+        $user = $email === '' ? null : User::role(Role::Admin->value)->whereRaw('LOWER(email) = ?', [$email])->first();
+
+        if (! $user instanceof User) {
+            $this->error('--activate needs --email of a Portal Super Admin.');
+
+            return self::FAILURE;
+        }
+
+        if ($user->is_active) {
+            $this->info("{$user->email} is already active.");
+
+            return self::SUCCESS;
+        }
+
+        $provisioning->setActive($user, true);
+        $this->info("{$user->email} is active again. The password is unchanged.");
+
+        return self::SUCCESS;
     }
 
     private function create(UserProvisioningService $provisioning): int
@@ -59,13 +91,13 @@ class BootstrapSuperAdminCommand extends Command
 
         $data = [
             'name' => (string) ($this->option('name') ?: $this->ask('Full name')),
-            'email' => mb_strtolower(trim((string) ($this->option('email') ?: $this->ask('Official e-mail (.gov.in)')))),
+            'email' => mb_strtolower(trim((string) ($this->option('email') ?: $this->ask('Official e-mail (.gov.in / .nic.in)')))),
             'mobile' => (string) ($this->option('mobile') ?: $this->ask('Mobile (10 digits)')),
         ];
 
         $validator = Validator::make($data, [
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255', 'regex:/@([A-Za-z0-9\-]+\.)*gov\.in$/i', 'unique:users,email'],
+            'email' => ['required', 'email', 'max:255', OfficialEmail::RULE, 'unique:users,email'],
             'mobile' => ['required', 'regex:/^[6-9]\d{9}$/', 'unique:users,mobile'],
         ]);
 

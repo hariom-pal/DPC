@@ -80,6 +80,21 @@
                 <form method="POST" action="{{ route('admin.dpc-data-purge.destroy') }}" class="row g-2 align-items-end" id="dpc-data-purge-form">
                     @csrf
                     @method('DELETE')
+                    {{-- Users too, Administrators kept and active (2026-11-03). --}}
+                    <div class="col-12">
+                        <div class="form-check" id="dpc-data-purge-users">
+                            <input class="form-check-input" type="checkbox" id="with_users" name="with_users" value="1" @checked(old('with_users')) @disabled($users['blockers'] !== [])>
+                            <label class="form-check-label fw-semibold text-danger" for="with_users">
+                                {{ __('admin.dpc_data_purge.with_users', ['count' => number_format($users['delete'])]) }}
+                            </label>
+                            <div class="form-text">
+                                {{ __('admin.dpc_data_purge.with_users_hint', ['kept' => collect($users['kept'])->map(fn ($u) => $u['name'])->implode(', ') ?: '—']) }}
+                            </div>
+                            @foreach ($users['blockers'] as $blocker)
+                                <div class="small text-danger">{{ $blocker }}</div>
+                            @endforeach
+                        </div>
+                    </div>
                     <div class="col-md-6">
                         <label class="form-label" for="confirmation">{{ __('admin.dpc_data_purge.confirm_label', ['database' => $plan['database']]) }}</label>
                         <input type="text" class="form-control @error('confirmation') is-invalid @enderror" id="confirmation" name="confirmation" autocomplete="off" required>

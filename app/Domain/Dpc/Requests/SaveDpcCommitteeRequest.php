@@ -9,6 +9,7 @@ use App\Domain\Committee\Services\CommitteeMemberDirectory;
 use App\Domain\Dpc\Enums\CommitteeCapacity;
 use App\Domain\Dpc\Models\DpcCommitteeMember;
 use App\Domain\Dpc\Models\DpcProposal;
+use App\Support\OfficialEmail;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -109,14 +110,10 @@ class SaveDpcCommitteeRequest extends FormRequest
             'members.*.mobile' => ['nullable', 'string', 'regex:/^[6-9]\\d{9}$/'],
 
             /*
-             | A government address. Anything under `gov.in` is accepted — the
-             | portal's own accounts are `@cg.gov.in` and `@cgpsc.gov.in` — and
-             | nothing else is.
-             |
-             | The regex anchors on `@…gov.in` rather than using `ends_with`, which
-             | would also accept `someone@notgov.in`.
+             | A government address: anything under `gov.in` or `nic.in`
+             | (OfficialEmail), and nothing else.
              */
-            'members.*.email' => ['nullable', 'email', 'max:255', 'regex:/@(?:[A-Za-z0-9-]+\\.)*gov\\.in$/i'],
+            'members.*.email' => ['nullable', 'email', 'max:255', OfficialEmail::RULE],
 
             /*
              | Item 9: the Authorized Officer may only seat ordinary members. The

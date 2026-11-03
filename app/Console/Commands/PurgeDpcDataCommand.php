@@ -14,12 +14,16 @@ use RuntimeException;
  *
  * A dry run unless `--apply`; `--apply` asks for the database name (or takes it from
  * `--confirm`). Refused in production, and outside `dpc.dpc_data_purge.allowed_environments`.
+ *
+ * `--with-users` (2026-11-03) also deletes every account except the Administrators,
+ * and leaves the Administrators active.
  */
 class PurgeDpcDataCommand extends Command
 {
     protected $signature = 'dpc:purge-dpc-data
         {--apply : Delete. Without it the command only reports}
-        {--confirm= : The database name, instead of typing it}';
+        {--confirm= : The database name, instead of typing it}
+        {--with-users : Also delete every user account except the Administrators (who are left active)}';
 
     protected $description = 'Clear all Pre-DPC and DPC data, keeping every account and master';
 
@@ -46,6 +50,21 @@ class PurgeDpcDataCommand extends Command
             $this->error("  BLOCKER: {$blocker}");
         }
 
+        $withUsers = (bool) $this->option('with-users');
+
+        if ($withUsers) {
+            $users = $purge->usersPlan();
+            $this->line(sprintf('Accounts to delete: %d    Kept (Administrators, left active): %s',
+                $users['delete'],
+                implode(', ', array_map(fn (array $user): string => "#{$user['id']} {$user['name']}", $users['kept'])) ?: 'none'));
+
+            foreach ($users['blockers'] as $blocker) {
+                $this->error("  BLOCKER (users): {$blocker}");
+            }
+
+            $plan['blockers'] = [...$plan['blockers'], ...$users['blockers']];
+        }
+
         if (! (bool) $this->option('apply')) {
             $this->info('Dry run: nothing was changed. Add --apply to delete.');
 
@@ -63,7 +82,7 @@ class PurgeDpcDataCommand extends Command
             : (string) $this->ask("Type the database name ({$plan['database']}) to delete its Pre-DPC and DPC data");
 
         try {
-            $result = $purge->apply($confirm);
+            $result = $purge->apply($confirm, null, $withUsers);
         } catch (RuntimeException $exception) {
             $this->error($exception->getMessage());
 
@@ -71,11 +90,12 @@ class PurgeDpcDataCommand extends Command
         }
 
         $this->info(sprintf(
-            'Done: %d row(s) deleted, %d file(s) deleted (%d shared kept, %d already missing). Accounts and masters unchanged.',
+            'Done: %d row(s) deleted, %d file(s) deleted (%d shared kept, %d already missing). %s',
             $result['total'],
             $result['files']['deleted'],
             $result['files']['kept_shared'],
             $result['files']['missing'],
+            $withUsers ? "{$result['users']} account(s) deleted; the Administrators are active. Masters unchanged." : 'Accounts and masters unchanged.',
         ));
 
         return self::SUCCESS;
