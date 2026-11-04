@@ -192,6 +192,7 @@ class IdentityVerificationTest extends TestCase
     public function test_the_super_admin_corrects_verified_details_with_a_document_which_revokes_and_ends_sessions(): void
     {
         $officer = $this->markIdentityVerified($this->officer);
+        $dob = $officer->fresh()->date_of_birth?->toDateString();
         $this->actingAs($officer)->get(route('dashboard'))->assertOk();
         $transitionsBefore = DB::table('workflow_transitions')->count();
 
@@ -205,6 +206,11 @@ class IdentityVerificationTest extends TestCase
 
         $fresh = $officer->fresh();
         $this->assertSame('Ramesh Kumar Varma', $fresh->name);
+        // The date of birth is shown, never edited (2026-11-04): a posted one is ignored.
+        $this->assertSame($dob, $fresh->date_of_birth?->toDateString());
+        $this->assertFalse(IdentityCorrection::query()->where('field', 'date_of_birth')->exists());
+        $this->actingAs($this->admin)->get(route('admin.users.identity', $officer))->assertOk()
+            ->assertDontSee('name="date_of_birth"', false);
         $this->assertNull($fresh->identity_verified_at, 'The verification is withdrawn.');
         $this->assertNotNull(IdentityVerification::query()->latest('id')->first()?->revoked_at ?? IdentityCorrection::query()->sole()->document_path);
         $this->assertSame('verified_correction', IdentityCorrection::query()->sole()->stage);

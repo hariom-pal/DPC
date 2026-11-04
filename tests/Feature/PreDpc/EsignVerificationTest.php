@@ -182,7 +182,8 @@ class EsignVerificationTest extends TestCase
 
         $this->assertSame($calls + 1, $this->esign->calls, 'The provider was asked again.');
         $this->assertSame(PreDpcStatus::Returned, $proposal->fresh()->status);
-        $this->assertSame(1, Signature::query()->count(), 'The first, valid signature stays.');
+        // The submission and the AH's return for correction (signed since 2026-11-04).
+        $this->assertSame(2, Signature::query()->count(), 'The earlier, valid signatures stay.');
     }
 
     public function test_an_unassigned_or_replaced_ao_cannot_submit(): void

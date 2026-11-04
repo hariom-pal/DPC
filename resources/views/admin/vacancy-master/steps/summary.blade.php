@@ -41,7 +41,7 @@
         <table class="table table-sm mb-3">
             <tbody>
                 <tr><td>{{ __('vacancymaster.calc.sanctioned') }}</td><td class="text-end">{{ $b['sanctioned'] ?? __('vacancymaster.not_recorded') }}</td></tr>
-                <tr><td>{{ __('vacancymaster.pm.working_total_calc', ['own' => $b['working']['own'] ?? '—', 'incoming' => $b['working']['deputation_in'] ?? 0]) }}</td><td class="text-end">{{ $b['working']['total'] ?? __('vacancymaster.not_entered') }}</td></tr>
+                <tr><td>{{ __('vacancymaster.pm.working_total_calc', ['own' => $b['working']['own'] ?? '—', 'incoming' => $b['working']['deputation_in'] ?? 0, 'outgoing' => $b['working']['deputation_out'] ?? 0, 'anticipated' => $b['working']['anticipated'] ?? 0]) }}</td><td class="text-end">{{ $b['working']['total'] ?? __('vacancymaster.not_entered') }}</td></tr>
                 <tr><td>{{ __('vacancymaster.pm.a_clear') }}</td><td class="text-end" data-figure="a">{{ $b['clear_vacancy'] ?? '—' }}</td></tr>
                 <tr><td>{{ __('vacancymaster.pm.b1_short') }}</td><td class="text-end" data-figure="b1">{{ $b['deputation_in_vacancy'] }}</td></tr>
                 <tr><td>{{ __('vacancymaster.pm.b2_short') }}</td><td class="text-end" data-figure="b2">{{ $b['deputation_out_vacancy'] }}</td></tr>

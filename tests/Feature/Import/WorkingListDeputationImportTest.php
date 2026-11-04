@@ -63,7 +63,8 @@ class WorkingListDeputationImportTest extends TestCase
         $service = app(VacancyMasterService::class);
         $pdf = fn (): UploadedFile => UploadedFile::fake()->create('order.pdf', 20, 'application/pdf');
         $position = $service->openDraft($department, $to, 2026, $this->ao);
-        $service->saveStrength($position, ['sanctioned_total' => 10, 'working_total' => 6, 'order_number' => 'SANC/1', 'order_date' => '2026-01-02'], $pdf(), $this->ao);
+        // Our six less E-6, away on deputation (B2) and added from step 2 (2026-11-04).
+        $service->saveStrength($position, ['sanctioned_total' => 10, 'working_total' => 5, 'order_number' => 'SANC/1', 'order_date' => '2026-01-02'], $pdf(), $this->ao);
         $service->addEntry($position->fresh(), ['kind' => 'deputation_in', 'officer_name' => 'Shri D. Visitor', 'deputation_from' => '2025-01-01', 'deputation_to' => '2026-09-30'], null, $this->ao);
         $service->addEntry($position->fresh(), ['kind' => 'deputation', 'officer_name' => 'E. Away', 'employee_number' => 'E-6', 'deputation_from' => '2024-07-01', 'promotion_made' => '0'], null, $this->ao);
         $service->finalize($position->fresh(), $this->ao);

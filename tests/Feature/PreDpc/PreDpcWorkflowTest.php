@@ -194,6 +194,38 @@ class PreDpcWorkflowTest extends TestCase
         $this->assertSame(1, $kept->promotionSources()->count());
     }
 
+    /**
+     * A deleted draft is deleted (2026-11-03): the same exercise may be drafted
+     * again, as version 1, and the deleted draft stays on the record.
+     */
+    public function test_the_same_exercise_may_be_drafted_again_after_its_draft_is_deleted(): void
+    {
+        $deleted = $this->draft();
+        $this->actingAs($this->ao)->delete(route('pre-dpc.destroy', $deleted))->assertRedirect(route('pre-dpc.index'));
+
+        $again = $this->draft();
+
+        $this->assertNotSame($deleted->id, $again->id);
+        $this->assertSame(1, (int) $again->version);
+        $this->assertNotSame($deleted->pre_dpc_number, $again->pre_dpc_number);
+        $this->assertSoftDeleted($deleted);
+    }
+
+    /**
+     * Effective On is always 1 January of the DPC year (2026-11-04): a date posted
+     * by the form is not kept, and the form shows it without a field to change it.
+     */
+    public function test_effective_on_is_always_the_first_of_january_of_the_dpc_year(): void
+    {
+        $proposal = $this->draft(['effective_from' => '2026-05-17']);
+        $this->assertSame('2026-01-01', $proposal->fresh()->effective_from?->toDateString());
+
+        $this->actingAs($this->ao)->get(route('pre-dpc.edit', $proposal))->assertOk()
+            ->assertSee('value="01-01-2026"', false)
+            ->assertDontSee('name="effective_from"', false)
+            ->assertSee(__('predpc.form.effective_on_rule'));
+    }
+
     public function test_the_deletion_is_recorded(): void
     {
         $proposal = $this->draft();

@@ -23,8 +23,8 @@ class StoreUserRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255', OfficialEmail::RULE, Rule::unique('users', 'email')],
-            'mobile' => ['required', 'digits:10', Rule::unique('users', 'mobile')],
+            'email' => ['required', 'email', 'max:255', OfficialEmail::RULE, Rule::unique('users', 'email')->withoutTrashed()],
+            'mobile' => ['required', 'digits:10', Rule::unique('users', 'mobile')->withoutTrashed()],
             'designation_id' => ['nullable', Rule::exists('designations', 'id')],
             'role' => ['required', Rule::in(Role::provisionableValues())],
 

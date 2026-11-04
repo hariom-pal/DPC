@@ -88,12 +88,17 @@ class EsignIssueTest extends TestCase
         // The notice, on the Pre-DPC and in the Department Admin's list.
         $this->get(route('pre-dpc.show', $proposal))->assertSee('id="esign-issue"', false)->assertSee('Ramesh Kumar Verma');
         $this->actingAs($this->admin)->get(route('department.allotments.index', ['view' => 'pre-dpc']))->assertSee('data-esign-issue', false);
-        $this->get(route('department.allotments.pre-dpc.edit', $proposal))->assertSee('id="esign-issue"', false)->assertSee('id="details-ao"', false);
+        $this->get(route('department.allotments.pre-dpc.edit', $proposal))->assertSee('id="esign-issue"', false)->assertSee('id="details-ao"', false)
+            ->assertDontSee('name="date_of_birth"', false);
 
         // The Department Admin corrects the AO's name, with a reason.
         $this->put(route('department.officers.details', $this->ao), ['name' => 'Ramesh Kumar Verma', 'reason' => ''])->assertSessionHasErrors('reason');
-        $this->put(route('department.officers.details', $this->ao), ['name' => 'Ramesh Kumar Verma', 'gender' => 'M', 'reason' => 'As on the eSign certificate'])->assertSessionHasNoErrors();
+        // The date of birth is shown, never edited (2026-11-04): one posted is ignored.
+        $dob = $this->ao->fresh()->date_of_birth?->toDateString();
+        $this->put(route('department.officers.details', $this->ao), ['name' => 'Ramesh Kumar Verma', 'gender' => 'M', 'date_of_birth' => '1970-01-01', 'reason' => 'As on the eSign certificate'])->assertSessionHasNoErrors();
         $this->assertSame('Ramesh Kumar Verma', $this->ao->fresh()->name);
+        $this->assertSame($dob, $this->ao->fresh()->date_of_birth?->toDateString());
+        $this->assertDatabaseMissing('identity_corrections', ['user_id' => $this->ao->id, 'field' => 'date_of_birth']);
         $this->assertDatabaseHas('identity_corrections', ['user_id' => $this->ao->id, 'stage' => 'esign_correction', 'field' => 'name', 'corrected_by' => $this->admin->id]);
 
         // The AO signs again: it now goes to the AH, and the notice is gone.

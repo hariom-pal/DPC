@@ -13,6 +13,7 @@ return [
         'title' => 'eSign',
         'title_pre-dpc-submit' => 'eSign and submit the Pre-DPC',
         'title_pre-dpc-approve' => 'eSign and approve the Pre-DPC',
+        'title_pre-dpc-return' => 'eSign and return the Pre-DPC for correction',
         'title_dpc-approve' => 'eSign and approve the DPC',
         'title_dpc-submit' => 'eSign and submit the DPC proposal',
         'lead' => 'Every submission and approval is signed with a fresh eSign; an earlier eSign never counts for this one.',
@@ -28,6 +29,7 @@ return [
     'done' => [
         'submit' => 'eSigned and submitted for approval.',
         'approve' => 'eSigned and approved.',
+        'return' => 'eSigned and returned to the Authorized Officer for correction.',
     ],
     'simulator' => [
         'title' => 'Simulated eSign',

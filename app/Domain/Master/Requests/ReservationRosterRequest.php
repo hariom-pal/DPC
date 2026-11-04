@@ -28,7 +28,7 @@ class ReservationRosterRequest extends FormRequest
             'post_id' => ['required', Rule::exists('department_posts', 'id')],
             'name' => [
                 'required', 'string', 'max:255',
-                Rule::unique('reservation_rosters', 'name')
+                Rule::unique('reservation_rosters', 'name')->withoutTrashed()
                     ->where('department_id', (int) $this->input('department_id'))
                     ->where('post_id', (int) $this->input('post_id'))
                     ->ignore($id),

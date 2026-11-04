@@ -80,7 +80,7 @@ class DepartmentPostRequest extends FormRequest
                  | refuse to register a post whose earlier mapping was replaced
                  | years ago.
                  */
-                Rule::unique('department_posts', 'name')
+                Rule::unique('department_posts', 'name')->withoutTrashed()
                     ->where('department_id', (int) $this->input('department_id'))
                     ->whereNotNull('active_flag')
                     ->ignore($id),

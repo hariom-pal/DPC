@@ -38,6 +38,7 @@ class EsignController extends Controller
     private const KINDS = [
         'pre-dpc-submit' => [PreDpcProposal::class, 'submit', 'esign.done.submit'],
         'pre-dpc-approve' => [PreDpcProposal::class, 'approve', 'esign.done.approve'],
+        'pre-dpc-return' => [PreDpcProposal::class, 'return', 'esign.done.return'],
         'dpc-submit' => [DpcProposal::class, 'submit', 'esign.done.submit'],
         'dpc-approve' => [DpcProposal::class, 'approve', 'esign.done.approve'],
     ];
@@ -65,6 +66,11 @@ class EsignController extends Controller
             $request->validate(['declaration' => ['accepted']], ['declaration.accepted' => __('predpc.declaration_required')]);
         }
 
+        // The AH's remarks on a return for correction, signed with it (2026-11-04).
+        if ($kind === 'pre-dpc-return') {
+            $request->validate(['return_remarks' => ['required', 'string', 'max:1000']], ['return_remarks.required' => __('ui.remarks_required_to_return')]);
+        }
+
         if (! $this->simulated()) {
             // The provider signs as the workflow runs (its own consent screen, if
             // any, is the provider's).
@@ -76,6 +82,7 @@ class EsignController extends Controller
             'reference' => $reference, 'kind' => $kind, 'uuid' => $uuid,
             'user_id' => $this->user($request)->id, 'expires' => now()->addMinutes(10)->timestamp,
             'declaration' => $request->boolean('declaration'),
+            'return_remarks' => (string) $request->input('return_remarks', ''),
         ]);
 
         return redirect()->route('esign.simulator', ['reference' => $reference]);
@@ -113,7 +120,7 @@ class EsignController extends Controller
         app()->instance(MockSignatureProvider::SIMULATED_NAME, $name);
 
         // The declaration was made on the consent screen, before the simulator.
-        $request->merge(['declaration' => ($pending['declaration'] ?? false) ? '1' : '']);
+        $request->merge(['declaration' => ($pending['declaration'] ?? false) ? '1' : '', 'return_remarks' => (string) ($pending['return_remarks'] ?? '')]);
 
         try {
             return $this->perform($request, $pending['kind'], $proposal);
@@ -159,6 +166,7 @@ class EsignController extends Controller
             match ($kind) {
                 'pre-dpc-submit' => app(PreDpcProposalService::class)->submit($proposal, $user, $request),
                 'pre-dpc-approve' => app(PreDpcProposalService::class)->approve($proposal, $user, $request),
+                'pre-dpc-return' => app(PreDpcProposalService::class)->return($proposal, $user, trim((string) $request->input('return_remarks')), $request),
                 'dpc-submit' => app(DpcProposalService::class)->submit($proposal, $user, $request),
                 'dpc-approve' => app(DpcProposalService::class)->approve($proposal, $user, $request),
                 default => abort(404),
@@ -171,7 +179,7 @@ class EsignController extends Controller
     }
 
     /**
-     * @return array{reference: string, kind?: string, uuid?: string, action?: string, payload?: array<string, mixed>, user_id: int, expires: int, declaration?: bool}
+     * @return array{reference: string, kind?: string, uuid?: string, action?: string, payload?: array<string, mixed>, user_id: int, expires: int, declaration?: bool, return_remarks?: string}
      */
     private function pending(Request $request, string $reference, bool $pull): array
     {

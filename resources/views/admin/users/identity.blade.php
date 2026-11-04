@@ -33,8 +33,9 @@
                     <p class="text-body-secondary">{{ __('identity.admin.correct_help') }}</p>
                     <label class="form-label" for="c_name">{{ __('identity.field.name') }}</label>
                     <input class="form-control form-control-sm mb-2" id="c_name" name="name" value="{{ old('name', $user->name) }}" required>
+                    {{-- Shown, never edited (2026-11-04). --}}
                     <label class="form-label" for="c_dob">{{ __('identity.field.date_of_birth') }}</label>
-                    <input type="date" class="form-control form-control-sm mb-2" id="c_dob" name="date_of_birth" value="{{ old('date_of_birth', $user->date_of_birth?->toDateString()) }}" required>
+                    <input type="text" class="form-control form-control-sm mb-2" id="c_dob" value="{{ $user->date_of_birth?->format('d-m-Y') ?? '—' }}" readonly disabled>
                     <label class="form-label" for="c_gender">{{ __('identity.field.gender') }}</label>
                     <select class="form-select form-select-sm mb-2" id="c_gender" name="gender" required>
                         @foreach (['M', 'F'] as $g)

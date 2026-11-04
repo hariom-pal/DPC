@@ -106,6 +106,7 @@ class ClassLabelRepository
      */
     private function rows(): Collection
     {
-        return $this->rows ??= ClassMaster::withTrashed()->get()->keyBy('code');
+        // A code entered again after a delete has two rows: the live one wins.
+        return $this->rows ??= ClassMaster::withTrashed()->orderByRaw('deleted_at IS NULL')->orderBy('id')->get()->keyBy('code');
     }
 }

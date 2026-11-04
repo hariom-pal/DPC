@@ -19,6 +19,7 @@ use App\Domain\Dpc\Models\VacancyPositionWorkingStrength;
 use App\Domain\Employee\Services\EmployeeDirectory;
 use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\RecruitmentRule;
+use App\Domain\PreDpc\Enums\PreDpcStatus;
 use App\Domain\PreDpc\Models\PreDpcProposal;
 use App\Domain\Shared\Services\ActivityTimelineService;
 use App\Domain\Shared\Workflow\WorkflowException;
@@ -202,8 +203,12 @@ class VacancyMasterService
      * Every figure of the record, how each was reached, and what still stops it from
      * being finalized (decisions of 2026-10-30):
      *
-     *     working = our officers (those on deputation elsewhere included)
+     *     working = the figure entered
      *             + officers of other departments on deputation here     (B1 rows)
+     *             + our officers on deputation elsewhere                 (B2 rows)
+     *             + officers retiring or promoted to a higher post       (C rows)
+     *             (B2 and C added since 2026-11-04: "ye sab bhi working
+     *             officer me count hone chahiye")
      *     A  clear              = sanctioned − working
      *     B1 deputation ending  = B1 rows whose deputation ends in the Vacancy Year
      *     B2 deputation out     = our officers away more than one year by 31 December
@@ -247,7 +252,8 @@ class VacancyMasterService
         $pending = $active->filter(fn (VacancyPositionEntry $entry): bool => $entry->eligibility === VacancyEntryEligibility::PendingVerification);
 
         $own = $working?->working_total;
-        $workingTotal = $own === null ? null : $own + (int) $incoming->sum('vacancy_count');
+        $workingTotal = $own === null ? null : $own + (int) $incoming->sum('vacancy_count')
+            + (int) $outgoing->sum('vacancy_count') + (int) $anticipated->sum('vacancy_count');
         $clear = $sanctioned === null || $workingTotal === null ? null : max(0, $sanctioned - $workingTotal);
         $deputationIn = $counted($incoming);
         $deputationOut = $counted($outgoing);
@@ -262,6 +268,9 @@ class VacancyMasterService
 
         if ($preDpc === null) {
             $issues[] = ['key' => 'no_pre_dpc', 'params' => ['year' => $position->vacancy_year]];
+        } elseif ($preDpc->status !== PreDpcStatus::Approved) {
+            // Started on a Pre-DPC in progress (2026-11-04); finalized after its approval.
+            $issues[] = ['key' => 'pre_dpc_not_approved', 'params' => ['number' => $preDpc->pre_dpc_number]];
         }
 
         if ($mapping === null) {
@@ -317,6 +326,8 @@ class VacancyMasterService
                 'total' => $workingTotal,
                 'own' => $own,
                 'deputation_in' => (int) $incoming->sum('vacancy_count'),
+                'deputation_out' => (int) $outgoing->sum('vacancy_count'),
+                'anticipated' => (int) $anticipated->sum('vacancy_count'),
                 // No quota split since 2026-10-30; kept so a reader of an older record
                 // finds the same keys.
                 'promotion' => null,
@@ -399,10 +410,12 @@ class VacancyMasterService
     /**
      * Open the draft for a post and year, or return the draft already open.
      *
-     * A record belongs to the approved Pre-DPC of the department, post and year
-     * (2026-10-30): its year and post come from it, and so does the promotion share.
+     * A record belongs to the Pre-DPC of the department, post and year (2026-10-30):
+     * its year and post come from it, and so does the promotion share. Since
+     * 2026-11-04 the AO may start it while the Pre-DPC is still in progress; it is
+     * finalized only once that Pre-DPC is approved.
      *
-     * @throws WorkflowException when no approved Pre-DPC exists, or a finalized record does (correct it by revision)
+     * @throws WorkflowException when no Pre-DPC exists, or a finalized record does (correct it by revision)
      */
     public function openDraft(Department $department, DepartmentPost $post, int $year, User $actor): VacancyPosition
     {
@@ -412,7 +425,7 @@ class VacancyMasterService
             throw new WorkflowException(__('vacancymaster.errors.post_not_in_department'));
         }
 
-        $preDpc = $this->approvedPreDpc($department->id, $post->name, $year);
+        $preDpc = $this->preDpcFor($department->id, $post->name, $year);
 
         if ($preDpc === null) {
             throw new WorkflowException(__('vacancymaster.errors.no_approved_pre_dpc', ['post' => $post->name, 'year' => $year]));
@@ -459,8 +472,24 @@ class VacancyMasterService
     }
 
     /**
+     * The Pre-DPC a record is kept for (2026-11-04): the approved, active one, or
+     * else the one still in progress (draft, returned or submitted).
+     */
+    public function preDpcFor(int $departmentId, string $postName, int $year): ?PreDpcProposal
+    {
+        return $this->approvedPreDpc($departmentId, $postName, $year)
+            ?? PreDpcProposal::query()
+                ->whereIn('status', [PreDpcStatus::Draft->value, PreDpcStatus::Returned->value, PreDpcStatus::Submitted->value])
+                ->where('department_id', $departmentId)
+                ->where('dpc_year', $year)
+                ->whereHas('promotionToPost', fn ($query) => $query->where('name', $postName))
+                ->latest('id')
+                ->first();
+    }
+
+    /**
      * The approved, active Pre-DPC of a department's post for a DPC year — the one a
-     * Vacancy Management record is kept for.
+     * finalized Vacancy Management record is kept for.
      */
     public function approvedPreDpc(int $departmentId, string $postName, int $year): ?PreDpcProposal
     {
@@ -700,7 +729,8 @@ class VacancyMasterService
             throw new WorkflowException(__('vacancymaster.errors.officer_name_required'), 'officer_name');
         }
 
-        $this->assertNotDuplicate($position, $kind, $name);
+        // The Employee ID decides a duplicate, never the name (2026-11-04): two
+        // officers may share a name.
         $this->assertEmployeeNotEntered($position, $data['employee_number'] ?? null);
 
         [$from, $to] = $this->engine->periodForYear($position->vacancy_year);
@@ -1236,23 +1266,6 @@ class VacancyMasterService
             ->get()
             ->filter(fn (DepartmentPost $higher): bool => $own === null || ($higher->payScale->minimum_pay ?? 0) > $own)
             ->values();
-    }
-
-    /**
-     * One officer is one row of a kind: the same name cannot be entered twice.
-     */
-    private function assertNotDuplicate(VacancyPosition $position, VacancyEntryKind $kind, string $name): void
-    {
-        $exists = VacancyPositionEntry::query()
-            ->where('vacancy_position_id', $position->id)
-            ->where('status', VacancyPositionEntry::STATUS_ACTIVE)
-            ->where('kind', $kind->value)
-            ->whereRaw('LOWER(TRIM(officer_name)) = ?', [mb_strtolower($name)])
-            ->exists();
-
-        if ($exists) {
-            throw new WorkflowException(__('vacancymaster.errors.duplicate_officer', ['name' => $name]), 'officer_name');
-        }
     }
 
     /**

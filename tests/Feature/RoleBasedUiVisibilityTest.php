@@ -110,7 +110,10 @@ class RoleBasedUiVisibilityTest extends TestCase
 
         $this->actingAs($this->departmentAdminOf($this->ao->department_id))->get(route('department.allotments.index', ['view' => 'pre-dpc']))
             ->assertOk()
-            ->assertSee($open, escape: false);
+            ->assertSee($open, escape: false)
+            // "Create New Pre-DPC", no longer "Open a Pre-DPC" (2026-11-04).
+            ->assertSee('Create New Pre-DPC')
+            ->assertDontSee('Open a Pre-DPC');
     }
 
     public function test_officers_are_refused_opening_a_pre_dpc_by_the_backend(): void
@@ -230,7 +233,8 @@ class RoleBasedUiVisibilityTest extends TestCase
         $this->actingAs($this->ah)->get(route('pre-dpc.show', $draft->fresh()))
             ->assertOk()
             ->assertSee(route('esign.show', ['kind' => 'pre-dpc-approve', 'uuid' => $draft->uuid]), escape: false)
-            ->assertSee(route('pre-dpc.return', $draft), escape: false);
+            // Signed since 2026-11-04: the return goes through the eSign step.
+            ->assertSee(route('esign.show', ['kind' => 'pre-dpc-return', 'uuid' => $draft->uuid]), escape: false);
 
         $this->actingAs($this->ao)->get(route('pre-dpc.show', $draft->fresh()))
             ->assertOk()

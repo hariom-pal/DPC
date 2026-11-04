@@ -258,11 +258,11 @@
                         @error('government_order_number')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
                     <div class="col-md-3 mb-3">
-                        <label class="form-label" for="effective_from">{{ __('predpc.form.publish_date') }}{!! $required !!}</label>
-                        <input type="date" class="form-control @error('effective_from') is-invalid @enderror"
-                               id="effective_from" name="effective_from"
-                               value="{{ old('effective_from', $proposal->effective_from?->format('Y-m-d')) }}">
-                        @error('effective_from')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        {{-- Always 1 January of the DPC year (2026-11-04): shown, not entered. --}}
+                        <label class="form-label" for="effective_from">{{ __('predpc.form.publish_date') }}</label>
+                        <input type="text" class="form-control" id="effective_from"
+                               value="{{ $proposal->dpc_year ? '01-01-'.$proposal->dpc_year : '—' }}" readonly disabled>
+                        <div class="form-text">{{ __('predpc.form.effective_on_rule') }}</div>
                     </div>
                     {{-- The Bharti Niyam itself, as a PDF (2026-10-30). --}}
                     <div class="col-md-6 mb-3">

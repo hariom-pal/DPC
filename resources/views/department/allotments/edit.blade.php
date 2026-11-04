@@ -79,7 +79,8 @@
                                 <div class="col-12"><label class="form-label">{{ __('ui.name') }}</label>
                                     <input class="form-control form-control-sm" name="name" value="{{ $officer->name }}" required maxlength="255"></div>
                                 <div class="col-6"><label class="form-label">{{ __('identity.field.date_of_birth') }}</label>
-                                    <input type="date" class="form-control form-control-sm" name="date_of_birth" value="{{ $officer->date_of_birth?->toDateString() }}"></div>
+                                    {{-- Shown, never edited (2026-11-04). --}}
+                                    <input type="text" class="form-control form-control-sm" value="{{ $officer->date_of_birth?->format('d-m-Y') ?? '—' }}" readonly disabled></div>
                                 <div class="col-6"><label class="form-label">{{ __('identity.field.gender') }}</label>
                                     <select class="form-select form-select-sm" name="gender">
                                         <option value="">{{ __('ui.select') }}</option>

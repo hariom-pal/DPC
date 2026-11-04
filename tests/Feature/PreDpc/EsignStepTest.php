@@ -16,6 +16,7 @@ use App\Enums\MasterStatus;
 use App\Enums\Role;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\Concerns\PrescribesQualifications;
 use Tests\TestCase;
 
@@ -126,6 +127,47 @@ class EsignStepTest extends TestCase
 
         $this->esign($this->ah, 'pre-dpc-approve', 'Sunita Sharma');
         $this->assertSame(PreDpcStatus::Approved, $this->proposal->fresh()->status);
+        $this->assertSame(['verified', 'name_mismatch', 'verified'], SignatureAttempt::query()->orderBy('id')->pluck('outcome')->all());
+    }
+
+    /**
+     * The AH signs a return for correction too (2026-11-04): the remarks go to the
+     * eSign step and are signed with the return; a mismatched name leaves it submitted.
+     */
+    public function test_the_ah_returns_for_correction_through_the_esign_step(): void
+    {
+        $this->esign($this->ao, 'pre-dpc-submit', 'Ramesh Verma');
+        $url = route('esign.show', ['kind' => 'pre-dpc-return', 'uuid' => $this->proposal->uuid]);
+
+        $this->actingAs($this->ah)->get(route('pre-dpc.show', $this->proposal))->assertOk()
+            ->assertSee('id="pre-dpc-return"', false)->assertSee($url, false);
+        $this->get($url.'?return_remarks=Correct+the+GO')->assertOk()
+            ->assertSee(__('esign.page.title_pre-dpc-return'))->assertSee('Correct the GO');
+        $this->actingAs($this->ao)->get($url)->assertForbidden();
+
+        // Remarks are required, as before.
+        $this->travel(2)->minutes();
+        $this->actingAs($this->ah)->post(route('esign.start', ['kind' => 'pre-dpc-return', 'uuid' => $this->proposal->uuid]), ['consent' => '1'])
+            ->assertSessionHasErrors('return_remarks');
+
+        $sign = function (string $name): void {
+            $this->travel(2)->minutes();
+            $this->actingAs($this->ah)->post(route('esign.start', ['kind' => 'pre-dpc-return', 'uuid' => $this->proposal->uuid]), ['consent' => '1', 'return_remarks' => 'Correct the GO number.'])
+                ->assertRedirect();
+            $reference = (string) session('esign.pending')['reference'];
+            $this->post(route('esign.simulator.submit'), ['reference' => $reference, 'decision' => 'sign', 'name' => $name])
+                ->assertRedirect(route('pre-dpc.show', $this->proposal));
+        };
+
+        $sign('S. Sharma');
+        $this->assertSame(PreDpcStatus::Submitted, $this->proposal->fresh()->status);
+
+        $sign('Sunita Sharma');
+        $fresh = $this->proposal->fresh();
+        $this->assertSame(PreDpcStatus::Returned, $fresh->status);
+        $this->assertSame('Correct the GO number.', $fresh->return_remarks);
+        $transition = DB::table('workflow_transitions')->where('event', 'return')->sole();
+        $this->assertNotNull($transition->signature_id, 'The return carries the AH\'s signature.');
         $this->assertSame(['verified', 'name_mismatch', 'verified'], SignatureAttempt::query()->orderBy('id')->pluck('outcome')->all());
     }
 }

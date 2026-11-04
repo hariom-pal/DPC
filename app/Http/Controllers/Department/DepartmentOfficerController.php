@@ -208,6 +208,8 @@ class DepartmentOfficerController extends Controller
         $digits = 'digits:'.(int) config('dpc.otp.length');
 
         $data = $this->validated($request, $this->contactRules() + [
+            // An AO's or AH's Employee ID too (2026-11-04); one account per ID.
+            'employee_number' => ['required', 'string', 'max:60', Rule::unique('users', 'employee_number')->withoutTrashed()],
             'name' => ['required', 'string', 'max:255'],
             'gender' => ['required', 'in:M,F'],
             'date_of_birth' => ['required', 'date', 'before:today', 'after:1940-01-01'],
@@ -226,6 +228,7 @@ class DepartmentOfficerController extends Controller
         }
 
         $issued = $this->provisioning->provision([
+            'employee_number' => trim($data['employee_number']),
             'name' => trim($data['name']),
             'email' => $data['email'],
             'mobile' => $data['mobile'],
@@ -259,7 +262,6 @@ class DepartmentOfficerController extends Controller
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'date_of_birth' => ['nullable', 'date', 'before:today', 'after:1940-01-01'],
             'gender' => ['nullable', 'in:M,F'],
             'designation_id' => ['nullable', 'integer', Rule::exists('designations', 'id')],
             'reason' => ['required', 'string', 'max:500'],
@@ -272,13 +274,14 @@ class DepartmentOfficerController extends Controller
         }
 
         $changes = [];
-        foreach (['name', 'date_of_birth', 'gender', 'designation_id'] as $field) {
+        // Date of birth is shown, never edited here (2026-11-04).
+        foreach (['name', 'gender', 'designation_id'] as $field) {
             // A field the form did not send is left as it is.
             if (! $request->has($field)) {
                 continue;
             }
 
-            $old = $field === 'date_of_birth' ? $officer->date_of_birth?->toDateString() : ($officer->{$field} === null ? null : (string) $officer->{$field});
+            $old = $officer->{$field} === null ? null : (string) $officer->{$field};
             $new = ($data[$field] ?? null) === null || $data[$field] === '' ? null : (string) $data[$field];
 
             if ($old !== $new) {
@@ -337,6 +340,7 @@ class DepartmentOfficerController extends Controller
             'email.unique' => __('allotments.picker.email_taken'),
             'mobile.regex' => __('department.users.validation.mobile'),
             'mobile.unique' => __('allotments.picker.mobile_taken'),
+            'employee_number.unique' => __('allotments.picker.employee_number_taken'),
         ]);
 
         if ($validator->fails()) {
@@ -352,8 +356,8 @@ class DepartmentOfficerController extends Controller
     private function contactRules(): array
     {
         return [
-            'email' => ['required', 'email', 'max:255', self::GOV_EMAIL, Rule::unique('users', 'email')],
-            'mobile' => ['required', 'regex:/^[6-9]\d{9}$/', Rule::unique('users', 'mobile')],
+            'email' => ['required', 'email', 'max:255', self::GOV_EMAIL, Rule::unique('users', 'email')->withoutTrashed()],
+            'mobile' => ['required', 'regex:/^[6-9]\d{9}$/', Rule::unique('users', 'mobile')->withoutTrashed()],
         ];
     }
 
@@ -373,6 +377,7 @@ class DepartmentOfficerController extends Controller
             'email' => $user->email,
             'name' => $user->name,
             'mobile' => $user->mobile,
+            'employee_number' => $user->employee_number,
             'date_of_birth' => $user->date_of_birth?->toDateString(),
             'gender' => $user->gender,
             'designation' => $user->designation?->name,
@@ -399,7 +404,7 @@ class DepartmentOfficerController extends Controller
      */
     private function mobileRule(User $officer): array
     {
-        return ['required', 'regex:/^[6-9]\d{9}$/', Rule::unique('users', 'mobile')->ignore($officer->id)];
+        return ['required', 'regex:/^[6-9]\d{9}$/', Rule::unique('users', 'mobile')->withoutTrashed()->ignore($officer->id)];
     }
 
     private function admin(Request $request): User

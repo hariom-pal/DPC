@@ -255,6 +255,22 @@ class PreDpcProposal extends Model implements Auditable
     }
 
     /**
+     * Effective On is always 1 January of the DPC year (2026-11-04), set while the
+     * proposal is in progress. An approved one keeps the date it was signed with.
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (self $proposal): void {
+            // Read raw: a new proposal may not carry its status yet.
+            $status = PreDpcStatus::tryFrom((string) ($proposal->getAttributes()['status'] ?? ''));
+
+            if ($proposal->dpc_year !== null && ($status === null || $status->isEditable() || $status === PreDpcStatus::Submitted)) {
+                $proposal->effective_from = Carbon::create((int) $proposal->dpc_year, 1, 1)->startOfDay();
+            }
+        });
+    }
+
+    /**
      * Whether this is the live approved Pre-DPC for its exercise (item 9).
      */
     public function isActive(): bool

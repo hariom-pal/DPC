@@ -54,7 +54,7 @@
         var message = get('picker-message');
         var list = get('picker-suggestions');
         var details = get('picker-details');
-        var fields = { name: get('picker-name'), mobile: get('picker-mobile'), gender: get('picker-gender'), dob: get('picker-dob'), designation: get('picker-designation') };
+        var fields = { employeeNumber: get('picker-employee-number'), name: get('picker-name'), mobile: get('picker-mobile'), gender: get('picker-gender'), dob: get('picker-dob'), designation: get('picker-designation') };
         var data = picker.dataset;
         var chosen = null;
         var timer = null;
@@ -81,12 +81,14 @@
             get('picker-new-actions').classList.toggle('d-none', existing);
             get('picker-mobile-actions').classList.add('d-none');
 
+            fields.employeeNumber.value = existing ? officer.employee_number || '' : '';
             fields.name.value = existing ? officer.name || '' : '';
             fields.mobile.value = existing ? officer.mobile || '' : '';
             fields.gender.value = existing ? officer.gender || '' : '';
             fields.dob.value = existing ? officer.date_of_birth || '' : '';
             fields.designation.value = existing && officer.designation_id ? String(officer.designation_id) : '';
             get('picker-designation-save').classList.add('d-none');
+            fields.employeeNumber.readOnly = existing;
             fields.name.readOnly = existing;
             fields.dob.readOnly = existing;
             fields.gender.disabled = existing;
@@ -287,6 +289,7 @@
 
         get('picker-add').addEventListener('click', function () {
             var body = contact();
+            body.employee_number = fields.employeeNumber.value.trim();
             body.name = fields.name.value.trim();
             body.gender = fields.gender.value;
             body.date_of_birth = fields.dob.value;

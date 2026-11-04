@@ -42,7 +42,7 @@ class UserProvisioningService
     ) {}
 
     /**
-     * @param  array{name:string,email:string,mobile:string,designation_id:?int,role:string,department_id?:int|null,date_of_birth?:string|null,gender?:string|null}  $data
+     * @param  array{name:string,email:string,mobile:string,designation_id:?int,role:string,department_id?:int|null,date_of_birth?:string|null,gender?:string|null,employee_number?:string|null}  $data
      */
     public function provision(array $data, ?User $actor = null): IssuedCredentials
     {
@@ -56,6 +56,7 @@ class UserProvisioningService
                 'designation_id' => $data['designation_id'] ?? null,
                 'date_of_birth' => $data['date_of_birth'] ?? null,
                 'gender' => $data['gender'] ?? null,
+                'employee_number' => ($data['employee_number'] ?? '') === '' ? null : $data['employee_number'],
                 'is_active' => true,
                 'must_change_password' => true,
             ]);

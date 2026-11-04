@@ -163,4 +163,35 @@ class UserManagementTest extends TestCase
             ->assertSessionHasErrors('user');
         $this->assertTrue((bool) $other->fresh()->is_active);
     }
+
+    /**
+     * A deleted account's e-mail and mobile may be given to a new account
+     * (2026-11-03): the deleted one stays, for the trail, and does not sign in.
+     */
+    public function test_a_deleted_accounts_email_and_mobile_may_be_used_again(): void
+    {
+        $deleted = User::factory()->create(['email' => 'member2@cgpsc.gov.in', 'mobile' => '9812345670']);
+        $deleted->delete();
+
+        $this->actingAs($this->admin())
+            ->post(route('admin.users.store'), [
+                'date_of_birth' => '1979-09-09', 'gender' => 'M',
+                'name' => 'Hon. Member Two', 'email' => 'member2@cgpsc.gov.in', 'mobile' => '9812345670', 'role' => Role::Member->value,
+            ])
+            ->assertOk()
+            ->assertSessionHasNoErrors();
+
+        $again = User::query()->where('email', 'member2@cgpsc.gov.in')->sole();
+        $this->assertNotSame($deleted->id, $again->id);
+        $this->assertSame('9812345670', $again->mobile);
+        $this->assertSoftDeleted($deleted);
+
+        // A live account's e-mail is still taken.
+        $this->actingAs($this->admin())
+            ->post(route('admin.users.store'), [
+                'date_of_birth' => '1979-09-09', 'gender' => 'M',
+                'name' => 'X', 'email' => 'member2@cgpsc.gov.in', 'mobile' => '9812345671', 'role' => Role::Member->value,
+            ])
+            ->assertSessionHasErrors('email');
+    }
 }

@@ -67,7 +67,7 @@ class DepartmentOfficerPickerTest extends TestCase
     private function newOfficer(array $overrides = []): array
     {
         return $overrides + [
-            'name' => 'Shri New Officer', 'email' => 'new.officer@cg.gov.in', 'mobile' => '9123456780',
+            'employee_number' => 'EMP-AO-1', 'name' => 'Shri New Officer', 'email' => 'new.officer@cg.gov.in', 'mobile' => '9123456780',
             'gender' => 'M', 'date_of_birth' => '1980-05-01',
             'role' => Role::AuthorizedOfficer->value, 'email_code' => '123456', 'mobile_code' => '123456',
             'designation_id' => (string) $this->designation->id,
@@ -160,6 +160,8 @@ class DepartmentOfficerPickerTest extends TestCase
         $this->assertSame($officer->id, $response->json('id'));
         $this->assertNotEmpty($response->json('password'));
         $this->assertSame(['1980-05-01', 'M'], [$officer->date_of_birth?->toDateString(), $officer->gender]);
+        // The Employee ID is taken for an AO or AH too (2026-11-04), and shown when chosen.
+        $this->assertSame(['EMP-AO-1', 'EMP-AO-1'], [$officer->employee_number, $response->json('employee_number')]);
         $this->assertSame($this->designation->id, $officer->designation_id); // the post (MoM of 2026-10-29)
         $this->assertNotNull($officer->email_verified_at);
         $this->assertNotNull($officer->mobile_verified_at);
@@ -303,5 +305,22 @@ class DepartmentOfficerPickerTest extends TestCase
 
         $this->actingAs($officer)->getJson(route('department.officers.lookup', ['email' => 'x@cg.gov.in']))->assertForbidden();
         $this->postJson(route('department.officers.store'), $this->newOfficer())->assertForbidden();
+    }
+
+    /**
+     * A new AO or AH needs an Employee ID, and one already held by another account
+     * is refused (2026-11-04).
+     */
+    public function test_a_new_officer_needs_an_employee_id_no_other_account_holds(): void
+    {
+        User::factory()->create(['employee_number' => 'EMP-TAKEN']);
+        $this->actingAs($this->admin)->postJson(route('department.officers.otp'), ['email' => 'new.officer@cg.gov.in', 'mobile' => '9123456780'])->assertOk();
+
+        $this->postJson(route('department.officers.store'), $this->newOfficer(['employee_number' => '']))
+            ->assertStatus(422)->assertJsonValidationErrors('employee_number');
+        $this->postJson(route('department.officers.store'), $this->newOfficer(['employee_number' => 'EMP-TAKEN']))
+            ->assertStatus(422)->assertJsonPath('errors.employee_number.0', __('allotments.picker.employee_number_taken'));
+
+        $this->assertFalse(User::query()->where('email', 'new.officer@cg.gov.in')->exists());
     }
 }

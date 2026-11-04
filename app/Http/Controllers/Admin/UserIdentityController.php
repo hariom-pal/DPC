@@ -47,7 +47,8 @@ class UserIdentityController extends Controller
     {
         return $this->decide(fn () => $this->corrections->correct(
             $user,
-            $request->only(['name', 'date_of_birth', 'gender']),
+            // Date of birth is shown, never edited here (2026-11-04).
+            $request->only(['name', 'gender']),
             (string) $request->input('reason'),
             $request->user(),
             $request->file('document'),

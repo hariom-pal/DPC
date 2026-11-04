@@ -243,14 +243,27 @@ class PreDpcProposalService
 
     public function return(PreDpcProposal $proposal, User $actor, string $remarks, Request $request): void
     {
-        DB::transaction(function () use ($proposal, $actor, $remarks, $request): void {
+        // The AH signs a return for correction too (2026-11-04), as an approval:
+        // a failed or mismatched eSign leaves the proposal submitted.
+        $this->assertSignatureAvailable();
+
+        $this->signed($actor, $proposal, 'return', fn () => DB::transaction(function () use ($proposal, $actor, $remarks, $request): void {
             $locked = $this->lock($proposal);
             $from = $locked->status->value;
             $def = $this->engine->assertAllowed('pre_dpc', 'return', $from, $actor);
+            $this->assertCurrentOfficer($actor, $locked, Role::AdministrativeHead);
+
+            $signature = $this->signatures->signVerified(
+                $actor,
+                $locked,
+                $this->renderDocument($locked)."\n\nReturned for correction:\n".$remarks,
+                "pre-dpc-{$locked->pre_dpc_number}-v{$locked->version}-return.txt",
+                ['action' => 'return'],
+            );
 
             $locked->forceFill(['status' => PreDpcStatus::Returned->value, 'returned_at' => now(), 'return_remarks' => $remarks])->save();
-            $this->engine->record($locked, 'pre_dpc', 'return', $from, $def, $actor, $request, $remarks, null, $locked->department_id);
-        });
+            $this->engine->record($locked, 'pre_dpc', 'return', $from, $def, $actor, $request, $remarks, $signature->id, $locked->department_id);
+        }));
     }
 
     public function cancel(PreDpcProposal $proposal, User $actor, Request $request): void

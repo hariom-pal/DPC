@@ -199,6 +199,12 @@ class AppServiceProvider extends ServiceProvider
         // have half-worked should not become a 500 in front of a user.
         Model::preventSilentlyDiscardingAttributes(! $this->app->isProduction());
 
+        // `live_flag` is generated from `deleted_at` (2026-11-03); a copy must not
+        // carry it into the insert, which both databases refuse.
+        Event::listen('eloquent.replicating: *', static function (string $event, array $payload): void {
+            $payload[0]->offsetUnset('live_flag');
+        });
+
         // Scripts and stylesheets carry their file's version, so a deployment
         // reaches browsers that cached the previous copy (2026-10-29).
         Blade::directive('versioned', static fn (string $path): string => '<?php echo e(\\App\\Support\\AssetVersion::url('.$path.')); ?>');

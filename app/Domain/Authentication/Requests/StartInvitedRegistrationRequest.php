@@ -31,7 +31,7 @@ class StartInvitedRegistrationRequest extends FormRequest
         $invitation = is_string($token) ? app(DepartmentInvitationService::class)->usable($token) : null;
 
         return [
-            'mobile' => ['required', 'regex:/^[6-9]\d{9}$/', Rule::unique('users', 'mobile')->where(
+            'mobile' => ['required', 'regex:/^[6-9]\d{9}$/', Rule::unique('users', 'mobile')->withoutTrashed()->where(
                 fn ($q) => $q->whereRaw('LOWER(email) <> ?', [(string) $invitation?->email]),
             )],
         ];

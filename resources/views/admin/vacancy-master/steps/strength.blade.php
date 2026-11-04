@@ -3,6 +3,9 @@
      deputation are named in step 2 (B1) and added to the working figure. --}}
 @php
     $incoming = (int) ($b['working']['deputation_in'] ?? 0);
+    // Added to the working figure since 2026-11-04.
+    $outgoing = (int) ($b['working']['deputation_out'] ?? 0);
+    $anticipated = (int) ($b['working']['anticipated'] ?? 0);
     $hasFigures = $sanctioned !== null && $working !== null;
 @endphp
 <div class="card border-0 shadow-sm mb-3" id="strength-step">
@@ -23,6 +26,14 @@
                         <tr>
                             <td>+ {{ __('vacancymaster.pm.working_here') }}</td>
                             <td class="text-end">{{ $incoming }}</td>
+                        </tr>
+                        <tr>
+                            <td>+ {{ __('vacancymaster.pm.working_out') }}</td>
+                            <td class="text-end">{{ $outgoing }}</td>
+                        </tr>
+                        <tr>
+                            <td>+ {{ __('vacancymaster.pm.working_anticipated') }}</td>
+                            <td class="text-end">{{ $anticipated }}</td>
                         </tr>
                         <tr class="table-light fw-semibold">
                             <td>{{ __('vacancymaster.pm.working_total') }}</td>

@@ -37,8 +37,8 @@ class UpdateUserRequest extends FormRequest
             // The .gov.in rule binds a new address only (2026-10-30): an account
             // that already holds another one could otherwise not be saved at all,
             // whatever was being changed.
-            'email' => ['required', 'email', 'max:255', ...($this->emailChanged($current) ? [OfficialEmail::RULE] : []), Rule::unique('users', 'email')->ignore($id)],
-            'mobile' => ['required', 'digits:10', Rule::unique('users', 'mobile')->ignore($id)],
+            'email' => ['required', 'email', 'max:255', ...($this->emailChanged($current) ? [OfficialEmail::RULE] : []), Rule::unique('users', 'email')->withoutTrashed()->ignore($id)],
+            'mobile' => ['required', 'digits:10', Rule::unique('users', 'mobile')->withoutTrashed()->ignore($id)],
             'designation_id' => ['nullable', Rule::exists('designations', 'id')],
             'role' => ['required', Rule::in(Role::provisionableValues())],
 

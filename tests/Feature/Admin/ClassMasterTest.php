@@ -182,4 +182,25 @@ class ClassMasterTest extends TestCase
         $this->assertFalse($hierarchy->verdict($post('III'), $post('IV'))['valid'], 'III into IV goes down');
         $this->assertContains('class', $hierarchy->verdict($post('IV'), $post('III'))['checked']);
     }
+
+    /**
+     * A withdrawn class code entered again is a new class (2026-11-03), and every
+     * screen reads the new one: the withdrawn row stays, for the trail.
+     */
+    public function test_a_withdrawn_class_entered_again_is_the_one_every_screen_reads(): void
+    {
+        $this->actingAs($this->admin)->post(route('admin.service-classes.store'), ['code' => 'IV', 'name_en' => 'Class-IV old', 'level' => 4, 'status' => 'active'])
+            ->assertSessionHasNoErrors();
+        $old = ClassMaster::query()->where('code', 'IV')->sole();
+        $this->actingAs($this->admin)->delete(route('admin.service-classes.destroy', $old))->assertSessionHasNoErrors();
+
+        $this->actingAs($this->admin)->post(route('admin.service-classes.store'), ['code' => 'IV', 'name_en' => 'Class-IV new', 'level' => 4, 'status' => 'active'])
+            ->assertSessionHasNoErrors();
+
+        $new = ClassMaster::query()->where('code', 'IV')->sole();
+        $this->assertNotSame($old->id, $new->id);
+        $this->assertSoftDeleted($old);
+        $this->assertSame('Class-IV new', ServiceClass::from('IV')->label());
+        $this->assertSame(4, ServiceClass::from('IV')->level());
+    }
 }

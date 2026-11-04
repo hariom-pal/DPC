@@ -49,6 +49,9 @@
                 <p class="small text-muted mb-2 picker-lead-new">{{ __('allotments.picker.new_lead') }}</p>
                 <p class="small text-muted mb-2 picker-lead-existing d-none">{{ __('allotments.picker.readonly_note') }}</p>
                 <div class="row g-2">
+                    {{-- Employee ID for an AO or AH too (2026-11-04). --}}
+                    <div class="col-12"><label class="form-label small">{{ __('allotments.picker.employee_number') }} <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control form-control-sm picker-employee-number" maxlength="60"></div>
                     <div class="col-12"><label class="form-label small">{{ __('ui.name') }}</label>
                         <input type="text" class="form-control form-control-sm picker-name" maxlength="255"></div>
                     <div class="col-6"><label class="form-label small">{{ __('ui.mobile') }}</label>

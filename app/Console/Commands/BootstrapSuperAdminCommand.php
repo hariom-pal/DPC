@@ -11,6 +11,7 @@ use App\Enums\Role;
 use App\Support\OfficialEmail;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 use Spatie\Permission\Models\Role as SpatieRole;
 use Symfony\Component\Console\Output\OutputInterface;
 
@@ -97,8 +98,8 @@ class BootstrapSuperAdminCommand extends Command
 
         $validator = Validator::make($data, [
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255', OfficialEmail::RULE, 'unique:users,email'],
-            'mobile' => ['required', 'regex:/^[6-9]\d{9}$/', 'unique:users,mobile'],
+            'email' => ['required', 'email', 'max:255', OfficialEmail::RULE, Rule::unique('users', 'email')->withoutTrashed()],
+            'mobile' => ['required', 'regex:/^[6-9]\d{9}$/', Rule::unique('users', 'mobile')->withoutTrashed()],
         ]);
 
         if ($validator->fails()) {

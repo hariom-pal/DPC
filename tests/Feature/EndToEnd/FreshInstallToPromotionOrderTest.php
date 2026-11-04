@@ -297,12 +297,14 @@ class FreshInstallToPromotionOrderTest extends TestCase
 
             // Step 1: both figures and the one sanctioning order.
             $this->ok($this->actingAs($ao)->post(route('vacancy-records.strength', $params), [
-                'sanctioned_total' => 8, 'working_total' => 5,
+                // Our 5 working officers less the one away on deputation (B2), who
+                // is added from step 2 (2026-11-04).
+                'sanctioned_total' => 8, 'working_total' => 4,
                 'order_number' => 'PHE/SANC/2026', 'order_date' => '2026-01-01', 'document' => $this->pdf('s.pdf'),
             ]));
 
             // Step 2: B1 — an officer of another department here on deputation ending
-            // in 2026 (working 6, +1); B2 — one of ours away since March 2026, under a
+            // in 2026 (working 4 + B1 1 + B2 1 = 6); B2 — one of ours away since March 2026, under a
             // year by 31 December, so not counted; C — none.
             $this->ok($this->actingAs($ao)->post(route('vacancy-records.entries.store', $params), [
                 'kind' => 'deputation_in', 'officer_name' => 'Shri D. Deputationist', 'employee_number' => 'PHE/W/6', 'deputation_from' => '2024-07-01', 'deputation_to' => '2026-06-30', 'deputation_only_post' => '0',

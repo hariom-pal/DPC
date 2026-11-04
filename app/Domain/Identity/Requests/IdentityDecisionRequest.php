@@ -27,7 +27,6 @@ class IdentityDecisionRequest extends FormRequest
         return match ($this->route()?->getName()) {
             'admin.users.identity.correct' => [
                 'name' => ['required', 'string', 'max:255'],
-                'date_of_birth' => ['required', 'date', 'before:today'],
                 'gender' => ['required', 'in:M,F'],
                 'reason' => ['required', 'string', 'max:1000'],
                 'document' => ['nullable', ...$document],

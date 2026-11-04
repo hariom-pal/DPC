@@ -119,7 +119,12 @@ class VacancyMasterController extends Controller
 
         abort_if($department === null || $post === null || $preDpc->dpc_year === null, 404);
         $this->assertCanView($request, $department);
-        abort_unless($preDpc->status === PreDpcStatus::Approved && $preDpc->isActive(), 403);
+        // From a Pre-DPC in progress too (2026-11-04); a cancelled or superseded one is not.
+        abort_unless(
+            ($preDpc->status === PreDpcStatus::Approved && $preDpc->isActive())
+            || in_array($preDpc->status, [PreDpcStatus::Draft, PreDpcStatus::Returned, PreDpcStatus::Submitted], true),
+            403,
+        );
 
         $year = (int) $preDpc->dpc_year;
         $show = fn (string $section) => redirect()->route('vacancy-records.show', [$department, $year, $post, 'section' => $section]);

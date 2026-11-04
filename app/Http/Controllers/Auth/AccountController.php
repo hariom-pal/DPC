@@ -64,7 +64,7 @@ class AccountController extends Controller
                     }
                 },
             ],
-            'mobile' => ['required', 'regex:/^[6-9]\d{9}$/', Rule::unique('users', 'mobile')->ignore($user->id)],
+            'mobile' => ['required', 'regex:/^[6-9]\d{9}$/', Rule::unique('users', 'mobile')->withoutTrashed()->ignore($user->id)],
         ], [
             'email.regex' => __('profile.account.official_email'),
             'mobile.regex' => __('profile.account.mobile_format'),

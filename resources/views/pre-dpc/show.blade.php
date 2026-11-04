@@ -254,8 +254,9 @@
                         <form method="POST" action="{{ route('pre-dpc.amend', $proposal) }}">@csrf<button class="btn btn-outline-secondary btn-sm">{{ __('predpc.show.amend_new_version') }}</button></form>
                     @endcan
 
-                    {{-- After approval: the post's Vacancy Management for this Pre-DPC's year (2026-10-30). --}}
-                    @if ($proposal->status->value === 'approved' && $proposal->isActive() && $proposal->promotionToPost
+                    {{-- The post's Vacancy Management for this Pre-DPC's year (2026-10-30); from
+                         the draft on since 2026-11-04, finalized after approval. --}}
+                    @if ((($proposal->status->value === 'approved' && $proposal->isActive()) || in_array($proposal->status->value, ['draft', 'returned', 'submitted'], true)) && $proposal->promotionToPost
                         && auth()->user()?->department_id === $proposal->department_id
                         && auth()->user()?->hasAnyRole([\App\Enums\Role::AuthorizedOfficer->value, \App\Enums\Role::AdministrativeHead->value]))
                         <form method="POST" action="{{ route('vacancy-management.pre-dpc', $proposal) }}" id="pre-dpc-vacancy">
@@ -271,13 +272,13 @@
 
                 @can('return', $proposal)
                     <div class="card-body border-top">
-                        <form method="POST" action="{{ route('pre-dpc.return', $proposal) }}" class="row g-2">
-                            @csrf
+                        {{-- Signed by the AH (2026-11-04): the remarks go to the eSign screen. --}}
+                        <form method="GET" action="{{ route('esign.show', ['kind' => 'pre-dpc-return', 'uuid' => $proposal->uuid]) }}" class="row g-2" id="pre-dpc-return">
                             <div class="col-md-9">
                                 <input type="text" class="form-control form-control-sm @error('return_remarks') is-invalid @enderror" name="return_remarks" placeholder="{{ __('ui.remarks_required_to_return') }}">
                                 @error('return_remarks')<div class="invalid-feedback">{{ $message }}</div>@enderror
                             </div>
-                            <div class="col-md-3"><button class="btn btn-outline-warning btn-sm w-100">{{ __('ui.return_for_correction') }}</button></div>
+                            <div class="col-md-3"><button class="btn btn-outline-warning btn-sm w-100" data-esign>{{ __('ui.return_for_correction') }}</button></div>
                         </form>
                     </div>
                 @endcan

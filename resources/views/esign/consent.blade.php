@@ -22,6 +22,13 @@
                     @if ($simulated)
                         <div class="alert alert-warning small py-2">{{ __('esign.page.simulated') }}</div>
                     @endif
+                    @if ($kind === 'pre-dpc-return')
+                        <div class="mb-3">
+                            <label class="form-label small" for="return_remarks">{{ __('ui.remarks_required_to_return') }}</label>
+                            <textarea class="form-control form-control-sm @error('return_remarks') is-invalid @enderror" id="return_remarks" name="return_remarks" rows="2" maxlength="1000" required>{{ old('return_remarks', request()->query('return_remarks')) }}</textarea>
+                            @error('return_remarks')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                    @endif
                     @if ($kind === 'pre-dpc-submit')
                         <div class="mb-3">@include('partials.declaration', ['key' => 'pre_dpc_submit', 'checked' => request()->boolean('declaration')])</div>
                     @endif

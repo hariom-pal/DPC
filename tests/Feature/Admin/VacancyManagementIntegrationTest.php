@@ -144,8 +144,10 @@ class VacancyManagementIntegrationTest extends TestCase
         $position = $service->openDraft($department, $post, $year, $this->admin);
 
         $service->saveSanctionedStrength($position, ['sanctioned_total' => $sanctioned, 'order_number' => 'SANC/'.$year, 'order_date' => $year.'-01-02'], $this->pdf(), $this->admin);
+        // The figure entered leaves out the officers named as C rows below: they are
+        // added to it (2026-11-04).
         $service->saveWorkingStrength($position->fresh(), [
-            'working_total' => $promotion + $direct,
+            'working_total' => $promotion + $direct - array_sum(array_column($anticipated, 'count')),
             'order_number' => 'EST/'.$year, 'order_date' => $year.'-01-02',
         ], $this->pdf(), $this->admin);
 
