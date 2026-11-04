@@ -5,6 +5,7 @@
         // Sanctioned and working strength share one screen (2026-10-31).
         'working_not_entered' => 'sanctioned',
         'working_exceeds_sanctioned' => 'sanctioned',
+        'named_exceed_working' => 'sanctioned',
         'pending_entries' => 'vacancies',
         'total_exceeds_sanctioned' => 'vacancies',
     ];

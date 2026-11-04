@@ -798,31 +798,36 @@ class VacancyMasterTest extends TestCase
     }
 
     /**
-     * Working strength = our officers + officers here on deputation, never above the
-     * sanctioned strength.
+     * The working strength entered is every officer on the post, B1, B2 and C among
+     * them (2026-11-04): never above the sanctioned strength, and step 2 can never
+     * name more officers than it.
      */
-    public function test_working_strength_counts_officers_here_on_deputation_and_never_exceeds_sanctioned(): void
+    public function test_working_strength_includes_the_named_officers_and_never_exceeds_sanctioned(): void
     {
         $this->openDraft(100);
         $this->saveWorking(['working_total' => '101'])->assertSessionHasErrors('working_total');
-        $this->saveWorking(['working_total' => '99'])->assertSessionHasNoErrors();
+        $this->saveWorking(['working_total' => '2'])->assertSessionHasNoErrors();
 
         $this->addEntry(['kind' => 'deputation_in', 'officer_name' => 'A. Khan', 'deputation_from' => '2024-04-01', 'deputation_to' => '2027-03-31'])->assertSessionHasNoErrors();
-        $this->assertSame(100, $this->breakdown()['working']['total']);
-        $this->assertSame(1, $this->breakdown()['working']['deputation_in']);
+        $this->addEntry(['kind' => 'deputation', 'officer_name' => 'C. Patel', 'deputation_from' => '2025-03-01', 'promotion_made' => '0'])->assertSessionHasNoErrors();
+        $this->assertSame(2, $this->breakdown()['working']['total'], 'The rows are among the working officers, not added to them.');
+        $this->assertSame(0, $this->breakdown()['working']['own']);
 
-        $this->addEntry(['kind' => 'deputation_in', 'officer_name' => 'B. Rao', 'deputation_from' => '2024-04-01', 'deputation_to' => '2027-03-31'])
-            ->assertSessionHasErrors('kind');
-        $this->assertSame(1, VacancyPositionEntry::query()->count(), 'The refused row is not kept.');
+        $this->addEntry(['officer_name' => 'F. Gupta', 'effective_date' => '2026-04-30'])
+            ->assertSessionHasErrors(['kind' => __('vacancymaster.errors.named_over_working', ['named' => 3, 'working' => 2])]);
+        $this->assertSame(2, VacancyPositionEntry::query()->count(), 'The refused row is not kept.');
+
+        // Nor can the working strength be lowered below the officers named.
+        $this->saveWorking(['working_total' => '1', 'correction_reason' => 'Recount.'])->assertSessionHasErrors('working_total');
+        $this->assertSame(2, $this->breakdown()['working']['total']);
     }
 
     // -------------------------------------------- step 3: A + B1 + B2 + C
 
     /**
      * The worked example of 2026-10-30: sanctioned 10, our officers 6, two here on
-     * deputation → working 8, clear 2. Since 2026-11-04 the figure entered leaves out
-     * everyone named in step 2 (B1, B2 and C are added to it): the six of ours are
-     * the three away on deputation and the three leaving, so 0 is entered; one deputation here ends in the year, one of
+     * deputation → working 8 entered, clear 2. The figure entered includes everyone
+     * named in step 2 (2026-11-04); one deputation here ends in the year, one of
      * ours has been away more than a year with no promotion made, two retire and one
      * is promoted to a higher post → total 7; 7 × 50 % = 3.5 → 4 promotion, 3 direct.
      */
@@ -830,7 +835,7 @@ class VacancyMasterTest extends TestCase
     {
         $higher = $this->makePost($this->department, 'Joint Director', 5);
         $this->openDraft(10);
-        $this->saveWorking(['working_total' => '0'])->assertSessionHasNoErrors();
+        $this->saveWorking(['working_total' => '8'])->assertSessionHasNoErrors();
 
         // B1: in the working strength; the post falls vacant when the deputation ends in the year.
         $this->addEntry(['kind' => 'deputation_in', 'officer_name' => 'A. Khan', 'deputation_from' => '2024-07-01', 'deputation_to' => '2026-06-30'])->assertSessionHasNoErrors();
@@ -1036,34 +1041,35 @@ class VacancyMasterTest extends TestCase
     }
 
     /**
-     * The total vacancy never exceeds the sanctioned strength. Since 2026-11-04 a C
-     * row is in the working strength too, so the working figure reaches the
-     * sanctioned one first and the row past it is refused.
+     * The total vacancy never exceeds the sanctioned strength: the rows counted are
+     * among the working officers (2026-11-04), so clear + B + C is at most the
+     * sanctioned strength, and a row past the working strength is refused.
      */
     public function test_the_total_can_never_exceed_the_sanctioned_strength(): void
     {
         $this->openDraft(10);
         $this->saveWorking(['working_total' => '6'])->assertSessionHasNoErrors();   // clear 4
 
-        foreach (range(1, 4) as $n) {
+        foreach (range(1, 6) as $n) {
             $this->addEntry(['officer_name' => 'Officer '.$n, 'effective_date' => '2026-0'.$n.'-15'])->assertSessionHasNoErrors();
         }
 
         $b = $this->breakdown();
-        $this->assertSame([10, 0, 4], [$b['working']['total'], $b['clear_vacancy'], $b['total_vacancy']]);
-        $this->addEntry(['officer_name' => 'Officer 5', 'effective_date' => '2026-05-15'])->assertSessionHasErrors('kind');
-        $this->assertSame(4, VacancyPositionEntry::query()->count());
+        $this->assertSame([6, 4, 10], [$b['working']['total'], $b['clear_vacancy'], $b['total_vacancy']]);
+        $this->addEntry(['officer_name' => 'Officer 7', 'effective_date' => '2026-07-15'])->assertSessionHasErrors('kind');
+        $this->assertSame(6, VacancyPositionEntry::query()->count());
     }
 
     /**
-     * The worked example of 2026-11-04: working entered 4, one retiring (C), one of
-     * ours on deputation elsewhere (B2), one here on deputation ending in the year
-     * (B1) → working 4 + 1 + 1 + 1 = 7; sanctioned 10 → clear 3, total 3 + 1 + 1 + 1 = 6.
+     * The worked example of 2026-11-04: working strength 7 entered, of whom one is
+     * retiring (C), one of ours is on deputation elsewhere (B2) and one is here on
+     * deputation ending in the year (B1), 4 others; sanctioned 10 → clear 3, total
+     * 3 + 1 + 1 + 1 = 6.
      */
     public function test_deputation_and_leaving_officers_count_in_the_working_strength(): void
     {
         $this->openDraft(10);
-        $this->saveWorking(['working_total' => '4'])->assertSessionHasNoErrors();
+        $this->saveWorking(['working_total' => '7'])->assertSessionHasNoErrors();
         $this->addEntry(['officer_name' => 'C. Retiring', 'effective_date' => '2026-06-30'])->assertSessionHasNoErrors();
         $this->addEntry(['kind' => 'deputation', 'officer_name' => 'B2. Away', 'deputation_from' => '2024-01-01', 'promotion_made' => '0'])->assertSessionHasNoErrors();
         $this->addEntry(['kind' => 'deputation_in', 'officer_name' => 'B1. Here', 'deputation_from' => '2024-07-01', 'deputation_to' => '2026-06-30'])->assertSessionHasNoErrors();
@@ -1158,10 +1164,9 @@ class VacancyMasterTest extends TestCase
         $this->actingAs($this->ao)->post($this->url('finalize'))->assertSessionHasNoErrors();
 
         $this->assertSame(VacancyPositionStatus::Superseded, $first->fresh()->status);
-        // Working 75 + 2 retiring = 77 of 100 → clear 23 + 2 = 25 × 50 % = 12.5 → 13.
-        // Withdrawing a retirement moves that officer from C back into the clear
-        // vacancies (2026-11-04: C counts in the working strength), so 25 again.
-        $this->assertSame(13, $first->fresh()->promotion_vacancy);
+        // Working 75 of 100, two of them retiring → clear 25 + 2 = 27 × 50 % = 13.5 → 14.
+        // Withdrawing a retirement leaves 25 + 1 = 26 → 13.
+        $this->assertSame(14, $first->fresh()->promotion_vacancy);
         $this->assertSame(2, $first->fresh()->breakdown['anticipated_vacancy'], 'The first revision keeps its own figures.');
         $this->assertSame(13, $second->fresh()->promotion_vacancy);
         $this->assertSame(1, $second->fresh()->breakdown['anticipated_vacancy']);
@@ -1289,16 +1294,16 @@ class VacancyMasterTest extends TestCase
         $this->addEntry(['officer_name' => 'C. Retiring', 'effective_date' => '2026-09-30'])->assertSessionHasNoErrors();
 
         $this->assertSame('2026-09-30', VacancyPositionEntry::query()->sole()->effective_date->toDateString());
-        $this->assertSame(5, $this->breakdown()['working']['total']);
+        $this->assertSame(4, $this->breakdown()['working']['total'], 'The retiring officer is among the four working.');
     }
 
     /**
-     * The review of drafts entered before 2026-11-04: a draft with B2 or C rows is
-     * listed for its figure to be checked; nothing is changed.
+     * The review of drafts entered before 2026-11-04: a draft with B1, B2 or C rows is
+     * listed for its working figure to be checked; nothing is changed.
      */
-    public function test_drafts_with_b2_or_c_rows_are_listed_for_review_and_left_unchanged(): void
+    public function test_drafts_with_named_rows_are_listed_for_review_and_left_unchanged(): void
     {
-        $this->artisan('vacancy:review-draft-working')->expectsOutputToContain('nothing can be counted twice')->assertSuccessful();
+        $this->artisan('vacancy:review-draft-working')->expectsOutputToContain('nothing to check')->assertSuccessful();
 
         $this->openDraft(10);
         $this->saveWorking(['working_total' => '6'])->assertSessionHasNoErrors();

@@ -11,20 +11,20 @@ use App\Domain\Dpc\Services\VacancyMasterService;
 use Illuminate\Console\Command;
 
 /**
- * The draft Vacancy Management records whose working figure may count an officer
- * twice (2026-11-04).
+ * The draft Vacancy Management records whose working figure must be checked
+ * against their B1, B2 and C rows (2026-11-04).
  *
- * Working = the figure entered + B1 + B2 + C since 2026-11-04. A draft whose figure
- * was entered before then, when our officers on deputation elsewhere were to be
- * included in it, may already hold its B2 and C officers. Read-only: the figure is
- * the department's to correct. Finalized records answer from their frozen snapshot
- * and are not listed.
+ * The working strength entered is every officer working on the post on 1 January,
+ * B1, B2 and C included; those rows are among them. A draft whose figure was
+ * entered while the rows were added to it may leave them out. Read-only: the figure
+ * is the department's to correct. Finalized records answer from their frozen
+ * snapshot and are not listed.
  */
 class ReviewVacancyDraftWorkingCommand extends Command
 {
     protected $signature = 'vacancy:review-draft-working';
 
-    protected $description = 'List draft Vacancy Management records with B2 or C rows, whose working figure must leave those officers out';
+    protected $description = 'List draft Vacancy Management records with B1, B2 or C rows, whose working figure must include those officers';
 
     public function handle(VacancyMasterService $vacancies): int
     {
@@ -33,17 +33,17 @@ class ReviewVacancyDraftWorkingCommand extends Command
             ->with(['department', 'workingStrength', 'entries'])
             ->orderBy('id')
             ->get()
-            ->filter(fn (VacancyPosition $position): bool => $position->workingStrength !== null && $this->named($position, VacancyEntryKind::Deputation) + $this->named($position, VacancyEntryKind::Anticipated) > 0);
+            ->filter(fn (VacancyPosition $position): bool => $position->workingStrength !== null && $this->named($position, VacancyEntryKind::DeputationIn) + $this->named($position, VacancyEntryKind::Deputation) + $this->named($position, VacancyEntryKind::Anticipated) > 0);
 
         if ($drafts->isEmpty()) {
-            $this->info('No draft record has B2 or C rows: nothing can be counted twice.');
+            $this->info('No draft record has B1, B2 or C rows: nothing to check.');
 
             return self::SUCCESS;
         }
 
-        $this->warn($drafts->count().' draft record(s) to review. The figure entered must leave out the B1, B2 and C officers, who are added to it:');
+        $this->warn($drafts->count().' draft record(s) to review. The working strength entered must include the B1, B2 and C officers, who are among the working officers:');
         $this->table(
-            ['Record', 'Department', 'Post', 'Year', 'Entered', 'B1', 'B2', 'C', 'Working now'],
+            ['Record', 'Department', 'Post', 'Year', 'Working', 'B1', 'B2', 'C', 'Others'],
             $drafts->map(fn (VacancyPosition $position): array => [
                 $position->id,
                 $position->department?->name,
@@ -53,7 +53,7 @@ class ReviewVacancyDraftWorkingCommand extends Command
                 $this->named($position, VacancyEntryKind::DeputationIn),
                 $this->named($position, VacancyEntryKind::Deputation),
                 $this->named($position, VacancyEntryKind::Anticipated),
-                $vacancies->breakdown($position)['working']['total'] ?? null,
+                $vacancies->breakdown($position)['working']['own'] ?? null,
             ])->all(),
         );
 

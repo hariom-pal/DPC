@@ -251,9 +251,12 @@ class VacancyMasterService
         $anticipated = $ofKind(VacancyEntryKind::Anticipated);
         $pending = $active->filter(fn (VacancyPositionEntry $entry): bool => $entry->eligibility === VacancyEntryEligibility::PendingVerification);
 
-        $own = $working?->working_total;
-        $workingTotal = $own === null ? null : $own + (int) $incoming->sum('vacancy_count')
-            + (int) $outgoing->sum('vacancy_count') + (int) $anticipated->sum('vacancy_count');
+        // The working strength entered is every officer working on the post on
+        // 1 January, B1, B2 and C included; those rows name some of them and can
+        // never be more than it (2026-11-04).
+        $workingTotal = $working?->working_total;
+        $named = (int) $incoming->sum('vacancy_count') + (int) $outgoing->sum('vacancy_count') + (int) $anticipated->sum('vacancy_count');
+        $own = $workingTotal === null ? null : max(0, $workingTotal - $named);
         $clear = $sanctioned === null || $workingTotal === null ? null : max(0, $sanctioned - $workingTotal);
         $deputationIn = $counted($incoming);
         $deputationOut = $counted($outgoing);
@@ -290,6 +293,10 @@ class VacancyMasterService
                 'working' => $workingTotal,
                 'sanctioned' => $sanctioned,
             ]];
+        }
+
+        if ($workingTotal !== null && $named > $workingTotal) {
+            $issues[] = ['key' => 'named_exceed_working', 'params' => ['named' => $named, 'working' => $workingTotal]];
         }
 
         if ($percentage === null) {
@@ -1300,7 +1307,8 @@ class VacancyMasterService
 
     /**
      * Neither the working strength nor the total vacancy may exceed the sanctioned
-     * strength. Called inside the write's transaction, after the write, so the
+     * strength, and the B1, B2 and C rows, who are among the working officers, may
+     * not be more than the working strength (2026-11-04). Called inside the write's transaction, after the write, so the
      * figures are the ones that would be kept; throwing rolls the write back.
      */
     private function assertWithinSanctioned(VacancyPosition $position, string $field): void
@@ -1317,6 +1325,12 @@ class VacancyMasterService
 
         if ($working !== null && $working > $sanctioned) {
             throw new WorkflowException(__('vacancymaster.errors.working_over_sanctioned', ['working' => $working, 'sanctioned' => $sanctioned]), $field);
+        }
+
+        $named = (int) ($breakdown['working']['deputation_in'] ?? 0) + (int) ($breakdown['working']['deputation_out'] ?? 0) + (int) ($breakdown['working']['anticipated'] ?? 0);
+
+        if ($working !== null && $named > $working) {
+            throw new WorkflowException(__('vacancymaster.errors.named_over_working', ['named' => $named, 'working' => $working]), $field);
         }
 
         if ($breakdown['total_vacancy'] !== null && $breakdown['total_vacancy'] > $sanctioned) {

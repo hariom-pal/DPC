@@ -19,25 +19,21 @@
                             <td>{{ __('vacancymaster.sanctioned.total') }}</td>
                             <td class="text-end fw-semibold">{{ $sanctioned?->sanctioned_total ?? __('vacancymaster.not_entered') }}</td>
                         </tr>
-                        <tr>
-                            <td>{{ __('vacancymaster.pm.working_own') }}</td>
+                        <tr class="table-light fw-semibold">
+                            <td>{{ __('vacancymaster.pm.working_total') }}</td>
                             <td class="text-end">{{ $working?->working_total ?? __('vacancymaster.not_entered') }}</td>
                         </tr>
                         <tr>
-                            <td>+ {{ __('vacancymaster.pm.working_here') }}</td>
+                            <td>&nbsp;&nbsp;{{ __('vacancymaster.pm.working_of_whom') }} {{ __('vacancymaster.pm.working_here') }}</td>
                             <td class="text-end">{{ $incoming }}</td>
                         </tr>
                         <tr>
-                            <td>+ {{ __('vacancymaster.pm.working_out') }}</td>
+                            <td>&nbsp;&nbsp;{{ __('vacancymaster.pm.working_of_whom') }} {{ __('vacancymaster.pm.working_out') }}</td>
                             <td class="text-end">{{ $outgoing }}</td>
                         </tr>
                         <tr>
-                            <td>+ {{ __('vacancymaster.pm.working_anticipated') }}</td>
+                            <td>&nbsp;&nbsp;{{ __('vacancymaster.pm.working_of_whom') }} {{ __('vacancymaster.pm.working_anticipated') }}</td>
                             <td class="text-end">{{ $anticipated }}</td>
-                        </tr>
-                        <tr class="table-light fw-semibold">
-                            <td>{{ __('vacancymaster.pm.working_total') }}</td>
-                            <td class="text-end">{{ $b['working']['total'] ?? '—' }}</td>
                         </tr>
                         @if ($sanctioned !== null)
                             <tr>
