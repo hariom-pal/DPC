@@ -48,7 +48,7 @@ class DpcSealedCoverOpening extends Model
 
     public const REJECTED = 'rejected';
 
-    /** Rejected before 31 December: the next eligible candidate is offered the seat. */
+    /** Rejected up to and including 31 December: the next eligible candidate is offered the seat. */
     public const REPLACEMENT_OFFERED = 'offered';
 
     /** Rejected before 31 December, but nobody is left on the waiting list. */
@@ -56,9 +56,6 @@ class DpcSealedCoverOpening extends Model
 
     /** Rejected after 31 December: no promotion against the seat through this DPC. */
     public const REPLACEMENT_NOT_AFTER_YEAR = 'not_after_year';
-
-    /** Opened on 31 December itself: the rule is not decided; nothing is reallocated. */
-    public const REPLACEMENT_BOUNDARY_UNRESOLVED = 'boundary_unresolved';
 
     /**
      * @var list<string>

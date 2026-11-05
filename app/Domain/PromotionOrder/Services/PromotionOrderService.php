@@ -70,16 +70,26 @@ final class PromotionOrderService
             return new Collection;
         }
 
-        $held = DpcProceedingHold::query()
-            ->where('dpc_proceeding_id', $proceeding->id)
-            ->whereNull('released_at')
-            ->pluck('sn')
-            ->map(fn ($sn): int => (int) $sn)
-            ->all();
-
         return $this->results->lists($run)['main']
-            ->reject(fn (DpcCalculationResult $result): bool => $result->status() === RemarkCode::SealedCover || in_array((int) $result->sn, $held, true))
+            ->reject(fn (DpcCalculationResult $result): bool => $result->status() === RemarkCode::SealedCover || $this->isHeld($proceeding, $result))
             ->values();
+    }
+
+    /**
+     * Whether an officer's promotion is still held (2026-11-05): an unreleased hold,
+     * or a CIR result whose holds have not all been released by a signed
+     * circulation. The seat stays reserved meanwhile; a CIR with no hold to release
+     * (a missing Loyalty Certificate) stays held.
+     */
+    public function isHeld(DpcProceeding $proceeding, DpcCalculationResult $result): bool
+    {
+        $holds = DpcProceedingHold::query()->where('dpc_proceeding_id', $proceeding->id)->where('sn', (int) $result->sn)->get();
+
+        if ($holds->contains(fn (DpcProceedingHold $hold): bool => $hold->released_at === null)) {
+            return true;
+        }
+
+        return $result->status() === RemarkCode::Circulation && $holds->isEmpty();
     }
 
     public function current(DpcProposal $proposal): ?DpcPromotionOrder
@@ -220,8 +230,9 @@ final class PromotionOrderService
                 'dpc_sealed_cover_opening_id' => $opening->id,
                 'order_number' => trim($orderNumber),
                 'order_date' => Carbon::parse($orderDate)->toDateString(),
-                // The cleared officer from the day the cover was opened, never the DPC's date.
-                'effective_date' => $opening->isCleared() ? $opening->opened_on->toDateString() : null,
+                // The cleared officer from the day the cover was opened, never the DPC's
+                // date; the replacement from the day this order is issued (2026-11-05).
+                'effective_date' => $opening->isCleared() ? $opening->opened_on->toDateString() : Carbon::parse($orderDate)->toDateString(),
                 'version' => $version,
                 'supersedes_id' => $previous?->id,
                 'status' => DpcPromotionOrder::STATUS_ISSUED,

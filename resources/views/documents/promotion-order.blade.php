@@ -67,7 +67,7 @@
             takes effect from <strong>{{ $order->effective_date->format('d-m-Y') }}</strong>, the date the sealed cover was opened.</p>
     @elseif ($order->kind === \App\Domain\PromotionOrder\Models\DpcPromotionOrder::KIND_SEALED_COVER)
         <p>This order fills the post a sealed cover's opening released, for the next eligible officer on the DPC's waiting list.
-            Seniority counts from the date of this order, {{ $order->order_date->format('d-m-Y') }}.</p>
+            The promotion takes effect from <strong>{{ ($order->effective_date ?? $order->order_date)->format('d-m-Y') }}</strong>, the date of issue of this order.</p>
     @else
     <p>The seniority of the officers promoted by this order on the post of {{ $proposal->promotionToPost?->name }} shall count from
         the date of this order, {{ $order->order_date->format('d-m-Y') }}.</p>

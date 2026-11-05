@@ -189,7 +189,12 @@ class DpcCalculationService
                  | scored — item 19 says they continue.
                  */
                 'gate' => $gate,
-                'verdict' => $gate->isDecided() ? $verdict->overriddenBy($gate) : $verdict,
+                // CIR holds the seat merit gives (2026-11-05); any other gate refuses.
+                'verdict' => match (true) {
+                    ! $gate->isDecided() => $verdict,
+                    $gate->status === RemarkCode::Circulation => $verdict->heldBy($gate),
+                    default => $verdict->overriddenBy($gate),
+                },
                 'superSeat' => $this->superSeat->assess($record, $score, $rules),
             ];
         });
@@ -523,6 +528,10 @@ class DpcCalculationService
              */
             if ($entry['record']->sealedCover !== null) {
                 $entries[$index]['remark'] = RemarkCode::SealedCover->value;
+            } elseif ($entry['verdict']->remark === RemarkCode::Circulation) {
+                // CIR (2026-11-05): the seat is reserved, the promotion held — shown as
+                // CIR, not as the category the seat was taken under.
+                $entries[$index]['remark'] = RemarkCode::Circulation->value;
             }
         }
 

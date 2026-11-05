@@ -199,7 +199,7 @@ class SampleDataTest extends TestCase
         $this->assertSame(
             ['main' => 3, 'waiting' => 3, 'none' => 4],
             $this->countsOf($held),
-            'A held promotion must not fill a seat, so Serial 4 stays off the Main List.',
+            'Serial 4 is not eligible on merit, and CIR alone reserves no seat (2026-11-05), so Serial 4 stays off the Main List.',
         );
     }
 

@@ -222,14 +222,11 @@ class MeritGateTest extends TestCase
     }
 
     /**
-     * Item 19: *"Candidate shall continue in the DPC."*
-     *
-     * So a CIR candidate is still scored — the marks are computed and stored, not
-     * skipped. The promotion is held, which is why the seat is not taken; but the
-     * record is complete enough for the Commission to act on when the missing document
-     * arrives, without re-running anything.
+     * Item 19: *"Candidate shall continue in the DPC."* A CIR candidate is still
+     * scored. One whose marks do not reach the qualifying total is not eligible on
+     * merit, so no seat is reserved for them — CIR alone reserves none (2026-11-05).
      */
-    public function test_a_cir_candidate_is_still_scored_but_takes_no_seat(): void
+    public function test_a_cir_candidate_the_marks_do_not_qualify_takes_no_seat(): void
     {
         $row = $this->chart([[
             'sn' => 1, 'name' => 'US1',
@@ -243,6 +240,28 @@ class MeritGateTest extends TestCase
         $this->assertSame(RemarkCode::Circulation->value, $result->remark);
         $this->assertGreaterThan(0, $result->score_breakdown['total']);
         $this->assertSame(ListType::None, $result->list_type);
+    }
+
+    /**
+     * A CIR candidate the marks make eligible keeps the seat merit gives them,
+     * reserved while the hold is pending — it is not passed to the next officer
+     * (2026-11-05).
+     */
+    public function test_a_cir_candidate_eligible_on_merit_keeps_the_seat(): void
+    {
+        $rows = $this->chart([
+            ['sn' => 1, 'name' => 'CIR1', 'grade' => 'क+', 'crYears' => [2014, 2015, 2016, 2017]],
+            ['sn' => 2, 'name' => 'Next'],
+        ], sanctioned: 1, vacancies: 1);
+        $this->recordGap($rows[1], DpcEvaluationRecordGap::KIND_CR, 2013);
+
+        $run = $this->calculate();
+        $held = $run->results()->where('sn', 1)->firstOrFail();
+        $next = $run->results()->where('sn', 2)->firstOrFail();
+
+        $this->assertSame([RemarkCode::Circulation->value, ListType::Main], [$held->remark, $held->list_type]);
+        $this->assertTrue((bool) $held->is_eligible);
+        $this->assertNotSame(ListType::Main, $next->list_type, 'The reserved seat is not given to the next officer.');
     }
 
     // =====================================================================

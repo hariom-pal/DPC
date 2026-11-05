@@ -15,6 +15,7 @@ use App\Domain\Proceeding\Models\DpcProceeding;
 use App\Domain\Proceeding\Models\DpcProceedingHold;
 use App\Domain\Proceeding\Models\DpcSealedCoverOpening;
 use App\Domain\PromotionOrder\Models\DpcPromotionOrder;
+use App\Domain\PromotionOrder\Services\PromotionOrderService;
 use App\Domain\Shared\Services\ActivityTimelineService;
 use App\Domain\Shared\Workflow\WorkflowException;
 use Illuminate\Http\UploadedFile;
@@ -186,10 +187,6 @@ class SealedCoverService
         $year = (int) ($proposal?->dpc_year ?: $proposal?->proposal_date?->year);
         $yearEnd = Carbon::create($year, 12, 31)->startOfDay();
 
-        if ($openedOn->equalTo($yearEnd)) {
-            return [DpcSealedCoverOpening::REPLACEMENT_BOUNDARY_UNRESOLVED, null];
-        }
-
         if ($openedOn->greaterThan($yearEnd)) {
             return [DpcSealedCoverOpening::REPLACEMENT_NOT_AFTER_YEAR, null];
         }
@@ -230,6 +227,7 @@ class SealedCoverService
             ->get()
             ->first(fn (DpcCalculationResult $result): bool => (bool) $result->is_eligible
                 && $result->status() !== RemarkCode::SealedCover
+                && ! app(PromotionOrderService::class)->isHeld($proceeding, $result)
                 && ! in_array((int) $result->sn, [...$promoted, ...$held, ...$offered], true));
     }
 }

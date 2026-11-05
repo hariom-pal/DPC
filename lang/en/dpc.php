@@ -324,7 +324,7 @@ return [
         'seat' => 'The seat',
         'open' => 'Open the sealed cover',
         'confirm' => 'Open this sealed cover? The decision is recorded and cannot be changed.',
-        'year_rule' => 'Cleared: a new promotion order, effective from the opening date. Rejected before 31 December of the DPC year: the seat goes to the next eligible candidate; after 31 December: no promotion against it through this DPC.',
+        'year_rule' => 'Cleared: a new promotion order, effective from the opening date. Rejected on or before 31 December of the DPC year: the seat goes to the next eligible candidate, whose order takes effect from its date of issue; after 31 December: no promotion against it through this DPC.',
         'opened' => 'The sealed cover was opened and the decision recorded.',
         'openings_heading' => 'Sealed covers opened',
         'issue_order' => 'Issue the promotion order',
@@ -334,7 +334,6 @@ return [
             'offered' => 'Offered to the next eligible candidate: :name.',
             'none_available' => 'No eligible candidate is left on the waiting list.',
             'not_after_year' => 'Opened after 31 December of the DPC year: no promotion against this seat through this DPC.',
-            'boundary_unresolved' => 'Opened on 31 December of the DPC year: the treatment of this date is awaiting a decision; the seat is not reallocated.',
         ],
         'errors' => [
             'not_chairman' => 'Only the Chairman of this DPC may open its sealed covers.',

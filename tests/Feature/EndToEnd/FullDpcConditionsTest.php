@@ -247,8 +247,8 @@ class FullDpcConditionsTest extends TestCase
     /**
      * 5. Mandatory Property Return Missing (2026-11-05): the AO marks 2023 Missing
      * with its reason and document; the AH sees the evidence; the officer is CIR, not
-     * RJ, held, and kept off the promotion order until the circulation releases the
-     * hold.
+     * RJ, keeps the seat merit gives (reserved), and stays off the promotion order
+     * until the circulation releases the hold.
      */
     public function test_5_mandatory_property_missing_is_cir_and_waits_for_the_circulation(): void
     {
@@ -267,14 +267,13 @@ class FullDpcConditionsTest extends TestCase
         $hold = DpcProceedingHold::query()->where('dpc_proceeding_id', $proceeding->id)->where('sn', 3)->sole();
         $this->assertSame('property_missing', $hold->reason_code->value);
 
-        $this->assertNotContains(3, $this->order($c), 'Not promoted before the clearance.');
-        $this->circulate($c, $hold);
+        // The seat is reserved (2026-11-05): not given to the next officer while held.
+        $this->assertSame(['main', true], [$results[3]->list_type->value, (bool) $results[3]->is_eligible]);
+        $this->assertSame([1, 2, 4, 5, 6], $this->order($c), 'Held: off the order, and nobody takes the seat.');
 
-        // Item 19 as built: a CIR candidate is scored but takes no seat, and a signed
-        // circulation recalculates nothing (AD-23) — so the release does not by
-        // itself promote the officer. Whether a CIR candidate should keep a seat
-        // for the clearance is a business question reported for decision.
-        $this->assertNotContains(3, $this->order($c));
+        $this->circulate($c, $hold);
+        $this->assertSame(1, DpcPromotionOrder::query()->count(), 'The clearance issues no order by itself.');
+        $this->assertSame([1, 2, 3, 4, 5, 6], $this->order($c), 'The order issued again promotes the cleared officer once.');
     }
 
     /**
@@ -313,9 +312,11 @@ class FullDpcConditionsTest extends TestCase
         $hold = DpcProceedingHold::query()->where('dpc_proceeding_id', $proceeding->id)->where('sn', 4)->sole();
         $this->assertSame('cr_years_missing', $hold->reason_code->value);
 
-        $this->assertNotContains(4, $this->order($c));
+        // The seat merit gives is reserved (2026-11-05): off the order, and nobody takes it.
+        $this->assertSame(['main', true], [$result->list_type->value, (bool) $result->is_eligible]);
+        $this->assertSame([1, 2, 3, 5, 6], $this->order($c));
 
-        // The CR hold cannot be circulated while the rule for it is undecided (BD-15).
+        // The CR hold cannot be circulated (BD-15): no marks are invented by a clearance.
         $this->actingAs($c['ao'])->post(route('dpc-circulations.store'), [
             'origin_dpc_proposal_uuid' => $c['proposal']->uuid, 'proposal_date' => now()->toDateString(),
             'items' => [['hold_uuid' => $hold->uuid, 'resolution_detail' => 'CR still unavailable.', 'resolution_reference' => 'CR/1', 'resolution_received_on' => now()->subDay()->toDateString()]],
@@ -323,6 +324,51 @@ class FullDpcConditionsTest extends TestCase
         $this->assertSame(0, DpcCirculation::query()->count());
         $this->assertNull($hold->fresh()->released_at);
         $this->assertNotContains(4, $this->order($c));
+        $originalResult = $result->fresh()->getAttributes();
+
+        // The actual CR arrives: the officer is reassessed through a Review DPC, where
+        // the AO records it and the DPC is calculated again.
+        $review = $this->approvedReview($c, function (DpcProposal $review) use ($c): void {
+            $row = $review->evaluationRows()->where('sn', 4)->sole();
+            $route = fn (string $n): string => route('dpc-proposals.employees.'.$n, [$review, $row]);
+            $this->ok($this->actingAs($c['ao'])->post($route('cr.save'), ['year' => 2023, 'put_up' => '1', 'has_grading' => '1', 'authorities' => ['reporter', 'reviewer', 'accepting'], 'grade' => 'क']));
+            $this->ok($this->actingAs($c['ao'])->post($route('documents.store'), ['verified' => '1', 'kind' => 'cr_report', 'year' => 2023, 'undertaking' => '1', 'document' => $this->pdf('cr4-2023.pdf')]));
+        });
+        $reviewed = $this->results($this->conclude(['proposal' => $review] + $c))[4];
+        $this->assertSame(7, (int) $reviewed->score_breakdown['marks_by_year'][2023], 'Marks from the CR actually recorded.');
+        $this->assertNotSame('CIR', $reviewed->status()->value);
+        $this->assertContains(4, $this->order(['proposal' => $review] + $c));
+
+        // The original DPC's approved result is history, unchanged.
+        $this->assertSame($originalResult, $result->fresh()->getAttributes());
+    }
+
+    /**
+     * A Review DPC raised from the concluded DPC, its Rule 1.1 verified afresh, the
+     * AO's corrections made, submitted and approved.
+     */
+    private function approvedReview(array $c, callable $correct): DpcProposal
+    {
+        return $this->step('Review DPC', function () use ($c, $correct): DpcProposal {
+            $this->ok($this->actingAs($c['ao'])->post(route('dpc-proposals.reviews.store'), [
+                'original_dpc_proposal_uuid' => $c['proposal']->uuid, 'proposal_date' => now()->toDateString(),
+                'reasons' => [ReviewReason::query()->where('code', 'wrong_cr')->value('id')],
+            ]));
+            $review = DpcProposal::query()->where('original_dpc_proposal_id', $c['proposal']->id)->sole();
+            $correct($review);
+            foreach (['sanctioned_strength', 'recruitment_rule', 'seniority_list', 'original_documents', 'representations'] as $item) {
+                $this->ok($this->actingAs($c['ao'])->post(route('dpc-proposals.verification.store', [$review, $item]), ['confirm' => '1']));
+            }
+            $this->ok($this->actingAs($c['ao'])->post(route('dpc-proposals.verification.store', [$review, 'previous_dpc_reconciliation']), ['confirm' => '1', 'previous_dpc_basis' => 'none', 'remarks' => 'Review of the DPC of this post.']));
+            $this->ok($this->actingAs($c['ao'])->post(route('dpc-proposals.verification.store', [$review, 'recruitment_rule_conformity']), ['confirm' => '1', 'rr_notified_on' => '2026-01-01']));
+            $this->ok($this->actingAs($c['ao'])->post(route('dpc-proposals.submit', $review)));
+            foreach ($review->evaluationRows()->get() as $row) {
+                $this->ok($this->actingAs($c['ah'])->post(route('dpc-proposals.employees.documents.verify-all', [$review, $row])));
+            }
+            $this->ok($this->actingAs($c['ah'])->post(route('dpc-proposals.approve', $review)));
+
+            return $review->fresh();
+        });
     }
 
     /**
@@ -437,9 +483,9 @@ class FullDpcConditionsTest extends TestCase
     }
 
     /**
-     * 10. Sealed cover — rejected before 31 December of the DPC year: the seat is
-     * offered once to the next eligible candidate on the waiting list, and nobody is
-     * promoted twice.
+     * 10. Sealed cover — rejected within the DPC year: the seat is offered once to
+     * the next eligible candidate on the waiting list, whose order takes effect from
+     * its date of issue; nobody is promoted twice.
      */
     public function test_10_sealed_cover_rejected_before_year_end_offers_the_seat_once(): void
     {
@@ -454,7 +500,14 @@ class FullDpcConditionsTest extends TestCase
         $this->assertSame(['offered', (int) $waiting->sn], [$opening->replacement_status, $opening->replacement_sn]);
 
         $this->ok($this->followUp($c, $opening));
-        $this->assertSame([(int) $waiting->sn], array_column((array) DpcPromotionOrder::query()->where('kind', DpcPromotionOrder::KIND_SEALED_COVER)->sole()->officers, 'sn'));
+        $replacement = DpcPromotionOrder::query()->where('kind', DpcPromotionOrder::KIND_SEALED_COVER)->sole();
+        $this->assertSame([(int) $waiting->sn], array_column((array) $replacement->officers, 'sn'));
+        // Effective from the day this order is issued, never backdated (2026-11-05).
+        $this->assertSame($replacement->order_date->toDateString(), $replacement->effective_date?->toDateString());
+
+        // Issued again for the same opening it supersedes itself — never a second live order.
+        $this->ok($this->followUp($c, $opening));
+        $this->assertSame(1, DpcPromotionOrder::query()->where('kind', DpcPromotionOrder::KIND_SEALED_COVER)->where('status', 'issued')->count());
 
         // The DPC's own order issued again promotes neither the rejected officer nor the replacement again.
         $this->order($c);
@@ -463,33 +516,46 @@ class FullDpcConditionsTest extends TestCase
         $this->assertNotContains(2, $everyone);
     }
 
-    /** 11. Rejected after 31 December of the DPC year: no promotion against the seat. */
-    public function test_11_sealed_cover_rejected_after_year_end_promotes_nobody(): void
+    /** 11. Rejected on 1 January after the DPC year: no promotion against the seat. */
+    public function test_11_sealed_cover_rejected_on_1_january_after_the_year_promotes_nobody(): void
     {
         $c = $this->dpc(['sealed' => [2]]);
         $proceeding = $this->conclude($c);
-        $this->travelTo('2027-01-20');
+        $this->travelTo('2027-01-05');
 
-        $this->ok($this->openCover($c, $proceeding, 2, 'rejected', '2027-01-15'));
+        $this->ok($this->openCover($c, $proceeding, 2, 'rejected', '2027-01-01'));
         $opening = DpcSealedCoverOpening::query()->sole();
         $this->assertSame(['not_after_year', null], [$opening->replacement_status, $opening->replacement_sn]);
         $this->followUp($c, $opening)->assertSessionHasErrors('order');
         $this->assertSame(0, DpcPromotionOrder::query()->where('kind', DpcPromotionOrder::KIND_SEALED_COVER)->count());
     }
 
-    /** 12. Opened on 31 December itself: not decided — flagged, nothing reallocated. */
-    public function test_12_sealed_cover_rejected_on_31_december_is_flagged_and_not_reallocated(): void
+    /**
+     * 12. 30 and 31 December of the DPC year are within it (2026-11-05): the seat is
+     * offered to the next eligible candidate.
+     */
+    public function test_12a_sealed_cover_rejected_on_30_december_offers_the_seat(): void
+    {
+        $this->assertOfferedWhenOpenedOn('2026-12-30');
+    }
+
+    public function test_12b_sealed_cover_rejected_on_31_december_offers_the_seat(): void
+    {
+        $this->assertOfferedWhenOpenedOn('2026-12-31');
+    }
+
+    private function assertOfferedWhenOpenedOn(string $date): void
     {
         $c = $this->dpc(['sealed' => [2]]);
         $proceeding = $this->conclude($c);
         $this->travelTo('2027-01-05');
 
-        $this->ok($this->openCover($c, $proceeding, 2, 'rejected', '2026-12-31'));
+        $this->ok($this->openCover($c, $proceeding, 2, 'rejected', $date));
         $opening = DpcSealedCoverOpening::query()->sole();
-        $this->assertSame(['boundary_unresolved', null], [$opening->replacement_status, $opening->replacement_sn]);
-        $this->followUp($c, $opening)->assertSessionHasErrors('order');
-        $this->actingAs($c['ah'])->get(route('dpc-proposals.promotion-orders.index', $c['proposal']))->assertOk()
-            ->assertSee('data-replacement-status="boundary_unresolved"', false);
+        $this->assertSame('offered', $opening->replacement_status);
+        $this->assertNotNull($opening->replacement_sn);
+        $this->ok($this->followUp($c, $opening));
+        $this->assertSame('2027-01-05', DpcPromotionOrder::query()->where('kind', DpcPromotionOrder::KIND_SEALED_COVER)->sole()->effective_date?->toDateString());
     }
 
     /**

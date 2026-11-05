@@ -39,7 +39,7 @@ Migrations named are under `database/migrations/2026_10_*`.
 
 ## Open points
 
-- Opening a sealed cover is built (2026-11-05): the DPC Chairman opens it; cleared → a new order effective from the opening date; rejected before 31 December → next eligible candidate; after → none; on 31 December → flagged, undecided.
+- Opening a sealed cover is built (2026-11-05): the DPC Chairman opens it; cleared → a new order effective from the opening date; rejected up to and including 31 December → next eligible candidate (effective from the new order's issue); after → none.
 - The earlier-PH check reads the same department's proposals only.
 - "Every inserted and calculated data matches a version" is met by revisions and snapshots; entered data is not compared against document contents.
 - dompdf cannot shape Devanagari, so the promotion order PDF is in English.

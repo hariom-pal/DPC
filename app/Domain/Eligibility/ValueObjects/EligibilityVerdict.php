@@ -93,6 +93,27 @@ final class EligibilityVerdict
     }
 
     /**
+     * A CIR candidate (item 19, as decided 2026-11-05): held, never refused for the
+     * missing record. Eligibility stays the merit's — an officer the marks make
+     * eligible keeps the seat merit gives them, reserved until the hold is resolved;
+     * one they do not make eligible takes no seat (none is reserved for CIR alone).
+     * The gate's grounds are kept beside it.
+     */
+    public function heldBy(CandidateGateVerdict $gate): self
+    {
+        return new self(
+            eligible: $this->eligible,
+            remark: $gate->status ?? $this->remark,
+            requiredScore: $this->requiredScore,
+            achievedScore: $this->achievedScore,
+            failureReasons: [...$gate->reasons, ...$this->failureReasons],
+            reservedRelaxationPending: $this->reservedRelaxationPending,
+            incompleteCrWindow: $this->incompleteCrWindow,
+            gateCitations: $gate->gapCitations,
+        );
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function toArray(): array
