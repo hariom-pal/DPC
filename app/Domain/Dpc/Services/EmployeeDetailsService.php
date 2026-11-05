@@ -326,6 +326,7 @@ class EmployeeDetailsService
 
         $row->forceFill([
             'is_ph' => $isPh,
+            'ph_type_id' => $isPh && ! empty($data['ph_type_id']) ? (int) $data['ph_type_id'] : null,
             'ph_previously_availed' => $previously,
             'ph_claims_reservation' => $claims,
             'ph_ineligibility_reason' => $reason,
@@ -337,6 +338,7 @@ class EmployeeDetailsService
 
         $this->log($row, 'ph_recorded', 'PH questionnaire: '.$outcome->value, [
             'is_ph' => $isPh,
+            'ph_type_id' => $row->ph_type_id,
             'previously_availed' => $previously,
             'claims_reservation' => $claims,
             'outcome' => $outcome->value,
@@ -674,6 +676,20 @@ class EmployeeDetailsService
     }
 
     /**
+     * The years whose Property Return the Class Master promotion rule makes
+     * mandatory (2026-11-05).
+     *
+     * @return list<int>
+     */
+    public function rulePropertyYears(DpcEvaluationRow $row): array
+    {
+        $proposal = $row->proposal;
+        $rule = $proposal === null ? null : $this->promotionRules->ruleForProposal($proposal);
+
+        return $rule === null ? [] : $this->promotionRules->mandatoryPropertyYears($rule, (int) ($proposal->dpc_year ?: $proposal->proposal_date->year));
+    }
+
+    /**
      * @return list<string>
      */
     private function crMissing(DpcEvaluationRow $row): array
@@ -750,11 +766,18 @@ class EmployeeDetailsService
      */
     private function propertyMissing(DpcEvaluationRow $row): array
     {
+        // Every year the promotion rule makes mandatory is answered (2026-11-05).
+        $ruleYears = $this->rulePropertyYears($row);
+        $ruleMissing = array_values(array_map(
+            static fn (int $year): string => (string) __('dpc.employee_details.missing.property_rule_year', ['year' => $year]),
+            array_diff($ruleYears, $row->propertyFlags->pluck('year')->all()),
+        ));
+
         if ($row->propertyFlags->isEmpty()) {
-            return [(string) __('dpc.employee_details.missing.property_none')];
+            return $ruleMissing !== [] ? $ruleMissing : [(string) __('dpc.employee_details.missing.property_none')];
         }
 
-        $missing = [];
+        $missing = $ruleMissing;
         $requireDocuments = (bool) config('dpc.employee_details.require_property_documents', true);
 
         foreach ($row->propertyFlags as $property) {
@@ -768,7 +791,13 @@ class EmployeeDetailsService
             }
 
             if ($property->submitted_on === null) {
-                continue; // Recorded as not submitted — the engine judges it.
+                // Missing in a mandatory year: its reason and document (rule 3.2,
+                // 2026-11-05). An optional year needs nothing.
+                if (in_array($year, $ruleYears, true) && ! $this->hasJustifiedGap($row, $year, DpcEvaluationRecordGap::KIND_PROPERTY)) {
+                    $missing[] = (string) __('dpc.employee_details.missing.property_reason', ['year' => $year]);
+                }
+
+                continue;
             }
 
             if ($property->next_increment_date === null) {
@@ -871,10 +900,10 @@ class EmployeeDetailsService
         );
     }
 
-    private function hasJustifiedGap(DpcEvaluationRow $row, int $year): bool
+    private function hasJustifiedGap(DpcEvaluationRow $row, int $year, string $kind = DpcEvaluationRecordGap::KIND_CR): bool
     {
         return $row->recordGaps->contains(
-            fn (DpcEvaluationRecordGap $gap): bool => $gap->kind === DpcEvaluationRecordGap::KIND_CR
+            fn (DpcEvaluationRecordGap $gap): bool => $gap->kind === $kind
                 && $gap->year === $year
                 && $gap->isJustified(),
         );

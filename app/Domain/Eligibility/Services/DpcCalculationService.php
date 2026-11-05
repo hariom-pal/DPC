@@ -168,7 +168,7 @@ class DpcCalculationService
              */
             $gate = $this->gates->assess(
                 $record, $hierarchyFailures, $propertyYears, $requiredCrs, $ruleFailureStatus,
-                $enforceQualification, $mandatoryCrYears,
+                $enforceQualification, $mandatoryCrYears, $rules->propertyMandatoryYears(),
             );
 
             $score = $this->scoring->score($record, $rules);

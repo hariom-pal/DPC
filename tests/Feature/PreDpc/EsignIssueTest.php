@@ -8,6 +8,7 @@ use App\Domain\Allotment\Services\ProposalAllotmentService;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Department\Models\Department;
 use App\Domain\Master\Models\DepartmentPost;
+use App\Domain\Master\Models\Designation;
 use App\Domain\PreDpc\Enums\PreDpcStatus;
 use App\Domain\PreDpc\Models\PreDpcProposal;
 use App\Domain\PreDpc\Services\PreDpcProposalService;
@@ -95,7 +96,7 @@ class EsignIssueTest extends TestCase
         $this->put(route('department.officers.details', $this->ao), ['name' => 'Ramesh Kumar Verma', 'reason' => ''])->assertSessionHasErrors('reason');
         // The date of birth is shown, never edited (2026-11-04): one posted is ignored.
         $dob = $this->ao->fresh()->date_of_birth?->toDateString();
-        $this->put(route('department.officers.details', $this->ao), ['name' => 'Ramesh Kumar Verma', 'gender' => 'M', 'date_of_birth' => '1970-01-01', 'reason' => 'As on the eSign certificate'])->assertSessionHasNoErrors();
+        $this->put(route('department.officers.details', $this->ao), ['name' => 'Ramesh Kumar Verma', 'gender' => 'M', 'date_of_birth' => '1970-01-01', 'designation_id' => (string) Designation::query()->firstOrCreate(['name' => 'Deputy Secretary'], ['status' => 'active'])->id, 'reason' => 'As on the eSign certificate'])->assertSessionHasNoErrors();
         $this->assertSame('Ramesh Kumar Verma', $this->ao->fresh()->name);
         $this->assertSame($dob, $this->ao->fresh()->date_of_birth?->toDateString());
         $this->assertDatabaseMissing('identity_corrections', ['user_id' => $this->ao->id, 'field' => 'date_of_birth']);

@@ -177,6 +177,7 @@ return [
                 'reservation_policies' => 'आरक्षण नीतियाँ',
                 'reservation_rosters' => 'आरक्षण रोस्टर',
                 'record_reasons' => 'अभिलेख कारण',
+                'ph_types' => 'दिव्यांगता प्रकार (PH)',
                 'sealed_cover_reasons' => 'सीलबंद लिफ़ाफ़ा कारण',
                 'review_reasons' => 'पुनरीक्षण कारण',
                 'user_management' => 'उपयोगकर्ता प्रबंधन',

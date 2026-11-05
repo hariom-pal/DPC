@@ -68,11 +68,13 @@ class WorkingListDeputationImportTest extends TestCase
         $service->saveStrength($position, ['sanctioned_total' => 10, 'working_total' => 7, 'order_number' => 'SANC/1', 'order_date' => '2026-01-02'], $pdf(), $this->ao);
         $service->addEntry($position->fresh(), ['kind' => 'deputation_in', 'officer_name' => 'Shri D. Visitor', 'deputation_from' => '2025-01-01', 'deputation_to' => '2026-09-30'], null, $this->ao);
         $service->addEntry($position->fresh(), ['kind' => 'deputation', 'officer_name' => 'E. Away', 'employee_number' => 'E-6', 'deputation_from' => '2024-07-01', 'promotion_made' => '0'], null, $this->ao);
+        // C: E-5 retires in the year and is on the list as an ordinary row.
+        $service->addEntry($position->fresh(), ['kind' => 'anticipated', 'reason' => 'retirement', 'officer_name' => 'Officer 5', 'employee_number' => 'E-5', 'effective_date' => '2026-09-30'], null, $this->ao);
         $service->finalize($position->fresh(), $this->ao);
 
-        // B2 is our officer, so Vacancy Management already put them in the employee
-        // database; B1 belongs to another department and is not recorded.
-        $this->assertSame(['E-6'], Employee::query()->pluck('employee_number')->all());
+        // B2 and C are our officers, so Vacancy Management already put them in the
+        // employee database; B1 belongs to another department and is not recorded.
+        $this->assertSame(['E-5', 'E-6'], Employee::query()->orderBy('employee_number')->pluck('employee_number')->all());
     }
 
     private function makePost(Department $department, string $name, string $class): DepartmentPost
@@ -236,6 +238,26 @@ class WorkingListDeputationImportTest extends TestCase
             ->assertOk()
             ->assertSee('id="working-list-unnamed"', false)
             ->assertSee('Shri D. Visitor');
+    }
+
+    /**
+     * C officers are working on 1 January (2026-11-04): each is matched with an
+     * ordinary row of the list by Employee ID, never one marked on deputation, and a
+     * C officer the list leaves out blocks the reconciliation.
+     */
+    public function test_c_officers_must_be_on_the_list_as_ordinary_rows(): void
+    {
+        $batch = $this->preview($this->rows([5 => ['5', 'E-5', 'Officer 5', '01-01-1975', '', 'N', 'Y']]));
+        $this->assertStringContainsString(__('vacancymaster.proposal.working_list.match.c_marked', ['name' => 'Officer 5']), implode(' ', $this->errorsOf($batch, 6)));
+
+        // E-5 replaced by someone the record does not name: imported, but E-5 is missing.
+        $batch = $this->preview($this->rows([5 => ['5', 'E-55', 'Officer 55', '01-01-1975', '', 'N', 'N']]));
+        $this->assertSame(0, (int) $batch->rejected_count);
+        $this->actingAs($this->ao)->post(route('dpc-proposals.imports.commit', [$this->proposal, $batch]))->assertSessionHasNoErrors();
+
+        $reconciliation = app(ProposalVacancyPosition::class)->reconcile($this->proposal->refresh());
+        $this->assertFalse($reconciliation['matches']);
+        $this->assertSame([['kind' => 'C', 'name' => 'Officer 5 (E-5)']], $reconciliation['missing']);
     }
 
     public function test_the_b1_and_b2_eligibility_rules_are_the_records_and_unchanged(): void

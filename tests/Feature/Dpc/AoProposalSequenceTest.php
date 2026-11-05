@@ -20,6 +20,7 @@ use App\Domain\Dpc\Services\VacancyCalculationService;
 use App\Domain\Dpc\Services\VacancyMasterService;
 use App\Domain\Import\Models\ImportBatch;
 use App\Domain\Master\Models\DepartmentPost;
+use App\Domain\Master\Models\PhType;
 use App\Domain\Master\Models\PromotionCrRule;
 use App\Domain\Master\Models\RecruitmentRule;
 use App\Domain\Master\Models\ReservationCategory;
@@ -335,6 +336,10 @@ class AoProposalSequenceTest extends TestCase
     {
         $row = $this->throughSeniority();
         $answer = function (array $answers) use ($row): PhReservationOutcome {
+            // A PH officer's type, from the PH Type master (2026-11-05).
+            if ((string) ($answers['is_ph'] ?? '') === '1') {
+                $answers['ph_type_id'] ??= (string) PhType::query()->where('code', 'OL')->value('id');
+            }
             $this->actingAs($this->ao)->put(route('dpc-proposals.employees.ph', [$this->proposal, $row]), $answers)->assertSessionHasNoErrors();
 
             return $row->refresh()->phOutcome();

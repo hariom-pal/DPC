@@ -53,6 +53,8 @@
                 <dd class="col-sm-9">
                     {{ $post->promotion_duration_years === null ? '—' : __('ui.n_years', ['count' => $post->promotion_duration_years]) }}
                 </dd>
+                <dt class="col-sm-3 fw-normal">{{ __('admin.department_posts.form.retirement_age') }}</dt>
+                <dd class="col-sm-9">{{ $post->retirement_age === null ? '—' : __('ui.n_years', ['count' => $post->retirement_age]) }}</dd>
                 {{-- Not a term of the mapping: recorded year by year in the
                      Vacancy Master, with its sanctioning order. --}}
                 <dt class="col-sm-3 fw-normal">{{ __('admin.department_posts.form.sanctioned_strength') }}</dt>

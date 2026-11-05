@@ -293,19 +293,14 @@ class RegistrationController extends Controller
     }
 
     /**
-     * The designations the Department Admin chooses from (2026-10-30): those the
-     * department has mapped, or — for a department with no mapping yet, whose
-     * Department Admin has still to map its posts — the whole active master.
+     * The designations the Department Admin chooses from: the whole active
+     * Designation master the Administrator keeps (2026-11-05), as for an AO and AH.
      *
      * @return Builder<Designation>
      */
     private function designations(DepartmentInvitation $invitation): Builder
     {
-        $mapped = Designation::query()->mappedIn((int) $invitation->department_id);
-
-        return (clone $mapped)->exists()
-            ? $mapped
-            : Designation::query()->where('status', MasterStatus::Active->value)->orderBy('name');
+        return Designation::query()->where('status', MasterStatus::Active->value)->whereNull('deleted_at')->orderBy('name');
     }
 
     private function mayVerifyIdentity(Request $request, DepartmentInvitation $invitation): bool

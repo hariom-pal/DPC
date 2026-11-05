@@ -122,6 +122,19 @@ class DepartmentPostMappingTest extends TestCase
         $this->assertTrue($post->isInForce());
     }
 
+    /** The post's retirement age (2026-11-04), from 50 to 75 years, optional. */
+    public function test_a_mapping_records_its_retirement_age(): void
+    {
+        $this->actingAs($this->admin)->get(route('admin.department-posts.create'))->assertOk()->assertSee('name="retirement_age"', false);
+
+        $this->actingAs($this->admin)->post(route('admin.department-posts.store'), $this->payload(['retirement_age' => '90']))
+            ->assertSessionHasErrors('retirement_age');
+
+        $this->actingAs($this->admin)->post(route('admin.department-posts.store'), $this->payload(['retirement_age' => '62']))
+            ->assertSessionHasNoErrors();
+        $this->assertSame(62, DepartmentPost::query()->latest('id')->firstOrFail()->retirement_age);
+    }
+
     public function test_the_order_is_optional_because_older_mappings_have_none(): void
     {
         $this->actingAs($this->admin)->post(route('admin.department-posts.store'), $this->payload([

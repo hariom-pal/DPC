@@ -5,7 +5,11 @@ declare(strict_types=1);
 namespace App\Domain\Dpc\Requests;
 
 use App\Domain\Dpc\Models\DpcEvaluationPropertyFlag;
+use App\Domain\Dpc\Models\DpcEvaluationRecordGap;
+use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\Dpc\Models\DpcProposal;
+use App\Domain\Dpc\Requests\Concerns\DeclaresAMissingRecord;
+use App\Domain\Dpc\Services\EmployeeDetailsService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -19,6 +23,8 @@ use Illuminate\Validation\Validator;
  */
 class SaveEmployeePropertyYearRequest extends FormRequest
 {
+    use DeclaresAMissingRecord;
+
     /**
      * Authorised before validation, so a user who may not edit the proposal is
      * refused outright instead of being shown validation messages about it.
@@ -42,12 +48,17 @@ class SaveEmployeePropertyYearRequest extends FormRequest
             'next_increment_date' => ['required_if:submitted,1', 'nullable', 'date'],
             'late_decision' => ['nullable', Rule::in([DpcEvaluationPropertyFlag::LATE_ACCEPTED, DpcEvaluationPropertyFlag::LATE_REJECTED])],
             'late_decision_remarks' => ['nullable', 'string', 'max:2000'],
+            ...$this->missingRecordRules(),
         ];
     }
 
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator): void {
+            // Not submitted in a year the promotion rule makes it mandatory: Missing,
+            // with its reason and document (2026-11-05). An optional year asks nothing.
+            $this->assertMissingJustification($validator, DpcEvaluationRecordGap::KIND_PROPERTY, $this->declaredMissing());
+
             if (! $this->boolean('submitted') || ! $this->filled('submitted_on') || $validator->errors()->isNotEmpty()) {
                 return;
             }
@@ -66,5 +77,14 @@ class SaveEmployeePropertyYearRequest extends FormRequest
                 $validator->errors()->add('late_decision_remarks', __('dpc.employee_details.property.late_reason_required'));
             }
         });
+    }
+
+    /** A return not submitted in a year the promotion rule makes it mandatory. */
+    public function declaredMissing(): bool
+    {
+        $row = $this->route('evaluationRow');
+
+        return $this->has('submitted') && ! $this->boolean('submitted') && $row instanceof DpcEvaluationRow
+            && in_array($this->integer('year'), app(EmployeeDetailsService::class)->rulePropertyYears($row), true);
     }
 }

@@ -11,11 +11,11 @@ use App\Domain\Authentication\Models\User;
 use App\Domain\Authentication\Services\OtpService;
 use App\Domain\Authentication\Services\SecurityLog;
 use App\Domain\Identity\Models\IdentityCorrection;
+use App\Domain\Master\Models\Designation;
 use App\Domain\Shared\Services\ActivityTimelineService;
 use App\Domain\UserManagement\Services\DepartmentUserAuthority;
 use App\Domain\UserManagement\Services\OfficerPool;
 use App\Domain\UserManagement\Services\UserProvisioningService;
-use App\Enums\MasterStatus;
 use App\Enums\OtpChannel;
 use App\Enums\OtpPurpose;
 use App\Enums\Role;
@@ -260,18 +260,18 @@ class DepartmentOfficerController extends Controller
     {
         $admin = $this->admin($request);
 
-        $data = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'gender' => ['nullable', 'in:M,F'],
-            'designation_id' => ['nullable', 'integer', Rule::exists('designations', 'id')],
-            'reason' => ['required', 'string', 'max:500'],
-        ]);
-
         abort_unless($this->isCurrentOfficerHere($officer, (int) $admin->department_id), 403);
 
         if ($officer->identity_verified_at !== null) {
             return back()->withErrors(['officer_details' => __('identity.errors.locked')]);
         }
+
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'gender' => ['nullable', 'in:M,F'],
+            'designation_id' => ['required', 'integer', Designation::masterRule($officer->designation_id)],
+            'reason' => ['required', 'string', 'max:500'],
+        ]);
 
         $changes = [];
         // Date of birth is shown, never edited here (2026-11-04).
@@ -389,14 +389,14 @@ class DepartmentOfficerController extends Controller
     }
 
     /**
-     * An active designation from the whole Designation master (MoM of 2026-10-29;
-     * the whole master for an AO / AH, 2026-10-30).
+     * An active designation from the whole Designation master the Administrator
+     * keeps (MoM of 2026-10-29; the whole master, 2026-10-30, confirmed 2026-11-05).
      *
      * @return array<int, mixed>
      */
     private function designationRule(): array
     {
-        return ['required', 'integer', Rule::exists('designations', 'id')->where('status', MasterStatus::Active->value)->whereNull('deleted_at')];
+        return ['required', 'integer', Designation::masterRule()];
     }
 
     /**

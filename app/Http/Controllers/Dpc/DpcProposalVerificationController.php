@@ -50,6 +50,11 @@ class DpcProposalVerificationController extends Controller
             'proposal' => $dpcProposal,
             'status' => $this->verification->status($dpcProposal),
             'history' => $this->verification->history($dpcProposal),
+            // A Review DPC is verified afresh (2026-11-05); the original's Rule 1.1
+            // record is shown beside it for reference, read-only.
+            'originalHistory' => $dpcProposal->original_dpc_proposal_id === null ? null
+                : DpcProposal::query()->find($dpcProposal->original_dpc_proposal_id)?->verifications()->with('verifier')->get(),
+            'original' => $dpcProposal->original_dpc_proposal_id === null ? null : DpcProposal::query()->find($dpcProposal->original_dpc_proposal_id),
             'summary' => $this->vacancies->summary($dpcProposal),
             'rule' => $this->engine->recruitmentRule($dpcProposal),
             'previousCandidates' => $this->verification->previousDpcCandidates($dpcProposal),

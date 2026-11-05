@@ -12,6 +12,7 @@ use App\Domain\Dpc\Enums\PreviousDpcBasis;
 use App\Domain\Dpc\Enums\VacancyPositionStatus;
 use App\Domain\Dpc\Models\DpcCommitteeMember;
 use App\Domain\Dpc\Models\DpcEvaluationDocument;
+use App\Domain\Dpc\Models\DpcEvaluationRecordGap;
 use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Models\VacancyPosition;
@@ -23,6 +24,8 @@ use App\Domain\Dpc\Services\SanctionedStrengthSource;
 use App\Domain\Dpc\Services\VacancyCalculationService;
 use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\DpcType;
+use App\Domain\Master\Models\RecordReason;
+use App\Domain\Master\Services\PromotionCrRules;
 use App\Domain\PreDpc\Models\PreDpcProposal;
 use Illuminate\Support\Facades\Storage;
 use RuntimeException;
@@ -256,6 +259,22 @@ final class DemoDpcBuilder
                 // the engine reads the two the same, and the officer answers it.
                 if ($property->flag === null && $property->submitted_on === null) {
                     $property->forceFill(['flag' => false])->save();
+
+                    // A year the promotion rule makes mandatory, marked Missing with its
+                    // reason and document, as the AO records it (2026-11-05): held (CIR).
+                    $this->requireProperty($proposal, $property->year);
+                    $row->recordGaps()->create([
+                        'kind' => DpcEvaluationRecordGap::KIND_PROPERTY,
+                        'year' => $property->year,
+                        'record_reason_id' => RecordReason::query()->where('code', 'record_not_available')->value('id'),
+                        'remarks' => 'Immovable-property return not received with the proposal.',
+                        'disk' => $disk,
+                        'path' => $path,
+                        'original_name' => 'property-missing-'.$property->year.'.pdf',
+                        'size_bytes' => strlen($bytes),
+                        'sha256' => hash('sha256', $bytes),
+                        'recorded_by' => $ao->id,
+                    ]);
 
                     continue;
                 }
@@ -525,5 +544,19 @@ final class DemoDpcBuilder
             ->where('department_id', $department->id)
             ->where('name', $name)
             ->firstOrFail();
+    }
+
+    /** The proposal's promotion rule makes this year's Property Return mandatory (2026-11-05). */
+    private function requireProperty(DpcProposal $proposal, int $year): void
+    {
+        $rule = app(PromotionCrRules::class)->ruleForProposal($proposal);
+        $before = (int) ($proposal->dpc_year ?: $proposal->proposal_date->year) - $year;
+
+        if ($rule === null || $before < 1) {
+            return;
+        }
+
+        $rule->forceFill(['property_years' => max((int) $rule->property_years, $before)])->save();
+        $rule->years()->updateOrCreate(['years_before' => $before], ['property_mandatory' => true]);
     }
 }

@@ -71,6 +71,21 @@ class SaveDpcProposalRequest extends FormRequest
         ];
     }
 
+    /**
+     * Fresh is the only kind raised here (2026-11-05): a proposal posted without a
+     * DPC type is a Fresh DPC.
+     */
+    protected function prepareForValidation(): void
+    {
+        if (blank($this->input('dpc_type_id'))) {
+            $fresh = DpcType::query()->whereRaw('LOWER(code) = ?', ['fresh'])->value('id');
+
+            if ($fresh !== null) {
+                $this->merge(['dpc_type_id' => $fresh]);
+            }
+        }
+    }
+
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator): void {

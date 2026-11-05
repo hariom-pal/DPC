@@ -72,12 +72,14 @@
                     </div>
                     <div class="col-md-3 mb-3">
                         <label class="form-label" for="designation_id">{{ __('ui.designation') }}</label>
-                        <select class="form-select" id="designation_id" name="designation_id">
+                        {{-- The Administrator's Designation master (2026-11-05). --}}
+                        <select class="form-select @error('designation_id') is-invalid @enderror" id="designation_id" name="designation_id">
                             <option value="">{{ __('ui.none') }}</option>
                             @foreach ($designations as $designation)
                                 <option value="{{ $designation->id }}" @selected(old('designation_id', $user->designation_id) == $designation->id)>{{ $designation->name }}</option>
                             @endforeach
                         </select>
+                        @error('designation_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
                 </div>
 

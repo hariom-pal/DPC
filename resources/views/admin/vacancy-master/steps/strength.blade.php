@@ -74,6 +74,12 @@
 @include('admin.vacancy-master.partials.field-error', ['field' => 'working_total'])
                     </div>
                     <div class="col-lg-6"><div class="form-text mt-lg-4">{{ __('vacancymaster.pm.working_own_help') }}</div></div>
+                    {{-- Fixed, as on the Pre-DPC (2026-11-05): shown, never entered. --}}
+                    <div class="col-sm-6 col-lg-3">
+                        <label class="form-label small" for="vm_effective_on">{{ __('predpc.form.publish_date') }}</label>
+                        <input type="text" class="form-control form-control-sm" id="vm_effective_on" value="01-01-{{ $year }}" readonly disabled>
+                        <div class="form-text">{{ __('predpc.form.effective_on_rule') }}</div>
+                    </div>
                 </div>
 
                 <fieldset class="border rounded-3 p-2 mt-3">

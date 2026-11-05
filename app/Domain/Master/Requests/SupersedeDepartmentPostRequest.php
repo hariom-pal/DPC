@@ -33,6 +33,7 @@ class SupersedeDepartmentPostRequest extends FormRequest
             'class_level' => ['required', ServiceClass::rule()],
             'pay_scale_id' => ['nullable', Rule::exists('pay_scales', 'id')],
             'promotion_duration_years' => ['nullable', 'integer', 'min:0', 'max:40'],
+            'retirement_age' => ['nullable', 'integer', 'min:50', 'max:75'],
 
             'government_order_number' => ['required', 'string', 'max:120'],
             'government_order_date' => ['required', 'date', 'before_or_equal:today'],

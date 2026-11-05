@@ -628,6 +628,13 @@ the rejection recording the consequence).
 wrong. But a Commission member seeing one officer flagged twice for one fact is entitled
 to an explanation, and this is it.
 
+**Decided 2026-11-05.** Neither: a Property Return is judged by the Class Master
+promotion rule's own mandatory years. Missing in a mandatory year with its reason and
+supporting document, the candidate is **CIR** and held — never RJ; missing without them,
+the rule is not satisfied (NE); missing in a year the rule leaves optional, nothing
+happens. Mandatory CRs are treated the same way. Item 13's five continuous years remain
+only for runs recorded before this decision.
+
 ---
 
 ## The register's own Part 5 — ten items recorded, not implemented
@@ -646,7 +653,7 @@ does today, so the Commission can see what it is choosing between.
 | **BD-45** | **Departmental Enquiry.** What is the consequence for a candidate under enquiry? | Recorded as a Note on the chart and displayed. It affects no status and no score |
 | **BD-46** | **Court Case.** Likewise. (Also **BD-10**, still open from construction.) | Recorded and displayed; the result is marked provisional. No automatic consequence |
 | **BD-47** | **Lokayukt Case.** Likewise. | No field of its own. It would be typed into the Note |
-| **BD-48** | **Sealed Cover.** The whole workflow — when a promotion is placed in sealed cover, who opens it, and on what event | **Not implemented.** There is no sealed-cover state |
+| **BD-48** | **Sealed Cover.** The whole workflow — when a promotion is placed in sealed cover, who opens it, and on what event | **Decided 2026-11-05.** The DPC's own Chairman records the competent authority's decision and opens the cover. Cleared: a new promotion order, effective from the opening date. Rejected before 31 December of the DPC year: the seat goes to the next eligible candidate on the waiting list, once; after 31 December: no promotion against it through this DPC. **Still open:** opening on 31 December itself — flagged, nothing reallocated. |
 | **BD-49** | **Class-I to Class-I CR Grade.** The deck's grade vocabulary for a Class-I → Class-I promotion needs clarification | The single grade set from PPT §5.1 is applied to every class pair |
 
 **Three of these ten would change a published list if answered differently: BD-44**
@@ -738,7 +745,7 @@ One item is worth re-reading in that light: **BD-19** (how an individual officer
 | BD-35 | A December retirement creates no vacancy | No | a setting |
 | BD-36 | Tribal-area bonus — per year or flat? | No, but it reorders lists | a code change, pinned by test |
 | BD-37 | Which five years the Property Return window covers | No, but it decides rejections | a setting plus a small code change |
-| BD-38 | Does item 13's rejection supersede the M6 hold? | No | a decision only; nothing to change |
+| BD-38 | Does item 13's rejection supersede the M6 hold? | Decided 2026-11-05 | CIR, not RJ, for a justified mandatory return |
 | BD-40 … BD-49 | The register's own Part 5 — ten items | BD-44, BD-48 and BD-49 would | varies; three need building |
 
 **Read BD-39 first.** It is the only item in this register that can put a *wrong

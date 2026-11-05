@@ -19,6 +19,7 @@ use App\Domain\Dpc\Services\EmployeeDetailsService;
 use App\Domain\Dpc\Services\PromotionRuleCheck;
 use App\Domain\Master\Models\CrGradeValue;
 use App\Domain\Master\Models\DepartmentPost;
+use App\Domain\Master\Models\PhType;
 use App\Domain\Master\Models\PromotionCrRule;
 use App\Domain\Master\Models\PromotionCrRuleYear;
 use App\Domain\Master\Models\RecordReason;
@@ -205,20 +206,30 @@ class EmployeeDetailsTest extends TestCase
         $this->assertNotContains('CR 2023: a reporting, reviewing or accepting remark is missing — upload the NRC.', $this->details()['sections']['cr']);
     }
 
+    /**
+     * A CR not put up is Missing (2026-11-05): its reason and supporting document are
+     * required on the same form, recorded as the missing-record justification, and
+     * no grade is invented for it.
+     */
     public function test_a_cr_not_put_up_needs_its_reason_and_document(): void
     {
-        $this->actingAs($this->ao)->post($this->route('cr.save'), ['year' => 2022, 'put_up' => '0'])->assertSessionHasNoErrors();
+        $this->actingAs($this->ao)->post($this->route('cr.save'), ['year' => 2022, 'put_up' => '0'])
+            ->assertSessionHasErrors(['missing_reason_id', 'missing_document']);
+        $this->assertFalse($this->row->crGrades()->where('year', 2022)->exists(), 'Nothing is saved without the justification.');
+
+        $this->post($this->route('cr.save'), [
+            'year' => 2022, 'put_up' => '0',
+            'missing_reason_id' => RecordReason::query()->where('code', 'nrc_issued')->value('id'),
+            'missing_document' => $this->pdf('nrc.pdf'),
+        ])->assertSessionHasNoErrors();
 
         $this->assertNull($this->row->crGrades()->where('year', 2022)->value('grade'), 'No grade is invented for a missing CR.');
-        $this->assertStringContainsString('CR 2022: not put up', implode(' ', $this->details()['sections']['cr']));
-
-        DpcEvaluationRecordGap::query()->create([
-            'dpc_evaluation_row_id' => $this->row->id, 'kind' => 'cr', 'year' => 2022,
-            'record_reason_id' => RecordReason::query()->where('code', 'nrc_issued')->value('id'),
-            'disk' => 'local', 'path' => 'nrc.pdf', 'original_name' => 'nrc.pdf', 'size_bytes' => 1, 'sha256' => str_repeat('b', 64),
-        ]);
-
+        $gap = DpcEvaluationRecordGap::query()->where('dpc_evaluation_row_id', $this->row->id)->where('kind', 'cr')->where('year', 2022)->sole();
+        $this->assertTrue($gap->isJustified());
         $this->assertStringNotContainsString('CR 2022', implode(' ', $this->details()['sections']['cr']));
+
+        // Saved again later, the year already justified is not asked again.
+        $this->post($this->route('cr.save'), ['year' => 2022, 'put_up' => '0'])->assertSessionHasNoErrors();
     }
 
     public function test_the_rule_3_2_reasons_are_offered(): void
@@ -391,6 +402,10 @@ class EmployeeDetailsTest extends TestCase
      */
     private function answerPh(array $answers): PhReservationOutcome
     {
+        // A PH officer's type, from the PH Type master (2026-11-05).
+        if (($answers['is_ph'] ?? '') === '1') {
+            $answers['ph_type_id'] ??= (string) PhType::query()->where('code', 'OL')->value('id');
+        }
         $this->actingAs($this->ao)->put($this->route('ph'), $answers)->assertSessionHasNoErrors();
 
         return $this->row->refresh()->phOutcome();
@@ -920,5 +935,58 @@ class EmployeeDetailsTest extends TestCase
         // The rule is reported for the committee; completeness is unchanged.
         $this->assertSame($this->details()['complete'], app(EmployeeDetailsService::class)->status($this->row->refresh())['complete']);
         $this->actingAs($this->ao)->get($this->route('show'))->assertOk()->assertSee('data-rule-status="does_not_meet"', false);
+    }
+
+    /** A PH officer's type comes from the PH Type master (2026-11-05). */
+    public function test_a_ph_officer_needs_a_ph_type_from_the_master(): void
+    {
+        $this->actingAs($this->ao)->put($this->route('ph'), ['is_ph' => '1', 'ph_previously_availed' => '1'])
+            ->assertSessionHasErrors('ph_type_id');
+
+        $withdrawn = PhType::query()->where('code', 'MW')->sole();
+        $withdrawn->forceFill(['status' => 'inactive'])->save();
+        $this->put($this->route('ph'), ['is_ph' => '1', 'ph_previously_availed' => '1', 'ph_type_id' => (string) $withdrawn->id])
+            ->assertSessionHasErrors('ph_type_id');
+
+        $this->answerPh(['is_ph' => '1', 'ph_previously_availed' => '1', 'ph_type_id' => (string) PhType::query()->where('code', 'OAL')->value('id')]);
+        $this->assertSame('OAL', $this->row->refresh()->phType?->code);
+        $this->get($this->route('show'))->assertOk()->assertSee('OAL — One Arm and One Leg');
+
+        // Not PH: no type is kept.
+        $this->answerPh(['is_ph' => '0']);
+        $this->assertNull($this->row->refresh()->ph_type_id);
+    }
+
+    /**
+     * A Property Return the promotion rule makes mandatory, not submitted, is Missing
+     * (2026-11-05): its reason and document are required on the form; an optional
+     * year asks for neither; the AH reads the evidence; the Rule Check says CIR.
+     */
+    public function test_a_missing_mandatory_property_return_needs_its_reason_and_document(): void
+    {
+        $this->promotionRule(propertyYears: 1); // 2025 mandatory, 2024 optional
+
+        $this->actingAs($this->ao)->post($this->route('property.save'), ['year' => 2025, 'submitted' => '0'])
+            ->assertSessionHasErrors(['missing_reason_id', 'missing_document']);
+        $this->assertFalse($this->row->propertyFlags()->where('year', 2025)->exists());
+
+        $this->post($this->route('property.save'), ['year' => 2024, 'submitted' => '0'])->assertSessionHasNoErrors();
+        $this->assertSame(0, $this->row->recordGaps()->count(), 'An optional year asks for no reason or document.');
+
+        $this->post($this->route('property.save'), [
+            'year' => 2025, 'submitted' => '0',
+            'missing_reason_id' => RecordReason::query()->where('code', 'record_not_available')->value('id'),
+            'missing_document' => $this->pdf('ipr-missing.pdf'),
+        ])->assertSessionHasNoErrors();
+        $gap = $this->row->recordGaps()->where('kind', 'property')->where('year', 2025)->sole();
+        $this->assertTrue($gap->isJustified());
+        $this->assertSame([], array_filter($this->details()['sections']['property'], fn (string $m): bool => str_contains($m, '2025')));
+        $this->assertContains(__('dpc.employee_details.rule.property_cir', ['year' => 2025]), $this->ruleCheck()['holds']);
+
+        // The AH reviews the evidence, and cannot change it.
+        $this->actingAs($this->ah)->get(route('dpc-proposals.record-gaps.index', [$this->proposal, $this->row]))->assertOk()
+            ->assertSee(__('dpc.record_gaps.kind_property'))->assertSee('2025')
+            ->assertDontSee('data-record-gap-form', false);
+        $this->actingAs($this->ah)->get(route('dpc-proposals.record-gaps.download', [$this->proposal, $this->row, $gap]))->assertOk();
     }
 }

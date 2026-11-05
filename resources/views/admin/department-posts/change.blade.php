@@ -24,6 +24,7 @@
                 [__('admin.department_posts.form.service_class'), $current?->class_level?->label(), $classLabel($payload['class_level'] ?? null)],
                 [__('ui.pay_scale'), $current?->payScale?->label, $proposedPayScale?->label],
                 [__('admin.department_posts.form.promotion_duration_years'), $current?->promotion_duration_years, $payload['promotion_duration_years'] ?? null],
+                [__('admin.department_posts.form.retirement_age'), $current?->retirement_age, $payload['retirement_age'] ?? null],
                 [__('admin.department_posts.form.effective_from'), $current?->effective_from?->format('d-m-Y'), $date($payload['effective_from'] ?? null)],
                 [__('ui.status'), $current ? $statusLabel($current->status?->value ?? $current->status) : null, $statusLabel($payload['status'] ?? null)],
             ];
@@ -32,6 +33,7 @@
                 [__('admin.department_posts.form.service_class'), $current?->class_level?->label(), $classLabel($payload['class_level'] ?? null)],
                 [__('ui.pay_scale'), $current?->payScale?->label, $proposedPayScale?->label],
                 [__('admin.department_posts.form.promotion_duration_years'), $current?->promotion_duration_years, $payload['promotion_duration_years'] ?? null],
+                [__('admin.department_posts.form.retirement_age'), $current?->retirement_age, $payload['retirement_age'] ?? null],
                 [__('admin.department_posts.form.effective_from'), $current?->effective_from?->format('d-m-Y'), $date($payload['effective_from'] ?? null)],
                 [__('admin.department_posts.form.go_number'), null, $payload['government_order_number'] ?? null],
                 [__('admin.department_posts.form.go_date'), null, $date($payload['government_order_date'] ?? null)],

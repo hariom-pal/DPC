@@ -156,7 +156,7 @@ class RecordGapService
                 sprintf(
                     '%s for %d recorded as unavailable for officer %d (%s) — %s. Candidate continues in the DPC '
                     .'with status CIR.',
-                    $kind === DpcEvaluationRecordGap::KIND_CR ? 'CR' : 'Loyalty Certificate',
+                    DpcEvaluationRecordGap::recordName($kind),
                     $year,
                     $row->sn,
                     $row->name,
@@ -194,7 +194,7 @@ class RecordGapService
                 $gap->evaluationRow->proposal,
                 sprintf(
                     '%s for %d no longer recorded as unavailable for officer %d (%s).',
-                    $gap->kind === DpcEvaluationRecordGap::KIND_CR ? 'CR' : 'Loyalty Certificate',
+                    DpcEvaluationRecordGap::recordName($gap->kind),
                     $gap->year,
                     $gap->evaluationRow->sn,
                     $gap->evaluationRow->name,

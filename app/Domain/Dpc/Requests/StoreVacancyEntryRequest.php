@@ -43,11 +43,16 @@ class StoreVacancyEntryRequest extends FormRequest
             'deputation_from' => [Rule::requiredIf(fn (): bool => $kindIs(VacancyEntryKind::DeputationIn)() || $kindIs(VacancyEntryKind::Deputation)()), 'nullable', 'date'],
             // Optional (2026-11-02): without it the deputation continues and is not counted.
             'deputation_to' => ['nullable', 'date'],
-            'promotion_made' => [Rule::requiredIf($kindIs(VacancyEntryKind::Deputation)), 'nullable', Rule::in(['0', '1'])],
+            // Asked only of a deputation more than a year long by 31 December
+            // (2026-11-05); the service decides.
+            'promotion_made' => ['nullable', Rule::in(['0', '1'])],
             // B1 (2026-11-02): is the post only for deputation? Yes: not counted.
             'deputation_only_post' => [Rule::requiredIf($kindIs(VacancyEntryKind::DeputationIn)), 'nullable', Rule::in(['0', '1'])],
             'reason' => [Rule::requiredIf($kindIs(VacancyEntryKind::Anticipated)), 'nullable', Rule::in([VacancyReason::Retirement->value, VacancyReason::HigherPostPromotion->value])],
-            'effective_date' => [Rule::requiredIf($kindIs(VacancyEntryKind::Anticipated)), 'nullable', 'date'],
+            // A retirement's date is calculated from the date of birth where the
+            // post's mapping gives a retirement age (2026-11-04); the service decides.
+            'effective_date' => [Rule::requiredIf($higher), 'nullable', 'date'],
+            'date_of_birth' => ['nullable', 'date', 'before:today'],
             'order_number' => [Rule::requiredIf($higher), 'nullable', 'string', 'max:120'],
             'order_date' => [Rule::requiredIf($higher), 'nullable', 'date', 'before_or_equal:today'],
             // Not needed when the higher post's DPC is one of this portal's (2026-11-02).
@@ -85,6 +90,7 @@ class StoreVacancyEntryRequest extends FormRequest
             'deputation_only_post' => __('vacancymaster.entries.deputation_only_post'),
             'reason' => __('vacancymaster.entries.reason'),
             'effective_date' => __('vacancymaster.entries.date'),
+            'date_of_birth' => __('vacancymaster.entries.date_of_birth'),
             'order_number' => __('vacancymaster.order_number'),
             'order_date' => __('vacancymaster.order_date'),
             'document' => __('vacancymaster.document'),

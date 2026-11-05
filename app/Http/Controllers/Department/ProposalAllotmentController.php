@@ -166,7 +166,8 @@ class ProposalAllotmentController extends Controller
             'action' => $action,
             'current' => $this->allotments->current($proposal)?->loadMissing(['ao', 'ah']),
             'department' => Department::query()->find($proposal->department_id),
-            // The whole active Designation master (2026-10-30, second instruction).
+            // The whole active Designation master the Administrator keeps (2026-10-30,
+            // confirmed 2026-11-05 for the Department Admin, AO and AH alike).
             'designations' => Designation::query()->where('status', MasterStatus::Active->value)->orderBy('name')->get(['id', 'name']),
             'proposal' => $proposal,
         ]);

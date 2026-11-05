@@ -41,7 +41,9 @@ class DpcRecordGapController extends Controller
      */
     public function index(DpcProposal $dpcProposal, DpcEvaluationRow $evaluationRow): View
     {
-        $this->authorize('update', $dpcProposal);
+        // Readable by whoever may view the proposal — the AH reviews the missing-record
+        // evidence here (2026-11-05); recording and withdrawing stay the AO's.
+        $this->authorize('view', $dpcProposal);
         $this->assertRowBelongsToProposal($dpcProposal, $evaluationRow);
 
         $evaluationRow->loadMissing('crGrades', 'loyaltyFlags', 'recordGaps.reason', 'recordGaps.recordedBy');

@@ -1,0 +1,5 @@
+﻿SECTION,EMPLOYEE ID,OFFICER NAME,REASON,DEPUTATION FROM,DEPUTATION TO,ONLY-DEPUTATION POST,PROMOTION MADE AGAINST POST,EFFECTIVE DATE,HIGHER POST,HIGHER POST DPC REFERENCE,ORDER NUMBER,ORDER DATE,ORDER PDF,UNDERTAKING (RULE 1.2),COUNTED AS VACANCY IN 2026,WHY
+B1 (here on deputation),WRD2001,Shri Dinesh Kumar Patel,Deputation ends,01-07-2024,30-06-2026,No,,,,,,,,,Yes,Deputation ends inside the DPC year
+B2 (ours on deputation elsewhere),EMP1005,Smt. Meena Baghel,On deputation,01-03-2024,,,No,,,,,,,,Yes,More than one year by 31-12-2026 and no promotion made against the post
+C (retiring),EMP1007,Shri Rajendra Prasad Sahu,Retirement,,,,,31-08-2026,,,,,,,Yes,Retires inside the DPC year
+C (higher post),EMP1008,Shri Harish Kumar Netam,Promotion to higher post,,,,,01-05-2026,Superintending Engineer,SE-DPC-2026,SE/PROMO/2026/1,15-04-2026,Required (promotion order),Yes,Yes,Promoted to a higher post inside the DPC year

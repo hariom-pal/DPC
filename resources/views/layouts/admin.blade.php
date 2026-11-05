@@ -83,6 +83,8 @@
                        href="{{ route('admin.record-reasons.index') }}">{{ __('ui.layouts.admin.nav.record_reasons') }}</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.sealed-cover-reasons.*') ? 'active' : '' }}"
                        href="{{ route('admin.sealed-cover-reasons.index') }}">{{ __('ui.layouts.admin.nav.sealed_cover_reasons') }}</a>
+                    <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.ph-types.*') ? 'active' : '' }}"
+                       href="{{ route('admin.ph-types.index') }}">{{ __('ui.layouts.admin.nav.ph_types') }}</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('previous-dpcs.*') ? 'active' : '' }}"
                        href="{{ route('previous-dpcs.index') }}">{{ __('previous_dpc.title') }}</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.portal-notices.*') ? 'active' : '' }}"

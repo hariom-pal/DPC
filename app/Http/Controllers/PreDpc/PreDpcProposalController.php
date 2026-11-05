@@ -118,7 +118,7 @@ class PreDpcProposalController extends Controller
             'proposal' => $preDpc,
             // Shown while it can still be fixed before signing (2026-11-03).
             'blockers' => in_array($preDpc->status, [PreDpcStatus::Draft, PreDpcStatus::Returned, PreDpcStatus::Submitted], true)
-                ? $this->service->vacancyBlockers($preDpc)
+                ? $this->service->submitBlockers($preDpc)
                 : [],
             'transitions' => WorkflowTransition::query()
                 ->where('workflow', 'pre_dpc')

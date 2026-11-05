@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Domain\Authentication\Models\User;
 use App\Domain\Dpc\Models\DpcProposal;
+use App\Domain\Dpc\Services\DpcProposalCompletenessService;
 use App\Domain\Dpc\Services\DpcProposalService;
 use App\Domain\PreDpc\Models\PreDpcProposal;
 use App\Domain\PreDpc\Services\PreDpcProposalService;
@@ -43,9 +44,13 @@ class EsignController extends Controller
         'dpc-approve' => [DpcProposal::class, 'approve', 'esign.done.approve'],
     ];
 
-    public function show(Request $request, string $kind, string $uuid): View
+    public function show(Request $request, string $kind, string $uuid): View|RedirectResponse
     {
         $proposal = $this->proposal($kind, $uuid);
+
+        if (($refusal = $this->incomplete($kind, $proposal)) !== null) {
+            return $refusal;
+        }
 
         return view('esign.consent', [
             'kind' => $kind,
@@ -59,6 +64,11 @@ class EsignController extends Controller
     public function start(Request $request, string $kind, string $uuid): RedirectResponse
     {
         $proposal = $this->proposal($kind, $uuid);
+
+        if (($refusal = $this->incomplete($kind, $proposal)) !== null) {
+            return $refusal;
+        }
+
         $request->validate(['consent' => ['accepted']], ['consent.accepted' => __('esign.consent_required')]);
 
         // The AO's declaration on a Pre-DPC submission (MoM of 2026-10-29).
@@ -205,6 +215,23 @@ class EsignController extends Controller
         $this->authorize($ability, $proposal);
 
         return $proposal;
+    }
+
+    /**
+     * A submission that would be refused is refused before the eSign starts
+     * (2026-11-04), not after the AO has signed; the submit itself checks again.
+     */
+    private function incomplete(string $kind, PreDpcProposal|DpcProposal $proposal): ?RedirectResponse
+    {
+        $blockers = match (true) {
+            $kind === 'pre-dpc-submit' && $proposal instanceof PreDpcProposal => app(PreDpcProposalService::class)->submitBlockers($proposal),
+            $kind === 'dpc-submit' && $proposal instanceof DpcProposal => ($missing = app(DpcProposalCompletenessService::class)->missingSections($proposal)) === []
+                ? []
+                : ['This proposal cannot be submitted yet — the following section(s) are incomplete: '.implode('; ', $missing).'.'],
+            default => [],
+        };
+
+        return $blockers === [] ? null : $this->back($proposal)->withErrors(['workflow' => $blockers[0]]);
     }
 
     private function back(PreDpcProposal|DpcProposal $proposal): RedirectResponse

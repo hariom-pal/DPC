@@ -46,8 +46,45 @@
         badge.classList.toggle('d-none', anyChecked);
     }
 
+    /* One member per category (2026-11-05): a category one member of the committee
+       already holds is not offered on the others — the box is disabled there, and
+       freed again when that member is unticked or removed. The member who holds it
+       keeps the box. Only the composition form repeats cards; the replacement
+       form has none and is left alone. */
+    function column(box) {
+        var match = /\[(is_[a-z_]+)\]$/.exec(box.name || '');
+        return match ? match[1] : null;
+    }
+
+    function lockCovered() {
+        var cards = document.querySelectorAll('.member-card');
+        var holders = {};
+
+        Array.prototype.forEach.call(cards, function (card) {
+            card.querySelectorAll('.member-attribute-input').forEach(function (box) {
+                var key = column(box);
+                if (key && box.checked) { (holders[key] = holders[key] || []).push(card); }
+            });
+        });
+
+        Array.prototype.forEach.call(cards, function (card) {
+            card.querySelectorAll('.member-attribute-input').forEach(function (box) {
+                var key = column(box);
+                var taken = !box.checked && (holders[key] || []).some(function (holder) { return holder !== card; });
+                var check = box.closest('.form-check');
+
+                if (box.disabled !== taken) { box.disabled = taken; }
+                if (check) {
+                    check.classList.toggle('opacity-50', taken);
+                    if (taken) { check.title = box.getAttribute('data-covered-title') || ''; } else { check.removeAttribute('title'); }
+                }
+            });
+        });
+    }
+
     function refreshAll() {
         document.querySelectorAll('.member-social').forEach(refreshBadge);
+        lockCovered();
     }
 
     document.addEventListener('change', function (e) {
@@ -69,6 +106,10 @@
         }
 
         refreshBadge(fieldset);
+    });
+
+    document.addEventListener('change', function (e) {
+        if (e.target.classList && e.target.classList.contains('member-attribute-input')) { lockCovered(); }
     });
 
     /* Cards are added after load, and are also filled from the saved committee on

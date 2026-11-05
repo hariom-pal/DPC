@@ -6,10 +6,12 @@ namespace Tests\Feature\Admin;
 
 use App\Domain\Authentication\Models\User;
 use App\Domain\Department\Models\Department;
+use App\Domain\Master\Models\Designation;
 use App\Domain\Notification\Services\NotificationRecipientResolver;
 use App\Domain\UserManagement\Models\UserDepartmentAssignment;
 use App\Domain\UserManagement\Services\DepartmentAssignmentService;
 use App\Enums\DepartmentStatus;
+use App\Enums\MasterStatus;
 use App\Enums\Role;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Database\QueryException;
@@ -313,6 +315,27 @@ class UserDepartmentAssignmentTest extends TestCase
             ->assertSessionHasErrors('department_id');
     }
 
+    /**
+     * An AO's, AH's or Department Admin's designation comes from the Designation
+     * master only, and is required (2026-11-04): none, an unknown id or a
+     * withdrawn designation is refused.
+     */
+    public function test_an_officer_designation_comes_from_the_master_only(): void
+    {
+        $withdrawn = Designation::query()->create(['name' => 'Retired Rank', 'status' => MasterStatus::Inactive->value]);
+        $post = fn (mixed $designation): array => [
+            'date_of_birth' => '1979-09-09', 'gender' => 'M', 'name' => 'Shri A. Officer', 'email' => 'a.officer@cg.gov.in',
+            'mobile' => '9800000003', 'role' => Role::AuthorizedOfficer->value, 'department_id' => (string) $this->forest->id,
+            'designation_id' => $designation,
+        ];
+
+        foreach (['', '999999', (string) $withdrawn->id] as $designation) {
+            $this->actingAs($this->admin)->post(route('admin.users.store'), $post($designation))->assertSessionHasErrors('designation_id');
+        }
+
+        $this->assertFalse(User::query()->where('email', 'a.officer@cg.gov.in')->exists());
+    }
+
     public function test_provisioning_a_department_role_posts_the_officer(): void
     {
         $this->actingAs($this->admin)
@@ -322,6 +345,8 @@ class UserDepartmentAssignmentTest extends TestCase
                 'email' => 'a.officer@cg.gov.in',
                 'mobile' => '9800000003',
                 'role' => Role::AdministrativeHead->value,
+                // From the Designation master, required for an AO/AH (2026-11-04).
+                'designation_id' => (string) Designation::query()->firstOrCreate(['name' => 'Deputy Secretary'], ['status' => 'active'])->id,
                 // As a browser posts it: a string (2026-10-29, a TypeError in grant()).
                 'department_id' => (string) $this->forest->id,
             ])
@@ -371,6 +396,7 @@ class UserDepartmentAssignmentTest extends TestCase
                 'email' => 'y@cg.gov.in',
                 'mobile' => $officer->mobile,
                 'role' => Role::AuthorizedOfficer->value,
+                'designation_id' => (string) Designation::query()->firstOrCreate(['name' => 'Deputy Secretary'], ['status' => 'active'])->id,
                 'department_id' => (string) $this->forest->id,
             ])
             ->assertRedirect(route('admin.users.index'));

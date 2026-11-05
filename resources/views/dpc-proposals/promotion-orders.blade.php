@@ -95,5 +95,44 @@
         </div>
     </div>
 
+    {{-- Sealed covers opened by the DPC's Chairman, and the order each leads to (2026-11-05). --}}
+    @if ($openings->isNotEmpty())
+        <div class="card border-0 shadow-sm mb-3" id="sealed-cover-openings">
+            <div class="card-header bg-white"><strong>{{ __('dpc.sealed_cover.openings_heading') }}</strong></div>
+            <div class="card-body">
+                @foreach ($openings as $opening)
+                    <div class="border rounded p-2 mb-2" data-opening="{{ $opening->uuid }}">
+                        <div class="small">
+                            <strong>{{ $opening->sn }}. {{ $opening->officer_name }}</strong> —
+                            {{ __('dpc.sealed_cover.outcomes.'.$opening->outcome) }} · {{ __('dpc.sealed_cover.opened_on') }} {{ $opening->opened_on->format('d-m-Y') }}
+                            · {{ $opening->authority_name }}, {{ $opening->authority_order_number }} ({{ $opening->authority_order_date->format('d-m-Y') }})
+                            · <a href="{{ route('dpc-proposals.sealed-covers.document', [$proposal, $opening]) }}">{{ $opening->original_name }}</a>
+                        </div>
+                        @if ($opening->replacement_status)
+                            <div class="small mt-1" data-replacement-status="{{ $opening->replacement_status }}">{{ __('dpc.sealed_cover.replacement.'.$opening->replacement_status, ['name' => $opening->replacement_name]) }}</div>
+                        @endif
+                        @if ($canIssue && $opening->promotes())
+                            <form method="POST" action="{{ route('dpc-proposals.promotion-orders.sealed-cover', [$proposal, $opening]) }}" class="row g-2 align-items-end mt-1">
+                                @csrf
+                                <div class="col-md-4">
+                                    <label class="form-label small" for="fo_number_{{ $opening->id }}">{{ __('dpc.promotion_orders.order_number') }}</label>
+                                    <input type="text" class="form-control form-control-sm" id="fo_number_{{ $opening->id }}" name="order_number" required maxlength="120">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label small" for="fo_date_{{ $opening->id }}">{{ __('dpc.promotion_orders.order_date') }}</label>
+                                    <input type="date" class="form-control form-control-sm" id="fo_date_{{ $opening->id }}" name="order_date" required>
+                                </div>
+                                <div class="col-md-5">
+                                    <label class="form-check small"><input class="form-check-input" type="checkbox" name="confirm" value="1" required> {{ __('dpc.sealed_cover.order_confirm', ['name' => $opening->isCleared() ? $opening->officer_name : $opening->replacement_name]) }}</label>
+                                    <button class="btn btn-success btn-sm mt-1">{{ __('dpc.sealed_cover.issue_order') }}</button>
+                                </div>
+                            </form>
+                        @endif
+                    </div>
+                @endforeach
+            </div>
+        </div>
+    @endif
+
     <a href="{{ route('dpc-proposals.show', $proposal) }}" class="btn btn-outline-secondary">{{ __('ui.back') }}</a>
 @endsection

@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Domain\Dpc\Requests;
 
 use App\Domain\Dpc\Models\DpcProposal;
+use App\Enums\MasterStatus;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 /**
  * Section E — the PH questionnaire (rule 2.1). Each question is required only when
@@ -32,6 +34,8 @@ class SaveEmployeePhRequest extends FormRequest
     {
         return [
             'is_ph' => ['required', 'boolean'],
+            // The kind of disability, from the PH Type master (2026-11-05).
+            'ph_type_id' => ['required_if:is_ph,1', 'nullable', 'integer', Rule::exists('ph_types', 'id')->where('status', MasterStatus::Active->value)->whereNull('deleted_at')],
             'ph_previously_availed' => ['required_if:is_ph,1', 'nullable', 'boolean'],
             'ph_claims_reservation' => ['required_if:ph_previously_availed,0', 'nullable', 'boolean'],
             'ph_ineligibility_reason' => ['nullable', 'string', 'max:255'],
@@ -46,7 +50,7 @@ class SaveEmployeePhRequest extends FormRequest
     protected function prepareForValidation(): void
     {
         if (! $this->boolean('is_ph')) {
-            $this->merge(['ph_previously_availed' => null, 'ph_claims_reservation' => null]);
+            $this->merge(['ph_type_id' => null, 'ph_previously_availed' => null, 'ph_claims_reservation' => null]);
         } elseif ($this->boolean('ph_previously_availed')) {
             $this->merge(['ph_claims_reservation' => null]);
         }

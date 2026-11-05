@@ -208,6 +208,23 @@ class DpcCommitteeTest extends TestCase
      * leaving the old text input in place would satisfy every other assertion here
      * and still let an officer type a rank that is in no master.
      */
+    /**
+     * A category one member already holds is not offered on the others (2026-11-05):
+     * every category box carries the hook the screen's script locks it by, and the
+     * message it shows.
+     */
+    public function test_every_category_box_can_be_locked_once_another_member_holds_it(): void
+    {
+        $page = (string) $this->actingAs($this->ao)->get(route('dpc-proposals.committee', $this->proposal))->assertOk()->getContent();
+
+        foreach (['is_sc', 'is_st', 'is_obc', 'is_female', 'is_bhar_sadhak_sachiv', 'is_vibhag_sachiv'] as $column) {
+            $this->assertMatchesRegularExpression('/class="[^"]*member-attribute-input[^"]*"[^>]*name="members\[__M__\]\['.$column.'\]"/s', $page, $column);
+        }
+
+        $this->assertStringContainsString('data-covered-title="'.e(__('dpc.committee.category_covered')).'"', $page);
+        $this->assertStringContainsString('committee-social-category.js', $page);
+    }
+
     public function test_the_committee_screen_offers_the_designation_master_and_no_text_box(): void
     {
         Designation::query()->create(['name' => 'Joint Secretary', 'status' => MasterStatus::Active->value]);

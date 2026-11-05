@@ -182,6 +182,7 @@ return [
                 'reservation_policies' => 'Reservation Policies',
                 'reservation_rosters' => 'Reservation Rosters',
                 'record_reasons' => 'Record Reasons',
+                'ph_types' => 'PH Types',
                 'sealed_cover_reasons' => 'Sealed Cover Reasons',
                 'review_reasons' => 'Review Reasons',
                 'user_management' => 'User Management',

@@ -775,4 +775,20 @@ class PreDpcWorkflowTest extends TestCase
 
         $this->assertSame(PreDpcStatus::Draft, $proposal->fresh()->status);
     }
+
+    /**
+     * The order number is required when the form is saved (2026-11-05), not first
+     * at submission: a Pre-DPC without it could be saved and was refused only later.
+     */
+    public function test_the_order_number_is_required_when_the_form_is_saved(): void
+    {
+        $proposal = $this->draft();
+
+        foreach (['', '   '] as $blank) {
+            $this->actingAs($this->ao)->put(route('pre-dpc.update', $proposal), $this->payload(['government_order_number' => $blank]))
+                ->assertSessionHasErrors('government_order_number');
+        }
+
+        $this->assertNotSame('', (string) $proposal->fresh()->government_order_number, 'Nothing was saved.');
+    }
 }

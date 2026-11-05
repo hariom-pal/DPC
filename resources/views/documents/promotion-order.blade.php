@@ -61,9 +61,18 @@
         </tbody>
     </table>
 
+    @if ($order->kind === \App\Domain\PromotionOrder\Models\DpcPromotionOrder::KIND_SEALED_COVER && $order->effective_date)
+        {{-- A sealed cover opened, the officer cleared (2026-11-05): effective from the opening, never backdated. --}}
+        <p>This order follows the opening of the sealed cover in which the DPC's finding on the officer was kept. The promotion
+            takes effect from <strong>{{ $order->effective_date->format('d-m-Y') }}</strong>, the date the sealed cover was opened.</p>
+    @elseif ($order->kind === \App\Domain\PromotionOrder\Models\DpcPromotionOrder::KIND_SEALED_COVER)
+        <p>This order fills the post a sealed cover's opening released, for the next eligible officer on the DPC's waiting list.
+            Seniority counts from the date of this order, {{ $order->order_date->format('d-m-Y') }}.</p>
+    @else
     <p>The seniority of the officers promoted by this order on the post of {{ $proposal->promotionToPost?->name }} shall count from
         the date of this order, {{ $order->order_date->format('d-m-Y') }}.</p>
     <p>The finding on any officer kept in a sealed cover is not acted upon by this order; the post concerned is held.</p>
+    @endif
 
     <div class="sign">
         <div>Digitally signed by</div>

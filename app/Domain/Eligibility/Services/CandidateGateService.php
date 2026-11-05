@@ -78,6 +78,7 @@ class CandidateGateService
      *
      * @param  list<string>  $hierarchyFailures
      * @param  list<int>  $mandatoryCrYears  the CR years the Class Master rule makes mandatory
+     * @param  list<int>|null  $mandatoryPropertyYears  the years the Class Master rule makes the property return mandatory (2026-11-05); null: item 13's five continuous years
      */
     public function assess(
         OfficerRecord $officer,
@@ -87,6 +88,7 @@ class CandidateGateService
         RemarkCode $ruleFailureStatus,
         bool $enforceQualification = false,
         array $mandatoryCrYears = [],
+        ?array $mandatoryPropertyYears = null,
     ): CandidateGateVerdict {
         /*
          | The qualification comparison is **advisory by default** — BD-39.
@@ -118,7 +120,10 @@ class CandidateGateService
         // ---- 1. Rejections (items 11, 13, 20) ----------------------------
         $rejections = $hierarchyFailures;
 
-        $propertyGap = $this->missingPropertyYears($officer, $propertyYearsRequired);
+        // Item 13 for a run without a Class Master rule. Under the rule (2026-11-05)
+        // only the years it makes mandatory count, and a missing one is a justified
+        // gap (CIR) or an unexplained one below — never a rejection.
+        $propertyGap = $mandatoryPropertyYears === null ? $this->missingPropertyYears($officer, $propertyYearsRequired) : [];
 
         if ($propertyGap !== []) {
             $rejections[] = sprintf(
@@ -149,7 +154,7 @@ class CandidateGateService
         }
 
         // ---- 3. Justified gaps (items 14, 15, 17, 19) --------------------
-        $gapReasons = $this->gapFindings($officer, $requiredCrCount, $mandatoryCrYears);
+        $gapReasons = $this->gapFindings($officer, $requiredCrCount, $mandatoryCrYears, $mandatoryPropertyYears ?? []);
 
         // An *unjustified* shortfall is not CIR: item 19 opens that path only for a
         // gap the officer has explained and evidenced. Reported as a rule failure —
@@ -281,9 +286,10 @@ class CandidateGateService
      * against the years that carry a CR rather than against a calendar.
      *
      * @param  list<int>  $mandatoryCrYears
+     * @param  list<int>  $mandatoryPropertyYears
      * @return array{reasons: list<string>, citations: list<string>, unjustified: list<string>}
      */
-    public function gapFindings(OfficerRecord $officer, int $requiredCrCount, array $mandatoryCrYears = []): array
+    public function gapFindings(OfficerRecord $officer, int $requiredCrCount, array $mandatoryCrYears = [], array $mandatoryPropertyYears = []): array
     {
         $reasons = [];
         $citations = [];
@@ -337,6 +343,24 @@ class CandidateGateService
                 $citations[] = $citation;
             } else {
                 $unjustified[] = sprintf('The CR for %d is mandatory under the promotion rule and is not recorded, with no reason or supporting document.', $year);
+            }
+        }
+
+        // ---- Property returns the Class Master rule makes mandatory (2026-11-05)
+        // Filed, or justified with its reason and document: CIR, not RJ. A year the
+        // rule does not make mandatory is not looked at.
+        foreach ($mandatoryPropertyYears as $year) {
+            if (($officer->propertyReturnYears[$year] ?? null) === true) {
+                continue;
+            }
+
+            $citation = $officer->justifiedPropertyGapYears[$year] ?? null;
+
+            if ($citation !== null) {
+                $reasons[] = sprintf('The Property Return for %d, mandatory under the promotion rule, is unavailable and has been justified with a reason and a supporting document, so the promotion is held rather than refused.', $year);
+                $citations[] = $citation;
+            } else {
+                $unjustified[] = sprintf('The Property Return for %d is mandatory under the promotion rule and is not recorded, with no reason or supporting document.', $year);
             }
         }
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Dpc\Models;
 
 use App\Domain\Dpc\Enums\PhReservationOutcome;
+use App\Domain\Master\Models\PhType;
 use App\Domain\Master\Models\ReservationCategory;
 use App\Domain\Master\Models\SealedCoverReason;
 use App\Domain\Proceeding\Models\DpcCandidateCall;
@@ -93,6 +94,7 @@ class DpcEvaluationRow extends Model
 
         // Rule 2.1 — the PH questionnaire. See PhReservationOutcome.
         'is_ph',
+        'ph_type_id',
         'ph_previously_availed',
         'ph_claims_reservation',
         'ph_ineligibility_reason',
@@ -315,5 +317,15 @@ class DpcEvaluationRow extends Model
     public function phOutcome(): PhReservationOutcome
     {
         return PhReservationOutcome::from3($this->is_ph, $this->ph_previously_availed, $this->ph_claims_reservation);
+    }
+
+    /**
+     * The officer's kind of disability, from the PH Type master (2026-11-05).
+     *
+     * @return BelongsTo<PhType, $this>
+     */
+    public function phType(): BelongsTo
+    {
+        return $this->belongsTo(PhType::class, 'ph_type_id')->withTrashed();
     }
 }

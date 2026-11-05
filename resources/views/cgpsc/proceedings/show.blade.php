@@ -273,6 +273,11 @@
                    href="{{ route('cgpsc.proceedings.result', $proceeding) }}">{{ __('cgpsc.proceedings.show.result_amp_approval') }}</a>
                 <a class="btn btn-sm btn-outline-secondary"
                    href="{{ route('cgpsc.proceedings.history', $proceeding) }}">{{ __('ui.proceeding_history') }}</a>
+                {{-- Sealed covers, opened by the DPC's Chairman once the result is approved (2026-11-05). --}}
+                @if ($proceeding->status === \App\Domain\Proceeding\Enums\DpcProceedingStatus::ResultApproved && $proceeding->proposal !== null
+                    && app(\App\Domain\Proceeding\Services\SealedCoverService::class)->isDpcChairman($proceeding->proposal, auth()->user()))
+                    <a class="btn btn-sm btn-outline-warning" href="{{ route('cgpsc.proceedings.sealed-covers', $proceeding) }}" id="sealed-covers-link">{{ __('dpc.sealed_cover.title') }}</a>
+                @endif
                 <a class="btn btn-sm btn-link" href="{{ route('cgpsc.proceedings.index') }}">{{ __('ui.back') }}</a>
             </div>
         </div>

@@ -210,11 +210,34 @@ trait CompletesDpcProposals
 
         $rows = [];
 
-        // A record kept per Pre-DPC (2026-10-30) has no quota split: its officers
-        // other than those here on deputation are listed as promotion officers.
-        if (VacancyMasterService::isPerPreDpc(app(ProposalVacancyPosition::class)->for($proposal)?->breakdown)) {
-            $record[DpcWorkingOfficer::SOURCE_PROMOTION] = $record['total'] - $record[DpcWorkingOfficer::SOURCE_DEPUTATION];
+        // A record kept per Pre-DPC (2026-10-30) has no quota split: the officers it
+        // names in B1, B2 and C are listed as themselves (matched by Employee ID or
+        // name, 2026-11-04), the rest as promotion officers.
+        $frozen = app(ProposalVacancyPosition::class)->for($proposal)?->breakdown;
+
+        if (VacancyMasterService::isPerPreDpc($frozen)) {
+            foreach ((array) ($frozen['entries'] ?? []) as $entry) {
+                $kind = is_array($entry) ? ($entry['kind'] ?? null) : null;
+
+                if (! in_array($kind, ['deputation_in', 'deputation', 'anticipated'], true)) {
+                    continue;
+                }
+
+                $rows[] = [
+                    'sn' => count($rows) + 1,
+                    'status' => DpcWorkingOfficer::STATUS_WORKING,
+                    'source' => $kind === 'deputation_in' ? DpcWorkingOfficer::SOURCE_DEPUTATION : DpcWorkingOfficer::SOURCE_PROMOTION,
+                    'out_on_deputation' => $kind === 'deputation',
+                    'employee_number' => $entry['employee_number'] ?? null,
+                    'name' => (string) ($entry['officer_name'] ?? 'Officer '.(count($rows) + 1)),
+                    'dob' => '1975-01-01',
+                    'reservation_category_id' => $categoryId,
+                ];
+            }
+
+            $record[DpcWorkingOfficer::SOURCE_PROMOTION] = $record['total'] - count($rows);
             $record[DpcWorkingOfficer::SOURCE_DIRECT] = 0;
+            $record[DpcWorkingOfficer::SOURCE_DEPUTATION] = 0;
         }
 
         foreach ([DpcWorkingOfficer::SOURCE_PROMOTION, DpcWorkingOfficer::SOURCE_DIRECT, DpcWorkingOfficer::SOURCE_DEPUTATION] as $source) {

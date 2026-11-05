@@ -9,6 +9,7 @@ use App\Domain\Cgpsc\Services\AllotmentService;
 use App\Domain\Cgpsc\Services\SchedulingService;
 use App\Domain\Department\Models\Department;
 use App\Domain\Dpc\Enums\DpcProposalStatus;
+use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Models\DpcWorkingOfficer;
 use App\Domain\Eligibility\Models\DpcCalculationRun;
@@ -245,12 +246,12 @@ trait BuildsProceedings
         int $categoryId,
         array $grades,
         array $propertyMissingYears = [],
-    ): void {
+    ): DpcEvaluationRow {
         // The officer joins the Seniority List, which projects the chart row —
         // the chart is no longer somewhere an officer can be invented (business
         // directive, 2026-08-22). Delegated so the two-step flow lives in one
         // place; see SeedsEvaluationCharts.
-        $this->seedOneOfficer($this->proposal, $sn, $name, $categoryId, $grades, $propertyMissingYears);
+        return $this->seedOneOfficer($this->proposal, $sn, $name, $categoryId, $grades, $propertyMissingYears);
     }
 
     protected function corrections(): ProceedingCorrectionService

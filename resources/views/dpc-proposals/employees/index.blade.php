@@ -67,7 +67,7 @@
                                     $check = $ruleChecks[$entry['row']->id] ?? null;
                                 @endphp
                                 @if ($check !== null)
-                                    <span class="badge {{ ['meets' => 'text-bg-success', 'does_not_meet' => 'text-bg-danger', 'no_rule' => 'text-bg-secondary'][$check['status']] }}" data-rule-status="{{ $check['status'] }}">{{ __('dpc.employee_details.rule.status.'.$check['status']) }}</span>
+                                    <span class="badge {{ ['meets' => 'text-bg-success', 'cir' => 'text-bg-warning', 'does_not_meet' => 'text-bg-danger', 'no_rule' => 'text-bg-secondary'][$check['status']] }}" data-rule-status="{{ $check['status'] }}">{{ __('dpc.employee_details.rule.status.'.$check['status']) }}</span>
                                 @endif
                             </td>
                             <td class="text-end">

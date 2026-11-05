@@ -63,11 +63,18 @@ class DpcEvaluationRecordGap extends Model implements Auditable
     public const KIND_LOYALTY = 'loyalty';
 
     /**
+     * A missing Property Return in a year the Class Master rule makes it mandatory
+     * (2026-11-05): justified with its reason and document, it holds the promotion
+     * (CIR) instead of refusing it.
+     */
+    public const KIND_PROPERTY = 'property';
+
+    /**
      * @return list<string>
      */
     public static function kinds(): array
     {
-        return [self::KIND_CR, self::KIND_LOYALTY];
+        return [self::KIND_CR, self::KIND_LOYALTY, self::KIND_PROPERTY];
     }
 
     /**
@@ -204,10 +211,24 @@ class DpcEvaluationRecordGap extends Model implements Auditable
     {
         return sprintf(
             '%s %d — %s%s',
-            $this->kind === self::KIND_CR ? 'CR' : 'Loyalty',
+            match ($this->kind) {
+                self::KIND_CR => 'CR',
+                self::KIND_PROPERTY => 'Property Return',
+                default => 'Loyalty',
+            },
             $this->year,
             $this->reason?->label() ?? '—',
             $this->remarks === null || $this->remarks === '' ? '' : ' ('.$this->remarks.')',
         );
+    }
+
+    /** The record this gap stands for, in words. */
+    public static function recordName(string $kind): string
+    {
+        return match ($kind) {
+            self::KIND_CR => 'CR',
+            self::KIND_PROPERTY => 'Property Return',
+            default => 'Loyalty Certificate',
+        };
     }
 }

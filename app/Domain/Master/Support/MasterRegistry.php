@@ -10,6 +10,7 @@ use App\Domain\Master\Models\Designation;
 use App\Domain\Master\Models\District;
 use App\Domain\Master\Models\DpcType;
 use App\Domain\Master\Models\PayScale;
+use App\Domain\Master\Models\PhType;
 use App\Domain\Master\Models\Qualification;
 use App\Domain\Master\Models\RecordReason;
 use App\Domain\Master\Models\ReservationCategory;
@@ -145,6 +146,22 @@ final class MasterRegistry
             ),
 
             new MasterDefinition(
+                key: 'ph-types',
+                label: 'PH Types',
+                model: PhType::class,
+                columns: [
+                    'code' => 'code', 'name_en' => 'name_en', 'name_hi' => 'name_hi',
+                    'category' => 'category', 'sort_order' => 'sort_order', 'status' => 'status',
+                ],
+                required: ['code', 'name_en'],
+                searchable: ['name_en', 'name_hi', 'code'],
+                unique: ['code'],
+                sample: [
+                    ['code' => 'OL', 'name_en' => 'One Leg', 'name_hi' => 'एक पैर प्रभावित', 'category' => 'c', 'sort_order' => '60', 'status' => 'active'],
+                ],
+            ),
+
+            new MasterDefinition(
                 key: 'sealed-cover-reasons',
                 label: 'Sealed Cover Reasons',
                 model: SealedCoverReason::class,
@@ -187,6 +204,7 @@ final class MasterRegistry
                     'department' => 'department_id', 'post_name' => 'name',
                     'class_level' => 'class_level', 'pay_scale' => 'pay_scale_id',
                     'promotion_duration_years' => 'promotion_duration_years',
+                    'retirement_age' => 'retirement_age',
                     'effective_from' => 'effective_from', 'status' => 'status',
                 ],
                 required: ['department', 'post_name', 'class_level'],

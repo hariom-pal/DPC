@@ -98,6 +98,7 @@ class DepartmentPostMappingService
                 'class_level' => $attributes['class_level'],
                 'pay_scale_id' => $attributes['pay_scale_id'] ?? null,
                 'promotion_duration_years' => $attributes['promotion_duration_years'] ?? null,
+                'retirement_age' => array_key_exists('retirement_age', $attributes) ? $attributes['retirement_age'] : $current->retirement_age,
 
                 /*
                  | Carried onto the replacement (correction of 2026-09-06).

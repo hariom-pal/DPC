@@ -603,25 +603,11 @@ class PreDpcProposalService
 
     private function guardComplete(PreDpcProposal $proposal): void
     {
-        if ($proposal->promotion_to_post_id === null) {
-            throw new WorkflowException('Choose the Promotion To Post before submitting.');
-        }
+        $blockers = $this->submitBlockers($proposal);
 
-        if ($proposal->promotionSources()->count() === 0) {
-            throw new WorkflowException(
-                'Name at least one Promotion From Post before submitting — the post or posts officers are promoted from.'
-            );
+        if ($blockers !== []) {
+            throw new WorkflowException($blockers[0]);
         }
-
-        if ($proposal->dpc_year === null) {
-            throw new WorkflowException('The DPC Year is required before submitting.');
-        }
-
-        if (($proposal->government_order_number === null) || ($proposal->effective_from === null)) {
-            throw new WorkflowException('The Adyatan Vibhagiy Bharti Niyam and its Publish Date are required before submitting.');
-        }
-
-        $this->guardVacancyReady($proposal);
     }
 
     private function guardVacancyReady(PreDpcProposal $proposal): void
@@ -631,6 +617,36 @@ class PreDpcProposalService
         if ($blockers !== []) {
             throw new WorkflowException($blockers[0]);
         }
+    }
+
+    /**
+     * Everything that stops a submission, all at once (2026-11-04): shown on the
+     * Pre-DPC with Submit disabled, and checked before the eSign starts, so the AO
+     * never signs only to be refused.
+     *
+     * @return list<string>
+     */
+    public function submitBlockers(PreDpcProposal $proposal): array
+    {
+        $blockers = [];
+
+        if ($proposal->promotion_to_post_id === null) {
+            $blockers[] = 'Choose the Promotion To Post before submitting.';
+        }
+
+        if ($proposal->promotionSources()->count() === 0) {
+            $blockers[] = 'Name at least one Promotion From Post before submitting — the post or posts officers are promoted from.';
+        }
+
+        if ($proposal->dpc_year === null) {
+            $blockers[] = 'The DPC Year is required before submitting.';
+        }
+
+        if (trim((string) $proposal->government_order_number) === '' || $proposal->effective_from === null) {
+            $blockers[] = 'The Adyatan Vibhagiy Bharti Niyam and its Publish Date are required before submitting.';
+        }
+
+        return [...$blockers, ...$this->vacancyBlockers($proposal)];
     }
 
     /**

@@ -20,7 +20,7 @@ return [
     'declaration_required' => 'आगे बढ़ने हेतु घोषणा पर टिक करें।',
     // Found before submission rather than when finalizing Vacancy Management (2026-11-03).
     'blockers' => [
-        'title' => 'प्रस्तुत करने से पहले इसे ठीक करें — अन्यथा इस Pre-DPC का Vacancy Management अंतिम नहीं हो सकेगा',
+        'title' => 'प्रस्तुत करने से पहले इसे ठीक करें — अन्यथा यह Pre-DPC प्रस्तुत नहीं हो सकेगा और इसका Vacancy Management अंतिम नहीं हो सकेगा',
         'mapping_not_in_force' => ':post का Department Post Mapping :date (रिक्ति वर्ष :year का पहला दिन) को प्रभावी नहीं है (यह :from से प्रभावी है)। प्राधिकृत अधिकारी Department Posts में मैपिंग संपादित कर प्रभावी तिथि :date या उससे पहले की करें।',
     ],
     'summary' => [

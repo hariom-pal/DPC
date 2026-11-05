@@ -89,7 +89,7 @@
                                         @endforeach
                                     </select></div>
                                 <div class="col-12"><label class="form-label">{{ __('department.users.designation') }}</label>
-                                    <select class="form-select form-select-sm" name="designation_id">
+                                    <select class="form-select form-select-sm" name="designation_id" required>
                                         <option value="">{{ __('ui.select') }}</option>
                                         @foreach ($designations as $designation)
                                             <option value="{{ $designation->id }}" @selected($officer->designation_id === $designation->id)>{{ $designation->name }}</option>

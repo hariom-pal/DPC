@@ -11,6 +11,7 @@ use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Services\DpcProposalCompletenessService;
 use App\Domain\Dpc\Services\DpcProposalService;
 use App\Domain\Master\Models\DepartmentPost;
+use App\Domain\Master\Models\DpcType;
 use App\Domain\Shared\Models\ActivityTimeline;
 use App\Domain\Shared\Workflow\WorkflowException;
 use App\Domain\Shared\Workflow\WorkflowTransition;
@@ -66,6 +67,25 @@ class DpcProposalClosureTest extends TestCase
     }
 
     // ---------------------------------------------------------------- validation
+
+    /**
+     * Fresh is the only kind raised here, so a new DPC has it chosen, and one posted
+     * without a type is a Fresh DPC (2026-11-05).
+     */
+    public function test_a_new_dpc_is_a_fresh_dpc_by_default(): void
+    {
+        $fresh = DpcType::query()->where('code', 'fresh')->value('id');
+
+        $this->actingAs($this->ao)->get(route('dpc-proposals.create'))->assertOk()
+            ->assertSee('id="dpc_type_'.$fresh.'" value="'.$fresh.'"', false)
+            ->assertSeeInOrder(['id="dpc_type_'.$fresh.'"', 'checked'], false);
+
+        $payload = $this->dpcStorePayload($this->proposal->preDpcProposal);
+        unset($payload['dpc_type_id']);
+        $this->proposal->delete();
+        $this->actingAs($this->ao)->post(route('dpc-proposals.store'), $payload)->assertSessionDoesntHaveErrors('dpc_type_id');
+        $this->assertSame($fresh, DpcProposal::query()->latest('id')->firstOrFail()->dpc_type_id);
+    }
 
     public function test_an_incomplete_proposal_cannot_be_submitted(): void
     {
@@ -237,6 +257,8 @@ class DpcProposalClosureTest extends TestCase
         $signature = Signature::query()
             ->where('signable_type', $this->proposal->refresh()->getMorphClass())
             ->where('signable_id', $this->proposal->id)
+            // The AH's approval, the last signature: the AO signs the submission too.
+            ->latest('id')
             ->firstOrFail();
 
         $document = (string) Storage::disk($signature->signed_disk)->get($signature->signed_path);

@@ -22,7 +22,7 @@ return [
     'declaration_required' => 'Tick the declaration to go on.',
     // Found before submission rather than when finalizing Vacancy Management (2026-11-03).
     'blockers' => [
-        'title' => 'Fix this before submitting — Vacancy Management for this Pre-DPC cannot be finalized otherwise',
+        'title' => 'Fix this before submitting — the Pre-DPC cannot be submitted, and its Vacancy Management cannot be finalized, otherwise',
         'mapping_not_in_force' => 'The Department Post Mapping of :post is not in force on :date, the first day of Vacancy Year :year (it takes effect from :from). The Authorized Officer should edit the mapping under Department Posts and set its Effective From on or before :date.',
     ],
     'summary' => [

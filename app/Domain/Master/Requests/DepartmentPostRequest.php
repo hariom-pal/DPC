@@ -103,6 +103,10 @@ class DepartmentPostRequest extends FormRequest
              */
             'promotion_duration_years' => ['nullable', 'integer', 'min:0', 'max:40'],
 
+            // The post's retirement age (2026-11-04): a Section C retirement is
+            // calculated from it and the officer's date of birth.
+            'retirement_age' => ['nullable', 'integer', 'min:50', 'max:75'],
+
             /*
              | No sanctioned strength here (2026-10-17): it can change year by year
              | on its own order, so the Vacancy Master records it for each Vacancy

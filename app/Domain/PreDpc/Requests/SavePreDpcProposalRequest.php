@@ -30,9 +30,15 @@ use Illuminate\Validation\Rules\Exists;
  */
 class SavePreDpcProposalRequest extends FormRequest
 {
+    /**
+     * Only whoever may edit this Pre-DPC, and before the form is validated
+     * (2026-11-05): a refused officer is told so, not shown the form's errors.
+     */
     public function authorize(): bool
     {
-        return true;
+        $proposal = $this->route('preDpc');
+
+        return ! $proposal instanceof PreDpcProposal || ($this->user()?->can('update', $proposal) ?? false);
     }
 
     /**
@@ -138,7 +144,9 @@ class SavePreDpcProposalRequest extends FormRequest
             'direct_recruitment_pct' => ['required', 'integer', 'min:0', 'max:100'],
             'promotion_recruitment_pct' => ['required', 'integer', 'min:0', 'max:100'],
 
-            'government_order_number' => ['nullable', 'string', 'max:255'],
+            // Required when the form is saved (2026-11-05), not first at submission:
+            // a Pre-DPC without its order could be saved and was refused only later.
+            'government_order_number' => ['required', 'string', 'max:255'],
             'effective_from' => ['nullable', 'date'],
             // The preparer's declaration, with every save (2026-10-30).
             'declaration' => ['accepted'],

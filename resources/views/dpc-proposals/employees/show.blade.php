@@ -170,7 +170,7 @@
             <div class="border rounded p-2 mb-3" id="promotion-rule-check">
                 <div class="d-flex flex-wrap justify-content-between gap-2 mb-1">
                     <strong class="small">{{ __('dpc.employee_details.rule.heading') }}</strong>
-                    <span class="badge {{ ['meets' => 'text-bg-success', 'does_not_meet' => 'text-bg-danger', 'no_rule' => 'text-bg-secondary'][$ruleCheck['status']] }}" data-rule-status="{{ $ruleCheck['status'] }}">{{ __('dpc.employee_details.rule.status.'.$ruleCheck['status']) }}</span>
+                    <span class="badge {{ ['meets' => 'text-bg-success', 'cir' => 'text-bg-warning', 'does_not_meet' => 'text-bg-danger', 'no_rule' => 'text-bg-secondary'][$ruleCheck['status']] }}" data-rule-status="{{ $ruleCheck['status'] }}">{{ __('dpc.employee_details.rule.status.'.$ruleCheck['status']) }}</span>
                 </div>
                 @if ($ruleCheck['rule'] !== null)
                     <p class="small text-muted mb-2">{{ __('dpc.employee_details.rule.summary', [
@@ -211,6 +211,11 @@
                         <p class="small mb-1" id="rule-required-years">{{ __('dpc.employee_details.rule.required_years', ['years' => implode(', ', $ruleYears)]) }}</p>
                     @endif
                     <p class="small mb-1" id="rule-total">{{ __('dpc.employee_details.rule.total', ['total' => $ruleCheck['total'] ?? '—', 'required' => $ruleCheck['required_total']]) }}</p>
+                @endif
+                @if (($ruleCheck['holds'] ?? []) !== [])
+                    <ul class="small mb-2 text-warning-emphasis" id="rule-check-holds">
+                        @foreach ($ruleCheck['holds'] as $hold)<li>{{ $hold }}</li>@endforeach
+                    </ul>
                 @endif
                 @if ($ruleCheck['findings'] !== [])
                     <ul class="small text-danger mb-0">
@@ -282,7 +287,7 @@
             </div>
 
             @if ($canEdit)
-                <form method="POST" action="{{ route('dpc-proposals.employees.cr.save', [$proposal, $row]) }}" class="border rounded p-2 mb-3" data-employee-cr-form>
+                <form method="POST" action="{{ route('dpc-proposals.employees.cr.save', [$proposal, $row]) }}" class="border rounded p-2 mb-3" enctype="multipart/form-data" data-employee-cr-form>
                     @csrf
                     <h3 class="h6">{{ $editCr ? __('dpc.employee_details.cr.edit_year', ['year' => $editCr->year]) : __('dpc.employee_details.cr.add_year') }}</h3>
                     <div class="row g-2">
@@ -313,6 +318,7 @@
                         </div>
                     </div>
                     <p class="small text-muted mt-2 mb-1" data-show-when="put_up=0">{{ __('dpc.employee_details.cr.not_put_up_help') }}</p>
+                    @include('dpc-proposals.employees.partials.missing-record', ['when' => 'put_up=0', 'years' => null, 'prefix' => 'cr', 'reasons' => $reasons])
                     <p class="small text-muted mt-2 mb-1" data-show-when="has_grading=0">{{ __('dpc.employee_details.cr.no_grading_help') }}</p>
                     {{-- One CR a year (2026-11-01): whose remarks it carries, and the highest one's grade. --}}
                     @php
@@ -470,7 +476,7 @@
             </div>
 
             @if ($canEdit)
-                <form method="POST" action="{{ route('dpc-proposals.employees.property.save', [$proposal, $row]) }}" class="border rounded p-2 mb-3" data-employee-property-form>
+                <form method="POST" action="{{ route('dpc-proposals.employees.property.save', [$proposal, $row]) }}" class="border rounded p-2 mb-3" enctype="multipart/form-data" data-employee-property-form>
                     @csrf
                     <h3 class="h6">{{ $editProperty ? __('dpc.employee_details.property.edit_year', ['year' => $editProperty->year]) : __('dpc.employee_details.property.add_year') }}</h3>
                     <div class="row g-2">
@@ -513,6 +519,7 @@
                             <input class="form-control form-control-sm" id="late_decision_remarks" name="late_decision_remarks" value="{{ old('late_decision_remarks', $editProperty?->late_decision_remarks) }}">
                         </div>
                     </div>
+                    @include('dpc-proposals.employees.partials.missing-record', ['when' => 'submitted=0', 'years' => $propertyRuleYears, 'prefix' => 'property', 'reasons' => $reasons])
                     <button class="btn btn-success btn-sm mt-2">{{ __('dpc.employee_details.property.save_year') }}</button>
                 </form>
 
@@ -570,6 +577,9 @@
 
             <dl class="row small mb-2" id="ph-outcome">
                 <dt class="col-sm-4">{{ __('dpc.employee_details.ph.outcome') }}</dt><dd class="col-sm-8">{{ $outcome->label() }}</dd>
+                @if ($row->is_ph)
+                    <dt class="col-sm-4">{{ __('dpc.employee_details.ph.type') }}</dt><dd class="col-sm-8" id="ph-type">{{ $row->phType?->label() ?? '—' }}</dd>
+                @endif
                 @if ($row->ph_ineligibility_reason)
                     <dt class="col-sm-4">{{ __('dpc.employee_details.ph.reason') }}</dt><dd class="col-sm-8">{{ $row->ph_ineligibility_reason }}</dd>
                 @endif
@@ -618,6 +628,17 @@
                                 {{ $label }}
                             </label>
                         @endforeach
+                    </div>
+                    {{-- The kind of disability, from the PH Type master (2026-11-05). --}}
+                    <div class="mb-2" data-show-when="is_ph=1">
+                        <label class="form-label small d-block" for="ph_type_id">{{ __('dpc.employee_details.ph.type') }}</label>
+                        <select class="form-select form-select-sm @error('ph_type_id') is-invalid @enderror" id="ph_type_id" name="ph_type_id" style="max-width:28rem">
+                            <option value="">{{ __('ui.select') }}</option>
+                            @foreach (\App\Domain\Master\Models\PhType::query()->selectable()->get() as $phType)
+                                <option value="{{ $phType->id }}" @selected((string) old('ph_type_id', $row->ph_type_id) === (string) $phType->id)>{{ $phType->label() }}</option>
+                            @endforeach
+                        </select>
+                        @error('ph_type_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
                     <div class="mb-2" data-show-when="is_ph=1">
                         <span class="form-label small d-block">Q2. {{ __('dpc.employee_details.ph.q2') }}</span>

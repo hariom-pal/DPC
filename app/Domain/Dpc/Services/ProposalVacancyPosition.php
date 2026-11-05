@@ -315,14 +315,17 @@ final class ProposalVacancyPosition
 
     /**
      * The Working Officers List matched with the record's B1 (officers of another
-     * department here on deputation) and B2 (ours away on deputation), 2026-11-01.
+     * department here on deputation) and B2 (ours away on deputation), 2026-11-01,
+     * and C (retiring or promoted to a higher post in the year, 2026-11-04): a C
+     * officer is working on 1 January, so the list names them in an ordinary row,
+     * neither HERE nor OUT ON DEPUTATION.
      *
      * A row is matched by employee number where the B1/B2 row carries one, otherwise
      * by name (case, spacing, punctuation and an honorific such as Shri/Smt ignored).
      * Nothing is mapped silently: each row gets a message when it does not agree —
      * marked but not recorded, recorded but not marked, recorded on the other side,
      * or the same officer as an earlier row — and every B1/B2 officer no row names is
-     * returned as missing. Only active B1/B2 rows count; their eligibility (B1 ending
+     * returned as missing. Only active B1/B2/C rows count; their eligibility (B1 ending
      * in the year, B2 over a year with no promotion) is the record's and untouched.
      *
      * @param  array<string, mixed>|null  $frozen  the record's breakdown
@@ -334,6 +337,8 @@ final class ProposalVacancyPosition
         $entries = [
             ...array_map(fn (array $entry): array => $entry + ['side' => 'B1'], $this->deputationEntries($frozen, VacancyEntryKind::DeputationIn)),
             ...array_map(fn (array $entry): array => $entry + ['side' => 'B2'], $this->deputationEntries($frozen, VacancyEntryKind::Deputation)),
+            // C: working on 1 January, so on the list as an ordinary row (2026-11-04).
+            ...array_map(fn (array $entry): array => $entry + ['side' => 'C'], $this->deputationEntries($frozen, VacancyEntryKind::Anticipated)),
         ];
         $matched = [];
         $results = [];
@@ -355,16 +360,20 @@ final class ProposalVacancyPosition
                 }
             }
 
+            $side = $found === null ? null : $entries[$found]['side'];
+
             $results[$index] = match (true) {
                 $found === null && $wanted === null => null,
                 $found === null => __('vacancymaster.proposal.working_list.match.not_recorded', ['side' => $wanted]),
-                isset($matched[$found]) => __('vacancymaster.proposal.working_list.match.twice', ['side' => $entries[$found]['side'], 'name' => $entries[$found]['officer_name']]),
+                isset($matched[$found]) => __('vacancymaster.proposal.working_list.match.twice', ['side' => $side, 'name' => $entries[$found]['officer_name']]),
+                $side === 'C' && $wanted === null => null,
+                $side === 'C' => __('vacancymaster.proposal.working_list.match.c_marked', ['name' => $entries[$found]['officer_name']]),
                 $wanted === null => __('vacancymaster.proposal.working_list.match.not_marked', ['side' => $entries[$found]['side'], 'name' => $entries[$found]['officer_name'], 'column' => $entries[$found]['side'] === 'B1' ? 'HERE ON DEPUTATION' : 'OUT ON DEPUTATION']),
                 $entries[$found]['side'] !== $wanted => __('vacancymaster.proposal.working_list.match.other_side', ['side' => $entries[$found]['side'], 'name' => $entries[$found]['officer_name']]),
                 default => null,
             };
 
-            if ($found !== null && ! isset($matched[$found]) && $wanted !== null && $entries[$found]['side'] === $wanted) {
+            if ($found !== null && ! isset($matched[$found]) && $side === ($wanted ?? 'C')) {
                 $matched[$found] = true;
             }
         }

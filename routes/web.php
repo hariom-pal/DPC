@@ -19,6 +19,7 @@ use App\Http\Controllers\Admin\DpcTypeController;
 use App\Http\Controllers\Admin\IntegrationStatusController;
 use App\Http\Controllers\Admin\MasterDataController;
 use App\Http\Controllers\Admin\PayScaleController;
+use App\Http\Controllers\Admin\PhTypeController;
 use App\Http\Controllers\Admin\PortalNoticeController;
 use App\Http\Controllers\Admin\PreDpcLinkController;
 use App\Http\Controllers\Admin\PromotionCrRuleController;
@@ -56,6 +57,7 @@ use App\Http\Controllers\Cgpsc\ProceedingDocumentController;
 use App\Http\Controllers\Cgpsc\ProceedingHoldController;
 use App\Http\Controllers\Cgpsc\ProceedingResultController;
 use App\Http\Controllers\Cgpsc\SchedulingController;
+use App\Http\Controllers\Cgpsc\SealedCoverController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Department\DepartmentOfficerController;
 use App\Http\Controllers\Department\DepartmentUserController;
@@ -588,6 +590,9 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
                 // Rule 4.3: the promotion orders, issued by the Administrative Head on the approved result.
                 Route::get('/{dpcProposal}/promotion-orders', [DpcPromotionOrderController::class, 'index'])->name('promotion-orders.index');
                 Route::post('/{dpcProposal}/promotion-orders', [DpcPromotionOrderController::class, 'store'])->name('promotion-orders.store');
+                // The order a sealed cover's opening leads to (2026-11-05).
+                Route::post('/{dpcProposal}/promotion-orders/sealed-cover/{opening}', [DpcPromotionOrderController::class, 'storeFollowUp'])->name('promotion-orders.sealed-cover');
+                Route::get('/{dpcProposal}/sealed-covers/{opening}/document', [DpcPromotionOrderController::class, 'openingDocument'])->name('sealed-covers.document');
                 Route::get('/{dpcProposal}/promotion-orders/{order}', [DpcPromotionOrderController::class, 'download'])->name('promotion-orders.download');
                 Route::get('/{dpcProposal}/verification', [DpcProposalVerificationController::class, 'index'])
                     ->name('verification');
@@ -718,6 +723,9 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
                 Route::post('/proceedings/{proceeding}/holds/detect', [ProceedingHoldController::class, 'detect'])->name('proceedings.holds.detect');
                 Route::post('/proceedings/{proceeding}/holds', [ProceedingHoldController::class, 'store'])->name('proceedings.holds.store');
                 Route::delete('/proceedings/{proceeding}/holds/{hold}', [ProceedingHoldController::class, 'destroy'])->name('proceedings.holds.destroy');
+                // Sealed covers, opened by the DPC's Chairman (2026-11-05, BD-48).
+                Route::get('/proceedings/{proceeding}/sealed-covers', [SealedCoverController::class, 'index'])->name('proceedings.sealed-covers');
+                Route::post('/proceedings/{proceeding}/sealed-covers', [SealedCoverController::class, 'open'])->name('proceedings.sealed-covers.open');
             });
 
         Route::middleware('role:'.Role::Chairman->value.'|'.Role::Member->value)
@@ -868,6 +876,10 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
                  */
                 Route::resource('record-reasons', RecordReasonController::class)
                     ->parameters(['record-reasons' => 'recordReason'])
+                    ->except(['show']);
+                // The PH Type master (2026-11-05).
+                Route::resource('ph-types', PhTypeController::class)
+                    ->parameters(['ph-types' => 'phType'])
                     ->except(['show']);
                 // Departmental enquiry and the sealed cover (Coder Instructions rule 2.2).
                 Route::resource('sealed-cover-reasons', SealedCoverReasonController::class)

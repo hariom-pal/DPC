@@ -40,6 +40,7 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property ServiceClass $class_level
  * @property int|null $pay_scale_id
  * @property int|null $promotion_duration_years
+ * @property int|null $retirement_age
  * @property-read Collection<int, DepartmentPostOrder> $orders
  * @property Carbon|null $effective_from
  * @property Carbon|null $effective_to
@@ -59,6 +60,7 @@ class DepartmentPost extends Model implements Auditable
         'class_level',
         'pay_scale_id',
         'promotion_duration_years',
+        'retirement_age',
 
         /*
          | The number of posts the Government has sanctioned for this mapping
@@ -82,6 +84,7 @@ class DepartmentPost extends Model implements Auditable
         return [
             'class_level' => ServiceClass::class,
             'promotion_duration_years' => 'integer',
+            'retirement_age' => 'integer',
             'effective_from' => 'date',
             'effective_to' => 'date',
         ];

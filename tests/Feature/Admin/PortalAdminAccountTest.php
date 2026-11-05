@@ -6,6 +6,7 @@ namespace Tests\Feature\Admin;
 
 use App\Domain\Authentication\Models\User;
 use App\Domain\Department\Models\Department;
+use App\Domain\Master\Models\Designation;
 use App\Enums\DepartmentStatus;
 use App\Enums\Role;
 use Database\Seeders\RolesAndPermissionsSeeder;
@@ -66,6 +67,8 @@ class PortalAdminAccountTest extends TestCase
             'date_of_birth' => '1979-09-09', 'gender' => 'M', // checked against DigiLocker (2026-10-27)
             'name' => 'Shri D. Admin', 'email' => 'deptadmin@cg.gov.in', 'mobile' => '9000000601',
             'role' => Role::DepartmentAdmin->value, 'department_id' => $department->id,
+            // From the Designation master, required for a Department Admin (2026-11-04).
+            'designation_id' => Designation::query()->firstOrCreate(['name' => 'Deputy Secretary'], ['status' => 'active'])->id,
         ]);
         $response->assertSessionHasNoErrors()->assertOk();
         $password = $this->shownPassword((string) $response->getContent());

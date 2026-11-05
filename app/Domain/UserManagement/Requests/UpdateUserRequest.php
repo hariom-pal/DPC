@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\UserManagement\Requests;
 
 use App\Domain\Authentication\Models\User;
+use App\Domain\Master\Models\Designation;
 use App\Enums\Role;
 use App\Support\OfficialEmail;
 use Illuminate\Foundation\Http\FormRequest;
@@ -39,7 +40,7 @@ class UpdateUserRequest extends FormRequest
             // whatever was being changed.
             'email' => ['required', 'email', 'max:255', ...($this->emailChanged($current) ? [OfficialEmail::RULE] : []), Rule::unique('users', 'email')->withoutTrashed()->ignore($id)],
             'mobile' => ['required', 'digits:10', Rule::unique('users', 'mobile')->withoutTrashed()->ignore($id)],
-            'designation_id' => ['nullable', Rule::exists('designations', 'id')],
+            'designation_id' => [Rule::requiredIf(fn (): bool => in_array($this->input('role'), StoreUserRequest::officerRoles(), true)), 'nullable', 'integer', Designation::masterRule($current instanceof User ? $current->designation_id : null)],
             'role' => ['required', Rule::in(Role::provisionableValues())],
 
             /*

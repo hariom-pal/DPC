@@ -122,6 +122,8 @@ class ResetTransactionalDataCommand extends Command
         'dpc_candidate_calls',
         // Rule 4.3: promotion orders, before the proceedings and proposals they cite.
         'dpc_promotion_orders',
+        // Sealed covers opened (2026-11-05), after the orders that cite them.
+        'dpc_sealed_cover_openings',
         'dpc_proceeding_documents',
         'dpc_proceeding_holds',
         'dpc_proceeding_overrides',
@@ -220,6 +222,9 @@ class ResetTransactionalDataCommand extends Command
         // The Sealed Cover reasons (Coder Instructions rule 2.2): a master the
         // Administrator maintains, cited by the officers it was recorded for.
         'sealed_cover_reasons',
+
+        // The PH Type master (2026-11-05), cited by the officers recorded with it.
+        'ph_types',
 
         /*
          | The Government Orders behind a Department Post Mapping, and their PDFs

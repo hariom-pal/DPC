@@ -337,7 +337,8 @@
                     <div class="d-flex flex-wrap gap-3 align-items-center">
                         @foreach ($socialCategories as $attribute)
                             <div class="form-check">
-                                <input class="form-check-input member-social-input" type="checkbox" value="1"
+                                <input class="form-check-input member-social-input member-attribute-input" type="checkbox" value="1"
+                                       data-covered-title="{{ __('dpc.committee.category_covered') }}"
                                        id="member-__M__-{{ $attribute->value }}"
                                        name="members[__M__][{{ $attribute->column() }}]">
                                 <label class="form-check-label small" for="member-__M__-{{ $attribute->value }}">
@@ -357,7 +358,8 @@
                     <div class="d-flex flex-wrap gap-3">
                         @foreach ($additionalAttributes as $attribute)
                             <div class="form-check">
-                                <input class="form-check-input" type="checkbox" value="1"
+                                <input class="form-check-input member-attribute-input" type="checkbox" value="1"
+                                       data-covered-title="{{ __('dpc.committee.category_covered') }}"
                                        id="member-__M__-{{ $attribute->value }}"
                                        name="members[__M__][{{ $attribute->column() }}]">
                                 <label class="form-check-label small" for="member-__M__-{{ $attribute->value }}">

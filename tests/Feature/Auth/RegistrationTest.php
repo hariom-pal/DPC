@@ -156,13 +156,15 @@ class RegistrationTest extends TestCase
     }
 
     /**
-     * The designation is one the department has mapped, once it has mapped any
-     * (2026-10-30).
+     * The designation comes from the Administrator's whole active Designation master
+     * (2026-11-05, superseding "mapped only" of 2026-10-30): a designation the
+     * department has not mapped is offered too, a withdrawn one never.
      */
-    public function test_the_department_admin_chooses_a_designation_the_department_has_mapped(): void
+    public function test_the_department_admin_chooses_a_designation_from_the_designation_master(): void
     {
         $mapped = Designation::query()->create(['name' => 'Chief Engineer', 'status' => 'active']);
         $unmapped = Designation::query()->create(['name' => 'Professor', 'status' => 'active']);
+        $withdrawn = Designation::query()->create(['name' => 'Retired Rank', 'status' => 'inactive']);
         DepartmentPost::query()->create(['department_id' => $this->department->id, 'name' => 'Chief Engineer', 'class_level' => 'I', 'status' => 'active']);
 
         $this->invite()->assertSessionHasNoErrors();
@@ -178,15 +180,16 @@ class RegistrationTest extends TestCase
         $this->get((string) $callback->headers->get('Location'))->assertRedirect(route('register.invitation.password', ['token' => $token]));
 
         $this->get(route('register.invitation.password', ['token' => $token]))->assertOk()
-            ->assertSee('Chief Engineer')->assertDontSee('>Professor<', false);
+            ->assertSee('Chief Engineer')->assertSee('>Professor<', false)->assertDontSee('Retired Rank');
 
         $password = ['password' => 'Dept@Admin2026', 'password_confirmation' => 'Dept@Admin2026'];
-        $this->post(route('register.invitation.complete', ['token' => $token]), $password + ['designation_id' => (string) $unmapped->id])
+        $this->post(route('register.invitation.complete', ['token' => $token]), $password + ['designation_id' => (string) $withdrawn->id])
             ->assertSessionHasErrors('designation_id');
-        $this->post(route('register.invitation.complete', ['token' => $token]), $password + ['designation_id' => (string) $mapped->id])
+        $this->post(route('register.invitation.complete', ['token' => $token]), $password + ['designation_id' => (string) $unmapped->id])
             ->assertRedirect(route('login'));
 
-        $this->assertSame($mapped->id, User::query()->where('email', 'phe.dpc@cg.gov.in')->sole()->designation_id);
+        $this->assertSame($unmapped->id, User::query()->where('email', 'phe.dpc@cg.gov.in')->sole()->designation_id);
+        $this->assertNotNull($mapped->id);
     }
 
     public function test_the_mobile_otp_is_sent_and_checked_when_the_sms_gateway_is_available(): void

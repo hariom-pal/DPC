@@ -27,6 +27,7 @@ use Database\Seeders\LookupMasterSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
@@ -738,8 +739,9 @@ class VacancyMasterTest extends TestCase
         $this->assertStringNotContainsString('is-invalid', substr($html, (int) strpos($html, 'id="add-b1"'), (int) strpos($html, 'id="vacancy-b2"') - (int) strpos($html, 'id="add-b1"')));
 
         // A refused B2 row marks the B2 form only.
+        // Without the date there is nothing yet to ask the declaration of (2026-11-05).
         $this->actingAs($this->ao)->from($here)->post($this->url('entries.store'), ['kind' => 'deputation', 'officer_name' => 'K. Verma', 'employee_number' => 'E-11'])
-            ->assertSessionHasErrors(['deputation_from', 'promotion_made']);
+            ->assertSessionHasErrors('deputation_from')->assertSessionDoesntHaveErrors('promotion_made');
         $html = $this->revisit($here)->assertOk()->getContent();
         $b2 = substr($html, (int) strpos($html, 'id="add-b2"'), (int) strpos($html, 'id="vacancy-c"') - (int) strpos($html, 'id="add-b2"'));
         $this->assertStringContainsString('is-invalid', $b2);
@@ -1312,5 +1314,110 @@ class VacancyMasterTest extends TestCase
 
         $this->artisan('vacancy:review-draft-working')->expectsOutputToContain('1 draft record(s) to review')->assertSuccessful();
         $this->assertSame($before, VacancyPosition::query()->sole()->workingStrength->working_total);
+    }
+
+    /**
+     * The post's retirement age (2026-11-04): a retirement retires on the last day
+     * of the month in which the age is reached, the month before for a birthday on
+     * the 1st.
+     */
+    public function test_the_retirement_date_is_the_last_day_of_the_month_the_age_is_reached(): void
+    {
+        $on = fn (string $dob): string => VacancyMasterService::retirementDate(Carbon::parse($dob), 62)->toDateString();
+
+        $this->assertSame('2026-08-31', $on('1964-08-15'));
+        $this->assertSame('2026-08-31', $on('1964-09-01'));
+        $this->assertSame('2026-02-28', $on('1964-02-29'));
+    }
+
+    /**
+     * With a retirement age on the post's mapping, a Section C retirement is
+     * calculated from the date of birth (2026-11-04): the date posted is ignored, a
+     * date of birth is required, and a retirement outside the year is refused.
+     */
+    public function test_a_retirement_is_calculated_from_the_date_of_birth_at_the_posts_retirement_age(): void
+    {
+        $this->principal->forceFill(['retirement_age' => 62])->save();
+        $this->openDraft(10);
+        $this->saveWorking(['working_total' => '6'])->assertSessionHasNoErrors();
+
+        $this->actingAs($this->ao)->get($this->url('show', ['section' => 'vacancies', 'part' => 'c']))->assertOk()
+            ->assertSee('name="date_of_birth"', false)
+            ->assertSee('data-retirement-age="62"', false);
+
+        $this->addEntry(['officer_name' => 'No Birth Date', 'effective_date' => '2026-06-01'])
+            ->assertSessionHasErrors(['date_of_birth' => __('vacancymaster.errors.date_of_birth_required')]);
+
+        $this->addEntry(['officer_name' => 'Retires Later', 'date_of_birth' => '1965-03-10'])
+            ->assertSessionHasErrors(['date_of_birth' => __('vacancymaster.errors.retires_outside_year', ['date' => '31-03-2027', 'age' => 62, 'year' => 2026])]);
+
+        // The date typed is not the one kept.
+        $this->addEntry(['officer_name' => 'R. Sharma', 'date_of_birth' => '1964-08-15', 'effective_date' => '2026-01-15'])->assertSessionHasNoErrors();
+        $entry = VacancyPositionEntry::query()->sole();
+        $this->assertSame(['2026-08-31', '1964-08-15'], [$entry->effective_date->toDateString(), $entry->date_of_birth?->toDateString()]);
+        $this->assertSame(1, $this->breakdown()['retirement_vacancy']);
+
+        // A promotion to a higher post keeps the date entered.
+        $this->assertNull(VacancyPositionEntry::query()->where('reason', 'higher_post_promotion')->first());
+    }
+
+    /** Without a retirement age on the mapping the date of retirement is entered, as before. */
+    public function test_without_a_retirement_age_the_date_of_retirement_is_entered(): void
+    {
+        $this->openDraft(10);
+        $this->saveWorking(['working_total' => '6'])->assertSessionHasNoErrors();
+
+        $this->actingAs($this->ao)->get($this->url('show', ['section' => 'vacancies', 'part' => 'c']))->assertOk()
+            ->assertDontSee('name="date_of_birth"', false)
+            ->assertSee(__('vacancymaster.pm.retirement_manual'));
+
+        $this->addEntry(['officer_name' => 'R. Sharma', 'effective_date' => ''])->assertSessionHasErrors('effective_date');
+        $this->addEntry(['officer_name' => 'R. Sharma', 'effective_date' => '2026-06-30'])->assertSessionHasNoErrors();
+        $this->assertSame('2026-06-30', VacancyPositionEntry::query()->sole()->effective_date->toDateString());
+    }
+
+    /**
+     * Effective On is 1 January of the DPC year on Vacancy Management as on the
+     * Pre-DPC (2026-11-05): shown, never entered.
+     */
+    public function test_effective_on_is_fixed_at_1_january_of_the_dpc_year(): void
+    {
+        $this->openDraft(10);
+
+        $page = $this->actingAs($this->ao)->get($this->url('show', ['section' => 'sanctioned']))->assertOk();
+        $page->assertSee('data-effective-on>01-01-'.self::YEAR.'<', false)
+            ->assertSee('id="vm_effective_on" value="01-01-'.self::YEAR.'" readonly disabled', false)
+            ->assertDontSee('name="effective_from"', false);
+    }
+
+    /**
+     * B2's declaration is asked only of a deputation more than one year long by
+     * 31 December (2026-11-05): within a year, or exactly a year, none is asked, and
+     * one posted is not kept; over a year it is required.
+     */
+    public function test_the_b2_promotion_question_is_asked_only_over_a_year(): void
+    {
+        $this->openDraft(10);
+        $this->saveWorking(['working_total' => '6'])->assertSessionHasNoErrors();
+
+        $this->actingAs($this->ao)->get($this->url('show', ['section' => 'vacancies', 'part' => 'b2']))->assertOk()
+            ->assertSee('data-b2-promotion', false)
+            ->assertSee('data-year-end="'.self::YEAR.'-12-31"', false);
+
+        // Within a year, and exactly a year: no question, not counted, nothing kept.
+        $this->addEntry(['kind' => 'deputation', 'officer_name' => 'Within', 'deputation_from' => '2026-02-01'])->assertSessionHasNoErrors();
+        $this->addEntry(['kind' => 'deputation', 'officer_name' => 'Exactly', 'deputation_from' => '2025-12-31', 'promotion_made' => '0'])->assertSessionHasNoErrors();
+        foreach (['Within', 'Exactly'] as $name) {
+            $entry = VacancyPositionEntry::query()->where('officer_name', $name)->sole();
+            $this->assertNull($entry->promotion_made, $name);
+            $this->assertFalse($entry->isCounted(), $name);
+        }
+
+        // Over a year: the declaration is required, and "no promotion" counts.
+        $this->addEntry(['kind' => 'deputation', 'officer_name' => 'Over', 'deputation_from' => '2025-12-30'])
+            ->assertSessionHasErrors(['promotion_made' => __('vacancymaster.errors.promotion_made_required')]);
+        $this->addEntry(['kind' => 'deputation', 'officer_name' => 'Over', 'deputation_from' => '2025-12-30', 'promotion_made' => '0'])->assertSessionHasNoErrors();
+        $this->assertTrue(VacancyPositionEntry::query()->where('officer_name', 'Over')->sole()->isCounted());
+        $this->assertSame(1, $this->breakdown()['deputation_out_vacancy']);
     }
 }

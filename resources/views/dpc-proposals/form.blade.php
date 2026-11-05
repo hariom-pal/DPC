@@ -164,7 +164,8 @@
                                 <div class="form-check form-check-inline">
                                     <input class="form-check-input @error('dpc_type_id') is-invalid @enderror" type="radio" name="dpc_type_id"
                                            id="dpc_type_{{ $type->id }}" value="{{ $type->id }}"
-                                           {{ (int) old('dpc_type_id', $proposal->dpc_type_id) === $type->id ? 'checked' : '' }}
+                                           {{-- Fresh is the only kind raised here, so a new DPC has it chosen (2026-11-05). --}}
+                                           {{ (int) old('dpc_type_id', $proposal->dpc_type_id ?? $dpcTypes->first(fn ($t) => strtolower((string) $t->code) === 'fresh')?->id) === $type->id ? 'checked' : '' }}
                                            {{ $type->code !== 'fresh' ? 'disabled' : '' }}>
                                     <label class="form-check-label" for="dpc_type_{{ $type->id }}">
                                         {{ $type->name_en }}

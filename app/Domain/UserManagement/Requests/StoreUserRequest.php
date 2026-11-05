@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\UserManagement\Requests;
 
+use App\Domain\Master\Models\Designation;
 use App\Enums\Role;
 use App\Support\OfficialEmail;
 use Illuminate\Foundation\Http\FormRequest;
@@ -25,7 +26,9 @@ class StoreUserRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', OfficialEmail::RULE, Rule::unique('users', 'email')->withoutTrashed()],
             'mobile' => ['required', 'digits:10', Rule::unique('users', 'mobile')->withoutTrashed()],
-            'designation_id' => ['nullable', Rule::exists('designations', 'id')],
+            // From the Designation master only, and required for the department's
+            // own officers: Department Admin, AO and AH (2026-11-04).
+            'designation_id' => [Rule::requiredIf(fn (): bool => in_array($this->input('role'), self::officerRoles(), true)), 'nullable', 'integer', Designation::masterRule()],
             'role' => ['required', Rule::in(Role::provisionableValues())],
 
             // Checked against DigiLocker at first sign-in, for the roles that must
@@ -62,5 +65,15 @@ class StoreUserRequest extends FormRequest
             'department_id.required' => 'An Authorized Officer or Administrative Head is an officer *of a department*. Choose which one.',
             'department_id.prohibited_unless' => 'A Commission role holds no department. Leave Department blank.',
         ];
+    }
+
+    /**
+     * The roles whose designation is required (2026-11-04).
+     *
+     * @return list<string>
+     */
+    public static function officerRoles(): array
+    {
+        return [Role::DepartmentAdmin->value, Role::AuthorizedOfficer->value, Role::AdministrativeHead->value];
     }
 }

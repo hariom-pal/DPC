@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace App\Domain\Proceeding\Services;
 
 use App\Domain\Authentication\Models\User;
+use App\Domain\Dpc\Models\DpcEvaluationRecordGap;
+use App\Domain\Dpc\Models\DpcEvaluationRow;
+use App\Domain\Master\Services\PromotionCrRules;
 use App\Domain\Proceeding\Enums\HoldReason;
 use App\Domain\Proceeding\Models\DpcProceeding;
 use App\Domain\Proceeding\Models\DpcProceedingHold;
@@ -34,6 +37,7 @@ class HoldService
     public function __construct(
         private readonly ProceedingCorrectionService $corrections,
         private readonly ActivityTimelineService $timeline,
+        private readonly PromotionCrRules $promotionRules,
     ) {}
 
     /**
@@ -59,7 +63,23 @@ class HoldService
 
         $chart = $this->corrections->effectiveChart($proceeding);
 
-        return DB::transaction(function () use ($proceeding, $actor, $chart, $minCrYears, $propertyRequired): Collection {
+        /*
+         | Under the Class Master rule (2026-11-05) a hold is the CIR the calculation
+         | gives: a CR or Property Return year the rule makes mandatory, missing and
+         | justified with its reason and document. An unexplained gap is a rule
+         | failure, not a hold, and a year the rule does not make mandatory holds
+         | nothing. Without a rule the configured thresholds apply, as before.
+         */
+        $proposal = $proceeding->proposal;
+        $rule = $proposal === null ? null : $this->promotionRules->ruleForProposal($proposal);
+        $dpcYear = $proposal === null ? 0 : (int) ($proposal->dpc_year ?: $proposal->proposal_date->year);
+        $ruleYears = $rule === null ? null : [
+            'cr_count' => (int) $rule->cr_years,
+            'cr' => $this->promotionRules->mandatoryCrYears($rule, $dpcYear),
+            'property' => $this->promotionRules->mandatoryPropertyYears($rule, $dpcYear),
+        ];
+
+        return DB::transaction(function () use ($proceeding, $actor, $chart, $minCrYears, $propertyRequired, $ruleYears): Collection {
             $recorded = collect();
 
             foreach ($chart as $entry) {
@@ -87,12 +107,14 @@ class HoldService
 
                 $found = [];
 
-                if ($gradesPresent < $minCrYears) {
+                if ($ruleYears !== null) {
+                    $found = $this->ruleHolds($entry['row'], $crCells, $propertyCells, $ruleYears);
+                } elseif ($gradesPresent < $minCrYears) {
                     $found[HoldReason::CrYearsMissing->value] = $gradesPresent.' of '
                         .$minCrYears.' required CR years recorded';
                 }
 
-                if ($propertyRequired && $missingProperty !== []) {
+                if ($ruleYears === null && $propertyRequired && $missingProperty !== []) {
                     $found[HoldReason::PropertyMissing->value] = 'Not recorded for '
                         .implode(', ', $missingProperty);
                 }
@@ -104,6 +126,49 @@ class HoldService
 
             return $recorded;
         });
+    }
+
+    /**
+     * The holds the Class Master rule gives an officer (2026-11-05), on the same
+     * grounds the calculation gives CIR: fewer CRs than the rule's count with the
+     * shortfall justified, a mandatory CR year missing and justified, or a mandatory
+     * Property Return year missing and justified.
+     *
+     * @param  array<int, array<string, mixed>>  $crCells
+     * @param  array<int, array<string, mixed>>  $propertyCells
+     * @param  array{cr_count: int, cr: list<int>, property: list<int>}  $ruleYears
+     * @return array<string, string> reason => detail
+     */
+    private function ruleHolds(DpcEvaluationRow $row, array $crCells, array $propertyCells, array $ruleYears): array
+    {
+        $justified = fn (string $kind, int $year): bool => $row->recordGaps
+            ->contains(fn (DpcEvaluationRecordGap $gap): bool => $gap->kind === $kind && $gap->year === $year && $gap->isJustified());
+
+        $graded = count(array_filter($crCells, fn (array $cell): bool => $this->present($cell['effective'] === null ? null : (string) $cell['effective'])));
+        $justifiedCr = $row->recordGaps->filter(fn (DpcEvaluationRecordGap $gap): bool => $gap->kind === DpcEvaluationRecordGap::KIND_CR && $gap->isJustified())->pluck('year')->all();
+        $shortfall = $ruleYears['cr_count'] - $graded;
+
+        $cr = array_values(array_filter($ruleYears['cr'], fn (int $year): bool => ! $this->present(isset($crCells[$year]['effective']) ? (string) $crCells[$year]['effective'] : null)
+            && $justified(DpcEvaluationRecordGap::KIND_CR, $year)));
+
+        if ($shortfall > 0 && count($justifiedCr) >= $shortfall) {
+            $cr = array_values(array_unique([...$cr, ...array_map('intval', $justifiedCr)]));
+            sort($cr);
+        }
+        $property = array_values(array_filter($ruleYears['property'], fn (int $year): bool => ($propertyCells[$year]['effective'] ?? null) !== 'Y'
+            && $justified(DpcEvaluationRecordGap::KIND_PROPERTY, $year)));
+
+        $found = [];
+
+        if ($cr !== []) {
+            $found[HoldReason::CrYearsMissing->value] = $graded.' of '.$ruleYears['cr_count'].' required CR years recorded; missing and justified: '.implode(', ', $cr);
+        }
+
+        if ($property !== []) {
+            $found[HoldReason::PropertyMissing->value] = 'Mandatory Property Return not available for '.implode(', ', $property).' (justified)';
+        }
+
+        return $found;
     }
 
     /**

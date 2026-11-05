@@ -181,6 +181,31 @@
         }, 0);
     });
 
+    /* --------------- Vacancy Management: B2's promotion declaration */
+
+    // Asked only when the deputation is more than one year long by 31 December
+    // (rule 2.3, 2026-11-05): exactly one year is not. The server decides again.
+    document.querySelectorAll('[data-b2-went]').forEach(function (went) {
+        var form = went.form;
+        var block = form && form.querySelector('[data-b2-promotion]');
+        if (!block) { return; }
+        var radios = block.querySelectorAll('input[type="radio"]');
+        var end = (went.getAttribute('data-year-end') || '').split('-').map(Number);
+        var sync = function () {
+            var p = (went.value || '').split('-').map(Number);
+            var over = p.length === 3 && !p.some(isNaN) && end.length === 3
+                && new Date(p[0] + 1, p[1] - 1, p[2]) < new Date(end[0], end[1] - 1, end[2]);
+            block.hidden = !over;
+            radios.forEach(function (radio, i) {
+                radio.required = over && i === 0;
+                if (!over) { radio.checked = false; }
+            });
+        };
+        went.addEventListener('change', sync);
+        went.addEventListener('input', sync);
+        sync();
+    });
+
     /* --------------------------- Vacancy Management: higher-post fields */
 
     // Shown only for a promotion to a higher post (2026-10-30).

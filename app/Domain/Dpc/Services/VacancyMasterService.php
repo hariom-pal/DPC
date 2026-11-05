@@ -344,6 +344,7 @@ class VacancyMasterService
                 'order_date' => $working->order_date?->toDateString(),
                 'document_sha256' => $working->sha256,
             ],
+            'retirement_age' => $mapping?->retirement_age,
             'opening_vacancy' => $clear,
             'clear_vacancy' => $clear,
             'deputation_in_vacancy' => $deputationIn,
@@ -1102,7 +1103,8 @@ class VacancyMasterService
      * B2 (rule 2.3): an officer of ours on deputation at another department. In the
      * working strength; the post is a vacancy when the deputation is more than one
      * year by 31 December and the department declares no promotion has been made
-     * against it.
+     * against it. The declaration is asked only then (2026-11-05): within a year
+     * the row is not counted whatever it says, so none is asked or kept.
      *
      * @param  array<string, mixed>  $data
      * @return array<string, mixed>
@@ -1113,10 +1115,6 @@ class VacancyMasterService
             throw new WorkflowException(__('vacancymaster.errors.deputation_went_required'), 'deputation_from');
         }
 
-        if (! isset($data['promotion_made']) || ! in_array((string) $data['promotion_made'], ['0', '1'], true)) {
-            throw new WorkflowException(__('vacancymaster.errors.promotion_made_required'), 'promotion_made');
-        }
-
         $went = Carbon::parse((string) $data['deputation_from'])->startOfDay();
         $yearEnd = $to->copy()->startOfDay();
 
@@ -1124,9 +1122,14 @@ class VacancyMasterService
             throw new WorkflowException(__('vacancymaster.errors.deputation_went_after_year', ['date' => $yearEnd->format('d-m-Y')]), 'deputation_from');
         }
 
-        $promotionMade = (string) $data['promotion_made'] === '1';
-        $overAYear = $went->copy()->addYear()->lt($yearEnd);
-        $counted = $overAYear && ! $promotionMade;
+        $overAYear = self::overAYear($went, $yearEnd);
+
+        if ($overAYear && (! isset($data['promotion_made']) || ! in_array((string) $data['promotion_made'], ['0', '1'], true))) {
+            throw new WorkflowException(__('vacancymaster.errors.promotion_made_required'), 'promotion_made');
+        }
+
+        $promotionMade = $overAYear ? (string) $data['promotion_made'] === '1' : null;
+        $counted = $overAYear && $promotionMade === false;
 
         return [
             'reason' => VacancyReason::Deputation->value,
@@ -1135,17 +1138,42 @@ class VacancyMasterService
             'promotion_made' => $promotionMade,
             'eligibility' => ($counted ? VacancyEntryEligibility::Eligible : VacancyEntryEligibility::NotEligible)->value,
             'eligibility_note' => __(match (true) {
-                $promotionMade => 'vacancymaster.notes.deputation_out_promotion_made',
                 ! $overAYear => 'vacancymaster.notes.deputation_out_within_a_year',
+                $promotionMade === true => 'vacancymaster.notes.deputation_out_promotion_made',
                 default => 'vacancymaster.notes.deputation_out_over_a_year',
             }, ['date' => $yearEnd->format('d-m-Y')]),
         ];
     }
 
     /**
+     * The date an officer retires at the post's retirement age (2026-11-04): the
+     * last day of the month in which that age is reached, and for a birthday on the
+     * 1st, the last day of the month before.
+     */
+    public static function retirementDate(Carbon $dateOfBirth, int $age): Carbon
+    {
+        $reached = $dateOfBirth->copy()->startOfDay()->addYearsNoOverflow($age);
+
+        return $dateOfBirth->day === 1
+            ? $reached->subDay()
+            : $reached->endOfMonth()->startOfDay();
+    }
+
+    /**
+     * Whether a deputation that began on this date is more than one year long by
+     * the end of the Vacancy Year (rule 2.3): exactly one year is not.
+     */
+    public static function overAYear(Carbon $went, Carbon $yearEnd): bool
+    {
+        return $went->copy()->startOfDay()->addYear()->lt($yearEnd->copy()->startOfDay());
+    }
+
+    /**
      * C: a retirement, or a promotion to a higher post, inside the Vacancy Year. A
      * promotion carries the higher post, its DPC, the undertaking of rule 1.2 and the
-     * order with its PDF.
+     * order with its PDF. Where the post's mapping gives a retirement age, a
+     * retirement's date is calculated from the officer's date of birth and the date
+     * posted is ignored (2026-11-04).
      *
      * @param  array<string, mixed>  $data
      * @return array<string, mixed>
@@ -1158,11 +1186,29 @@ class VacancyMasterService
             throw new WorkflowException(__('vacancymaster.errors.reason_invalid'), 'reason');
         }
 
-        if (empty($data['effective_date'])) {
-            throw new WorkflowException(__('vacancymaster.errors.date_required'), 'effective_date');
-        }
+        $retirementAge = $reason === VacancyReason::Retirement ? $this->mappingFor($position)?->retirement_age : null;
+        $dateOfBirth = null;
 
-        $effective = Carbon::parse((string) $data['effective_date'])->startOfDay();
+        if ($retirementAge !== null) {
+            if (empty($data['date_of_birth'])) {
+                throw new WorkflowException(__('vacancymaster.errors.date_of_birth_required'), 'date_of_birth');
+            }
+
+            $dateOfBirth = Carbon::parse((string) $data['date_of_birth'])->startOfDay();
+            $effective = self::retirementDate($dateOfBirth, $retirementAge);
+
+            if (! $effective->betweenIncluded($from->copy()->startOfDay(), $to)) {
+                throw new WorkflowException(__('vacancymaster.errors.retires_outside_year', [
+                    'date' => $effective->format('d-m-Y'),
+                    'age' => $retirementAge,
+                    'year' => $from->year,
+                ]), 'date_of_birth');
+            }
+        } elseif (empty($data['effective_date'])) {
+            throw new WorkflowException(__('vacancymaster.errors.date_required'), 'effective_date');
+        } else {
+            $effective = Carbon::parse((string) $data['effective_date'])->startOfDay();
+        }
 
         // The Vacancy Year boundaries, both inclusive.
         if (! $effective->betweenIncluded($from->copy()->startOfDay(), $to)) {
@@ -1191,6 +1237,7 @@ class VacancyMasterService
         return [
             'reason' => $reason->value,
             'effective_date' => $effective->toDateString(),
+            'date_of_birth' => $dateOfBirth?->toDateString(),
             ...$higher,
             'eligibility' => VacancyEntryEligibility::Eligible->value,
             'eligibility_note' => __($reason === VacancyReason::Retirement ? 'vacancymaster.notes.retirement' : 'vacancymaster.notes.higher_post_counted'),

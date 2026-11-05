@@ -16,7 +16,8 @@
         {{ $post->department?->name ?? '—' }} · {{ $post->name }} ·
         {{ $post->class_level?->label() ?? '—' }} ·
         {{ $post->payScale?->label ?? __('ui.none') }} ·
-        {{ $post->promotion_duration_years === null ? '—' : __('ui.n_years', ['count' => $post->promotion_duration_years]) }}
+        {{ $post->promotion_duration_years === null ? '—' : __('ui.n_years', ['count' => $post->promotion_duration_years]) }} ·
+        {{ __('admin.department_posts.form.retirement_age') }}: {{ $post->retirement_age ?? '—' }}
         <br>
         {{ __('admin.department_posts.form.go_number') }}: {{ $post->governmentOrderLabel() }} ·
         {{ __('admin.department_posts.form.effective_from') }}: {{ $post->effective_from?->format('d-m-Y') ?? '—' }}
@@ -56,6 +57,14 @@
                                id="promotion_duration_years" name="promotion_duration_years"
                                value="{{ old('promotion_duration_years', $post->promotion_duration_years) }}">
                         @error('promotion_duration_years')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label" for="retirement_age">{{ __('admin.department_posts.form.retirement_age') }}</label>
+                        <input type="number" min="50" max="75" step="1"
+                               class="form-control @error('retirement_age') is-invalid @enderror"
+                               id="retirement_age" name="retirement_age"
+                               value="{{ old('retirement_age', $post->retirement_age) }}">
+                        @error('retirement_age')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
 
                     <div class="col-md-3 mb-3">

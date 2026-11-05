@@ -92,9 +92,7 @@
                     @forelse ($row->recordGaps->sortBy(['kind', 'year']) as $gap)
                         <tr>
                             <td>
-                                {{ $gap->kind === 'cr'
-                                    ? __('dpc.record_gaps.kind_cr')
-                                    : __('dpc.record_gaps.kind_loyalty') }}
+                                {{ __('dpc.record_gaps.kind_'.$gap->kind) }}
                             </td>
                             <td>{{ $gap->year }}</td>
                             <td>{{ $gap->reason?->label() }}</td>
@@ -116,12 +114,16 @@
                                 @endif
                             </td>
                             <td class="text-end">
-                                <form method="POST"
-                                      action="{{ route('dpc-proposals.record-gaps.destroy', [$proposal, $row, $gap]) }}"
-                                      data-confirm="{{ __('dpc.record_gaps.withdraw_confirm') }}">
-                                    @csrf @method('DELETE')
-                                    <button class="btn btn-outline-danger btn-sm">{{ __('dpc.record_gaps.withdraw') }}</button>
-                                </form>
+                                @can('update', $proposal)
+                                    <form method="POST"
+                                          action="{{ route('dpc-proposals.record-gaps.destroy', [$proposal, $row, $gap]) }}"
+                                          data-confirm="{{ __('dpc.record_gaps.withdraw_confirm') }}">
+                                        @csrf @method('DELETE')
+                                        <button class="btn btn-outline-danger btn-sm">{{ __('dpc.record_gaps.withdraw') }}</button>
+                                    </form>
+                                @else
+                                    <span class="small text-muted">{{ $gap->recordedBy?->name }} · {{ $gap->created_at?->format('d-m-Y H:i') }}</span>
+                                @endcan
                             </td>
                         </tr>
                     @empty
@@ -136,7 +138,8 @@
         </div>
     </div>
 
-    {{-- Record another --}}
+    {{-- Record another: the AO's only (2026-11-05: the AH reads this page). --}}
+    @can('update', $proposal)
     <div class="card border-0 shadow-sm">
         <div class="card-header bg-white">
             <h2 class="h6 mb-0">{{ __('dpc.record_gaps.form_heading') }}</h2>
@@ -157,6 +160,7 @@
                             <select class="form-select @error('kind') is-invalid @enderror" id="kind" name="kind" required>
                                 <option value="cr" @selected(old('kind') === 'cr')>{{ __('dpc.record_gaps.kind_cr') }}</option>
                                 <option value="loyalty" @selected(old('kind') === 'loyalty')>{{ __('dpc.record_gaps.kind_loyalty') }}</option>
+                                <option value="property" @selected(old('kind') === 'property')>{{ __('dpc.record_gaps.kind_property') }}</option>
                             </select>
                             @error('kind')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
@@ -224,6 +228,7 @@
             @endif
         </div>
     </div>
+    @endcan
 @endsection
 
 @push('scripts')

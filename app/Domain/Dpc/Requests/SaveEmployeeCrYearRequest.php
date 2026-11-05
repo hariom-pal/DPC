@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace App\Domain\Dpc\Requests;
 
+use App\Domain\Dpc\Models\DpcEvaluationRecordGap;
 use App\Domain\Dpc\Models\DpcProposal;
+use App\Domain\Dpc\Requests\Concerns\DeclaresAMissingRecord;
 use App\Domain\Dpc\Services\EmployeeDetailsService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 /**
  * Section C — one CR year, answered as page 3 of the Coder Instructions asks.
@@ -17,6 +20,8 @@ use Illuminate\Validation\Rule;
  */
 class SaveEmployeeCrYearRequest extends FormRequest
 {
+    use DeclaresAMissingRecord;
+
     /**
      * Authorised before validation, so a user who may not edit the proposal is
      * refused outright instead of being shown validation messages about it.
@@ -40,6 +45,15 @@ class SaveEmployeeCrYearRequest extends FormRequest
             'authorities' => ['nullable', 'array'],
             'authorities.*' => ['string', Rule::in(EmployeeDetailsService::CR_AUTHORITIES)],
             'grade' => ['nullable', 'string', Rule::in((array) config('dpc.evaluation.cr_grades'))],
+            ...$this->missingRecordRules(),
         ];
+    }
+
+    /** A CR not put up is Missing: its reason and document, here (2026-11-05). */
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            $this->assertMissingJustification($validator, DpcEvaluationRecordGap::KIND_CR, $this->has('put_up') && ! $this->boolean('put_up'));
+        });
     }
 }

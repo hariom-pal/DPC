@@ -50,6 +50,7 @@ final class OfficerRecord
      * @param  array<int, bool|null>  $tribalAreaByYear  year => served in a tribal area (item 18)
      * @param  array<int, string>  $justifiedCrGapYears  year => citation
      * @param  array<int, string>  $justifiedLoyaltyGapYears  year => citation
+     * @param  array<int, string>  $justifiedPropertyGapYears  year => citation
      * @param  list<string>  $requiredQualifications  what the recruitment rule accepts
      */
     public function __construct(
@@ -79,6 +80,8 @@ final class OfficerRecord
         public readonly bool $refusedPromotionLastYear = false,
         /** Rule 2.1: a PH claim verified by the Administrative Head — competes for a PH seat. */
         public readonly bool $phSeat = false,
+        /** year => citation: a mandatory Property Return justified as missing (2026-11-05) */
+        public readonly array $justifiedPropertyGapYears = [],
     ) {}
 
     /**
@@ -141,6 +144,7 @@ final class OfficerRecord
          */
         $crGaps = [];
         $loyaltyGaps = [];
+        $propertyGaps = [];
 
         foreach ($row->recordGaps as $gap) {
             if (! $gap->isJustified()) {
@@ -151,6 +155,8 @@ final class OfficerRecord
                 $crGaps[$gap->year] = $gap->citation();
             } elseif ($gap->kind === DpcEvaluationRecordGap::KIND_LOYALTY) {
                 $loyaltyGaps[$gap->year] = $gap->citation();
+            } elseif ($gap->kind === DpcEvaluationRecordGap::KIND_PROPERTY) {
+                $propertyGaps[$gap->year] = $gap->citation();
             }
         }
 
@@ -166,6 +172,7 @@ final class OfficerRecord
             tribalAreaByYear: $tribalByYear,
             justifiedCrGapYears: $crGaps,
             justifiedLoyaltyGapYears: $loyaltyGaps,
+            justifiedPropertyGapYears: $propertyGaps,
             qualification: $row->qualification,
             // "NA" names no qualification, so it requires none (2026-10-30).
             requiredQualifications: $source === null

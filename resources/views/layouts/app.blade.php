@@ -54,19 +54,15 @@
                             <a class="btn btn-sm btn-outline-light" href="{{ route('my-dpc.index') }}">{{ __('ui.my_promotion') }}</a>
                         @endrole
                         @if (app(\App\Domain\UserManagement\Services\DepartmentUserAuthority::class)->isDepartmentAdmin(auth()->user()))
-                            {{-- The Department Admin's two menus (2026-10-28). --}}
-                            <a class="btn btn-sm btn-outline-light" href="{{ route('department.posts.index') }}">{{ __('ui.layouts.admin.nav.department_posts') }}</a>
-                            <a class="btn btn-sm btn-outline-light" href="{{ route('department.users.index') }}">{{ __('department.users.title') }}</a>
-                            <div class="dropdown m-0">
-                                <button class="btn btn-sm btn-outline-light dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">{{ __('allotments.menu') }}</button>
-                                <ul class="dropdown-menu dropdown-menu-end">
-                                    <li><a class="dropdown-item" href="{{ route('department.allotments.pre-dpc.create') }}">{{ __('allotments.open') }}</a></li>
-                                    <li><a class="dropdown-item" href="{{ route('department.allotments.index', ['view' => 'pre-dpc']) }}">{{ __('allotments.list.pre-dpc.title') }}</a></li>
-                                    <li><hr class="dropdown-divider"></li>
-                                    <li><a class="dropdown-item" href="{{ route('department.allotments.index') }}">{{ __('allotments.list.running.title') }}</a></li>
-                                    <li><a class="dropdown-item" href="{{ route('department.allotments.index', ['view' => 'closed']) }}">{{ __('allotments.list.closed.title') }}</a></li>
-                                </ul>
-                            </div>
+                            {{-- The Department Admin's menu, in the order the business set
+                                 (2026-11-04): Post Mapping, Create New Pre-DPC, User
+                                 Management, then the three lists. --}}
+                            <a class="btn btn-sm btn-outline-light" href="{{ route('department.posts.index') }}" data-menu="post-mapping">{{ __('ui.layouts.admin.nav.department_posts') }}</a>
+                            <a class="btn btn-sm btn-outline-light" href="{{ route('department.allotments.pre-dpc.create') }}" data-menu="create-pre-dpc">{{ __('allotments.open') }}</a>
+                            <a class="btn btn-sm btn-outline-light" href="{{ route('department.users.index') }}" data-menu="users">{{ __('department.users.title') }}</a>
+                            <a class="btn btn-sm btn-outline-light" href="{{ route('department.allotments.index', ['view' => 'pre-dpc']) }}" data-menu="pre-dpc">{{ __('allotments.list.pre-dpc.title') }}</a>
+                            <a class="btn btn-sm btn-outline-light" href="{{ route('department.allotments.index') }}" data-menu="running">{{ __('allotments.list.running.title') }}</a>
+                            <a class="btn btn-sm btn-outline-light" href="{{ route('department.allotments.index', ['view' => 'closed']) }}" data-menu="closed">{{ __('allotments.list.closed.title') }}</a>
                         @endif
                         {{-- Department Post Mapping (UAT, 2026-11-02): the AO maps, the AH reads. --}}
                         @if (auth()->user()->hasAnyRole([\App\Enums\Role::AuthorizedOfficer->value, \App\Enums\Role::AdministrativeHead->value]))

@@ -69,14 +69,16 @@
 
                     $tiles = [];
 
-                    // Department Admin (2026-10-28): the department's posts and its DPCs.
+                    // Department Admin (2026-10-28): the department's posts and its DPCs,
+                    // in the order of the menu (2026-11-05): Post Mapping, Create New
+                    // Pre-DPC, User Management, then the three lists.
                     if ($user->hasRole(\App\Enums\Role::DepartmentAdmin->value)) {
+                        $tiles[] = ['workflow', __('ui.layouts.admin.nav.department_posts'), __('allotments.posts_tile'), route('department.posts.index')];
                         $tiles[] = ['paperless', __('allotments.open'), __('allotments.open_lead'), route('department.allotments.pre-dpc.create')];
+                        $tiles[] = ['workflow', __('department.users.title'), __('department.users.tile'), route('department.users.index')];
                         $tiles[] = ['workflow', __('allotments.list.pre-dpc.title'), __('allotments.list.pre-dpc.lead'), route('department.allotments.index', ['view' => 'pre-dpc'])];
                         $tiles[] = ['workflow', __('allotments.list.running.title'), __('allotments.list.running.lead'), route('department.allotments.index')];
                         $tiles[] = ['workflow', __('allotments.list.closed.title'), __('allotments.list.closed.lead'), route('department.allotments.index', ['view' => 'closed'])];
-                        $tiles[] = ['workflow', __('ui.layouts.admin.nav.department_posts'), __('allotments.posts_tile'), route('department.posts.index')];
-                        $tiles[] = ['workflow', __('department.users.title'), __('department.users.tile'), route('department.users.index')];
                     }
 
                     if ($isAO || $isAH) {

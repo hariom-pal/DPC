@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Circulation\Concerns;
 
 use App\Domain\Authentication\Models\User;
+use App\Domain\Dpc\Models\DpcEvaluationRecordGap;
 use App\Domain\Proceeding\Enums\HoldReason;
 use App\Domain\Proceeding\Models\DpcProceedingHold;
 use App\Domain\Proceeding\Services\HoldService;
@@ -40,15 +41,23 @@ trait BuildsCirculations
 
         $this->administrativeHead = User::factory()->assignedTo($this->department->id, Role::AdministrativeHead)->create(['name' => 'Administrative Head']);
 
-        // Property ground: five CR years, 2016 property return not recorded.
-        $this->officer(8, 'US8', $this->stCategoryId(), [
+        // Property ground: five CR years, 2016 property return not recorded — a year
+        // the promotion rule makes mandatory, marked Missing with its reason and
+        // document (2026-11-05), so it is held (CIR) rather than refused.
+        $this->makePropertyMandatory($this->proposal, 2016);
+        $us8 = $this->officer(8, 'US8', $this->stCategoryId(), [
             2013 => 'क+', 2014 => 'क+', 2015 => 'क+', 2016 => 'क+', 2017 => 'क+',
         ], [2016]);
+        $this->justifyMissing($us8, DpcEvaluationRecordGap::KIND_PROPERTY, 2016);
 
-        // CR ground: only two years recorded, against the five required.
-        $this->officer(9, 'US9', $this->urCategoryId(), [
+        // CR ground: only two years recorded, against the five required, the other
+        // three marked Missing with their reason and document.
+        $us9 = $this->officer(9, 'US9', $this->urCategoryId(), [
             2016 => 'क', 2017 => 'क',
         ]);
+        foreach ([2013, 2014, 2015] as $year) {
+            $this->justifyMissing($us9, DpcEvaluationRecordGap::KIND_CR, $year);
+        }
 
         app(HoldService::class)->detect($this->proceeding->fresh(), $this->memberOne);
 

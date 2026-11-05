@@ -80,6 +80,15 @@
                         @error('promotion_duration_years')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         <div class="form-text">{{ __('admin.department_posts.form.hint_promotion_duration') }}</div>
                     </div>
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label" for="retirement_age">{{ __('admin.department_posts.form.retirement_age') }}</label>
+                        <input type="number" min="50" max="75" step="1"
+                               class="form-control @error('retirement_age') is-invalid @enderror"
+                               id="retirement_age" name="retirement_age"
+                               value="{{ old('retirement_age', $post->retirement_age) }}">
+                        @error('retirement_age')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        <div class="form-text">{{ __('admin.department_posts.form.hint_retirement_age') }}</div>
+                    </div>
 
                     <div class="col-md-3 mb-3">
                         <label class="form-label" for="status">{{ __('ui.status') }}</label>

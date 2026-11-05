@@ -28,6 +28,7 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property string|null $occupant_quota
  * @property int $vacancy_count
  * @property Carbon $effective_date
+ * @property Carbon|null $date_of_birth
  * @property string|null $order_number
  * @property Carbon|null $order_date
  * @property string|null $disk
@@ -80,6 +81,7 @@ class VacancyPositionEntry extends Model implements Auditable
         'vacancy_count',
         'officer_name',
         'employee_number',
+        'date_of_birth',
         'effective_date',
         'order_number',
         'order_date',
@@ -141,6 +143,7 @@ class VacancyPositionEntry extends Model implements Auditable
             'eligibility' => VacancyEntryEligibility::class,
             'vacancy_count' => 'integer',
             'effective_date' => 'date',
+            'date_of_birth' => 'date',
             'order_date' => 'date',
             'promotion_order_date' => 'date',
             'higher_post_undertaking_at' => 'datetime',

@@ -318,4 +318,41 @@
             </table>
         </div>
     </div>
+
+    {{-- A Review DPC is verified afresh by its AO (2026-11-05); the original DPC's
+         Rule 1.1 record is shown here for reference only and counts for nothing. --}}
+    @if (($originalHistory ?? null) !== null && $original !== null)
+        <div class="card border-0 shadow-sm mt-3" id="original-verification">
+            <div class="card-header bg-white">
+                <h2 class="h6 mb-0">{{ __('dpc.verification.original_heading', ['dpc' => $original->dpc_code ?? $original->id]) }}</h2>
+                <div class="small text-muted">{{ __('dpc.verification.original_note') }}</div>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm mb-0 align-middle small">
+                    <thead>
+                        <tr>
+                            <th>{{ __('dpc.verification.col_item') }}</th>
+                            <th>{{ __('dpc.verification.col_status') }}</th>
+                            <th>{{ __('dpc.verification.col_remarks') }}</th>
+                            <th>{{ __('dpc.verification.col_by') }}</th>
+                            <th>{{ __('dpc.verification.col_at') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse ($originalHistory as $row)
+                            <tr>
+                                <td>{{ $row->item->label() }}</td>
+                                <td>{{ $row->isConfirmed() ? __('dpc.verification.status_confirmed') : __('dpc.verification.status_withdrawn') }}</td>
+                                <td>{{ $row->remarks ?: '—' }}</td>
+                                <td>{{ $row->verifier?->name ?? '—' }}</td>
+                                <td>{{ $row->verified_at->format('d-m-Y H:i') }}</td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="5" class="text-center text-muted py-3">{{ __('dpc.verification.history_empty') }}</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    @endif
 @endsection

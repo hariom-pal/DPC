@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Dpc;
 
 use App\Domain\Dpc\Enums\EvaluationDocumentKind;
 use App\Domain\Dpc\Models\DpcEvaluationDocument;
+use App\Domain\Dpc\Models\DpcEvaluationRecordGap;
 use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Requests\SaveEmployeeBasicRequest;
@@ -18,6 +19,7 @@ use App\Domain\Dpc\Requests\UploadEmployeeDocumentRequest;
 use App\Domain\Dpc\Requests\VerifyPhClaimRequest;
 use App\Domain\Dpc\Services\EmployeeDetailsService;
 use App\Domain\Dpc\Services\PromotionRuleCheck;
+use App\Domain\Dpc\Services\RecordGapService;
 use App\Domain\Master\Models\RecordReason;
 use App\Domain\Master\Models\ReservationCategory;
 use App\Domain\Master\Models\SealedCoverReason;
@@ -28,6 +30,8 @@ use App\Http\Controllers\Controller;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -107,6 +111,8 @@ class DpcEmployeeDetailsController extends Controller
             'ruleCheck' => app(PromotionRuleCheck::class)->check($evaluationRow, $dpcProposal),
             'maxReports' => (int) config('dpc.employee_details.max_crs_per_year', 4),
             'reasons' => RecordReason::query()->selectable()->get(),
+            // The years a missing Property Return needs its reason and document (2026-11-05).
+            'propertyRuleYears' => $this->details->rulePropertyYears($evaluationRow),
             'sealedCoverReasons' => SealedCoverReason::query()->selectable()->get(),
             'requiredCrCount' => (int) config('dpc.merit.required_cr_count', 5),
             'propertyYearsRequired' => (int) config('dpc.merit.property_return_years', 5),
@@ -125,7 +131,10 @@ class DpcEmployeeDetailsController extends Controller
     public function saveCrYear(SaveEmployeeCrYearRequest $request, DpcProposal $dpcProposal, DpcEvaluationRow $evaluationRow): RedirectResponse
     {
         return $this->write($request, $dpcProposal, $evaluationRow, 'cr', function () use ($request, $evaluationRow): void {
-            $this->details->saveCrYear($evaluationRow, $request->integer('year'), $request->validated(), $request->user());
+            DB::transaction(function () use ($request, $evaluationRow): void {
+                $this->details->saveCrYear($evaluationRow, $request->integer('year'), $request->validated(), $request->user());
+                $this->recordMissing($request, $evaluationRow, DpcEvaluationRecordGap::KIND_CR);
+            });
         });
     }
 
@@ -139,7 +148,10 @@ class DpcEmployeeDetailsController extends Controller
     public function savePropertyYear(SaveEmployeePropertyYearRequest $request, DpcProposal $dpcProposal, DpcEvaluationRow $evaluationRow): RedirectResponse
     {
         return $this->write($request, $dpcProposal, $evaluationRow, 'property', function () use ($request, $evaluationRow): void {
-            $this->details->savePropertyYear($evaluationRow, $request->integer('year'), $request->validated(), $request->user());
+            DB::transaction(function () use ($request, $evaluationRow): void {
+                $this->details->savePropertyYear($evaluationRow, $request->integer('year'), $request->validated(), $request->user());
+                $this->recordMissing($request, $evaluationRow, DpcEvaluationRecordGap::KIND_PROPERTY);
+            });
         });
     }
 
@@ -272,6 +284,28 @@ class DpcEmployeeDetailsController extends Controller
         }
 
         return $back->with('status', __('dpc.employee_details.saved'));
+    }
+
+    /**
+     * The reason and document given with a record marked Missing (2026-11-05),
+     * recorded as the existing missing-record justification.
+     */
+    private function recordMissing(Request $request, DpcEvaluationRow $row, string $kind): void
+    {
+        $reason = RecordReason::query()->find($request->input('missing_reason_id'));
+        $document = $request->file('missing_document');
+
+        if ($reason === null || ! $document instanceof UploadedFile) {
+            return;
+        }
+
+        $second = $request->file('missing_second_document');
+
+        app(RecordGapService::class)->record(
+            $row, $kind, $request->integer('year'), $reason,
+            $request->filled('missing_remarks') ? (string) $request->input('missing_remarks') : null,
+            $document, $request->user(), $second instanceof UploadedFile ? $second : null,
+        );
     }
 
     private function assertRowBelongsToProposal(DpcProposal $proposal, DpcEvaluationRow $row): void

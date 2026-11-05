@@ -34,7 +34,7 @@ final class RuleSet
      * @param  array<string, string>  $lastYearForbiddenGrades
      * @param  array<string, int>  $qualifyingScores
      * @param  array<string, array{single_vacancy_size: int, multiplier: int, addend: int}>  $zoneRules
-     * @param  array{rule_id: int, pair: string, effective_from_year: int, dpc_year: int, qualifying_total: int, super_seat_points: int|null, minimum_by_year: array<int, int>, mandatory_years: list<int>, tribal_bonus_basis: string, tribal_bonus_skips_extremes: bool, tribal_bonus_grades: list<int>|null, highest_points: int|null, lowest_points: int|null}|null  $classRule  the Class Master promotion rule the run applies; null: the configured rules only
+     * @param  array{rule_id: int, pair: string, effective_from_year: int, dpc_year: int, qualifying_total: int, super_seat_points: int|null, minimum_by_year: array<int, int>, mandatory_years: list<int>, property_mandatory_years?: list<int>, tribal_bonus_basis: string, tribal_bonus_skips_extremes: bool, tribal_bonus_grades: list<int>|null, highest_points: int|null, lowest_points: int|null}|null  $classRule  the Class Master promotion rule the run applies; null: the configured rules only
      */
     public function __construct(
         public readonly string $version,
@@ -76,8 +76,14 @@ final class RuleSet
         $rule->loadMissing('years');
         $minimums = [];
         $mandatory = [];
+        $propertyMandatory = [];
 
         foreach ($rule->years as $year) {
+            // The years the rule makes the property return mandatory (2026-11-05).
+            if ($year->property_mandatory && $year->years_before <= $rule->property_years) {
+                $propertyMandatory[] = $dpcYear - $year->years_before;
+            }
+
             if ($year->years_before > $rule->cr_years) {
                 continue;
             }
@@ -118,6 +124,7 @@ final class RuleSet
                 'super_seat_points' => $superSeat,
                 'minimum_by_year' => $minimums,
                 'mandatory_years' => $mandatory,
+                'property_mandatory_years' => $propertyMandatory,
                 'tribal_bonus_basis' => $rule->tribal_bonus_basis === 'officer' ? 'officer' : 'year',
                 'tribal_bonus_skips_extremes' => (bool) $rule->tribal_bonus_skips_extremes,
                 'tribal_bonus_grades' => $rule->tribal_bonus_grades === null ? null : array_map('intval', $rule->tribal_bonus_grades),
@@ -141,6 +148,18 @@ final class RuleSet
     public function mandatoryCrYears(): array
     {
         return $this->classRule['mandatory_years'] ?? [];
+    }
+
+    /**
+     * The calendar years whose property return the Class Master rule makes
+     * mandatory (2026-11-05); null for a run without such a rule, which keeps item
+     * 13's five continuous years.
+     *
+     * @return list<int>|null
+     */
+    public function propertyMandatoryYears(): ?array
+    {
+        return isset($this->classRule['property_mandatory_years']) ? $this->classRule['property_mandatory_years'] : null;
     }
 
     public static function fromConfig(): self
@@ -199,7 +218,7 @@ final class RuleSet
      * it was written in.
      *
      * @param  array<string, mixed>  $rule
-     * @return array{rule_id: int, pair: string, effective_from_year: int, dpc_year: int, qualifying_total: int, super_seat_points: int|null, minimum_by_year: array<int, int>, mandatory_years: list<int>, tribal_bonus_basis: string, tribal_bonus_skips_extremes: bool, tribal_bonus_grades: list<int>|null, highest_points: int|null, lowest_points: int|null}
+     * @return array{rule_id: int, pair: string, effective_from_year: int, dpc_year: int, qualifying_total: int, super_seat_points: int|null, minimum_by_year: array<int, int>, mandatory_years: list<int>, property_mandatory_years?: list<int>, tribal_bonus_basis: string, tribal_bonus_skips_extremes: bool, tribal_bonus_grades: list<int>|null, highest_points: int|null, lowest_points: int|null}
      */
     private static function classRuleFrom(array $rule): array
     {
@@ -218,6 +237,9 @@ final class RuleSet
             'super_seat_points' => $rule['super_seat_points'] === null ? null : (int) $rule['super_seat_points'],
             'minimum_by_year' => $minimums,
             'mandatory_years' => array_values(array_map('intval', (array) ($rule['mandatory_years'] ?? []))),
+            // A run recorded before 2026-11-05 judged the property return by item 13's
+            // five continuous years; it keeps doing so when re-read.
+            ...(array_key_exists('property_mandatory_years', $rule) ? ['property_mandatory_years' => array_values(array_map('intval', (array) $rule['property_mandatory_years']))] : []),
             // A run recorded before the tribal terms existed gave the single bonus.
             'tribal_bonus_basis' => ($rule['tribal_bonus_basis'] ?? 'officer') === 'year' ? 'year' : 'officer',
             'tribal_bonus_skips_extremes' => (bool) ($rule['tribal_bonus_skips_extremes'] ?? false),

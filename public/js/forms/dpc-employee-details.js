@@ -32,6 +32,15 @@
                 return false;
             }
 
+            // Only for the years listed (2026-11-05): a Property Return the promotion
+            // rule makes mandatory.
+            var years = element.getAttribute('data-only-years');
+            var year = form.querySelector('input[name="year"]');
+
+            if (years !== null && (year === null || years.split(',').indexOf(year.value) === -1)) {
+                return false;
+            }
+
             // A question is reachable only if the question it depends on is.
             var radio = form.querySelector('input[name="' + rule[0] + '"]');
             var parent = radio ? radio.closest('[data-show-when]') : null;
@@ -41,11 +50,18 @@
 
         function sync() {
             dependants.forEach(function (element) {
-                element.classList.toggle('d-none', !visible(element));
+                var shown = visible(element);
+
+                element.classList.toggle('d-none', !shown);
+                // Required only while shown (2026-11-05).
+                element.querySelectorAll('[data-required-when-shown]').forEach(function (input) {
+                    input.required = shown;
+                });
             });
         }
 
         form.addEventListener('change', sync);
+        form.addEventListener('input', sync);
         sync();
     });
 })();

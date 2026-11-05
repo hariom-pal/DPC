@@ -38,6 +38,9 @@ use RuntimeException;
  * @property int|null $issued_by
  * @property Carbon $issued_at
  * @property Carbon|null $notified_at
+ * @property string $kind
+ * @property Carbon|null $effective_date
+ * @property int|null $dpc_sealed_cover_opening_id
  */
 class DpcPromotionOrder extends Model
 {
@@ -49,11 +52,17 @@ class DpcPromotionOrder extends Model
 
     public const STATUS_FAILED = 'failed';
 
+    /** The DPC's own order, versioned and superseded as a whole. */
+    public const KIND_REGULAR = 'regular';
+
+    /** Issued on a sealed cover's opening (2026-11-05): the cleared officer, or the replacement. */
+    public const KIND_SEALED_COVER = 'sealed_cover';
+
     /**
      * @var list<string>
      */
     protected $fillable = [
-        'dpc_proposal_id', 'dpc_proceeding_id', 'order_number', 'order_date', 'version', 'supersedes_id',
+        'dpc_proposal_id', 'dpc_proceeding_id', 'kind', 'dpc_sealed_cover_opening_id', 'order_number', 'order_date', 'effective_date', 'version', 'supersedes_id',
         'status', 'superseded_at', 'officers', 'disk', 'path', 'content_hash', 'signature_id',
         'failure_reason', 'issued_by', 'issued_at', 'notified_at',
     ];
@@ -78,6 +87,7 @@ class DpcPromotionOrder extends Model
     protected function casts(): array
     {
         return [
+            'effective_date' => 'date',
             'order_date' => 'date',
             'version' => 'integer',
             'superseded_at' => 'datetime',

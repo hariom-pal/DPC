@@ -99,38 +99,40 @@ class MeritGateTest extends TestCase
     // =====================================================================
 
     /**
-     * A chart missing one Property Return year produces a persisted `RJ`, with the
-     * ground stored beside it.
-     *
-     * The reason is asserted as *stored*, not as rendered: a rejection an officer
-     * cannot read the ground for is indefensible if the promotion is challenged, and
-     * the stored verdict is what the Explain Result screen and the printed list both
-     * read from.
+     * A Property Return the promotion rule makes mandatory (2026-11-05, BD-38
+     * decided): missing with its reason and document it is CIR, not RJ; missing
+     * without them it is a rule failure (NE); a year the rule does not make
+     * mandatory refuses nobody. The ground is stored beside the status.
      */
-    public function test_a_missing_property_return_is_persisted_as_a_rejection(): void
+    public function test_a_missing_mandatory_property_return_is_cir_not_rj(): void
     {
-        $this->chart([['sn' => 1, 'name' => 'US1', 'propertyMissing' => [2015]]]);
+        $this->makePropertyMandatory($this->proposal, 2015);
+        $rows = $this->chart([
+            ['sn' => 1, 'name' => 'Justified', 'propertyMissing' => [2015]],
+            ['sn' => 2, 'name' => 'Unexplained', 'propertyMissing' => [2015]],
+            ['sn' => 3, 'name' => 'Optional year', 'propertyMissing' => [2014]],
+        ]);
+        $this->recordGap($rows[1], DpcEvaluationRecordGap::KIND_PROPERTY, 2015);
 
-        $result = $this->calculate()->results()->where('sn', 1)->firstOrFail();
+        $run = $this->calculate();
+        $result = fn (int $sn) => $run->results()->where('sn', $sn)->firstOrFail();
 
-        $this->assertFalse($result->is_eligible);
-        $this->assertSame(RemarkCode::Rejected->value, $result->remark);
-        $this->assertSame(ListType::None, $result->list_type);
-        $this->assertStringContainsString(
-            'Property Return not available for mandatory 5 continuous years',
-            implode(' ', $result->verdict['failure_reasons']),
-        );
+        $this->assertSame(RemarkCode::Circulation, $result(1)->status());
+        $this->assertNotSame(RemarkCode::Rejected->value, $result(1)->remark);
+
+        $this->assertSame(RemarkCode::NotEligible->value, $result(2)->remark);
+        $this->assertStringContainsString('Property Return for 2015 is mandatory', implode(' ', $result(2)->verdict['failure_reasons']));
+
+        $this->assertTrue((bool) $result(3)->is_eligible, 'A year the rule does not make mandatory refuses nobody.');
     }
 
     /**
-     * A rejected candidate does not consume a vacancy.
-     *
-     * The point of the gate: with one seat and two officers, the seat goes to the one
-     * who is in contention. A rejection that still took the seat would leave the post
-     * filled by someone who is out.
+     * A candidate the gate refuses does not consume a vacancy: with one seat and two
+     * officers, the seat goes to the one in contention.
      */
-    public function test_a_rejected_candidate_does_not_take_a_seat(): void
+    public function test_a_refused_candidate_does_not_take_a_seat(): void
     {
+        $this->makePropertyMandatory($this->proposal, 2015);
         $this->chart([
             ['sn' => 1, 'name' => 'US1', 'propertyMissing' => [2015]],
             ['sn' => 2, 'name' => 'US2'],
@@ -324,8 +326,11 @@ class MeritGateTest extends TestCase
      * fall short of the minimum — so the run exercises both paths to a status: the
      * gates and the untouched formula.
      */
-    public function test_one_run_can_reach_all_four_statuses(): void
+    public function test_one_run_can_reach_every_per_candidate_status(): void
     {
+        // A missing mandatory Property Return is CIR or NE since 2026-11-05, never RJ;
+        // RJ is the post pair's (the downhill test above).
+        $this->makePropertyMandatory($this->proposal, 2015);
         $rows = $this->chart([
             // Clean and top-graded — eligible, and takes the one seat.
             ['sn' => 1, 'name' => 'EL1', 'grade' => 'क+'],
@@ -333,8 +338,8 @@ class MeritGateTest extends TestCase
             ['sn' => 2, 'name' => 'NE1', 'grade' => 'ख'],
             // A justified gap — held.
             ['sn' => 3, 'name' => 'CIR1', 'grade' => 'क+', 'crYears' => [2014, 2015, 2016, 2017]],
-            // A missing Property Return — out.
-            ['sn' => 4, 'name' => 'RJ1', 'grade' => 'क+', 'propertyMissing' => [2015]],
+            // A mandatory Property Return missing with no reason — out.
+            ['sn' => 4, 'name' => 'NE2', 'grade' => 'क+', 'propertyMissing' => [2015]],
         ], sanctioned: 1, vacancies: 1);
 
         $this->recordGap($rows[3], DpcEvaluationRecordGap::KIND_CR, 2013);
@@ -348,7 +353,7 @@ class MeritGateTest extends TestCase
         $this->assertSame('UR', $remarks['EL1']);
         $this->assertSame(RemarkCode::NotEligible->value, $remarks['NE1']);
         $this->assertSame(RemarkCode::Circulation->value, $remarks['CIR1']);
-        $this->assertSame(RemarkCode::Rejected->value, $remarks['RJ1']);
+        $this->assertSame(RemarkCode::NotEligible->value, $remarks['NE2']);
     }
 
     // =====================================================================
@@ -396,7 +401,10 @@ class MeritGateTest extends TestCase
      */
     public function test_the_result_screen_prints_rejected(): void
     {
-        $this->chart([['sn' => 1, 'name' => 'RJ1', 'propertyMissing' => [2015]]]);
+        // A downhill promotion rejects (RJ) — a missing Property Return no longer does.
+        $this->postFrom->update(['pay_scale_id' => PayScale::query()->create(['label' => 'L-14', 'code' => 'L14', 'level' => 14, 'grade_pay' => 6600])->id]);
+        $this->postTo->update(['pay_scale_id' => PayScale::query()->create(['label' => 'L-10', 'code' => 'L10', 'level' => 10, 'grade_pay' => 4200])->id]);
+        $this->chart([['sn' => 1, 'name' => 'RJ1']]);
 
         $run = $this->calculate();
 

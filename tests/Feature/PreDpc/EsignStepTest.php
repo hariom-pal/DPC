@@ -89,6 +89,33 @@ class EsignStepTest extends TestCase
         $this->assertSame('verified', SignatureAttempt::query()->sole()->outcome);
     }
 
+    /**
+     * An incomplete Pre-DPC is refused before the eSign, not after it (2026-11-04):
+     * the page lists what is missing with Submit disabled, and the eSign step sends
+     * the AO back without anything signed.
+     */
+    public function test_an_incomplete_pre_dpc_is_refused_before_the_esign_starts(): void
+    {
+        $this->proposal->forceFill(['government_order_number' => null])->save();
+        $missing = 'The Adyatan Vibhagiy Bharti Niyam and its Publish Date are required before submitting.';
+
+        $this->actingAs($this->ao)->get(route('pre-dpc.show', $this->proposal))->assertOk()
+            ->assertSee('id="pre-dpc-blockers"', false)
+            ->assertSee($missing)
+            ->assertSee('data-esign disabled', false);
+
+        $this->get(route('esign.show', ['kind' => 'pre-dpc-submit', 'uuid' => $this->proposal->uuid]))
+            ->assertRedirect(route('pre-dpc.show', $this->proposal))
+            ->assertSessionHasErrors(['workflow' => $missing]);
+        $this->post(route('esign.start', ['kind' => 'pre-dpc-submit', 'uuid' => $this->proposal->uuid]), ['consent' => '1', 'declaration' => '1'])
+            ->assertRedirect(route('pre-dpc.show', $this->proposal))
+            ->assertSessionHasErrors(['workflow' => $missing]);
+
+        $this->assertNull(session('esign.pending'));
+        $this->assertSame(0, SignatureAttempt::query()->count());
+        $this->assertSame(PreDpcStatus::Draft, $this->proposal->fresh()->status);
+    }
+
     public function test_a_different_name_on_the_esign_stops_the_submission(): void
     {
         $this->esign($this->ao, 'pre-dpc-submit', 'R. K. Verma');

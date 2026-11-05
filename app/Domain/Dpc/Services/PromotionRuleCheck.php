@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Dpc\Services;
 
 use App\Domain\Dpc\Models\DpcEvaluationCrGrade;
+use App\Domain\Dpc\Models\DpcEvaluationRecordGap;
 use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Eligibility\RuleSet;
@@ -41,11 +42,12 @@ final class PromotionRuleCheck
     /**
      * @return array{
      *     rule: PromotionCrRule|null,
-     *     status: 'meets'|'does_not_meet'|'no_rule',
+     *     status: 'meets'|'cir'|'does_not_meet'|'no_rule',
      *     years: list<array{year: int, points: int|null, min: int|null, cr_required: bool, cr_ok: bool, property_required: bool, property_ok: bool, loyalty_required: bool, loyalty_ok: bool}>,
      *     total: int|null,
      *     required_total: int|null,
-     *     findings: list<string>
+     *     findings: list<string>,
+     *     holds?: list<string>
      * }
      */
     public function check(DpcEvaluationRow $row, DpcProposal $proposal): array
@@ -57,7 +59,7 @@ final class PromotionRuleCheck
         $rule = $this->rules->ruleForProposal($proposal);
 
         if ($rule === null) {
-            return ['rule' => null, 'status' => 'no_rule', 'years' => [], 'total' => null, 'required_total' => null, 'findings' => [
+            return ['rule' => null, 'status' => 'no_rule', 'years' => [], 'total' => null, 'required_total' => null, 'holds' => [], 'findings' => [
                 (string) __('dpc.employee_details.rule.no_rule', ['from' => $from ?? '—', 'to' => $to ?? '—', 'year' => $year]),
             ]];
         }
@@ -66,6 +68,7 @@ final class PromotionRuleCheck
         $points = $this->pointsCache[$year] ??= $this->rules->pointsForYear($year);
         $byYear = $rule->years->keyBy('years_before');
         $findings = [];
+        $holds = [];
         $years = [];
 
         for ($before = 1; $before <= $rule->span(); $before++) {
@@ -83,7 +86,12 @@ final class PromotionRuleCheck
 
             if ($crRequired && $yearPoints === null) {
                 $crOk = false;
-                $findings[] = (string) __('dpc.employee_details.rule.cr_missing', ['year' => $calendar]);
+                // Missing and justified: CIR, as the calculation holds it (2026-11-05).
+                if ($this->justified($row, DpcEvaluationRecordGap::KIND_CR, $calendar)) {
+                    $holds[] = (string) __('dpc.employee_details.rule.cr_cir', ['year' => $calendar]);
+                } else {
+                    $findings[] = (string) __('dpc.employee_details.rule.cr_missing', ['year' => $calendar]);
+                }
             } elseif ($min !== null && $yearPoints !== null && $yearPoints < $min) {
                 $crOk = false;
                 $findings[] = (string) __('dpc.employee_details.rule.cr_below_min', ['year' => $calendar, 'points' => $yearPoints, 'min' => $min]);
@@ -93,7 +101,11 @@ final class PromotionRuleCheck
             $propertyOk = ! $propertyRequired || $row->propertyFlags->firstWhere('year', $calendar)?->flag === true;
 
             if (! $propertyOk) {
-                $findings[] = (string) __('dpc.employee_details.rule.property_missing', ['year' => $calendar]);
+                if ($this->justified($row, DpcEvaluationRecordGap::KIND_PROPERTY, $calendar)) {
+                    $holds[] = (string) __('dpc.employee_details.rule.property_cir', ['year' => $calendar]);
+                } else {
+                    $findings[] = (string) __('dpc.employee_details.rule.property_missing', ['year' => $calendar]);
+                }
             }
 
             $loyaltyRequired = $before <= $rule->loyalty_years && (bool) $requirement?->loyalty_mandatory;
@@ -131,12 +143,25 @@ final class PromotionRuleCheck
 
         return [
             'rule' => $rule,
-            'status' => $findings === [] ? 'meets' : 'does_not_meet',
+            'status' => match (true) {
+                $findings !== [] => 'does_not_meet',
+                $holds !== [] => 'cir',
+                default => 'meets',
+            },
+            'holds' => array_values(array_unique($holds)),
             'years' => $years,
             'total' => $score->yearsUsed === [] ? null : $score->total,
             'required_total' => $required,
             'findings' => array_values(array_unique($findings)),
         ];
+    }
+
+    /** A mandatory record missing with its reason and document (rule 3.2). */
+    private function justified(DpcEvaluationRow $row, string $kind, int $year): bool
+    {
+        return $row->recordGaps->contains(
+            fn (DpcEvaluationRecordGap $gap): bool => $gap->kind === $kind && $gap->year === $year && $gap->isJustified(),
+        );
     }
 
     /**

@@ -70,6 +70,8 @@
             <div class="text-muted small">
                 {{ __('vacancymaster.department_label') }}: <strong>{{ $department->name }}</strong>
                 · {{ __('vacancymaster.vacancy_year') }}: <strong>{{ $year }}</strong>
+                {{-- Fixed, as on the Pre-DPC (2026-11-05): 1 January of the DPC year. --}}
+                · {{ __('predpc.form.publish_date') }}: <strong data-effective-on>01-01-{{ $year }}</strong>
                 · {{ __('vacancymaster.year_window', ['from' => '01-01-'.$year, 'to' => '31-12-'.$year]) }}
             </div>
             <div class="text-muted small">{{ __('vacancymaster.seniority_reference', ['date' => $seniorityReference->format('d-m-Y')]) }}</div>

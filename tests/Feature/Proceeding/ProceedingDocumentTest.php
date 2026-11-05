@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Proceeding;
 
+use App\Domain\Dpc\Models\DpcEvaluationRecordGap;
 use App\Domain\Proceeding\Documents\DocumentRenderer;
 use App\Domain\Proceeding\Documents\HtmlDocumentRenderer;
 use App\Domain\Proceeding\Enums\CorrectableField;
@@ -304,10 +305,13 @@ class ProceedingDocumentTest extends TestCase
 
     public function test_a_held_promotion_appears_on_the_promotion_list(): void
     {
-        $this->officer(8, 'US8', $this->stCategoryId(),
+        // 2016 mandatory under the promotion rule and marked Missing (2026-11-05).
+        $this->makePropertyMandatory($this->proposal, 2016);
+        $us8 = $this->officer(8, 'US8', $this->stCategoryId(),
             [2013 => 'क+', 2014 => 'क+', 2015 => 'क+', 2016 => 'क+', 2017 => 'क+'],
             propertyMissingYears: [2016],
         );
+        $this->justifyMissing($us8, DpcEvaluationRecordGap::KIND_PROPERTY, 2016);
         $this->approve();
         $this->generate();
 

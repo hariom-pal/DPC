@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace Tests\Concerns;
 
+use App\Domain\Dpc\Models\DpcEvaluationRecordGap;
 use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Services\DpcProposalService;
 use App\Domain\Dpc\Services\EvaluationCandidateService;
+use App\Domain\Master\Models\RecordReason;
+use App\Domain\Master\Services\PromotionCrRules;
 
 /**
  * Builds an Evaluation Chart the way the application now builds one — Seniority
@@ -126,5 +129,38 @@ trait SeedsEvaluationCharts
         }
 
         return $row;
+    }
+
+    /**
+     * A missing CR or Property Return justified as the AO records it (rule 3.2,
+     * 2026-11-05): a reason and its supporting document.
+     */
+    protected function justifyMissing(DpcEvaluationRow $row, string $kind, int $year): DpcEvaluationRecordGap
+    {
+        /** @var DpcEvaluationRecordGap $gap */
+        $gap = $row->recordGaps()->create([
+            'kind' => $kind,
+            'year' => $year,
+            'record_reason_id' => RecordReason::query()->where('status', 'active')->whereNull('second_document_label_en')->orderBy('id')->value('id'),
+            'disk' => 'local',
+            'path' => 'private/test/missing-'.$kind.'-'.$year.'.pdf',
+            'original_name' => 'missing.pdf',
+            'size_bytes' => 10,
+            'sha256' => str_repeat('0', 64),
+        ]);
+
+        return $gap;
+    }
+
+    /**
+     * Make a Property Return year mandatory under the proposal's promotion rule
+     * (2026-11-05): its years run back from the DPC year.
+     */
+    protected function makePropertyMandatory(DpcProposal $proposal, int $calendarYear): void
+    {
+        $rule = app(PromotionCrRules::class)->ruleForProposal($proposal);
+        $before = (int) ($proposal->dpc_year ?: $proposal->proposal_date->year) - $calendarYear;
+        $rule->forceFill(['property_years' => max((int) $rule->property_years, $before)])->save();
+        $rule->years()->updateOrCreate(['years_before' => $before], ['property_mandatory' => true]);
     }
 }

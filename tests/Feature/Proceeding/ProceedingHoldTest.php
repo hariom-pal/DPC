@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Proceeding;
 
+use App\Domain\Dpc\Models\DpcEvaluationRecordGap;
 use App\Domain\Eligibility\Enums\RemarkCode;
+use App\Domain\Master\Models\PromotionCrRule;
 use App\Domain\Proceeding\Enums\CorrectableField;
 use App\Domain\Proceeding\Enums\DpcProceedingStatus;
 use App\Domain\Proceeding\Enums\HoldReason;
@@ -44,7 +46,11 @@ class ProceedingHoldTest extends TestCase
     public function test_an_officer_with_too_few_cr_years_is_held(): void
     {
         // PPT S33's US6: four CR grades on a six-column chart, marked CIR.
-        $this->officer(6, 'US6', $this->urCategoryId(), [2016 => 'क', 2017 => 'क']);
+        $us6 = $this->officer(6, 'US6', $this->urCategoryId(), [2016 => 'क', 2017 => 'क']);
+        // The three missing years marked Missing with their reason and document (2026-11-05).
+        foreach ([2013, 2014, 2015] as $year) {
+            $this->justifyMissing($us6, DpcEvaluationRecordGap::KIND_CR, $year);
+        }
 
         $this->holds()->detect($this->proceeding->fresh(), $this->memberOne);
 
@@ -58,10 +64,14 @@ class ProceedingHoldTest extends TestCase
     public function test_an_officer_with_a_missing_property_return_is_held(): void
     {
         // PPT S33's US8: 20 marks, Super Seat — and still CIR.
-        $this->officer(8, 'US8', $this->stCategoryId(),
+        // 2016 is mandatory under the promotion rule and marked Missing with its
+        // reason and document (2026-11-05).
+        $this->makePropertyMandatory($this->proposal, 2016);
+        $us8 = $this->officer(8, 'US8', $this->stCategoryId(),
             [2013 => 'क+', 2014 => 'क+', 2015 => 'क+', 2016 => 'क+', 2017 => 'क+'],
             propertyMissingYears: [2016],
         );
+        $this->justifyMissing($us8, DpcEvaluationRecordGap::KIND_PROPERTY, 2016);
 
         $this->holds()->detect($this->proceeding->fresh(), $this->memberOne);
 
@@ -94,10 +104,14 @@ class ProceedingHoldTest extends TestCase
      */
     public function test_a_hold_is_independent_of_merit(): void
     {
-        $this->officer(8, 'US8', $this->stCategoryId(),
+        // 2016 is mandatory under the promotion rule and marked Missing with its
+        // reason and document (2026-11-05).
+        $this->makePropertyMandatory($this->proposal, 2016);
+        $us8 = $this->officer(8, 'US8', $this->stCategoryId(),
             [2013 => 'क+', 2014 => 'क+', 2015 => 'क+', 2016 => 'क+', 2017 => 'क+'],
             propertyMissingYears: [2016],
         );
+        $this->justifyMissing($us8, DpcEvaluationRecordGap::KIND_PROPERTY, 2016);
 
         $this->calculate();
 
@@ -107,14 +121,10 @@ class ProceedingHoldTest extends TestCase
         $this->assertSame(20, $result->score_breakdown['total']);
         $this->assertTrue($result->is_super_seat);
 
-        // But item 13 rejects the missing Property Return, whatever the marks say,
-        // and the reason names the year so the officer can answer it.
-        $this->assertFalse($result->is_eligible);
-        $this->assertSame(RemarkCode::Rejected->value, $result->remark);
-
-        $reasons = implode(' ', $result->verdict['failure_reasons']);
-        $this->assertStringContainsString('Property Return', $reasons);
-        $this->assertStringContainsString('2016', $reasons);
+        // BD-38, decided 2026-11-05: a mandatory Property Return missing with its
+        // reason and document is CIR, not RJ — held, never refused for it.
+        $this->assertNotSame(RemarkCode::Rejected->value, $result->remark);
+        $this->assertSame(RemarkCode::Circulation, $result->status());
 
         // And the hold fired on its own, from the records rather than the verdict.
         $this->assertTrue($this->holds()->isHeld($this->proceeding->fresh(), 8));
@@ -134,7 +144,11 @@ class ProceedingHoldTest extends TestCase
     {
         // Holds and scores read the same effective chart, so they must move
         // together rather than drift apart.
-        $this->officer(6, 'US6', $this->urCategoryId(), [2016 => 'क', 2017 => 'क']);
+        $us6 = $this->officer(6, 'US6', $this->urCategoryId(), [2016 => 'क', 2017 => 'क']);
+        // The three missing years marked Missing with their reason and document (2026-11-05).
+        foreach ([2013, 2014, 2015] as $year) {
+            $this->justifyMissing($us6, DpcEvaluationRecordGap::KIND_CR, $year);
+        }
 
         $this->calculate();
 
@@ -143,10 +157,14 @@ class ProceedingHoldTest extends TestCase
 
     public function test_a_correction_clears_an_automatic_hold(): void
     {
-        $this->officer(8, 'US8', $this->stCategoryId(),
+        // 2016 is mandatory under the promotion rule and marked Missing with its
+        // reason and document (2026-11-05).
+        $this->makePropertyMandatory($this->proposal, 2016);
+        $us8 = $this->officer(8, 'US8', $this->stCategoryId(),
             [2013 => 'क+', 2014 => 'क+', 2015 => 'क+', 2016 => 'क+', 2017 => 'क+'],
             propertyMissingYears: [2016],
         );
+        $this->justifyMissing($us8, DpcEvaluationRecordGap::KIND_PROPERTY, 2016);
         $this->calculate();
         $this->assertTrue($this->holds()->isHeld($this->proceeding->fresh(), 8));
 
@@ -164,7 +182,11 @@ class ProceedingHoldTest extends TestCase
 
     public function test_detection_does_not_duplicate_an_existing_hold(): void
     {
-        $this->officer(6, 'US6', $this->urCategoryId(), [2016 => 'क', 2017 => 'क']);
+        $us6 = $this->officer(6, 'US6', $this->urCategoryId(), [2016 => 'क', 2017 => 'क']);
+        // The three missing years marked Missing with their reason and document (2026-11-05).
+        foreach ([2013, 2014, 2015] as $year) {
+            $this->justifyMissing($us6, DpcEvaluationRecordGap::KIND_CR, $year);
+        }
 
         $this->holds()->detect($this->proceeding->fresh(), $this->memberOne);
         $this->holds()->detect($this->proceeding->fresh(), $this->memberOne);
@@ -185,10 +207,19 @@ class ProceedingHoldTest extends TestCase
         $this->assertSame(0, DpcProceedingHold::query()->count());
     }
 
+    /**
+     * The configured threshold applies to a DPC without a Class Master rule; under
+     * a rule its own CR count governs (2026-11-05).
+     */
     public function test_the_cr_threshold_is_configurable(): void
     {
+        PromotionCrRule::query()->delete();
         config()->set('dpc.proceeding.hold.min_cr_years', 2);
-        $this->officer(6, 'US6', $this->urCategoryId(), [2016 => 'क', 2017 => 'क']);
+        $us6 = $this->officer(6, 'US6', $this->urCategoryId(), [2016 => 'क', 2017 => 'क']);
+        // The three missing years marked Missing with their reason and document (2026-11-05).
+        foreach ([2013, 2014, 2015] as $year) {
+            $this->justifyMissing($us6, DpcEvaluationRecordGap::KIND_CR, $year);
+        }
 
         $this->holds()->detect($this->proceeding->fresh(), $this->memberOne);
 
@@ -242,7 +273,10 @@ class ProceedingHoldTest extends TestCase
     {
         // Releasing it by hand would simply reappear on the next detection,
         // which is worse than refusing.
-        $this->officer(6, 'US6', $this->urCategoryId(), [2017 => 'क']);
+        $us6 = $this->officer(6, 'US6', $this->urCategoryId(), [2017 => 'क']);
+        foreach ([2013, 2014, 2015, 2016] as $year) {
+            $this->justifyMissing($us6, DpcEvaluationRecordGap::KIND_CR, $year);
+        }
         $this->holds()->detect($this->proceeding->fresh(), $this->memberOne);
         $hold = DpcProceedingHold::query()->firstOrFail();
 
@@ -347,10 +381,14 @@ class ProceedingHoldTest extends TestCase
     {
         // S34's "ST SS CIR" — the hold is composed onto the remark rather than
         // produced by the frozen engine.
-        $this->officer(8, 'US8', $this->stCategoryId(),
+        // 2016 is mandatory under the promotion rule and marked Missing with its
+        // reason and document (2026-11-05).
+        $this->makePropertyMandatory($this->proposal, 2016);
+        $us8 = $this->officer(8, 'US8', $this->stCategoryId(),
             [2013 => 'क+', 2014 => 'क+', 2015 => 'क+', 2016 => 'क+', 2017 => 'क+'],
             propertyMissingYears: [2016],
         );
+        $this->justifyMissing($us8, DpcEvaluationRecordGap::KIND_PROPERTY, 2016);
         $this->calculate();
 
         $this->actingAs($this->memberOne)
