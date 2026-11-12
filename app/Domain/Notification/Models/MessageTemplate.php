@@ -19,7 +19,7 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property string|null $subject
  * @property string $body
  * @property string|null $dlt_template_id
- * @property bool $is_active
+ * @property string $status draft, active or inactive (2026-11-13)
  * @property int|null $updated_by
  */
 class MessageTemplate extends Model implements Auditable
@@ -30,16 +30,24 @@ class MessageTemplate extends Model implements Auditable
 
     public const EMAIL = 'email';
 
+    /** Saved but not in use: the message goes in the portal's default wording. */
+    public const DRAFT = 'draft';
+
+    /** The message goes in this wording. */
+    public const ACTIVE = 'active';
+
+    /** The message is not sent. */
+    public const INACTIVE = 'inactive';
+
+    public const STATUSES = [self::DRAFT, self::ACTIVE, self::INACTIVE];
+
     /**
      * @var list<string>
      */
-    protected $fillable = ['key', 'channel', 'subject', 'body', 'dlt_template_id', 'is_active', 'updated_by'];
+    protected $fillable = ['key', 'channel', 'subject', 'body', 'dlt_template_id', 'status', 'updated_by'];
 
-    /**
-     * @return array<string, string>
-     */
-    protected function casts(): array
+    public function isActive(): bool
     {
-        return ['is_active' => 'boolean'];
+        return $this->status === self::ACTIVE;
     }
 }

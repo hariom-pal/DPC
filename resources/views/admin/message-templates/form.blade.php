@@ -4,7 +4,16 @@
     <h1 class="h4 mb-1">{{ $definition['label'] }} — {{ __('admin.message_templates.channels.'.$channel) }}</h1>
     <p class="text-muted small">
         <code>{{ $key }}</code> ·
-        {{ $saved ? __('admin.message_templates.custom') : __('admin.message_templates.built_in') }}
+        {{ $saved?->isActive() ? __('admin.message_templates.custom') : __('admin.message_templates.built_in') }} ·
+        {{ __('admin.message_templates.statuses.'.($saved?->status ?? 'active')) }}
+        @if ($channel === 'sms' && $source !== null)
+            · {{ __('admin.message_templates.dlt_in_use') }}:
+            @if ($source['dlt_template_id'] === null)
+                <span class="badge text-bg-warning" id="dlt-in-use-missing">{{ __('admin.message_templates.dlt_missing') }}</span>
+            @else
+                <span id="dlt-in-use">{{ $source['dlt_template_id'] }}</span>
+            @endif
+        @endif
     </p>
 
     {{-- When the message goes, and to whom (2026-11-12). --}}
@@ -42,19 +51,27 @@
                                        value="{{ old('dlt_template_id', $saved?->dlt_template_id) }}">
                                 @error('dlt_template_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
                                 <div class="form-text">{{ __('admin.message_templates.dlt_help') }}</div>
+                                @if ($saved !== null)
+                                    <label class="form-label small mt-2 mb-1">{{ __('admin.message_templates.dlt_text') }}</label>
+                                    <pre class="bg-body-secondary p-2 small mb-0" style="white-space: pre-wrap" id="custom-dlt-text">{{ \App\Domain\Notification\Templates\MessageTemplateCatalog::dltText($saved->body) }}</pre>
+                                @endif
                             </div>
                         @endif
-                        <div class="form-check mb-3">
-                            <input type="hidden" name="is_active" value="0">
-                            <input type="checkbox" class="form-check-input @error('is_active') is-invalid @enderror" id="is_active" name="is_active" value="1"
-                                   @checked(old('is_active', $saved?->is_active ?? true)) @disabled($definition['mandatory'])>
-                            @if ($definition['mandatory'])<input type="hidden" name="is_active" value="1">@endif
-                            <label class="form-check-label" for="is_active">{{ __('admin.message_templates.send_this') }}</label>
-                            @error('is_active')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        {{-- Draft, Active or Inactive (2026-11-13). --}}
+                        <div class="mb-3">
+                            <label class="form-label" for="status">{{ __('ui.status') }}</label>
+                            <select class="form-select @error('status') is-invalid @enderror" id="status" name="status" required>
+                                @foreach (\App\Domain\Notification\Models\MessageTemplate::STATUSES as $option)
+                                    @continue($definition['mandatory'] && $option === 'inactive')
+                                    <option value="{{ $option }}" @selected(old('status', $saved?->status ?? 'active') === $option)>{{ __('admin.message_templates.statuses.'.$option) }}</option>
+                                @endforeach
+                            </select>
+                            @error('status')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            <div class="form-text">{{ __('admin.message_templates.status_help') }}</div>
                             @if ($definition['mandatory'])<div class="form-text">{{ __('admin.message_templates.mandatory') }}</div>@endif
                         </div>
                         <button class="btn btn-success">{{ __('ui.save') }}</button>
-                        <a href="{{ route('admin.message-templates.index') }}" class="btn btn-outline-secondary">{{ __('ui.cancel') }}</a>
+                        <a href="{{ route('admin.message-templates.index', $channel) }}" class="btn btn-outline-secondary">{{ __('ui.cancel') }}</a>
                     </form>
                     @if ($saved)
                         <form method="POST" action="{{ route('admin.message-templates.destroy', [$key, $channel]) }}" class="mt-2" data-confirm="{{ __('admin.message_templates.restore_confirm') }}">
@@ -64,6 +81,35 @@
                     @endif
                 </div>
             </div>
+            {{-- The System default SMS text and its own DLT ID (2026-11-13): the text is
+                 the application's and is not copied; only its ID is saved. --}}
+            @if ($channel === 'sms')
+                <div class="card border-0 shadow-sm mt-3" id="default-dlt">
+                    <div class="card-header bg-white"><strong>{{ __('admin.message_templates.default_heading') }}</strong></div>
+                    <div class="card-body">
+                        <p class="small text-muted">{{ __('admin.message_templates.default_help') }}</p>
+                        <label class="form-label small mb-1">{{ __('admin.message_templates.default_text') }}</label>
+                        <pre class="bg-body-secondary p-2 small mb-2" style="white-space: pre-wrap" id="default-text">{{ $default['body'] }}</pre>
+                        <label class="form-label small mb-1">{{ __('admin.message_templates.dlt_text') }}</label>
+                        <pre class="bg-body-secondary p-2 small mb-3" style="white-space: pre-wrap" id="default-dlt-text">{{ \App\Domain\Notification\Templates\MessageTemplateCatalog::dltText($default['body']) }}</pre>
+                        <form method="POST" action="{{ route('admin.message-templates.default-dlt', $key) }}" class="row g-2 align-items-end">
+                            @csrf @method('PUT')
+                            <div class="col-md-8">
+                                <label class="form-label small" for="default_dlt_template_id">{{ __('admin.message_templates.dlt') }}</label>
+                                <input type="text" inputmode="numeric" maxlength="30" class="form-control form-control-sm @error('default_dlt_template_id') is-invalid @enderror"
+                                       id="default_dlt_template_id" name="default_dlt_template_id" value="{{ old('default_dlt_template_id', $defaultDltId) }}">
+                                @error('default_dlt_template_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="col-md-4">
+                                <button class="btn btn-outline-success btn-sm w-100">{{ __('admin.message_templates.save_default_dlt') }}</button>
+                            </div>
+                        </form>
+                        @if ($defaultDltId === null)
+                            <div class="alert alert-warning small mt-2 mb-0">{{ __('admin.message_templates.default_dlt_missing') }}</div>
+                        @endif
+                    </div>
+                </div>
+            @endif
         </div>
         <div class="col-lg-5">
             <div class="card border-0 shadow-sm mb-3">

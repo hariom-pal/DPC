@@ -129,6 +129,8 @@ final class UatCleanupPlan
         'record_reasons' => 'Missing-record reasons master',
         'ph_types' => 'PH Type master',
         'message_templates' => 'SMS and e-mail templates kept by the Administrator',
+        'notification_gateways' => 'E-mail (SMTP) and SMS gateway settings kept by the Administrator',
+        'sms_default_dlt_ids' => 'DLT Content Template IDs of the System default SMS texts',
         'sealed_cover_reasons' => 'Sealed Cover reasons master (rule 2.2)',
         'pay_scales' => 'Pay scale master',
         'service_classes' => 'Service class master',

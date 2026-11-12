@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Domain\Authentication\Listeners;
 
 use App\Domain\Authentication\Events\CredentialsIssued;
+use App\Domain\Notification\Services\NotificationGateways;
 use App\Domain\Notification\Templates\MessageTemplates;
-use App\Enums\Feature;
 use App\Integrations\Contracts\SmsSender;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Support\Facades\Log;
@@ -41,7 +41,7 @@ class SendCredentialNotification implements ShouldQueue
         $email = $this->templates->email("account.{$key}", $values);
 
         try {
-            if ($sms !== null && $user->mobile !== null && Feature::SmsGateway->enabled()) {
+            if ($sms !== null && $user->mobile !== null && app(NotificationGateways::class)->smsAvailable()) {
                 $this->sms->send($user->mobile, $sms['body'], $sms['dlt_template_id']);
             }
 

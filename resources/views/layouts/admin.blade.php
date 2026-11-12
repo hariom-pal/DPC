@@ -85,8 +85,16 @@
                        href="{{ route('admin.sealed-cover-reasons.index') }}">{{ __('ui.layouts.admin.nav.sealed_cover_reasons') }}</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.ph-types.*') ? 'active' : '' }}"
                        href="{{ route('admin.ph-types.index') }}">{{ __('ui.layouts.admin.nav.ph_types') }}</a>
-                    <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.message-templates.*') ? 'active' : '' }}"
-                       href="{{ route('admin.message-templates.index') }}">{{ __('ui.layouts.admin.nav.message_templates') }}</a>
+                    {{-- Notifications (2026-11-13): each channel's templates and its settings. --}}
+                    <div class="list-group-item small text-uppercase text-muted fw-semibold bg-light py-1">{{ __('ui.layouts.admin.nav.notifications') }}</div>
+                    <a class="list-group-item list-group-item-action ps-4 {{ request()->routeIs('admin.message-templates.*') && in_array(request()->route('channel'), ['sms'], true) ? 'active' : '' }}"
+                       href="{{ route('admin.message-templates.index', 'sms') }}">{{ __('ui.layouts.admin.nav.sms_templates') }}</a>
+                    <a class="list-group-item list-group-item-action ps-4 {{ request()->routeIs('admin.message-templates.*') && request()->route('channel') === 'email' ? 'active' : '' }}"
+                       href="{{ route('admin.message-templates.index', 'email') }}">{{ __('ui.layouts.admin.nav.email_templates') }}</a>
+                    <a class="list-group-item list-group-item-action ps-4 {{ request()->routeIs('admin.notification-gateways.*') && request()->route('channel') === 'sms' ? 'active' : '' }}"
+                       href="{{ route('admin.notification-gateways.edit', 'sms') }}">{{ __('ui.layouts.admin.nav.sms_settings') }}</a>
+                    <a class="list-group-item list-group-item-action ps-4 {{ request()->routeIs('admin.notification-gateways.*') && request()->route('channel') === 'smtp' ? 'active' : '' }}"
+                       href="{{ route('admin.notification-gateways.edit', 'smtp') }}">{{ __('ui.layouts.admin.nav.email_settings') }}</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('previous-dpcs.*') ? 'active' : '' }}"
                        href="{{ route('previous-dpcs.index') }}">{{ __('previous_dpc.title') }}</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.portal-notices.*') ? 'active' : '' }}"

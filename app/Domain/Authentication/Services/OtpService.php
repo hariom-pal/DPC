@@ -8,7 +8,7 @@ use App\Domain\Authentication\Events\OtpRequested;
 use App\Domain\Authentication\Exceptions\OtpDeliveryFailed;
 use App\Domain\Authentication\Exceptions\OtpThrottled;
 use App\Domain\Authentication\Models\OtpVerification;
-use App\Enums\Feature;
+use App\Domain\Notification\Services\NotificationGateways;
 use App\Enums\OtpChannel;
 use App\Enums\OtpPurpose;
 use Illuminate\Support\Facades\Hash;
@@ -208,7 +208,7 @@ class OtpService
      */
     public function mobileCodesUsable(): bool
     {
-        return Feature::SmsGateway->enabled() || $this->fixedMobileCodeInForce();
+        return app(NotificationGateways::class)->smsAvailable() || $this->fixedMobileCodeInForce();
     }
 
     private function assertMaySend(string $identifier, OtpPurpose $purpose): void

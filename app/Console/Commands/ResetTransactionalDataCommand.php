@@ -228,6 +228,8 @@ class ResetTransactionalDataCommand extends Command
 
         // The Administrator's SMS and e-mail wording (2026-11-12): configuration.
         'message_templates',
+        'notification_gateways',
+        'sms_default_dlt_ids',
 
         /*
          | The Government Orders behind a Department Post Mapping, and their PDFs

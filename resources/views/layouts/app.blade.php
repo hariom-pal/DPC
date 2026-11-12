@@ -56,13 +56,31 @@
                         @if (app(\App\Domain\UserManagement\Services\DepartmentUserAuthority::class)->isDepartmentAdmin(auth()->user()))
                             {{-- The Department Admin's menu, in the order the business set
                                  (2026-11-04): Post Mapping, Create New Pre-DPC, User
-                                 Management, then the three lists. --}}
-                            <a class="btn btn-sm btn-outline-light" href="{{ route('department.posts.index') }}" data-menu="post-mapping">{{ __('ui.layouts.admin.nav.department_posts') }}</a>
-                            <a class="btn btn-sm btn-outline-light" href="{{ route('department.allotments.pre-dpc.create') }}" data-menu="create-pre-dpc">{{ __('allotments.open') }}</a>
-                            <a class="btn btn-sm btn-outline-light" href="{{ route('department.users.index') }}" data-menu="users">{{ __('department.users.title') }}</a>
-                            <a class="btn btn-sm btn-outline-light" href="{{ route('department.allotments.index', ['view' => 'pre-dpc']) }}" data-menu="pre-dpc">{{ __('allotments.list.pre-dpc.title') }}</a>
-                            <a class="btn btn-sm btn-outline-light" href="{{ route('department.allotments.index') }}" data-menu="running">{{ __('allotments.list.running.title') }}</a>
-                            <a class="btn btn-sm btn-outline-light" href="{{ route('department.allotments.index', ['view' => 'closed']) }}" data-menu="closed">{{ __('allotments.list.closed.title') }}</a>
+                                 Management, then the three lists — one DPC menu since
+                                 2026-11-13, so the header stays compact. --}}
+                            @php
+                                $dpcMenu = [
+                                    ['post-mapping', route('department.posts.index'), __('ui.layouts.admin.nav.department_posts'), request()->routeIs('department.posts.*')],
+                                    ['create-pre-dpc', route('department.allotments.pre-dpc.create'), __('allotments.open'), request()->routeIs('department.allotments.pre-dpc.create')],
+                                    ['users', route('department.users.index'), __('department.users.title'), request()->routeIs('department.users.*')],
+                                    null,
+                                    ['pre-dpc', route('department.allotments.index', ['view' => 'pre-dpc']), __('allotments.list.pre-dpc.title'), request()->routeIs('department.allotments.index') && request('view') === 'pre-dpc'],
+                                    ['running', route('department.allotments.index'), __('allotments.list.running.title'), request()->routeIs('department.allotments.index') && ! in_array(request('view'), ['pre-dpc', 'closed'], true)],
+                                    ['closed', route('department.allotments.index', ['view' => 'closed']), __('allotments.list.closed.title'), request()->routeIs('department.allotments.index') && request('view') === 'closed'],
+                                ];
+                            @endphp
+                            <div class="dropdown" id="dpc-menu">
+                                <button class="btn btn-sm btn-outline-light dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">{{ __('ui.layouts.app.dpc_menu') }}</button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    @foreach ($dpcMenu as $item)
+                                        @if ($item === null)
+                                            <li><hr class="dropdown-divider"></li>
+                                        @else
+                                            <li><a class="dropdown-item {{ $item[3] ? 'active' : '' }}" href="{{ $item[1] }}" data-menu="{{ $item[0] }}" @if ($item[3]) aria-current="page" @endif>{{ $item[2] }}</a></li>
+                                        @endif
+                                    @endforeach
+                                </ul>
+                            </div>
                         @endif
                         {{-- Department Post Mapping (UAT, 2026-11-02): the AO maps, the AH reads. --}}
                         @if (auth()->user()->hasAnyRole([\App\Enums\Role::AuthorizedOfficer->value, \App\Enums\Role::AdministrativeHead->value]))

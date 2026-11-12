@@ -6,11 +6,11 @@ namespace App\Domain\SelfInspection\Services;
 
 use App\Domain\Authentication\Services\OtpService;
 use App\Domain\Dpc\Models\DpcEvaluationRow;
+use App\Domain\Notification\Services\NotificationGateways;
 use App\Domain\SelfInspection\Enums\SelfInspectionAuthDriver;
 use App\Domain\SelfInspection\Enums\SelfInspectionFactor;
 use App\Domain\SelfInspection\Models\SelfInspectionAccess;
 use App\Domain\Shared\ValueObjects\PendingBusinessDecision;
-use App\Enums\Feature;
 use App\Enums\OtpChannel;
 use App\Enums\OtpPurpose;
 use Illuminate\Database\Eloquent\Collection;
@@ -106,7 +106,7 @@ class SelfInspectionAuthenticator
      */
     public function codesCanBeDelivered(): bool
     {
-        return Feature::SmsGateway->enabled() || $this->otp->fixedCodeInForce();
+        return app(NotificationGateways::class)->smsAvailable() || $this->otp->fixedCodeInForce();
     }
 
     public function requestCode(string $mobile, Request $request): void

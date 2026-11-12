@@ -25,6 +25,8 @@ use App\Domain\Master\Services\ClassLabelRepository;
 use App\Domain\Notification\Listeners\RecordInAppNotification;
 use App\Domain\Notification\Listeners\RecordPublicationNotification;
 use App\Domain\Notification\Listeners\RecordSupersessionNotification;
+use App\Domain\Notification\Models\NotificationGateway;
+use App\Domain\Notification\Services\NotificationGateways;
 use App\Domain\PreDpc\Models\PreDpcProposal;
 use App\Domain\PreDpc\Policies\PreDpcProposalPolicy;
 use App\Domain\Proceeding\Documents\DocumentRenderer;
@@ -65,6 +67,7 @@ use App\Integrations\Mock\MockHrmsProvider;
 use App\Integrations\Mock\MockSignatureProvider;
 use App\Integrations\Mock\SeedDirectoryProvider;
 use App\Integrations\Mock\SimulatedDigiLockerProvider;
+use App\Integrations\Sms\HttpSmsSender;
 use App\Integrations\Uidai\UidaiAadhaarOtpProvider;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
@@ -135,6 +138,13 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(CirculationDocumentRenderer::class, HtmlCirculationDocumentRenderer::class);
 
         $this->app->bind(SmsSender::class, function (): SmsSender {
+            // The gateway the CGPSC Administrator has set up (2026-11-13) comes first.
+            $gateway = app(NotificationGateways::class)->enabled(NotificationGateway::SMS);
+
+            if ($gateway !== null) {
+                return new HttpSmsSender($gateway);
+            }
+
             // No real gateway has been contracted yet; the flag exists so
             // wiring one is configuration, not a code change.
             return Feature::SmsGateway->enabled()
@@ -191,6 +201,10 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // The Administrator's SMTP server (2026-11-13), applied once as the mailer is
+        // first needed — not on every request.
+        $this->callAfterResolving('mail.manager', fn () => app(NotificationGateways::class)->applyMail());
+
         // Twice during M7 a newly added column silently failed to reach its
         // model — `update()` discards attributes that are not fillable and
         // reports success, so the write is lost without an error anywhere.

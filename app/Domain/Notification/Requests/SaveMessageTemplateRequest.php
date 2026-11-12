@@ -7,12 +7,14 @@ namespace App\Domain\Notification\Requests;
 use App\Domain\Notification\Models\MessageTemplate;
 use App\Domain\Notification\Templates\MessageTemplateCatalog;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
 /**
  * The Administrator's wording for one message on one channel (2026-11-12): only the
  * message's own placeholders, every placeholder it cannot do without, and a message
- * needed for access (the OTP, an invitation) never switched off.
+ * needed for access (the OTP, an invitation) never Inactive. An Active SMS carries
+ * its DLT content template ID (2026-11-13): the operator delivers nothing without it.
  */
 class SaveMessageTemplateRequest extends FormRequest
 {
@@ -21,9 +23,12 @@ class SaveMessageTemplateRequest extends FormRequest
         return true;
     }
 
-    protected function prepareForValidation(): void
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
     {
-        $this->merge(['is_active' => $this->boolean('is_active')]);
+        return ['dlt_template_id.required_if' => (string) __('admin.message_templates.dlt_required')];
     }
 
     /**
@@ -37,8 +42,8 @@ class SaveMessageTemplateRequest extends FormRequest
             'subject' => $email ? ['required', 'string', 'max:255'] : ['prohibited'],
             'body' => ['required', 'string', 'max:'.($email ? 10000 : 1000)],
             // TRAI DLT template IDs are numeric (typically 19 digits).
-            'dlt_template_id' => $email ? ['prohibited'] : ['nullable', 'regex:/^\d{10,30}$/'],
-            'is_active' => ['required', 'boolean'],
+            'dlt_template_id' => $email ? ['prohibited'] : ['nullable', 'required_if:status,'.MessageTemplate::ACTIVE, 'regex:/^\d{10,30}$/'],
+            'status' => ['required', Rule::in(MessageTemplate::STATUSES)],
         ];
     }
 
@@ -64,8 +69,8 @@ class SaveMessageTemplateRequest extends FormRequest
                 $validator->errors()->add('body', __('admin.message_templates.missing', ['names' => '{'.implode('}, {', $missing).'}']));
             }
 
-            if ($definition['mandatory'] && ! $this->boolean('is_active')) {
-                $validator->errors()->add('is_active', __('admin.message_templates.mandatory'));
+            if ($definition['mandatory'] && $this->input('status') === MessageTemplate::INACTIVE) {
+                $validator->errors()->add('status', __('admin.message_templates.mandatory'));
             }
         });
     }

@@ -34,6 +34,16 @@ class DepartmentAdminMenuTest extends TestCase
             'data-menu="closed"',
         ], false);
 
+        // One DPC menu in the header (2026-11-13): the six items are its entries, not buttons.
+        $page = (string) $this->get(route('dashboard'))->getContent();
+        $menu = substr($page, (int) strpos($page, 'id="dpc-menu"'));
+        $menu = substr($menu, 0, (int) strpos($menu, '</ul>'));
+        foreach (['post-mapping', 'create-pre-dpc', 'users', 'pre-dpc', 'running', 'closed'] as $item) {
+            $this->assertMatchesRegularExpression('/class="dropdown-item[^"]*" href="[^"]+" data-menu="'.$item.'"/', $menu);
+        }
+        $this->get(route('department.allotments.index', ['view' => 'closed']))->assertOk()
+            ->assertSee('class="dropdown-item active" href="'.e(route('department.allotments.index', ['view' => 'closed'])).'" data-menu="closed"', false);
+
         // The dashboard's tiles in the same order.
         $tiles = (string) $this->get(route('dashboard'))->getContent();
         $tiles = substr($tiles, (int) strpos($tiles, __('ui.dashboard.your_workspace')));

@@ -179,11 +179,16 @@ final class MessageTemplateCatalog
     }
 
     /**
-     * The built-in wording with its placeholders left in, `{name}`.
+     * The System default text with its placeholders left in, `{name}`.
+     *
+     * An SMS's System default text is always the one language its DLT template is
+     * registered in (`dpc.sms.text_locale`, English unless set), whatever language the
+     * screen is in (2026-11-13): an SMS that differs from its registered text by a
+     * single character is not delivered.
      *
      * @return array{subject: string, body: string}
      */
-    public static function defaultFor(string $key): array
+    public static function defaultFor(string $key, ?string $channel = null): array
     {
         $definition = self::find($key);
 
@@ -196,7 +201,27 @@ final class MessageTemplateCatalog
             $tokens[$name] = '{'.$name.'}';
         }
 
-        return ($definition['default'])($tokens);
+        if ($channel !== MessageTemplate::SMS) {
+            return ($definition['default'])($tokens);
+        }
+
+        $locale = app()->getLocale();
+        app()->setLocale((string) config('dpc.sms.text_locale', 'en'));
+
+        try {
+            return ($definition['default'])($tokens);
+        } finally {
+            app()->setLocale($locale);
+        }
+    }
+
+    /**
+     * The text as it is registered on the DLT portal (2026-11-13): each placeholder
+     * becomes the DLT variable `{#var#}`, everything else exactly as sent.
+     */
+    public static function dltText(string $text): string
+    {
+        return (string) preg_replace('/\{[a-z_]+\}/', '{#var#}', $text);
     }
 
     /**

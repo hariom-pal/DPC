@@ -186,6 +186,9 @@ return [
         // Delivery is governed by FEATURE_SMS_GATEWAY; with it off, messages
         // are written to the application log.
         'sender_id' => env('DPC_SMS_SENDER_ID', 'CGPSC'),
+        // The language SMS System default texts are sent in, the one their DLT
+        // templates are registered in (2026-11-13).
+        'text_locale' => env('DPC_SMS_TEXT_LOCALE', 'en'),
     ],
 
     /*

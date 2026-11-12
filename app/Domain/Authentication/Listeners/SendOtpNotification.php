@@ -6,9 +6,9 @@ namespace App\Domain\Authentication\Listeners;
 
 use App\Domain\Authentication\Events\OtpRequested;
 use App\Domain\Authentication\Exceptions\OtpDeliveryFailed;
+use App\Domain\Notification\Services\NotificationGateways;
 use App\Domain\Notification\Templates\MessageTemplateCatalog;
 use App\Domain\Notification\Templates\MessageTemplates;
-use App\Enums\Feature;
 use App\Enums\OtpChannel;
 use App\Integrations\Contracts\SmsSender;
 use Illuminate\Support\Facades\Log;
@@ -41,14 +41,21 @@ class SendOtpNotification
         $values = ['code' => $event->code, 'minutes' => $ttlMinutes];
 
         if ($event->channel === OtpChannel::Sms) {
-            if (Feature::SmsGateway->disabled()) {
+            if (! app(NotificationGateways::class)->smsAvailable()) {
                 Log::info('SMS OTP not sent: the SMS gateway is not enabled.', ['purpose' => $event->purpose->value]);
 
                 return;
             }
 
             $sms = $this->templates->sms('otp.code', $values);
-            $this->sms->send($event->identifier, (string) $sms['body'], $sms['dlt_template_id'] ?? null);
+
+            try {
+                $this->sms->send($event->identifier, (string) $sms['body'], $sms['dlt_template_id'] ?? null);
+            } catch (Throwable $e) {
+                Log::error('OTP SMS could not be sent.', ['purpose' => $event->purpose->value, 'error' => $e::class]);
+
+                throw new OtpDeliveryFailed;
+            }
 
             return;
         }

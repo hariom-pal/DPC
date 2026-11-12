@@ -19,6 +19,7 @@ use App\Http\Controllers\Admin\DpcTypeController;
 use App\Http\Controllers\Admin\IntegrationStatusController;
 use App\Http\Controllers\Admin\MasterDataController;
 use App\Http\Controllers\Admin\MessageTemplateController;
+use App\Http\Controllers\Admin\NotificationGatewayController;
 use App\Http\Controllers\Admin\PayScaleController;
 use App\Http\Controllers\Admin\PhTypeController;
 use App\Http\Controllers\Admin\PortalNoticeController;
@@ -887,11 +888,20 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
                 Route::resource('record-reasons', RecordReasonController::class)
                     ->parameters(['record-reasons' => 'recordReason'])
                     ->except(['show']);
-                // SMS and e-mail templates (2026-11-12).
-                Route::get('message-templates', [MessageTemplateController::class, 'index'])->name('message-templates.index');
+                // SMS and e-mail templates (2026-11-12), each channel on its own screen (2026-11-13).
+                Route::get('message-templates/{channel}', [MessageTemplateController::class, 'index'])
+                    ->whereIn('channel', ['sms', 'email'])->name('message-templates.index');
                 Route::get('message-templates/{key}/{channel}', [MessageTemplateController::class, 'edit'])->name('message-templates.edit');
                 Route::put('message-templates/{key}/{channel}', [MessageTemplateController::class, 'update'])->name('message-templates.update');
                 Route::delete('message-templates/{key}/{channel}', [MessageTemplateController::class, 'destroy'])->name('message-templates.destroy');
+                Route::put('message-templates/{key}/sms/default-dlt', [MessageTemplateController::class, 'updateDefaultDlt'])->name('message-templates.default-dlt');
+                // The e-mail (SMTP) and SMS gateway settings (2026-11-13).
+                Route::get('notification-gateways/{channel}', [NotificationGatewayController::class, 'edit'])
+                    ->whereIn('channel', ['smtp', 'sms'])->name('notification-gateways.edit');
+                Route::put('notification-gateways/{channel}', [NotificationGatewayController::class, 'update'])
+                    ->whereIn('channel', ['smtp', 'sms'])->name('notification-gateways.update');
+                Route::post('notification-gateways/{channel}/test', [NotificationGatewayController::class, 'test'])
+                    ->whereIn('channel', ['smtp', 'sms'])->middleware('throttle:10,1')->name('notification-gateways.test');
                 // The PH Type master (2026-11-05).
                 Route::resource('ph-types', PhTypeController::class)
                     ->parameters(['ph-types' => 'phType'])
