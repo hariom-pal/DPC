@@ -34,13 +34,18 @@ class DepartmentAdminMenuTest extends TestCase
             'data-menu="closed"',
         ], false);
 
-        // One DPC menu in the header (2026-11-13): the six items are its entries, not buttons.
+        // One DPC menu in the header (2026-11-13): the DPC items are its entries; Post
+        // Mapping stays outside it, its own button ahead of the menu.
         $page = (string) $this->get(route('dashboard'))->getContent();
         $menu = substr($page, (int) strpos($page, 'id="dpc-menu"'));
         $menu = substr($menu, 0, (int) strpos($menu, '</ul>'));
-        foreach (['post-mapping', 'create-pre-dpc', 'users', 'pre-dpc', 'running', 'closed'] as $item) {
+        foreach (['create-pre-dpc', 'users', 'pre-dpc', 'running', 'closed'] as $item) {
             $this->assertMatchesRegularExpression('/class="dropdown-item[^"]*" href="[^"]+" data-menu="'.$item.'"/', $menu);
         }
+        $this->assertStringNotContainsString('data-menu="post-mapping"', $menu);
+        $this->assertMatchesRegularExpression('/<a class="btn btn-sm btn-outline-light" href="[^"]+" data-menu="post-mapping"/', $page);
+        $this->get(route('department.posts.index'))->assertOk()
+            ->assertSee('class="btn btn-sm btn-light" href="'.e(route('department.posts.index')).'" data-menu="post-mapping"', false);
         $this->get(route('department.allotments.index', ['view' => 'closed']))->assertOk()
             ->assertSee('class="dropdown-item active" href="'.e(route('department.allotments.index', ['view' => 'closed'])).'" data-menu="closed"', false);
 

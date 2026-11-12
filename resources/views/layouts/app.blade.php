@@ -57,10 +57,11 @@
                             {{-- The Department Admin's menu, in the order the business set
                                  (2026-11-04): Post Mapping, Create New Pre-DPC, User
                                  Management, then the three lists — one DPC menu since
-                                 2026-11-13, so the header stays compact. --}}
+                                 2026-11-13, so the header stays compact. Post Mapping is
+                                 the department's own setup, not a DPC, so it stays its own
+                                 button ahead of the menu (2026-11-13). --}}
                             @php
                                 $dpcMenu = [
-                                    ['post-mapping', route('department.posts.index'), __('ui.layouts.admin.nav.department_posts'), request()->routeIs('department.posts.*')],
                                     ['create-pre-dpc', route('department.allotments.pre-dpc.create'), __('allotments.open'), request()->routeIs('department.allotments.pre-dpc.create')],
                                     ['users', route('department.users.index'), __('department.users.title'), request()->routeIs('department.users.*')],
                                     null,
@@ -69,6 +70,7 @@
                                     ['closed', route('department.allotments.index', ['view' => 'closed']), __('allotments.list.closed.title'), request()->routeIs('department.allotments.index') && request('view') === 'closed'],
                                 ];
                             @endphp
+                            <a class="btn btn-sm {{ request()->routeIs('department.posts.*') ? 'btn-light' : 'btn-outline-light' }}" href="{{ route('department.posts.index') }}" data-menu="post-mapping" @if (request()->routeIs('department.posts.*')) aria-current="page" @endif>{{ __('ui.layouts.admin.nav.department_posts') }}</a>
                             <div class="dropdown" id="dpc-menu">
                                 <button class="btn btn-sm btn-outline-light dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">{{ __('ui.layouts.app.dpc_menu') }}</button>
                                 <ul class="dropdown-menu dropdown-menu-end">
