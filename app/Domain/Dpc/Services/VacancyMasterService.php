@@ -1025,6 +1025,17 @@ class VacancyMasterService
             ->get();
     }
 
+    /**
+     * The retirement age of the post's mapping in force on 1 January of the Vacancy
+     * Year, or null when that mapping gives none.
+     */
+    public function retirementAgeFor(VacancyPosition $position): ?int
+    {
+        $age = $this->mappingFor($position)?->retirement_age;
+
+        return $age === null ? null : (int) $age;
+    }
+
     private function mappingFor(VacancyPosition $position): ?DepartmentPost
     {
         return $this->mappingInForce($this->chain($position->department_id, $position->post_name), $position->vacancy_year);
@@ -1146,17 +1157,14 @@ class VacancyMasterService
     }
 
     /**
-     * The date an officer retires at the post's retirement age (2026-11-04): the
-     * last day of the month in which that age is reached, and for a birthday on the
-     * 1st, the last day of the month before.
+     * The date an officer retires at the post's retirement age (business rule
+     * confirmed 2026-11-12): the last calendar day of the officer's birth month in
+     * the retirement year — the birth year plus the retirement age. A birthday on the
+     * 1st is no exception, and February ends on the 28th or, in a leap year, the 29th.
      */
     public static function retirementDate(Carbon $dateOfBirth, int $age): Carbon
     {
-        $reached = $dateOfBirth->copy()->startOfDay()->addYearsNoOverflow($age);
-
-        return $dateOfBirth->day === 1
-            ? $reached->subDay()
-            : $reached->endOfMonth()->startOfDay();
+        return Carbon::create($dateOfBirth->year + $age, $dateOfBirth->month, 1)->endOfMonth()->startOfDay();
     }
 
     /**
@@ -1171,9 +1179,10 @@ class VacancyMasterService
     /**
      * C: a retirement, or a promotion to a higher post, inside the Vacancy Year. A
      * promotion carries the higher post, its DPC, the undertaking of rule 1.2 and the
-     * order with its PDF. Where the post's mapping gives a retirement age, a
-     * retirement's date is calculated from the officer's date of birth and the date
-     * posted is ignored (2026-11-04).
+     * order with its PDF. A retirement's date is always calculated — from the
+     * officer's date of birth and the retirement age of the post's mapping in force on
+     * 1 January of the Vacancy Year — and a date posted is ignored (2026-11-12). Without
+     * a date of birth or a retirement age it is refused with the reason, never guessed.
      *
      * @param  array<string, mixed>  $data
      * @return array<string, mixed>
@@ -1186,10 +1195,18 @@ class VacancyMasterService
             throw new WorkflowException(__('vacancymaster.errors.reason_invalid'), 'reason');
         }
 
-        $retirementAge = $reason === VacancyReason::Retirement ? $this->mappingFor($position)?->retirement_age : null;
         $dateOfBirth = null;
 
-        if ($retirementAge !== null) {
+        if ($reason === VacancyReason::Retirement) {
+            $retirementAge = $this->retirementAgeFor($position);
+
+            if ($retirementAge === null) {
+                throw new WorkflowException(__('vacancymaster.errors.retirement_age_missing', [
+                    'post' => $position->post_name,
+                    'year' => $position->vacancy_year,
+                ]), 'reason');
+            }
+
             if (empty($data['date_of_birth'])) {
                 throw new WorkflowException(__('vacancymaster.errors.date_of_birth_required'), 'date_of_birth');
             }

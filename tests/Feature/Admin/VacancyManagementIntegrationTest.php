@@ -93,6 +93,7 @@ class VacancyManagementIntegrationTest extends TestCase
             'name' => $name,
             'class_level' => 'II',
             'effective_from' => '2020-01-01',
+            'retirement_age' => 60,
         ]);
         $post->status = MasterStatus::Active;
         $post->active_flag = 1;
@@ -156,6 +157,8 @@ class VacancyManagementIntegrationTest extends TestCase
             for ($i = 0; $i < $entry['count']; $i++) {
                 $service->addEntry($position->fresh(), [
                     'kind' => 'anticipated', 'reason' => $entry['reason'], 'officer_name' => 'Retiring Officer '.(++$n),
+                    // At 60, born in June: retires on 30 June of the year.
+                    'date_of_birth' => ($year - 60).'-06-15',
                     'effective_date' => $year.'-06-30',
                 ], null, $this->admin);
             }

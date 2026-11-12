@@ -70,7 +70,7 @@ class WorkingListDeputationImportTest extends TestCase
         $service->addEntry($position->fresh(), ['kind' => 'deputation_in', 'officer_name' => 'Shri D. Visitor', 'deputation_from' => '2025-01-01', 'deputation_to' => '2026-09-30'], null, $this->ao);
         $service->addEntry($position->fresh(), ['kind' => 'deputation', 'officer_name' => 'E. Away', 'employee_number' => 'E-6', 'deputation_from' => '2024-07-01', 'promotion_made' => '0'], null, $this->ao);
         // C: E-5 retires in the year and is on the list as an ordinary row.
-        $service->addEntry($position->fresh(), ['kind' => 'anticipated', 'reason' => 'retirement', 'officer_name' => 'Officer 5', 'employee_number' => 'E-5', 'effective_date' => '2026-09-30'], null, $this->ao);
+        $service->addEntry($position->fresh(), ['kind' => 'anticipated', 'reason' => 'retirement', 'officer_name' => 'Officer 5', 'employee_number' => 'E-5', 'date_of_birth' => '1966-09-15'], null, $this->ao);
         $service->finalize($position->fresh(), $this->ao);
 
         // B2 and C are our officers, so Vacancy Management already put them in the
@@ -83,6 +83,7 @@ class WorkingListDeputationImportTest extends TestCase
         $post = new DepartmentPost(['department_id' => $department->id, 'name' => $name, 'class_level' => $class, 'effective_from' => '2020-01-01']);
         $post->status = MasterStatus::Active;
         $post->active_flag = 1;
+        $post->forceFill(['retirement_age' => 60]);
         $post->save();
 
         return $post;
@@ -100,6 +101,8 @@ class WorkingListDeputationImportTest extends TestCase
 
         foreach (range(1, 7) as $sn) {
             $rows[$sn] = match ($sn) {
+                // E-5 is in C, retiring at 60 on 30-09-2026.
+                5 => ['5', 'E-5', 'Officer 5', '15-09-1966', '9425012345', 'N', 'N'],
                 6 => ['6', 'E-6', 'Smt. E. Away', '01-01-1975', '', 'N', 'Y'],
                 7 => ['7', 'OD-77', 'D. Visitor', '01-01-1976', '', 'Y', 'N'],
                 default => [(string) $sn, 'E-'.$sn, 'Officer '.$sn, '01-01-1975', '9425012345', 'N', 'N'],
@@ -200,27 +203,66 @@ class WorkingListDeputationImportTest extends TestCase
 
     /**
      * The retirement is checked from the uploaded list (2026-11-12): by the row's date
-     * of birth and the post's retirement age, an officer retiring inside the Vacancy
-     * Year must be in C, and a C retirement must fall on the date the row gives.
+     * of birth and the post's Retirement Age (60, from the mapping in force on 1
+     * January), the retirement falls on the last day of the birth month — an officer
+     * retiring inside the Vacancy Year must be in C, and a C retirement must fall on
+     * the date the row gives.
      */
     public function test_the_list_dates_of_birth_are_checked_against_the_retirements_in_c(): void
     {
-        $position = app(ProposalVacancyPosition::class)->for($this->proposal);
-        DB::table('vacancy_positions')->where('id', $position->id)->update(['breakdown' => json_encode(['retirement_age' => 62] + $position->breakdown)]);
+        $this->assertSame(60, app(ProposalVacancyPosition::class)->for($this->proposal)?->breakdown['retirement_age']);
 
-        // E-5 is C, retiring 30-09-2026: born 15-09-1964 agrees; E-3 born 01-03-1964
-        // retires on 28-02-2026, inside the year, and is not in C.
-        $batch = $this->preview($this->rows([
-            3 => ['3', 'E-3', 'Officer 3', '01-03-1964', '', 'N', 'N'],
-            5 => ['5', 'E-5', 'Officer 5', '15-09-1964', '', 'N', 'N'],
-        ]));
-        $this->assertStringContainsString('retires on 28-02-2026, inside the Vacancy Year, but Vacancy Management does not record the retirement in C', implode(' ', $this->errorsOf($batch, 4)));
+        // E-3, born 01-03-1966, retires on 31-03-2026 — the 1st is no exception —
+        // inside the year, and is not in C. E-5 agrees with C.
+        $batch = $this->preview($this->rows([3 => ['3', 'E-3', 'Officer 3', '01-03-1966', '', 'N', 'N']]));
+        $this->assertStringContainsString('retires on 31-03-2026, inside the Vacancy Year, but Vacancy Management does not record the retirement in C', implode(' ', $this->errorsOf($batch, 4)));
         $this->assertSame([], $this->errorsOf($batch, 6));
         $this->assertSame(1, (int) $batch->rejected_count);
 
-        // E-5 born 01-01-1975 does not retire in 2026 at all.
+        // E-5 born in August, not September: C records 30-09-2026, the row gives 31-08-2026.
+        $batch = $this->preview($this->rows([5 => ['5', 'E-5', 'Officer 5', '20-08-1966', '', 'N', 'N']]));
+        $this->assertStringContainsString('retires on 31-08-2026, but Vacancy Management C records the retirement of Officer 5 on 30-09-2026', implode(' ', $this->errorsOf($batch, 6)));
+
+        // Born 1965 retires in 2025, before the year: not a C matter.
+        $batch = $this->preview($this->rows([3 => ['3', 'E-3', 'Officer 3', '10-11-1965', '', 'N', 'N']]));
+        $this->assertSame([], $this->errorsOf($batch, 4));
+    }
+
+    /**
+     * Each officer's Retirement Date is shown on the reconciliation, calculated and
+     * read-only (2026-11-12).
+     */
+    public function test_the_reconciliation_shows_each_officers_calculated_retirement_date(): void
+    {
         $batch = $this->preview($this->rows());
-        $this->assertStringContainsString('retires on 31-12-2036, but Vacancy Management C records the retirement of Officer 5 on 30-09-2026', implode(' ', $this->errorsOf($batch, 6)));
+        $this->actingAs($this->ao)->post(route('dpc-proposals.imports.commit', [$this->proposal, $batch]))->assertSessionHasNoErrors();
+
+        $reconciliation = app(ProposalVacancyPosition::class)->reconcile($this->proposal->refresh());
+        $this->assertTrue($reconciliation['matches']);
+        $retires = collect($reconciliation['officers'])->mapWithKeys(fn (array $o): array => [$o['employee_number'] => $o['retires']?->toDateString()])->all();
+        $this->assertSame('2026-09-30', $retires['E-5']);
+        $this->assertSame('2035-01-31', $retires['E-1']);
+
+        $this->actingAs($this->ao)->get(route('dpc-proposals.working-officers', $this->proposal))->assertOk()
+            ->assertSee(__('vacancymaster.proposal.working_list.retirement.date'))
+            ->assertSee('data-officer-retires="2026-09-30"', false)
+            ->assertSee('30-09-2026')
+            ->assertDontSee('name="date_of_retirement"', false)
+            ->assertDontSee('id="working-list-no-retirement-age"', false);
+    }
+
+    /** A record without a Retirement Age says so rather than guessing (2026-11-12). */
+    public function test_a_record_without_a_retirement_age_says_so(): void
+    {
+        $position = app(ProposalVacancyPosition::class)->for($this->proposal);
+        DB::table('vacancy_positions')->where('id', $position->id)->update(['breakdown' => json_encode(['retirement_age' => null] + $position->breakdown)]);
+
+        $batch = $this->preview($this->rows());
+        $this->actingAs($this->ao)->post(route('dpc-proposals.imports.commit', [$this->proposal, $batch]))->assertSessionHasNoErrors();
+
+        $this->actingAs($this->ao)->get(route('dpc-proposals.working-officers', $this->proposal))->assertOk()
+            ->assertSee('id="working-list-no-retirement-age"', false)
+            ->assertSee(__('vacancymaster.proposal.working_list.retirement.not_calculated'));
     }
 
     public function test_invalid_rows_are_refused_with_the_reason(): void

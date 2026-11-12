@@ -52,6 +52,41 @@
                 </ul>
             </div>
         @endif
+        {{-- Each officer's Retirement Date, calculated from the list's date of birth and
+             the record's Retirement Age (2026-11-12): shown, never entered. --}}
+        @if (($reconciliation['retirement_age'] ?? null) === null)
+            <div class="alert alert-warning py-2 small mb-2" id="working-list-no-retirement-age">{{ __('vacancymaster.proposal.working_list.retirement.no_age') }}</div>
+        @endif
+        @if (($reconciliation['officers'] ?? []) !== [])
+            <details class="mb-2" id="working-list-officers">
+                <summary class="small text-primary">{{ __('vacancymaster.proposal.working_list.retirement.officers', ['count' => count($reconciliation['officers'])]) }}</summary>
+                <div class="table-responsive mt-2">
+                    <table class="table table-sm align-middle small mb-0">
+                        <thead class="table-light"><tr>
+                            <th>{{ __('ui.sn') }}</th>
+                            <th>{{ __('dpc.employee_details.employee_id') }}</th>
+                            <th>{{ __('ui.name') }}</th>
+                            <th>{{ __('ui.dob') }}</th>
+                            <th>{{ __('vacancymaster.proposal.working_list.retirement.date') }}</th>
+                        </tr></thead>
+                        <tbody>
+                            @foreach ($reconciliation['officers'] as $officer)
+                                <tr data-officer-retires="{{ $officer['retires']?->toDateString() ?? '' }}">
+                                    <td>{{ $officer['sn'] }}</td>
+                                    <td>{{ $officer['employee_number'] ?? '—' }}</td>
+                                    <td>{{ $officer['name'] }}</td>
+                                    <td>{{ $officer['dob']?->format('d-m-Y') ?? '—' }}</td>
+                                    <td>{{ $officer['retires']?->format('d-m-Y') ?? __('vacancymaster.proposal.working_list.retirement.not_calculated') }}</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+                @if (($reconciliation['retirement_age'] ?? null) !== null)
+                    <div class="form-text">{{ __('vacancymaster.proposal.working_list.retirement.help', ['age' => $reconciliation['retirement_age']]) }}</div>
+                @endif
+            </details>
+        @endif
         @if ($reconciliation['matches'])
             <div class="alert alert-success py-2 small mb-0">{{ __('vacancymaster.proposal.working_list.matches') }}</div>
         @else

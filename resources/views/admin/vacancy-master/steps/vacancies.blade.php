@@ -258,27 +258,38 @@
                                 @if ($mine($kind)) @include('admin.vacancy-master.partials.field-error', ['field' => 'promotion_made']) @endif
                             </div>
                         @else
-                            @if ($retirementAge !== null)
-                                {{-- A retirement is calculated from the date of birth at the
-                                     post's retirement age (2026-11-04). --}}
-                                <div class="col-md-3" data-retirement-only>
-                                    <label class="form-label small" for="c_dob">{{ __('vacancymaster.entries.date_of_birth') }}</label>
-                                    <input type="date" max="{{ now()->subDay()->toDateString() }}" class="form-control form-control-sm @if ($err($kind, 'date_of_birth')) is-invalid @endif" id="c_dob" name="date_of_birth" value="{{ $val($kind, 'date_of_birth') }}" data-employee-field="date_of_birth">
-                                    @if ($mine($kind)) @include('admin.vacancy-master.partials.field-error', ['field' => 'date_of_birth']) @endif
-                                </div>
-                            @endif
-                            <div class="col-md-3">
-                                {{-- The date named by the reason (UAT, 2026-11-02). --}}
-                                <label class="form-label small" for="c_date">
-                                    <span data-reason-label="retirement">{{ __('vacancymaster.pm.date_retirement') }}</span>
-                                    <span data-reason-label="higher_post_promotion" hidden>{{ __('vacancymaster.pm.date_higher_dpc') }}</span>
-                                </label>
-                                <input type="date" min="{{ $yearFrom }}" max="{{ $yearTo }}" class="form-control form-control-sm @if ($err($kind, 'effective_date')) is-invalid @endif" id="c_date" name="effective_date" value="{{ $val($kind, 'effective_date') }}" required
-                                       @if ($retirementAge !== null) data-retirement-age="{{ $retirementAge }}" @endif>
+                            {{-- A retirement's date is calculated, never entered (2026-11-12): the last
+                                 day of the birth month in the year the officer reaches the retirement age
+                                 of the post's mapping in force on 1 January. The server calculates it
+                                 again and ignores anything posted. --}}
+                            @php
+                                $cDob = $val($kind, 'date_of_birth');
+                                $cRetires = $retirementAge !== null && is_string($cDob) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $cDob)
+                                    ? \App\Domain\Dpc\Services\VacancyMasterService::retirementDate(\Illuminate\Support\Carbon::parse($cDob), (int) $retirementAge)->format('d-m-Y')
+                                    : '';
+                            @endphp
+                            <div class="col-md-3" data-retirement-only>
+                                <label class="form-label small" for="c_dob">{{ __('vacancymaster.entries.date_of_birth') }}</label>
+                                <input type="date" max="{{ now()->subDay()->toDateString() }}" class="form-control form-control-sm @if ($err($kind, 'date_of_birth')) is-invalid @endif" id="c_dob" name="date_of_birth" value="{{ $cDob }}" data-employee-field="date_of_birth" @disabled($retirementAge === null)>
+                                @if ($mine($kind)) @include('admin.vacancy-master.partials.field-error', ['field' => 'date_of_birth']) @endif
+                            </div>
+                            <div class="col-md-3" data-retirement-only>
+                                <label class="form-label small" for="c_retirement_date">{{ __('vacancymaster.pm.retirement_date_calculated') }}</label>
+                                <input type="text" class="form-control form-control-sm bg-body-secondary" id="c_retirement_date" value="{{ $cRetires }}" readonly
+                                       placeholder="{{ __('vacancymaster.pm.retirement_date_pending') }}" aria-describedby="c_retirement_help"
+                                       data-retirement-date @if ($retirementAge !== null) data-retirement-age="{{ $retirementAge }}" @endif>
+                            </div>
+                            <div class="col-md-3" data-promotion-only>
+                                <label class="form-label small" for="c_date">{{ __('vacancymaster.pm.date_higher_dpc') }}</label>
+                                <input type="date" min="{{ $yearFrom }}" max="{{ $yearTo }}" class="form-control form-control-sm @if ($err($kind, 'effective_date')) is-invalid @endif" id="c_date" name="effective_date" value="{{ $val($kind, 'effective_date') }}">
                                 @if ($mine($kind)) @include('admin.vacancy-master.partials.field-error', ['field' => 'effective_date']) @endif
                             </div>
-                            <div class="col-12 small text-muted">
-                                <span data-reason-label="retirement">{{ $retirementAge !== null ? __('vacancymaster.pm.retirement_calculated', ['age' => $retirementAge]) : __('vacancymaster.pm.retirement_manual') }}</span>
+                            <div class="col-12 small" data-retirement-only id="c_retirement_help">
+                                @if ($retirementAge !== null)
+                                    <span class="text-muted">{{ __('vacancymaster.pm.retirement_calculated', ['age' => $retirementAge]) }}</span>
+                                @else
+                                    <div class="alert alert-warning py-2 mb-0" id="c_retirement_age_missing">{{ __('vacancymaster.pm.retirement_manual') }}</div>
+                                @endif
                             </div>
                             <div class="col-12 small text-muted">{{ __('vacancymaster.pm.order_optional_retirement') }}</div>
                             <div class="col-md-3">

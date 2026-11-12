@@ -230,7 +230,11 @@ trait CompletesDpcProposals
                     'out_on_deputation' => $kind === 'deputation',
                     'employee_number' => $entry['employee_number'] ?? null,
                     'name' => (string) ($entry['officer_name'] ?? 'Officer '.(count($rows) + 1)),
-                    'dob' => '1975-01-01',
+                    // A C retirement's officer is born in the month the record says they
+                    // retire, at the record's Retirement Age (2026-11-12).
+                    'dob' => $kind === 'anticipated' && ($entry['reason'] ?? null) === 'retirement' && isset($frozen['retirement_age'])
+                        ? sprintf('%04d-%02d-15', (int) substr((string) $entry['effective_date'], 0, 4) - (int) $frozen['retirement_age'], (int) substr((string) $entry['effective_date'], 5, 2))
+                        : '1975-01-01',
                     'reservation_category_id' => $categoryId,
                 ];
             }

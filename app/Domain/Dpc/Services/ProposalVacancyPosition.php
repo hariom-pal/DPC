@@ -238,7 +238,9 @@ final class ProposalVacancyPosition
      *     matches: bool,
      *     figures: list<string>,
      *     unmatched: list<array{sn: int, name: string|null, message: string}>,
-     *     missing: list<array{kind: string, name: string}>
+     *     missing: list<array{kind: string, name: string}>,
+     *     retirement_age: int|null,
+     *     officers: list<array{sn: int, employee_number: string|null, name: string, dob: Carbon|null, retires: Carbon|null}>
      * }
      */
     public function reconcile(DpcProposal $proposal): array
@@ -258,6 +260,7 @@ final class ProposalVacancyPosition
         ] : null;
 
         $officers = $proposal->workingOfficers()->orderBy('sn')->get();
+        $retirementAge = isset($frozen['retirement_age']) ? (int) $frozen['retirement_age'] : null;
         $uploaded = null;
         $unmatched = [];
         $missing = [];
@@ -311,6 +314,17 @@ final class ProposalVacancyPosition
             'figures' => $figures,
             'unmatched' => $unmatched,
             'missing' => $missing,
+            // Each officer's retirement date, calculated from the list's date of birth
+            // (2026-11-12) — shown, never entered; null where it cannot be calculated.
+            'retirement_age' => $retirementAge,
+            'officers' => $officers->filter(fn (DpcWorkingOfficer $officer): bool => $officer->isWorking())->values()
+                ->map(fn (DpcWorkingOfficer $officer): array => [
+                    'sn' => $officer->sn,
+                    'employee_number' => $officer->employee_number,
+                    'name' => $officer->name,
+                    'dob' => $officer->dob,
+                    'retires' => $retirementAge !== null && $officer->dob !== null ? VacancyMasterService::retirementDate($officer->dob, $retirementAge) : null,
+                ])->all(),
         ];
     }
 
