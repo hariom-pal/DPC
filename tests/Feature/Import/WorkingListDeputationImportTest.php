@@ -19,13 +19,14 @@ use Database\Seeders\LookupMasterSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Tests\Concerns\RaisesDpcProposals;
 use Tests\TestCase;
 
 /**
  * The simple Working Officers List (2026-11-01) of a Vacancy Management proposal:
- * SN, EMPLOYEE NO, NAME, DOB, MOBILE, EMAIL (2026-11-02), HERE ON DEPUTATION, OUT ON DEPUTATION —
+ * SN, EMPLOYEE ID, NAME, DOB, MOBILE, EMAIL (2026-11-02), HERE ON DEPUTATION, OUT ON DEPUTATION —
  * each officer identified by employee number, and every deputation row matched with
  * its officer in the finalized record's B1 or B2.
  *
@@ -38,7 +39,7 @@ class WorkingListDeputationImportTest extends TestCase
     use RaisesDpcProposals;
     use RefreshDatabase;
 
-    private const HEADER = ['SN', 'EMPLOYEE NO', 'NAME', 'DOB', 'MOBILE', 'EMAIL', 'HERE ON DEPUTATION', 'OUT ON DEPUTATION'];
+    private const HEADER = ['SN', 'EMPLOYEE ID', 'NAME', 'DOB', 'MOBILE', 'EMAIL', 'HERE ON DEPUTATION', 'OUT ON DEPUTATION'];
 
     private User $ao;
 
@@ -147,7 +148,7 @@ class WorkingListDeputationImportTest extends TestCase
     {
         $csv = $this->actingAs($this->ao)->get(route('dpc-import-templates.download-for', [$this->proposal, 'currently_working_us']))->assertOk()->getContent();
 
-        $this->assertStringContainsString('SN,"EMPLOYEE NO",NAME,DOB,MOBILE,EMAIL,"HERE ON DEPUTATION","OUT ON DEPUTATION"', (string) $csv);
+        $this->assertStringContainsString('SN,"EMPLOYEE ID",NAME,DOB,MOBILE,EMAIL,"HERE ON DEPUTATION","OUT ON DEPUTATION"', (string) $csv);
     }
 
     public function test_a_list_that_agrees_with_b1_and_b2_imports_and_reconciles(): void
@@ -175,6 +176,53 @@ class WorkingListDeputationImportTest extends TestCase
         $this->assertTrue($reconciliation['matches'], json_encode($reconciliation));
     }
 
+    public function test_the_preview_shows_each_rejected_row_with_its_reason(): void
+    {
+        // The rejected rows were hidden behind an unclosed link (2026-11-12).
+        $batch = $this->preview($this->rows([4 => ['4', 'E-4', 'Officer 4', '01-01-1975', '', 'Y', 'Y']]));
+
+        $this->actingAs($this->ao)->get(route('dpc-proposals.imports.show', [$this->proposal, $batch]))
+            ->assertOk()
+            ->assertSee('<a href="'.route('dpc-proposals.working-officers', $this->proposal).'" class="btn btn-outline-secondary btn-sm">', false)
+            ->assertSeeInOrder(['Rejected Rows (1)', 'Officer 4', 'cannot be both HERE ON DEPUTATION and OUT ON DEPUTATION']);
+    }
+
+    public function test_a_file_without_the_templates_headings_names_this_templates_columns(): void
+    {
+        $path = tempnam(sys_get_temp_dir(), 'wl').'.csv';
+        file_put_contents($path, "FOO,BAR\n1,2\n");
+
+        $this->actingAs($this->ao)->from(route('dpc-proposals.working-officers', $this->proposal))->post(route('dpc-proposals.imports.store', $this->proposal), [
+            'template' => 'currently_working_us',
+            'file' => new UploadedFile($path, 'working.csv', 'text/csv', null, true),
+        ])->assertSessionHasErrors(['file' => "The file was not imported: its first row has none of the template's column headings. Expected: ".implode(', ', self::HEADER).'.']);
+    }
+
+    /**
+     * The retirement is checked from the uploaded list (2026-11-12): by the row's date
+     * of birth and the post's retirement age, an officer retiring inside the Vacancy
+     * Year must be in C, and a C retirement must fall on the date the row gives.
+     */
+    public function test_the_list_dates_of_birth_are_checked_against_the_retirements_in_c(): void
+    {
+        $position = app(ProposalVacancyPosition::class)->for($this->proposal);
+        DB::table('vacancy_positions')->where('id', $position->id)->update(['breakdown' => json_encode(['retirement_age' => 62] + $position->breakdown)]);
+
+        // E-5 is C, retiring 30-09-2026: born 15-09-1964 agrees; E-3 born 01-03-1964
+        // retires on 28-02-2026, inside the year, and is not in C.
+        $batch = $this->preview($this->rows([
+            3 => ['3', 'E-3', 'Officer 3', '01-03-1964', '', 'N', 'N'],
+            5 => ['5', 'E-5', 'Officer 5', '15-09-1964', '', 'N', 'N'],
+        ]));
+        $this->assertStringContainsString('retires on 28-02-2026, inside the Vacancy Year, but Vacancy Management does not record the retirement in C', implode(' ', $this->errorsOf($batch, 4)));
+        $this->assertSame([], $this->errorsOf($batch, 6));
+        $this->assertSame(1, (int) $batch->rejected_count);
+
+        // E-5 born 01-01-1975 does not retire in 2026 at all.
+        $batch = $this->preview($this->rows());
+        $this->assertStringContainsString('retires on 31-12-2036, but Vacancy Management C records the retirement of Officer 5 on 30-09-2026', implode(' ', $this->errorsOf($batch, 6)));
+    }
+
     public function test_invalid_rows_are_refused_with_the_reason(): void
     {
         $batch = $this->preview($this->rows([
@@ -186,13 +234,54 @@ class WorkingListDeputationImportTest extends TestCase
             6 => ['6', 'E-6', 'Smt. E. Away', '01-01-1975', '', 'not-an-email', 'N', 'Y'], // bad email
         ]));
 
-        $this->assertStringContainsString('EMPLOYEE NO is required', implode(' ', $this->errorsOf($batch, 2)));
+        $this->assertStringContainsString('EMPLOYEE ID is required', implode(' ', $this->errorsOf($batch, 2)));
         $this->assertNotSame([], $this->errorsOf($batch, 3), 'An impossible date.');
         $this->assertStringContainsString('HERE ON DEPUTATION: expected Y or N.', implode(' ', $this->errorsOf($batch, 4)));
         $this->assertStringContainsString('cannot be both HERE ON DEPUTATION and OUT ON DEPUTATION', implode(' ', $this->errorsOf($batch, 5)));
         $this->assertNotSame([], $this->errorsOf($batch, 6), 'A name is required.');
         $this->assertArrayHasKey('email', (array) $batch->rows()->where('row_number', 7)->firstOrFail()->errors);
         $this->assertSame(6, (int) $batch->rejected_count);
+    }
+
+    /**
+     * The column is EMPLOYEE ID since 2026-11-08; a list still headed EMPLOYEE NO —
+     * the old template — is read the same.
+     */
+    /**
+     * An Employee ID may be letters, digits or both (2026-11-12): a numeric one is
+     * kept as typed, leading zeros and all.
+     */
+    public function test_an_employee_id_may_be_numeric_alphabetic_or_alphanumeric(): void
+    {
+        $batch = $this->preview($this->rows([
+            1 => ['1', '0012345', 'Officer 1', '01-01-1975', '', 'N', 'N'],
+            2 => ['2', 'ABCDE', 'Officer 2', '01-01-1975', '', 'N', 'N'],
+            3 => ['3', 'PHE2026A7', 'Officer 3', '01-01-1975', '', 'N', 'N'],
+            4 => ['4', '9876543210', 'Officer 4', '01-01-1975', '', 'N', 'N'],
+        ]));
+        $this->assertSame(0, (int) $batch->rejected_count, json_encode($batch->rows()->pluck('errors')->filter()->values()));
+        $this->actingAs($this->ao)->post(route('dpc-proposals.imports.commit', [$this->proposal, $batch]))->assertSessionHasNoErrors();
+
+        $this->assertSame(['0012345', 'ABCDE', 'PHE2026A7', '9876543210'], $this->proposal->workingOfficers()->orderBy('sn')->limit(4)->pluck('employee_number')->all());
+    }
+
+    public function test_the_old_employee_no_header_is_still_read(): void
+    {
+        $path = tempnam(sys_get_temp_dir(), 'wl').'.csv';
+        $handle = fopen($path, 'w');
+        fputcsv($handle, array_replace(self::HEADER, [1 => 'EMPLOYEE NO']));
+        foreach ($this->rows() as $row) {
+            array_splice($row, 5, 0, ['']);
+            fputcsv($handle, $row);
+        }
+        fclose($handle);
+
+        $this->actingAs($this->ao)->post(route('dpc-proposals.imports.store', $this->proposal), [
+            'template' => 'currently_working_us',
+            'file' => new UploadedFile($path, 'working.csv', 'text/csv', null, true),
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame(0, (int) ImportBatch::query()->latest('id')->firstOrFail()->rejected_count);
     }
 
     public function test_a_duplicate_employee_number_is_refused_on_every_row_that_carries_it(): void

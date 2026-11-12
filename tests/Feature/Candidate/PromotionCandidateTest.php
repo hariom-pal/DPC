@@ -81,7 +81,7 @@ class PromotionCandidateTest extends TestCase
             'department_id' => $this->department->id,
             'name' => $name,
             'class_level' => 'I',
-            'promotion_duration_years' => $duration,
+            'promotion_duration_years' => $duration, 'retirement_age' => 62,
             'status' => MasterStatus::Active->value,
         ]);
     }
@@ -92,7 +92,7 @@ class PromotionCandidateTest extends TestCase
             'department_id' => $department->id,
             'name' => $name,
             'class_level' => 'I',
-            'promotion_duration_years' => $duration,
+            'promotion_duration_years' => $duration, 'retirement_age' => 62,
             'status' => MasterStatus::Active->value,
         ]);
     }
@@ -170,7 +170,7 @@ class PromotionCandidateTest extends TestCase
 
         $from = DepartmentPost::query()->create([
             'department_id' => $forest->id, 'name' => 'Ranger', 'class_level' => 'II',
-            'promotion_duration_years' => 5, 'status' => MasterStatus::Active->value,
+            'promotion_duration_years' => 5, 'retirement_age' => 62, 'status' => MasterStatus::Active->value,
         ]);
         $to = DepartmentPost::query()->create([
             'department_id' => $forest->id, 'name' => 'Deputy Conservator', 'class_level' => 'I',

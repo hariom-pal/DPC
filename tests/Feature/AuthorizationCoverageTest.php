@@ -72,6 +72,10 @@ class AuthorizationCoverageTest extends TestCase
         'sitting.candidate' => 'As above, and the row must belong to the proposal or it is a 404.',
         'sitting.call' => 'As above, and additionally refused outside the scheduled sitting window.',
         'sitting.conclude' => 'As above, and refused unless the candidate was called first.',
+        // The DPC's Chairman is a committee seat, not an office (2026-11-06).
+        'cgpsc.proceedings.sealed-covers' => 'Guarded by SealedCoverService::isDpcChairman() on this proceeding\'s proposal.',
+        'cgpsc.proceedings.sealed-covers.open' => 'As above, in the Form Request and again in the service.',
+        'cgpsc.proceedings.sealed-covers.document' => 'As above, and the opening must belong to the proceeding or it is a 404.',
 
         // Change register of 2026-08-26, item 9 as clarified.
         'acting-as' => 'Every authenticated account may change the capacity it is acting in, so a role '

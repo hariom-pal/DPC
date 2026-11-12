@@ -226,6 +226,9 @@ class ResetTransactionalDataCommand extends Command
         // The PH Type master (2026-11-05), cited by the officers recorded with it.
         'ph_types',
 
+        // The Administrator's SMS and e-mail wording (2026-11-12): configuration.
+        'message_templates',
+
         /*
          | The Government Orders behind a Department Post Mapping, and their PDFs
          | (change register of 2026-08-26, item 10). **Master data**, and the

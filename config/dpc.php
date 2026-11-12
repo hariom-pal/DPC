@@ -348,6 +348,12 @@ return [
     'earliest_dpc_year' => (int) env('DPC_EARLIEST_DPC_YEAR', 2019),
 
     /*
+     | The DPC Year is shown as the current year but may be typed as any year
+     | (2026-11-12): this bound only keeps it a sensible four-digit year.
+     */
+    'latest_dpc_year' => (int) env('DPC_LATEST_DPC_YEAR', 2100),
+
+    /*
     |--------------------------------------------------------------------------
     | Seniority List "as on" date (Coder Instructions, rule 1.6)
     |--------------------------------------------------------------------------

@@ -41,6 +41,13 @@
                 return false;
             }
 
+            // A year already justified is not asked again.
+            var except = element.getAttribute('data-except-years');
+
+            if (except && year !== null && except.split(',').indexOf(year.value) !== -1) {
+                return false;
+            }
+
             // A question is reachable only if the question it depends on is.
             var radio = form.querySelector('input[name="' + rule[0] + '"]');
             var parent = radio ? radio.closest('[data-show-when]') : null;

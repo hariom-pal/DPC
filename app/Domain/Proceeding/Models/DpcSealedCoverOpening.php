@@ -54,6 +54,9 @@ class DpcSealedCoverOpening extends Model
     /** Rejected before 31 December, but nobody is left on the waiting list. */
     public const REPLACEMENT_NONE_AVAILABLE = 'none_available';
 
+    /** The officer held no Main-list seat, so there is none to pass on (2026-11-06). */
+    public const REPLACEMENT_NO_SEAT = 'no_seat';
+
     /** Rejected after 31 December: no promotion against the seat through this DPC. */
     public const REPLACEMENT_NOT_AFTER_YEAR = 'not_after_year';
 

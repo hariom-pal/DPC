@@ -72,11 +72,20 @@ class SaveDpcProposalRequest extends FormRequest
     }
 
     /**
-     * Fresh is the only kind raised here (2026-11-05): a proposal posted without a
-     * DPC type is a Fresh DPC.
+     * A proposal keeps its own kind when edited — a Review or Circulation DPC's
+     * radio is disabled on the form and posts nothing (2026-11-06). A new one posted
+     * without a type is a Fresh DPC, the only kind raised here (2026-11-05).
      */
     protected function prepareForValidation(): void
     {
+        $existing = $this->route('dpcProposal');
+
+        if ($existing instanceof DpcProposal) {
+            $this->merge(['dpc_type_id' => $existing->dpc_type_id]);
+
+            return;
+        }
+
         if (blank($this->input('dpc_type_id'))) {
             $fresh = DpcType::query()->whereRaw('LOWER(code) = ?', ['fresh'])->value('id');
 
@@ -110,6 +119,12 @@ class SaveDpcProposalRequest extends FormRequest
         }
 
         $type = DpcType::query()->find($typeId);
+        $existing = $this->route('dpcProposal');
+
+        // An existing Review or Circulation DPC keeps its kind; only raising one here is refused.
+        if ($existing instanceof DpcProposal && (int) $existing->dpc_type_id === (int) $typeId) {
+            return;
+        }
 
         // Case-insensitive: a master code typed as `FRESH` names the same type.
         if ($type !== null && strtolower((string) $type->code) !== 'fresh') {

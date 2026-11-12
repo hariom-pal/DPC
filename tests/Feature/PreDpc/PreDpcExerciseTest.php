@@ -64,7 +64,7 @@ class PreDpcExerciseTest extends TestCase
         // Every post carries a scale (MoM of 2026-10-29); a feeder's is the lower one.
         $this->feederScale = PayScale::query()->create(['code' => 'L10', 'label' => 'Level-10', 'minimum_pay' => 56100, 'status' => MasterStatus::Active->value]);
 
-        $this->fromPost = $this->departmentPost('Under Secretary', ['promotion_duration_years' => 5]);
+        $this->fromPost = $this->departmentPost('Under Secretary', ['promotion_duration_years' => 5, 'retirement_age' => 62]);
         $this->toPost = $this->departmentPost('Deputy Secretary', ['pay_scale_id' => $scale->id]);
     }
 
@@ -143,9 +143,16 @@ class PreDpcExerciseTest extends TestCase
         $this->assertSame(0, PreDpcProposal::query()->count());
     }
 
-    public function test_a_dpc_year_beyond_next_year_is_refused(): void
+    public function test_any_later_dpc_year_may_be_typed(): void
     {
+        // Shown as the current year, but free (2026-11-12): a later year is taken.
         $this->storePreDpc($this->ao, $this->payload(['dpc_year' => (int) now()->addYears(3)->format('Y')]))
+            ->assertSessionDoesntHaveErrors('dpc_year');
+    }
+
+    public function test_a_dpc_year_that_is_not_a_four_digit_year_is_refused(): void
+    {
+        $this->storePreDpc($this->ao, $this->payload(['dpc_year' => 20261]))
             ->assertSessionHasErrors('dpc_year');
     }
 
@@ -175,7 +182,7 @@ class PreDpcExerciseTest extends TestCase
     {
         $this->storePreDpc($this->ao, $this->payload());
 
-        $second = $this->departmentPost('Joint Secretary', ['promotion_duration_years' => 3]);
+        $second = $this->departmentPost('Joint Secretary', ['promotion_duration_years' => 3, 'retirement_age' => 62]);
         $this->storePreDpc($this->ao, $this->payload(['promotion_to_post_id' => $second->id]));
 
         $this->storePreDpc($this->ao, $this->payload(['dpc_year' => 2025]));
@@ -266,7 +273,7 @@ class PreDpcExerciseTest extends TestCase
     {
         $first = $this->approved();
 
-        $other = $this->departmentPost('Joint Secretary', ['promotion_duration_years' => 3, 'pay_scale_id' => $this->topScale->id]);
+        $other = $this->departmentPost('Joint Secretary', ['promotion_duration_years' => 3, 'retirement_age' => 62, 'pay_scale_id' => $this->topScale->id]);
         $second = $this->approved(['promotion_to_post_id' => $other->id]);
 
         $this->assertTrue($first->refresh()->isActive());
@@ -306,7 +313,7 @@ class PreDpcExerciseTest extends TestCase
      */
     public function test_sources_whose_shares_do_not_total_one_hundred_are_refused(): void
     {
-        $second = $this->departmentPost('Research Officer', ['promotion_duration_years' => 7]);
+        $second = $this->departmentPost('Research Officer', ['promotion_duration_years' => 7, 'retirement_age' => 62]);
 
         $this->storePreDpc($this->ao, $this->payload([
             'promotion_sources' => [
@@ -386,7 +393,7 @@ class PreDpcExerciseTest extends TestCase
         $second = $this->departmentPost('Research Officer', [
             'class_level' => 'II',
             'pay_scale_id' => $otherScale->id,
-            'promotion_duration_years' => 7,
+            'promotion_duration_years' => 7, 'retirement_age' => 62,
         ]);
 
         $this->storePreDpc($this->ao, $this->payload([
@@ -425,7 +432,7 @@ class PreDpcExerciseTest extends TestCase
      */
     public function test_two_feeders_into_one_post_are_one_order_not_two(): void
     {
-        $second = $this->departmentPost('Research Officer', ['promotion_duration_years' => 7]);
+        $second = $this->departmentPost('Research Officer', ['promotion_duration_years' => 7, 'retirement_age' => 62]);
 
         $order = $this->approved([
             'promotion_sources' => [

@@ -32,8 +32,8 @@ class RecordingSmsSender implements SmsSender
         return array_values(array_map(static fn (array $row): string => $row['mobile'], self::$sent));
     }
 
-    public function send(string $mobile, string $message): void
+    public function send(string $mobile, string $message, ?string $templateId = null): void
     {
-        self::$sent[] = ['mobile' => $mobile, 'message' => $message];
+        self::$sent[] = ['mobile' => $mobile, 'message' => $message, 'template_id' => $templateId];
     }
 }

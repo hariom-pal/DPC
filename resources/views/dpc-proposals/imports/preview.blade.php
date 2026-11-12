@@ -118,7 +118,7 @@
                     </form>
                 @endif
 
-                <a href="{{ route($batch->template->sectionRoute(), $proposal) }}" {{ __('ui.back_to_section_link') }}
+                <a href="{{ route($batch->template->sectionRoute(), $proposal) }}" class="btn btn-outline-secondary btn-sm">{{ __('ui.back_to_section_link') }}</a>
             </div>
 
             @if ($batch->rejected_count > 0)

@@ -6,6 +6,7 @@ namespace App\Domain\Authentication\Listeners;
 
 use App\Domain\Authentication\Events\DepartmentSeatChanged;
 use App\Domain\Notification\Services\NotificationCentre;
+use App\Domain\Notification\Templates\MessageTemplates;
 use App\Integrations\Contracts\SmsSender;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Support\Facades\Log;
@@ -26,6 +27,7 @@ class SendSeatChangeNotification implements ShouldQueue
     public function __construct(
         private readonly SmsSender $sms,
         private readonly NotificationCentre $centre,
+        private readonly MessageTemplates $templates,
     ) {}
 
     public function handle(DepartmentSeatChanged $event): void
@@ -36,14 +38,18 @@ class SendSeatChangeNotification implements ShouldQueue
         $subject = (string) __("notifications.registration.{$key}.subject", $replace);
         $message = (string) __("notifications.registration.{$key}.message", $replace);
 
+        // The Administrator's wording (2026-11-12); the in-app notice keeps the built-in one.
+        $sms = $this->templates->sms("seat.{$key}", $replace);
+        $email = $this->templates->email("seat.{$key}", $replace);
+
         try {
-            if ($user->mobile !== null) {
-                $this->sms->send($user->mobile, $message);
+            if ($sms !== null && $user->mobile !== null) {
+                $this->sms->send($user->mobile, $sms['body'], $sms['dlt_template_id']);
             }
 
-            if ($user->email !== null) {
-                Mail::raw($message, function ($mail) use ($user, $subject): void {
-                    $mail->to($user->email)->subject($subject);
+            if ($email !== null && $user->email !== null) {
+                Mail::raw($email['body'], function ($mail) use ($user, $email): void {
+                    $mail->to($user->email)->subject($email['subject']);
                 });
             }
 

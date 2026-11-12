@@ -71,7 +71,7 @@ class DepartmentPostMappingTest extends TestCase
             'name' => 'Joint Director',
             'class_level' => 'I',
             'pay_scale_id' => $this->level14->id,
-            'promotion_duration_years' => 5,
+            'promotion_duration_years' => 5, 'retirement_age' => 62,
 
             // Item 10 (2026-08-26): the orders are a repeater, so even one arrives
             // as a row rather than as two fields on the mapping.
@@ -404,7 +404,7 @@ class DepartmentPostMappingTest extends TestCase
         $this->actingAs($this->admin)->post(route('admin.department-posts.supersede', $post), [
             'class_level' => 'I',
             'pay_scale_id' => $this->level13->id,
-            'promotion_duration_years' => 6,
+            'promotion_duration_years' => 6, 'retirement_age' => 62,
             'government_order_number' => 'F-45/2026',
             'government_order_date' => '2026-08-01',
             'effective_from' => '2026-09-01',
@@ -459,7 +459,7 @@ class DepartmentPostMappingTest extends TestCase
 
         // A superseded mapping is history: not editable.
         $this->post(route('admin.department-posts.supersede', $draft), [
-            'class_level' => 'I', 'pay_scale_id' => $this->level13->id, 'promotion_duration_years' => 6,
+            'class_level' => 'I', 'pay_scale_id' => $this->level13->id, 'promotion_duration_years' => 6, 'retirement_age' => 62,
             'government_order_number' => 'F-45/2026', 'government_order_date' => '2026-08-01', 'effective_from' => '2026-09-01',
         ])->assertSessionHasNoErrors();
         $this->assertTrue($draft->fresh()->isSuperseded());
@@ -473,7 +473,7 @@ class DepartmentPostMappingTest extends TestCase
         app(DepartmentPostMappingService::class)->supersede($post, [
             'class_level' => 'I',
             'pay_scale_id' => $this->level13->id,
-            'promotion_duration_years' => 6,
+            'promotion_duration_years' => 6, 'retirement_age' => 62,
             'government_order_number' => 'F-45/2026',
             'government_order_date' => '2026-08-01',
             'effective_from' => '2026-09-01',
@@ -535,7 +535,7 @@ class DepartmentPostMappingTest extends TestCase
         $post = $this->mapping();
 
         $this->actingAs($this->admin)->post(route('admin.department-posts.supersede', $post), [
-            'class_level' => 'I',
+            'class_level' => 'I', 'retirement_age' => 62,
             'government_order_number' => 'F-45/2025',
             'government_order_date' => '2025-12-01',
             'effective_from' => '2025-12-01',
@@ -762,7 +762,7 @@ class DepartmentPostMappingTest extends TestCase
         $post = $this->mapping();
         [$ao, , $da] = $this->officers();
 
-        $this->actingAs($ao)->put(route('post-mapping.update', $post), $this->payload(['promotion_duration_years' => 9, 'orders' => []]))
+        $this->actingAs($ao)->put(route('post-mapping.update', $post), $this->payload(['promotion_duration_years' => 9, 'retirement_age' => 62, 'orders' => []]))
             ->assertRedirect(route('post-mapping.index'));
         $change = DepartmentPostChange::query()->sole();
         $this->assertSame(5, $post->fresh()->promotion_duration_years);
@@ -791,7 +791,7 @@ class DepartmentPostMappingTest extends TestCase
         $this->assertSame('2025-04-01', $post->fresh()->effective_from?->toDateString());
 
         $this->actingAs($ao)->post(route('post-mapping.supersede', $post), [
-            'class_level' => 'I', 'pay_scale_id' => $this->level13->id, 'promotion_duration_years' => 4,
+            'class_level' => 'I', 'pay_scale_id' => $this->level13->id, 'promotion_duration_years' => 4, 'retirement_age' => 62,
             'government_order_number' => 'F-20/2026', 'government_order_date' => '2026-06-01', 'effective_from' => '2026-07-01',
         ])->assertSessionHasNoErrors();
         $this->assertTrue($post->fresh()->isInForce(), 'still in force until approved');

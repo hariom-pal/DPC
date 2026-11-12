@@ -26,7 +26,7 @@ return [
         'back' => '← वापस',
         'declared_on' => ':date को घोषित।',
         'declared_promoted' => ':date को घोषित। पदोन्नति आदेश आपके विभाग द्वारा जारी किया जाता है।',
-        'employee_number' => 'कर्मचारी क्रमांक',
+        'employee_number' => 'कर्मचारी आईडी',
         'final_result' => 'अंतिम परिणाम',
         'if_any_of_this_is_wrong_it_is_your_department_s' => 'यदि इसमें कुछ त्रुटिपूर्ण है, तो सुधार आपके विभाग के अभिलेख में आवश्यक है — आयोग विभाग द्वारा प्रस्तुत सामग्री पर ही कार्रवाई करता है।',
         'my_details_as_my_department_filed_them' => 'मेरा विवरण, जैसा मेरे विभाग ने प्रस्तुत किया',

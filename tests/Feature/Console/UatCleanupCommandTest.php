@@ -71,7 +71,7 @@ class UatCleanupCommandTest extends TestCase
             'department_id' => $this->department->id,
             'name' => $name,
             'class_level' => 'I',
-            'promotion_duration_years' => $duration,
+            'promotion_duration_years' => $duration, 'retirement_age' => 62,
             'effective_from' => '2026-01-01',
             'status' => MasterStatus::Active->value,
         ]);

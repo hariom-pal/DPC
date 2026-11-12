@@ -6,9 +6,11 @@ namespace App\Domain\PromotionOrder\Services;
 
 use App\Domain\Authentication\Models\User;
 use App\Domain\Dpc\Models\DpcProposal;
+use App\Domain\Eligibility\Enums\ListType;
 use App\Domain\Eligibility\Enums\RemarkCode;
 use App\Domain\Eligibility\Models\DpcCalculationResult;
 use App\Domain\Proceeding\Enums\DpcProceedingStatus;
+use App\Domain\Proceeding\Enums\HoldReason;
 use App\Domain\Proceeding\Models\DpcProceeding;
 use App\Domain\Proceeding\Models\DpcProceedingHold;
 use App\Domain\Proceeding\Models\DpcSealedCoverOpening;
@@ -76,10 +78,11 @@ final class PromotionOrderService
     }
 
     /**
-     * Whether an officer's promotion is still held (2026-11-05): an unreleased hold,
-     * or a CIR result whose holds have not all been released by a signed
-     * circulation. The seat stays reserved meanwhile; a CIR with no hold to release
-     * (a missing Loyalty Certificate) stays held.
+     * Whether an officer's promotion is still held (2026-11-05): an unreleased hold;
+     * or a CIR result any of whose grounds is not answered by a released hold of its
+     * kind (2026-11-06). A ground no hold exists for — a missing Loyalty Certificate
+     * — keeps it held. The seat stays reserved meanwhile. Read off the stored
+     * verdict, so a CIR officer whose finding is also in a sealed cover is caught.
      */
     public function isHeld(DpcProceeding $proceeding, DpcCalculationResult $result): bool
     {
@@ -89,7 +92,30 @@ final class PromotionOrderService
             return true;
         }
 
-        return $result->status() === RemarkCode::Circulation && $holds->isEmpty();
+        if (($result->verdict['remark'] ?? null) !== RemarkCode::Circulation->value) {
+            return false;
+        }
+
+        $released = $holds->map(fn (DpcProceedingHold $hold): string => $hold->reason_code->value)->all();
+        $grounds = (array) ($result->verdict['gate_citations'] ?? []);
+
+        if ($grounds === []) {
+            return true;
+        }
+
+        foreach ($grounds as $citation) {
+            $needs = match (true) {
+                str_starts_with((string) $citation, 'CR ') => HoldReason::CrYearsMissing->value,
+                str_starts_with((string) $citation, 'Property Return ') => HoldReason::PropertyMissing->value,
+                default => null,
+            };
+
+            if ($needs === null || ! in_array($needs, $released, true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function current(DpcProposal $proposal): ?DpcPromotionOrder
@@ -205,6 +231,16 @@ final class PromotionOrderService
             throw new WorkflowException((string) __('dpc.promotion_orders.no_approved_result'));
         }
 
+        // Only a seat that existed is filled (2026-11-06): a cleared officer the merit
+        // placed on the Main List, and whose promotion no CIR still holds.
+        if ($opening->isCleared() && ($result->list_type !== ListType::Main || ! $result->is_eligible)) {
+            throw new WorkflowException((string) __('dpc.sealed_cover.errors.no_seat'));
+        }
+
+        if ($this->isHeld($proceeding, $result)) {
+            throw new WorkflowException((string) __('dpc.sealed_cover.errors.held'));
+        }
+
         // Never two promotions against one seat: the officer is on no other order.
         $alreadyOrdered = DpcPromotionOrder::query()->where('dpc_proposal_id', $opening->dpc_proposal_id)
             ->where('status', DpcPromotionOrder::STATUS_ISSUED)
@@ -219,6 +255,8 @@ final class PromotionOrderService
         $proposal = $opening->proposal;
 
         $order = DB::transaction(function () use ($opening, $proposal, $proceeding, $result, $actor, $orderNumber, $orderDate): DpcPromotionOrder {
+            // One issue at a time per opening: a second submit waits, then supersedes.
+            DpcSealedCoverOpening::query()->whereKey($opening->id)->lockForUpdate()->first();
             $previous = DpcPromotionOrder::query()->where('dpc_sealed_cover_opening_id', $opening->id)
                 ->where('status', DpcPromotionOrder::STATUS_ISSUED)->latest('id')->first();
             $version = (int) DpcPromotionOrder::query()->where('dpc_proposal_id', $proposal->id)->max('version') + 1;

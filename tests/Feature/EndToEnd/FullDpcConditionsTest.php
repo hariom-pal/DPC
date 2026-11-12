@@ -407,6 +407,9 @@ class FullDpcConditionsTest extends TestCase
         ]));
         $review = DpcProposal::query()->where('original_dpc_proposal_id', $c['proposal']->id)->sole();
         $this->assertSame('review', $review->dpcType?->code);
+        // Edited as the form posts it (its type radio disabled): still a Review DPC.
+        $this->ok($this->actingAs($c['ao'])->put(route('dpc-proposals.update', $review), ['legal_stay' => '0']));
+        $this->assertSame('review', $review->fresh()->dpcType?->code);
 
         // Rule 1.1 is verified afresh on the review (2026-11-05): nothing carries over,
         // the original's record is shown for reference only, and it is not touched.
@@ -480,6 +483,59 @@ class FullDpcConditionsTest extends TestCase
         $this->assertStringContainsString('the date the sealed cover was opened', strip_tags((string) view('documents.promotion-order', ['order' => $order, 'proposal' => $c['proposal'], 'proceeding' => $proceeding, 'previous' => null, 'issuer' => $c['ah']])->render()));
         $this->assertSame('issued', $regularOrder->fresh()->status, 'The DPC\'s own order stands.');
         $this->assertSame('SCOVER', $this->results($proceeding)[2]->status()->value, 'The approved result is not rewritten.');
+    }
+
+    /**
+     * 9b. The DPC's Chairman may be a committee member with no Commission role and
+     * no allotment (2026-11-06): they reach the sealed covers from their sitting,
+     * open one, and read its evidence; the Member who is not the Chairman cannot.
+     */
+    public function test_9b_a_committee_member_presiding_opens_the_sealed_cover(): void
+    {
+        $c = $this->dpc(['sealed' => [2]]);
+        $proceeding = $this->conclude($c);
+
+        $seats = DpcCommitteeMember::query()->where('dpc_proposal_id', $c['proposal']->id);
+        $presiding = (clone $seats)->whereNotNull('user_id')->where('user_id', '!=', $c['member']->id)->whereNull('is_dpc_chairman')
+            ->get()->first(fn (DpcCommitteeMember $seat): bool => $seat->user !== null && $seat->user->getRoleNames()->isEmpty());
+        $this->assertNotNull($presiding, 'A committee member without a Commission role.');
+        (clone $seats)->update(['is_dpc_chairman' => null]);
+        $presiding->forceFill(['is_dpc_chairman' => 1])->save();
+        $chair = $presiding->user;
+        // Past the first sign-in (its password already changed).
+        $chair->forceFill(['must_change_password' => false, 'email_verified_at' => now()])->save();
+
+        $this->actingAs($chair)->get(route('sitting.show', $c['proposal']))->assertOk()->assertSee('id="sealed-covers-link"', false);
+        $this->ok($this->actingAs($chair)->post(route('cgpsc.proceedings.sealed-covers.open', $proceeding), [
+            'sn' => 2, 'outcome' => 'cleared', 'opened_on' => now()->toDateString(),
+            'authority_name' => 'Secretary, PHE Department', 'authority_order_number' => 'PHE/VIG/2', 'authority_order_date' => now()->toDateString(),
+            'document' => $this->pdf('vig-order-2.pdf'),
+        ]));
+        $opening = DpcSealedCoverOpening::query()->sole();
+        $this->actingAs($chair)->get(route('cgpsc.proceedings.sealed-covers.document', [$proceeding, $opening]))->assertOk();
+
+        // The Member who no longer presides cannot open or read it.
+        $this->actingAs($c['member'])->get(route('cgpsc.proceedings.sealed-covers', $proceeding))->assertForbidden();
+        $this->actingAs($c['member'])->get(route('cgpsc.proceedings.sealed-covers.document', [$proceeding, $opening]))->assertForbidden();
+    }
+
+    /**
+     * 9c. A sealed cover on an officer the merit did not place on the Main List
+     * (2026-11-06): cleared, no order follows; rejected, no seat is passed on.
+     */
+    public function test_9c_a_sealed_officer_without_a_seat_is_neither_promoted_nor_replaced(): void
+    {
+        $grades = self::GRADES;
+        $c = $this->dpc(['grades' => $grades, 'sealed' => [9, 5]]); // 9 and 5 are NE on merit
+        $proceeding = $this->conclude($c);
+        $this->assertNotSame('main', $this->results($proceeding)[9]->list_type->value);
+
+        $this->ok($this->openCover($c, $proceeding, 9, 'cleared', '2026-11-02'));
+        $this->followUp($c, DpcSealedCoverOpening::query()->where('sn', 9)->sole())->assertSessionHasErrors('order');
+
+        $this->ok($this->openCover($c, $proceeding, 5, 'rejected', '2026-11-02'));
+        $this->assertSame(['no_seat', null], [DpcSealedCoverOpening::query()->where('sn', 5)->value('replacement_status'), DpcSealedCoverOpening::query()->where('sn', 5)->value('replacement_sn')]);
+        $this->assertSame(0, DpcPromotionOrder::query()->where('kind', DpcPromotionOrder::KIND_SEALED_COVER)->count());
     }
 
     /**
@@ -693,7 +749,7 @@ class FullDpcConditionsTest extends TestCase
                 $this->ok($this->actingAs($aoReady)->post(route('post-mapping.store'), [
                     'department_id' => $department->id, 'designation_id' => Designation::query()->where('name', $name)->value('id'),
                     'class_level' => $class, 'pay_scale_id' => PayScale::query()->where('code', $scale)->value('id'),
-                    'promotion_duration_years' => $duration, 'status' => 'active', 'effective_from' => '2026-01-01',
+                    'promotion_duration_years' => $duration, 'retirement_age' => 62, 'status' => 'active', 'effective_from' => '2026-01-01',
                 ]));
             }
             foreach (DepartmentPostChange::query()->pending()->orderBy('id')->get() as $change) {
@@ -741,7 +797,7 @@ class FullDpcConditionsTest extends TestCase
             if ($o['entries']) {
                 $this->ok($this->actingAs($ao)->post(route('vacancy-records.entries.store', $params), ['kind' => 'deputation_in', 'officer_name' => 'Shri Dinesh Kumar Patel', 'employee_number' => 'WRD2001', 'deputation_from' => '2024-07-01', 'deputation_to' => '2026-06-30', 'deputation_only_post' => '0']));
                 $this->ok($this->actingAs($ao)->post(route('vacancy-records.entries.store', $params), ['kind' => 'deputation', 'officer_name' => 'Smt. Meena Baghel', 'employee_number' => 'EMP1005', 'deputation_from' => '2024-03-01', 'promotion_made' => '0']));
-                $this->ok($this->actingAs($ao)->post(route('vacancy-records.entries.store', $params), ['kind' => 'anticipated', 'officer_name' => 'Shri Rajendra Prasad Sahu', 'employee_number' => 'EMP1007', 'reason' => 'retirement', 'effective_date' => '2026-08-31']));
+                $this->ok($this->actingAs($ao)->post(route('vacancy-records.entries.store', $params), ['kind' => 'anticipated', 'officer_name' => 'Shri Rajendra Prasad Sahu', 'employee_number' => 'EMP1007', 'reason' => 'retirement', 'date_of_birth' => '1964-08-15', 'effective_date' => '2026-08-31']));
                 $se = DepartmentPost::query()->where('department_id', $department->id)->where('name', 'Superintending Engineer')->value('id');
                 $this->ok($this->actingAs($ao)->post(route('vacancy-records.entries.store', $params), [
                     'kind' => 'anticipated', 'officer_name' => 'Shri Harish Kumar Netam', 'employee_number' => 'EMP1008', 'reason' => 'higher_post_promotion', 'effective_date' => '2026-05-01',
@@ -782,7 +838,7 @@ class FullDpcConditionsTest extends TestCase
             // both matched by Employee ID, which every row of the record carries (2026-11-02).
             $template = $this->actingAs($ao)->get(route('dpc-import-templates.download-for', [$proposal, 'currently_working_us']))->assertOk()->getContent();
             $lines = array_values(array_filter(explode("\n", str_replace("\xEF\xBB\xBF", '', (string) $template)), fn (string $line): bool => trim($line) !== ''));
-            $this->assertSame('SN,"EMPLOYEE NO",NAME,DOB,MOBILE,EMAIL,"HERE ON DEPUTATION","OUT ON DEPUTATION"', trim($lines[0]));
+            $this->assertSame('SN,"EMPLOYEE ID",NAME,DOB,MOBILE,EMAIL,"HERE ON DEPUTATION","OUT ON DEPUTATION"', trim($lines[0]));
             $working = $lines[0]."\n".implode("\n", $o['working_rows'] ?? array_slice(array_map('trim', file(base_path('docs/new-dpc-guide/samples/working_officers_sample.csv'))), 1))."\n";
             foreach ([['currently_working_us', 'working.csv', [], $working], ['final_seniority_list_us', 'seniority_list_10_officers.csv', ['seniority_list_as_on' => '2025-04-01'], file_get_contents(base_path('docs/new-dpc-guide/samples/seniority_list_sample.csv'))]] as [$template, $name, $extra, $contents]) {
                 $copy = tempnam(sys_get_temp_dir(), 'e2e').'.csv';

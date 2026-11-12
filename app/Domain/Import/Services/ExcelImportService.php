@@ -98,15 +98,25 @@ class ExcelImportService
             'list_as_on' => $template === ImportTemplate::FinalSeniorityListUs ? $listAsOn?->toDateString() : null,
         ]);
 
+        // The columns of the template this proposal downloads, named when a file has none of them.
+        $expected = $this->templates->headers($template, $proposal->dpc_year ?: $proposal->proposal_date->year, $proposal);
+
         try {
-            $parsed = $this->parse($template, (string) $path);
+            $parsed = $this->parse($template, (string) $path, $expected);
         } catch (Throwable $e) {
             $batch->forceFill([
                 'status' => ImportBatchStatus::Failed->value,
                 'total_rows' => 0,
             ])->save();
 
-            throw new WorkflowException('The file could not be read as a spreadsheet: '.$e->getMessage());
+            /*
+             | Shown on the upload screen as it stands (2026-11-12). Our own reasons
+             | are written for the officer; a reader library's message is not, so it
+             | is replaced by what to do about it.
+             */
+            throw new WorkflowException($e instanceof WorkflowException
+                ? 'The file was not imported: '.$e->getMessage()
+                : 'The file could not be read as a spreadsheet. Save it as .xlsx or .csv from the downloaded template and upload it again.');
         }
 
         if ($template === ImportTemplate::FinalSeniorityListUs) {
@@ -647,9 +657,9 @@ class ExcelImportService
             }
 
             if ($number($row) === '') {
-                $parsed[$i]['errors']['employee_number'][] = 'EMPLOYEE NO is required: it is how the officer is identified and matched.';
+                $parsed[$i]['errors']['employee_number'][] = 'EMPLOYEE ID is required: it is how the officer is identified and matched.';
             } elseif (($counts[$number($row)] ?? 0) > 1) {
-                $parsed[$i]['errors']['employee_number'][] = 'EMPLOYEE NO '.$row['payload']['employee_number'].' appears more than once in this file.';
+                $parsed[$i]['errors']['employee_number'][] = 'EMPLOYEE ID '.$row['payload']['employee_number'].' appears more than once in this file.';
             }
         }
 
@@ -665,6 +675,7 @@ class ExcelImportService
             'name' => isset($parsed[$i]['payload']['name']) ? (string) $parsed[$i]['payload']['name'] : null,
             'here' => ($parsed[$i]['payload']['source'] ?? null) === DpcWorkingOfficer::SOURCE_DEPUTATION,
             'out' => ($parsed[$i]['payload']['out_on_deputation'] ?? null) === true,
+            'dob' => isset($parsed[$i]['payload']['dob']) && is_string($parsed[$i]['payload']['dob']) ? $parsed[$i]['payload']['dob'] : null,
         ], $officerRows));
 
         foreach ($match['rows'] as $position => $message) {
@@ -739,20 +750,21 @@ class ExcelImportService
      * shape. Returns parse-time errors per row rather than throwing, so one
      * bad cell rejects one row instead of the whole file.
      *
+     * @param  list<string>  $expectedHeaders
      * @return list<array{row_number: int, payload: array<string, mixed>, errors: array<string, list<string>>}>
      */
-    private function parse(ImportTemplate $template, string $storedPath): array
+    private function parse(ImportTemplate $template, string $storedPath, array $expectedHeaders = []): array
     {
         $reader = new RawSheetImport;
         Excel::import($reader, $storedPath, config('dpc.imports.disk'));
 
         $sheet = $reader->rows;
         if ($sheet === []) {
-            throw new WorkflowException('The file is empty.');
+            throw new WorkflowException('the file is empty.');
         }
 
         $headerRow = array_shift($sheet);
-        $map = $this->buildHeaderMap($template, $headerRow);
+        $map = $this->buildHeaderMap($template, $headerRow, $expectedHeaders);
 
         $categories = ReservationCategory::query()->pluck('id', 'code');
         $maxRows = (int) config('dpc.imports.max_rows');
@@ -775,7 +787,7 @@ class ExcelImportService
         }
 
         if ($parsed === []) {
-            throw new WorkflowException('The file has a header row but no data rows.');
+            throw new WorkflowException('it has the column headings but no officer rows.');
         }
 
         return $parsed;
@@ -783,9 +795,10 @@ class ExcelImportService
 
     /**
      * @param  array<int, mixed>  $headerRow
+     * @param  list<string>  $expectedHeaders
      * @return array{fields: array<int, string>, years: array<int, array{type: string, year: int}>}
      */
-    private function buildHeaderMap(ImportTemplate $template, array $headerRow): array
+    private function buildHeaderMap(ImportTemplate $template, array $headerRow, array $expectedHeaders = []): array
     {
         $columnMap = $template->columnMap();
         $fields = [];
@@ -813,7 +826,7 @@ class ExcelImportService
         }
 
         if ($fields === []) {
-            throw new WorkflowException('No recognisable column headers were found. Expected: '.implode(', ', $template->expectedHeaders()).'.');
+            throw new WorkflowException('its first row has none of the template\'s column headings. Expected: '.implode(', ', $expectedHeaders !== [] ? $expectedHeaders : $template->expectedHeaders()).'.');
         }
 
         return ['fields' => $fields, 'years' => $years];
@@ -940,6 +953,21 @@ class ExcelImportService
              | spreadsheet mangles worst — a number stored numerically loses nothing
              | here, and the validator then judges the digits it actually has.
              */
+            /*
+             | An Employee ID may be letters, digits or both (2026-11-12). One of
+             | digits only arrives from a numeric cell as a number, and the row was
+             | refused as "must be a string"; it is the ID as text either way.
+             */
+            if ($field === 'employee_number') {
+                $id = is_float($value) && floor($value) === $value ? (string) (int) $value : trim((string) $value);
+
+                if ($id !== '') {
+                    $payload['employee_number'] = $id;
+                }
+
+                continue;
+            }
+
             if ($field === 'mobile') {
                 $mobile = trim((string) $value);
 

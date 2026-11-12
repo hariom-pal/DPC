@@ -63,7 +63,7 @@
 
                         <div>
                             @if ($step < count($steps))
-                                <a href="{{ route('dpc-proposals.review', [$proposal, $step + 1]) }}" {{ __('dpc.review.next_step', ['label' => $steps[$step]['label']]) }}
+                                <a href="{{ route('dpc-proposals.review', [$proposal, $step + 1]) }}" class="btn btn-primary btn-sm">{{ __('dpc.review.next_step', ['label' => $steps[$step]['label']]) }}</a>
                             @endif
                         </div>
                     </div>

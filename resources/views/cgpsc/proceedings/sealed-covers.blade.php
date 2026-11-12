@@ -29,7 +29,7 @@
                             <dd class="col-sm-8" data-replacement-status="{{ $opening->replacement_status }}">{{ __('dpc.sealed_cover.replacement.'.$opening->replacement_status, ['name' => $opening->replacement_name]) }}</dd>
                         @endif
                         <dt class="col-sm-4">{{ __('dpc.sealed_cover.document') }}</dt>
-                        <dd class="col-sm-8"><a href="{{ route('dpc-proposals.sealed-covers.document', [$proposal, $opening]) }}">{{ $opening->original_name }}</a></dd>
+                        <dd class="col-sm-8"><a href="{{ route('cgpsc.proceedings.sealed-covers.document', [$proceeding, $opening]) }}">{{ $opening->original_name }}</a></dd>
                     </dl>
                 @else
                     <form method="POST" enctype="multipart/form-data" action="{{ route('cgpsc.proceedings.sealed-covers.open', $proceeding) }}" class="row g-2">
@@ -77,5 +77,6 @@
         <div class="alert alert-info">{{ __('dpc.sealed_cover.none') }}</div>
     @endforelse
 
-    <a href="{{ route('cgpsc.proceedings.show', $proceeding) }}" class="btn btn-outline-secondary">{{ __('ui.back') }}</a>
+    {{-- A committee member presiding has no Commission screens; the sitting is theirs. --}}
+    <a href="{{ auth()->user()?->hasAnyRole([\App\Enums\Role::Chairman->value, \App\Enums\Role::Member->value]) ? route('cgpsc.proceedings.show', $proceeding) : route('sitting.show', $proposal) }}" class="btn btn-outline-secondary">{{ __('ui.back') }}</a>
 @endsection

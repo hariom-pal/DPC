@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Proceeding\Listeners;
 
 use App\Domain\Notification\Services\NotificationRecipientResolver;
+use App\Domain\Notification\Templates\MessageTemplates;
 use App\Domain\Proceeding\Events\ProceedingDocumentsPublished;
 use App\Enums\Role;
 use App\Integrations\Contracts\SmsSender;
@@ -32,6 +33,7 @@ class SendDocumentPublicationNotification implements ShouldQueue
     public function __construct(
         private readonly SmsSender $sms,
         private readonly NotificationRecipientResolver $recipients,
+        private readonly MessageTemplates $templates,
     ) {}
 
     public function handle(ProceedingDocumentsPublished $event): void
@@ -40,8 +42,10 @@ class SendDocumentPublicationNotification implements ShouldQueue
             return;
         }
 
-        $message = 'ODPC: the result of DPC '.($event->dpcCode ?? $event->proceedingUuid)
-            .' has been approved by CGPSC and the proceedings and promotion list are now available on the portal.';
+        // The Administrator's wording (2026-11-12).
+        $values = ['dpc' => $event->dpcCode ?? $event->proceedingUuid];
+        $sms = $this->templates->sms('result.published', $values);
+        $mailText = $this->templates->email('result.published', $values);
 
         // **TD-20, closed 2026-08-19 under the final-phase Freeze Exception.**
         // This query was one of three copies of "who should be told". Two of them
@@ -57,14 +61,14 @@ class SendDocumentPublicationNotification implements ShouldQueue
 
         foreach ($recipients as $recipient) {
             try {
-                if ($recipient->mobile !== null) {
-                    $this->sms->send($recipient->mobile, $message);
+                if ($sms !== null && $recipient->mobile !== null) {
+                    $this->sms->send($recipient->mobile, $sms['body'], $sms['dlt_template_id']);
                 }
 
-                if ($recipient->email !== null) {
+                if ($mailText !== null && $recipient->email !== null) {
                     $email = $recipient->email;
-                    Mail::raw($message, function ($mail) use ($email): void {
-                        $mail->to($email)->subject('ODPC Portal — DPC Result Available');
+                    Mail::raw($mailText['body'], function ($mail) use ($email, $mailText): void {
+                        $mail->to($email)->subject($mailText['subject']);
                     });
                 }
             } catch (Throwable $e) {

@@ -12,10 +12,11 @@ use Illuminate\Support\Facades\Log;
  */
 class LogSmsSender implements SmsSender
 {
-    public function send(string $mobile, string $message): void
+    public function send(string $mobile, string $message, ?string $templateId = null): void
     {
         Log::info('SMS dispatched', [
             'sender_id' => config('dpc.sms.sender_id'),
+            'dlt_template_id' => $templateId,
             'to' => $mobile,
             'message' => $message,
         ]);

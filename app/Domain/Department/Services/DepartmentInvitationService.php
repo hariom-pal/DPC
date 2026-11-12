@@ -14,6 +14,7 @@ use App\Domain\Department\Models\DepartmentInvitation;
 use App\Domain\Identity\Models\IdentityCorrection;
 use App\Domain\Identity\Models\IdentityVerification;
 use App\Domain\Identity\Services\IdentityVerificationService;
+use App\Domain\Notification\Templates\MessageTemplates;
 use App\Domain\Shared\Services\ActivityTimelineService;
 use App\Domain\UserManagement\Models\UserDepartmentAssignment;
 use App\Domain\UserManagement\Services\DepartmentAssignmentService;
@@ -344,15 +345,16 @@ class DepartmentInvitationService
 
     private function send(DepartmentInvitation $invitation, #[SensitiveParameter] string $link): bool
     {
-        $message = (string) __('invitations.mail.body', [
+        // The Administrator's wording (2026-11-12); the invitation cannot be switched off.
+        $email = (array) app(MessageTemplates::class)->email('department.invitation', [
             'department' => $invitation->department->name,
             'link' => $link,
             'hours' => $this->ttlHours(),
         ]);
 
         try {
-            Mail::raw($message, function ($mail) use ($invitation): void {
-                $mail->to($invitation->email)->subject((string) __('invitations.mail.subject'));
+            Mail::raw((string) $email['body'], function ($mail) use ($invitation, $email): void {
+                $mail->to($invitation->email)->subject((string) $email['subject']);
             });
         } catch (Throwable $e) {
             $invitation->forceFill(['delivery_error' => mb_substr($e::class, 0, 500)])->save();
@@ -372,9 +374,15 @@ class DepartmentInvitationService
 
     private function confirm(User $user, Department $department): void
     {
+        $email = app(MessageTemplates::class)->email('department.registered', ['department' => $department->name, 'url' => route('login')]);
+
+        if ($email === null) {
+            return;
+        }
+
         try {
-            Mail::raw((string) __('invitations.mail.registered_body', ['department' => $department->name, 'url' => route('login')]), function ($mail) use ($user): void {
-                $mail->to((string) $user->email)->subject((string) __('invitations.mail.registered_subject'));
+            Mail::raw($email['body'], function ($mail) use ($user, $email): void {
+                $mail->to((string) $user->email)->subject($email['subject']);
             });
         } catch (Throwable $e) {
             Log::warning('Department Admin registration confirmation could not be sent.', ['user' => $user->id, 'error' => $e::class]);

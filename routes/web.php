@@ -18,6 +18,7 @@ use App\Http\Controllers\Admin\DpcDataPurgeController;
 use App\Http\Controllers\Admin\DpcTypeController;
 use App\Http\Controllers\Admin\IntegrationStatusController;
 use App\Http\Controllers\Admin\MasterDataController;
+use App\Http\Controllers\Admin\MessageTemplateController;
 use App\Http\Controllers\Admin\PayScaleController;
 use App\Http\Controllers\Admin\PhTypeController;
 use App\Http\Controllers\Admin\PortalNoticeController;
@@ -285,6 +286,18 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
          |
          | `{dpcProposal}` and `{row}` bind by UUID like every other aggregate.
          */
+        /*
+         | Sealed covers, opened by the DPC's own Chairman (2026-11-05, BD-48).
+         |
+         | Outside the `/cgpsc` group for the sitting's reason: the DPC Chairman is a
+         | seat on this DPC's committee, not an office — a committee member may hold
+         | no Commission role and no allotment. Every action asks
+         | `SealedCoverService::isDpcChairman()`.
+         */
+        Route::get('/cgpsc/proceedings/{proceeding}/sealed-covers', [SealedCoverController::class, 'index'])->name('cgpsc.proceedings.sealed-covers');
+        Route::post('/cgpsc/proceedings/{proceeding}/sealed-covers', [SealedCoverController::class, 'open'])->name('cgpsc.proceedings.sealed-covers.open');
+        Route::get('/cgpsc/proceedings/{proceeding}/sealed-covers/{opening}/document', [SealedCoverController::class, 'document'])->name('cgpsc.proceedings.sealed-covers.document');
+
         Route::prefix('sitting')->name('sitting.')->group(function (): void {
             Route::get('/', [CommitteeSittingController::class, 'index'])->name('index');
             Route::get('/{dpcProposal}', [CommitteeSittingController::class, 'show'])->name('show');
@@ -723,9 +736,6 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
                 Route::post('/proceedings/{proceeding}/holds/detect', [ProceedingHoldController::class, 'detect'])->name('proceedings.holds.detect');
                 Route::post('/proceedings/{proceeding}/holds', [ProceedingHoldController::class, 'store'])->name('proceedings.holds.store');
                 Route::delete('/proceedings/{proceeding}/holds/{hold}', [ProceedingHoldController::class, 'destroy'])->name('proceedings.holds.destroy');
-                // Sealed covers, opened by the DPC's Chairman (2026-11-05, BD-48).
-                Route::get('/proceedings/{proceeding}/sealed-covers', [SealedCoverController::class, 'index'])->name('proceedings.sealed-covers');
-                Route::post('/proceedings/{proceeding}/sealed-covers', [SealedCoverController::class, 'open'])->name('proceedings.sealed-covers.open');
             });
 
         Route::middleware('role:'.Role::Chairman->value.'|'.Role::Member->value)
@@ -877,6 +887,11 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
                 Route::resource('record-reasons', RecordReasonController::class)
                     ->parameters(['record-reasons' => 'recordReason'])
                     ->except(['show']);
+                // SMS and e-mail templates (2026-11-12).
+                Route::get('message-templates', [MessageTemplateController::class, 'index'])->name('message-templates.index');
+                Route::get('message-templates/{key}/{channel}', [MessageTemplateController::class, 'edit'])->name('message-templates.edit');
+                Route::put('message-templates/{key}/{channel}', [MessageTemplateController::class, 'update'])->name('message-templates.update');
+                Route::delete('message-templates/{key}/{channel}', [MessageTemplateController::class, 'destroy'])->name('message-templates.destroy');
                 // The PH Type master (2026-11-05).
                 Route::resource('ph-types', PhTypeController::class)
                     ->parameters(['ph-types' => 'phType'])

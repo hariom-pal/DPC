@@ -85,7 +85,7 @@ class PreDpcWorkflowTest extends TestCase
             'name' => 'Under Secretary',
             'class_level' => 'I',
             'pay_scale_id' => $this->feederScale->id,
-            'promotion_duration_years' => 5,
+            'promotion_duration_years' => 5, 'retirement_age' => 62,
             'status' => MasterStatus::Active->value,
         ]);
 
@@ -330,7 +330,7 @@ class PreDpcWorkflowTest extends TestCase
             'name' => 'Section Officer',
             'class_level' => 'II',
             'pay_scale_id' => $this->feederScale->id,
-            'promotion_duration_years' => 5,
+            'promotion_duration_years' => 5, 'retirement_age' => 62,
             'status' => MasterStatus::Active->value,
         ]);
 
@@ -386,7 +386,7 @@ class PreDpcWorkflowTest extends TestCase
         $higher = PayScale::query()->create(['code' => 'L14', 'label' => 'Level-14', 'minimum_pay' => 144200, 'status' => MasterStatus::Active->value]);
         $feeder = DepartmentPost::query()->create([
             'department_id' => $this->department->id, 'name' => 'Section Officer', 'class_level' => 'II',
-            'pay_scale_id' => $higher->id, 'promotion_duration_years' => 5, 'status' => MasterStatus::Active->value,
+            'pay_scale_id' => $higher->id, 'promotion_duration_years' => 5, 'retirement_age' => 62, 'status' => MasterStatus::Active->value,
         ]);
 
         $this->storePreDpc($this->ao, $this->payload(['promotion_sources' => [[
@@ -551,7 +551,7 @@ class PreDpcWorkflowTest extends TestCase
         $proposal = $this->draft([
             'pay_scale_id' => $other->id,
             'class_level' => 'III',
-            'promotion_duration_years' => 99,
+            'promotion_duration_years' => 99, 'retirement_age' => 62,
         ]);
 
         $this->assertSame($this->toPost->pay_scale_id, $proposal->pay_scale_id);
@@ -629,7 +629,7 @@ class PreDpcWorkflowTest extends TestCase
             'name' => 'Research Officer',
             'class_level' => 'I',
             'pay_scale_id' => $this->feederScale->id,
-            'promotion_duration_years' => 7,
+            'promotion_duration_years' => 7, 'retirement_age' => 62,
             'status' => MasterStatus::Active->value,
         ]);
 

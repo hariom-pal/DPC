@@ -284,7 +284,7 @@ class PromotionCandidateProvisioner
 
         if ($employeeNumber === '' || ! $onThisList) {
             throw new RuntimeException(
-                'That employee number is not on this proposal\'s Seniority List. A password is reissued only for '
+                'That Employee ID is not on this proposal\'s Seniority List. A password is reissued only for '
                 .'an officer the proposal itself names.'
             );
         }
@@ -293,7 +293,7 @@ class PromotionCandidateProvisioner
 
         if ($candidate === null) {
             throw new RuntimeException(
-                'No account holds that employee number yet. Saving the Seniority List is what creates one.'
+                'No account holds that Employee ID yet. Saving the Seniority List is what creates one.'
             );
         }
 

@@ -12,8 +12,10 @@ use App\Domain\Proceeding\Enums\DpcProceedingStatus;
 use App\Domain\Proceeding\Enums\HoldReason;
 use App\Domain\Proceeding\Models\DpcProceedingHold;
 use App\Domain\Proceeding\Services\HoldService;
+use App\Domain\PromotionOrder\Services\PromotionOrderService;
 use App\Domain\Shared\Models\ActivityTimeline;
 use App\Domain\Shared\Workflow\WorkflowException;
+use Illuminate\Support\Facades\DB;
 use OwenIt\Auditing\Models\Audit;
 use RuntimeException;
 use Tests\Feature\Proceeding\Concerns\BuildsProceedings;
@@ -396,5 +398,35 @@ class ProceedingHoldTest extends TestCase
             ->assertOk()
             ->assertSee('CIR')
             ->assertSee('Promotions Held');
+    }
+
+    /**
+     * A CIR officer is promoted only once every ground of the CIR is answered by a
+     * released hold of its kind (2026-11-06): a missing Loyalty Certificate has no
+     * hold, so releasing the Property Return hold alone does not promote them.
+     */
+    public function test_a_cir_with_a_ground_no_hold_answers_stays_held(): void
+    {
+        $this->makePropertyMandatory($this->proposal, 2016);
+        $us8 = $this->officer(8, 'US8', $this->stCategoryId(),
+            [2013 => 'क+', 2014 => 'क+', 2015 => 'क+', 2016 => 'क+', 2017 => 'क+'],
+            propertyMissingYears: [2016],
+        );
+        $this->justifyMissing($us8, DpcEvaluationRecordGap::KIND_PROPERTY, 2016);
+        $this->calculate();
+
+        $result = $this->latestRun()->results()->where('sn', 8)->firstOrFail();
+        $hold = DpcProceedingHold::query()->where('sn', 8)->firstOrFail();
+        $orders = app(PromotionOrderService::class);
+        $this->assertTrue($orders->isHeld($this->proceeding->fresh(), $result));
+
+        DB::table('dpc_proceeding_holds')->where('id', $hold->id)->update(['released_at' => now()]);
+        $this->assertFalse($orders->isHeld($this->proceeding->fresh(), $result), 'Its one ground answered by the released hold.');
+
+        // The same officer with a Loyalty ground too stays held.
+        $verdict = $result->verdict;
+        $verdict['gate_citations'][] = 'Loyalty 2016 — Record Not Available';
+        $result->forceFill(['verdict' => $verdict]);
+        $this->assertTrue($orders->isHeld($this->proceeding->fresh(), $result));
     }
 }

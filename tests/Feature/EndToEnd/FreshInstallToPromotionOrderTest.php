@@ -252,7 +252,7 @@ class FreshInstallToPromotionOrderTest extends TestCase
                 $this->ok($this->actingAs($aoReady)->post(route('post-mapping.store'), [
                     'department_id' => $department->id, 'designation_id' => Designation::query()->where('name', $name)->value('id'),
                     'class_level' => $class, 'pay_scale_id' => PayScale::query()->where('code', $scale)->value('id'),
-                    'promotion_duration_years' => $duration, 'status' => 'active', 'effective_from' => '2026-01-01',
+                    'promotion_duration_years' => $duration, 'retirement_age' => 62, 'status' => 'active', 'effective_from' => '2026-01-01',
                 ]));
             }
             foreach (DepartmentPostChange::query()->pending()->orderBy('id')->get() as $change) {
@@ -344,7 +344,7 @@ class FreshInstallToPromotionOrderTest extends TestCase
             // both matched by Employee ID, which every row of the record carries (2026-11-02).
             $template = $this->actingAs($ao)->get(route('dpc-import-templates.download-for', [$proposal, 'currently_working_us']))->assertOk()->getContent();
             $lines = array_values(array_filter(explode("\n", str_replace("\xEF\xBB\xBF", '', (string) $template)), fn (string $line): bool => trim($line) !== ''));
-            $this->assertSame('SN,"EMPLOYEE NO",NAME,DOB,MOBILE,EMAIL,"HERE ON DEPUTATION","OUT ON DEPUTATION"', trim($lines[0]));
+            $this->assertSame('SN,"EMPLOYEE ID",NAME,DOB,MOBILE,EMAIL,"HERE ON DEPUTATION","OUT ON DEPUTATION"', trim($lines[0]));
             $working = $lines[0]."\n";
             for ($sn = 1; $sn <= 6; $sn++) {
                 $name = match ($sn) {

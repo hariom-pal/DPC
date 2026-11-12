@@ -9,6 +9,7 @@ use App\Domain\Cgpsc\ValueObjects\SittingRecipient;
 use App\Domain\Dpc\Models\DpcCommitteeMember;
 use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\Notification\Services\NotificationCentre;
+use App\Domain\Notification\Templates\MessageTemplates;
 use App\Domain\PromotionOrder\Events\PromotionOrderIssued;
 use App\Integrations\Contracts\SmsSender;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -34,6 +35,7 @@ class SendPromotionOrderLink implements ShouldQueue
     public function __construct(
         private readonly SmsSender $sms,
         private readonly NotificationCentre $centre,
+        private readonly MessageTemplates $templates,
     ) {}
 
     public function handle(PromotionOrderIssued $event): void
@@ -54,7 +56,9 @@ class SendPromotionOrderLink implements ShouldQueue
             $recipients = $this->officers($order->dpc_proposal_id, (array) $order->officers)
                 ->concat($this->committee($order->dpc_proposal_id));
 
-            $this->deliver($recipients, $message, $subject);
+            // The Administrator's wording (2026-11-12); the in-app notice keeps the built-in one.
+            $values = ['number' => $order->order_number, 'date' => $order->order_date->format('d-m-Y'), 'post' => $proposal->promotionToPost?->name, 'link' => $link];
+            $this->deliver($recipients, $this->templates->sms('promotion_order.issued', $values), $this->templates->email('promotion_order.issued', $values));
 
             $userIds = $recipients->map(static fn (SittingRecipient $recipient): ?int => $recipient->userId)->filter()->unique()->values()->all();
 
@@ -126,8 +130,10 @@ class SendPromotionOrderLink implements ShouldQueue
 
     /**
      * @param  Collection<int, SittingRecipient>  $recipients
+     * @param  array{body: string, dlt_template_id: string|null}|null  $sms  null: switched off
+     * @param  array{subject: string, body: string}|null  $mailText  null: switched off
      */
-    private function deliver(Collection $recipients, string $message, string $subject): void
+    private function deliver(Collection $recipients, ?array $sms, ?array $mailText): void
     {
         $sent = ['sms' => 0, 'email' => 0, 'unreachable' => 0];
 
@@ -139,15 +145,15 @@ class SendPromotionOrderLink implements ShouldQueue
             }
 
             try {
-                if ($recipient->mobile !== null) {
-                    $this->sms->send($recipient->mobile, $message);
+                if ($sms !== null && $recipient->mobile !== null) {
+                    $this->sms->send($recipient->mobile, $sms['body'], $sms['dlt_template_id']);
                     $sent['sms']++;
                 }
 
-                if ($recipient->email !== null) {
+                if ($mailText !== null && $recipient->email !== null) {
                     $address = $recipient->email;
-                    Mail::raw($message, function ($mail) use ($address, $subject): void {
-                        $mail->to($address)->subject($subject);
+                    Mail::raw($mailText['body'], function ($mail) use ($address, $mailText): void {
+                        $mail->to($address)->subject($mailText['subject']);
                     });
                     $sent['email']++;
                 }

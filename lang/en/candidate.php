@@ -29,7 +29,7 @@ return [
         'back' => '← Back',
         'declared_on' => 'Declared on :date.',
         'declared_promoted' => 'Declared on :date. The promotion order is issued by your department.',
-        'employee_number' => 'Employee Number',
+        'employee_number' => 'Employee ID',
         'final_result' => 'Final result',
         'if_any_of_this_is_wrong_it_is_your_department_s' => 'If any of this is wrong, it is your department\'s record that needs correcting — the
                             Commission acts on what the department filed.',

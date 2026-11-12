@@ -6,6 +6,8 @@ namespace App\Domain\Authentication\Listeners;
 
 use App\Domain\Authentication\Events\OtpRequested;
 use App\Domain\Authentication\Exceptions\OtpDeliveryFailed;
+use App\Domain\Notification\Templates\MessageTemplateCatalog;
+use App\Domain\Notification\Templates\MessageTemplates;
 use App\Enums\Feature;
 use App\Enums\OtpChannel;
 use App\Integrations\Contracts\SmsSender;
@@ -27,12 +29,16 @@ use Throwable;
  */
 class SendOtpNotification
 {
-    public function __construct(private readonly SmsSender $sms) {}
+    public function __construct(
+        private readonly SmsSender $sms,
+        private readonly MessageTemplates $templates,
+    ) {}
 
     public function handle(OtpRequested $event): void
     {
         $ttlMinutes = (int) ceil(((int) config('dpc.otp.ttl_seconds')) / 60);
-        $message = "Your ODPC verification code is {$event->code}. Valid for {$ttlMinutes} minutes. Do not share it.";
+        // The Administrator's wording (2026-11-12); the OTP cannot be switched off.
+        $values = ['code' => $event->code, 'minutes' => $ttlMinutes];
 
         if ($event->channel === OtpChannel::Sms) {
             if (Feature::SmsGateway->disabled()) {
@@ -41,14 +47,17 @@ class SendOtpNotification
                 return;
             }
 
-            $this->sms->send($event->identifier, $message);
+            $sms = $this->templates->sms('otp.code', $values);
+            $this->sms->send($event->identifier, (string) $sms['body'], $sms['dlt_template_id'] ?? null);
 
             return;
         }
 
+        $email = $this->templates->email('otp.code', $values) ?? MessageTemplateCatalog::defaultFor('otp.code');
+
         try {
-            Mail::raw($message, function ($mail) use ($event): void {
-                $mail->to($event->identifier)->subject('ODPC Portal — Verification Code');
+            Mail::raw(strtr($email['body'], ['{code}' => $event->code, '{minutes}' => (string) $ttlMinutes]), function ($mail) use ($event, $email): void {
+                $mail->to($event->identifier)->subject($email['subject']);
             });
         } catch (Throwable $e) {
             Log::error('OTP e-mail could not be sent.', ['purpose' => $event->purpose->value, 'error' => $e::class]);

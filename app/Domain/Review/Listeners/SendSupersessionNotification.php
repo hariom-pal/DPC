@@ -7,6 +7,7 @@ namespace App\Domain\Review\Listeners;
 use App\Domain\Allotment\Services\ProposalAllotmentService;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Notification\Services\NotificationRecipientResolver;
+use App\Domain\Notification\Templates\MessageTemplates;
 use App\Domain\Review\Events\DpcSupersededByReview;
 use App\Enums\Role;
 use App\Integrations\Contracts\SmsSender;
@@ -39,6 +40,7 @@ class SendSupersessionNotification implements ShouldQueue
     public function __construct(
         private readonly SmsSender $sms,
         private readonly NotificationRecipientResolver $recipients,
+        private readonly MessageTemplates $templates,
     ) {}
 
     public function handle(DpcSupersededByReview $event): void
@@ -47,9 +49,14 @@ class SendSupersessionNotification implements ShouldQueue
             return;
         }
 
-        $message = 'ODPC: DPC '.($event->originalDpcCode ?? $event->originalProposalUuid)
-            .' has been superseded by Review DPC '.($event->reviewDpcCode ?? $event->reviewProposalUuid)
-            .' (review '.$event->reviewNumber.'). The earlier promotion list is no longer the operative one.';
+        // The Administrator's wording (2026-11-12).
+        $values = [
+            'original' => $event->originalDpcCode ?? $event->originalProposalUuid,
+            'review' => $event->reviewDpcCode ?? $event->reviewProposalUuid,
+            'review_number' => $event->reviewNumber,
+        ];
+        $sms = $this->templates->sms('review.superseded', $values);
+        $mailText = $this->templates->email('review.superseded', $values);
 
         // **TD-20, closed 2026-08-19 under the final-phase Freeze Exception.**
         // This query was one of three copies of "who should be told". Two of them
@@ -68,14 +75,14 @@ class SendSupersessionNotification implements ShouldQueue
 
         foreach ($recipients as $recipient) {
             try {
-                if ($recipient->mobile !== null) {
-                    $this->sms->send($recipient->mobile, $message);
+                if ($sms !== null && $recipient->mobile !== null) {
+                    $this->sms->send($recipient->mobile, $sms['body'], $sms['dlt_template_id']);
                 }
 
-                if ($recipient->email !== null) {
+                if ($mailText !== null && $recipient->email !== null) {
                     $email = $recipient->email;
-                    Mail::raw($message, function ($mail) use ($email): void {
-                        $mail->to($email)->subject('ODPC Portal — DPC Superseded by Review');
+                    Mail::raw($mailText['body'], function ($mail) use ($email, $mailText): void {
+                        $mail->to($email)->subject($mailText['subject']);
                     });
                 }
             } catch (Throwable $e) {

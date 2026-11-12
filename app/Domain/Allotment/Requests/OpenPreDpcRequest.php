@@ -30,7 +30,7 @@ class OpenPreDpcRequest extends FormRequest
         $departmentId = $this->user()?->department_id;
 
         return [
-            'dpc_year' => ['required', 'integer', 'min:'.(int) config('dpc.earliest_dpc_year', 2019), 'max:'.((int) now()->addYear()->format('Y'))],
+            'dpc_year' => ['required', 'integer', 'min:'.(int) config('dpc.earliest_dpc_year', 2019), 'max:'.(int) config('dpc.latest_dpc_year', 2100)],
             'promotion_to_post_id' => ['required', 'integer', Rule::exists('department_posts', 'id')->where('department_id', $departmentId)],
             // The AO and AH are assigned last, once the Pre-DPC is complete (2026-10-28).
         ];
@@ -47,7 +47,7 @@ class OpenPreDpcRequest extends FormRequest
         return [
             'dpc_year.min' => (string) __('predpc.validation.year_before_earliest', ['year' => (int) config('dpc.earliest_dpc_year', 2019)]),
             'dpc_year.required' => 'Every Pre-DPC belongs to a DPC Year. Enter it.',
-            'dpc_year.max' => 'A Pre-DPC can be prepared for the current or the coming year, not beyond.',
+            'dpc_year.max' => 'Enter the DPC Year as a four-digit year.',
             'ah_user_id.different' => (string) __('allotments.errors.same_officer'),
             'ao_user_id.required' => (string) __('allotments.picker.choose_ao'),
             'ah_user_id.required' => (string) __('allotments.picker.choose_ah'),

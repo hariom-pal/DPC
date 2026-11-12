@@ -57,6 +57,12 @@ class LoginController extends Controller
 
         $user = User::query()->where($field, $login)->first();
 
+        // An Employee ID may be ten digits too (2026-11-12): no account holds it as a
+        // mobile number, so it is tried as the Employee ID.
+        if ($user === null && $field === 'mobile') {
+            $user = User::query()->where('employee_number', $login)->first();
+        }
+
         if ($user === null || ! Hash::check((string) $credentials['password'], $user->password)) {
             // Never the identifier typed: an unknown login is logged with no user.
             $this->log->record('login.failed', $user, $request);

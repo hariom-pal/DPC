@@ -24,7 +24,7 @@ return [
         'ended' => 'Ended',
     ],
     'field' => [
-        'officer' => 'Officer (official e-mail, mobile or employee number)',
+        'officer' => 'Officer (official e-mail, mobile or Employee ID)',
         'officer_name' => 'Officer',
         'from' => 'From',
         'to' => 'To',

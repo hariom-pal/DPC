@@ -177,8 +177,8 @@ class DemoCredentialsCommand extends Command
         $lines[] = sprintf('**Password for every account below: `%s`**', $password);
         $lines[] = '';
         $lines[] = '**Signing in** — the login screen accepts an **e-mail address**, a **10-digit mobile';
-        $lines[] = 'number** or an **employee number**, and works out which you gave it. Promotion Candidates';
-        $lines[] = 'have only an employee number.';
+        $lines[] = 'number** or an **Employee ID**, and works out which you gave it. Promotion Candidates';
+        $lines[] = 'have only an Employee ID.';
         $lines[] = '';
         $lines[] = '**Accounts holding more than one role** show an *Acting as* control in the header. The role';
         $lines[] = 'selected there gates what the session may do, so an account acting as a Member cannot approve';
@@ -217,7 +217,7 @@ class DemoCredentialsCommand extends Command
                 // because "I logged in and My DPC is empty" is otherwise a bug
                 // report rather than the expected state after a reset.
                 $lines[] = 'These accounts were provisioned by earlier Seniority Lists. **My DPC will be empty until a';
-                $lines[] = 'list names their employee number again** — candidature is read from the lists, not stored on';
+                $lines[] = 'list names their Employee ID again** — candidature is read from the lists, not stored on';
                 $lines[] = 'the account, so saving a Seniority List that carries one of these numbers reconnects it.';
                 $lines[] = '';
             }
@@ -231,7 +231,7 @@ class DemoCredentialsCommand extends Command
              | is one of the things the walkthrough is for. The section's own role is
              | emboldened so the row still reads in context.
              */
-            $lines[] = '| Name | Login ID | E-mail | Mobile | Employee no. | Department | Active assignment | Role(s) | Status |';
+            $lines[] = '| Name | Login ID | E-mail | Mobile | Employee ID | Department | Active assignment | Role(s) | Status |';
             $lines[] = '|---|---|---|---|---|---|---|---|---|';
 
             foreach ($users as $user) {
@@ -321,7 +321,7 @@ class DemoCredentialsCommand extends Command
             // List is what provisions them, under the employee numbers the list
             // carries, and the one-time passwords are shown once on that screen.
             return 'None, and that is the state a walkthrough should start from: committing the Seniority '
-                .'List **provisions these accounts itself**, under the employee numbers the list carries, '
+                .'List **provisions these accounts itself**, under the Employee IDs the list carries, '
                 .'and shows their one-time passwords once. Accounts already standing under those numbers '
                 .'would be matched instead of created, and nothing would be reported as provisioned.';
         }

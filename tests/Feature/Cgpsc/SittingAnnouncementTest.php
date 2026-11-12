@@ -304,7 +304,7 @@ class SittingAnnouncementTest extends TestCase
         // A transport that throws on every send. Scheduling must survive it.
         $this->app->bind(SmsSender::class, fn (): SmsSender => new class implements SmsSender
         {
-            public function send(string $mobile, string $message): void
+            public function send(string $mobile, string $message, ?string $templateId = null): void
             {
                 throw new \RuntimeException('the gateway is down');
             }

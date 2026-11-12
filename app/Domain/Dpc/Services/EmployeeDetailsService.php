@@ -58,8 +58,8 @@ class EmployeeDetailsService
 
     /**
      * The fields the simplified Seniority List does not carry, recorded by the
-     * Authorized Officer. Name, date of birth, Employee ID and seniority number stay
-     * the list's and are not editable here.
+     * Authorized Officer. Name, date of birth, mobile number (2026-11-12), Employee ID
+     * and seniority number come from the uploaded lists and are not editable here.
      *
      * @param  array<string, mixed>  $data
      */
@@ -70,7 +70,6 @@ class EmployeeDetailsService
         $row->forceFill([
             'reservation_category_id' => $data['reservation_category_id'] ?? null,
             'qualification' => $this->blankToNull($data['qualification'] ?? null),
-            'mobile' => $this->blankToNull($data['mobile'] ?? null),
             'date_of_posting_on_promotion_from_post' => $data['date_of_posting_on_promotion_from_post'] ?? null,
             'dob_order_number' => $this->blankToNull($data['dob_order_number'] ?? null),
             'dob_order_date' => $data['dob_order_date'] ?? null,

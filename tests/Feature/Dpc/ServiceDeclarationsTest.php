@@ -12,6 +12,7 @@ use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Services\DpcProposalService;
 use App\Domain\Dpc\Services\EmployeeDetailsService;
 use App\Domain\Master\Models\DepartmentPost;
+use App\Domain\Master\Models\ReservationCategory;
 use App\Enums\Role;
 use Database\Seeders\LookupMasterSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
@@ -103,6 +104,30 @@ class ServiceDeclarationsTest extends TestCase
             ->assertSessionHasNoErrors();
         $this->assertSame([], $this->sections()['basic']);
         $this->assertNotNull($this->row->service_record_undertaking_at);
+    }
+
+    /**
+     * The mobile number comes from the uploaded lists (2026-11-12): the Working
+     * Officers List row with the same Employee ID fills it, and it is not typed on
+     * the employee's screen.
+     */
+    public function test_the_mobile_number_comes_from_the_working_list_and_is_not_typed(): void
+    {
+        $this->proposal->workingOfficers()->forceCreate([
+            'dpc_proposal_id' => $this->proposal->id, 'sn' => 1, 'employee_number' => 'e-1', 'name' => 'Officer One', 'dob' => '1970-03-20',
+            'mobile' => '9425012345', 'reservation_category_id' => ReservationCategory::query()->where('code', 'UR')->firstOrFail()->id,
+        ]);
+        app(DpcProposalService::class)->saveSeniorityEntries($this->proposal, [
+            ['seniority_number' => 1, 'employee_number' => 'E-1', 'name' => 'Officer One', 'dob' => '1970-03-20', 'date_of_joining_service' => '1995-07-01', 'promotion_from_post' => 'Block Education Officer'],
+        ], $this->ao, $this->proposal->seniorityReferenceDate());
+        $this->assertSame('9425012345', $this->row->refresh()->mobile);
+
+        $this->actingAs($this->ao)->put(route('dpc-proposals.employees.basic', [$this->proposal, $this->row]), ['mobile' => '9999999999', 'service_record_undertaking' => '0'])
+            ->assertSessionHasNoErrors();
+        $this->assertSame('9425012345', $this->row->refresh()->mobile);
+
+        $this->actingAs($this->ao)->get(route('dpc-proposals.employees.show', [$this->proposal, $this->row]))
+            ->assertOk()->assertSee('9425012345')->assertDontSee('name="mobile"', false);
     }
 
     public function test_the_declarations_must_be_answered_and_evidenced(): void

@@ -6,7 +6,6 @@ namespace App\Http\Controllers\Dpc;
 
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Proceeding\Models\DpcSealedCoverOpening;
-use App\Domain\Proceeding\Services\SealedCoverService;
 use App\Domain\PromotionOrder\Models\DpcPromotionOrder;
 use App\Domain\PromotionOrder\Requests\IssuePromotionOrderRequest;
 use App\Domain\PromotionOrder\Services\PromotionOrderService;
@@ -77,7 +76,7 @@ class DpcPromotionOrderController extends Controller
     public function openingDocument(Request $request, DpcProposal $dpcProposal, DpcSealedCoverOpening $opening): StreamedResponse
     {
         abort_unless($opening->dpc_proposal_id === $dpcProposal->id, 404);
-        abort_unless($request->user()?->can('view', $dpcProposal) || app(SealedCoverService::class)->isDpcChairman($dpcProposal, $request->user()), 403);
+        $this->authorize('view', $dpcProposal);
 
         return Storage::disk($opening->disk)->download($opening->path, $opening->original_name);
     }

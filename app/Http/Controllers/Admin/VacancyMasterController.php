@@ -443,6 +443,6 @@ class VacancyMasterController extends Controller
      */
     private function selectableYears(): array
     {
-        return range((int) now()->year + 1, (int) config('dpc.vacancy_master.earliest_year', 2019));
+        return VacancyMasterService::selectableYears();
     }
 }

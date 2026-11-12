@@ -63,7 +63,7 @@ class ImportTemplateBuilder
          | (2026-11-02, optional) goes to the employee database.
          */
         if ($template === ImportTemplate::CurrentlyWorkingUs && ($proposal === null || $proposal->usesVacancyMaster())) {
-            return ['SN', 'EMPLOYEE NO', 'NAME', 'DOB', 'MOBILE', 'EMAIL', 'HERE ON DEPUTATION', 'OUT ON DEPUTATION'];
+            return ['SN', 'EMPLOYEE ID', 'NAME', 'DOB', 'MOBILE', 'EMAIL', 'HERE ON DEPUTATION', 'OUT ON DEPUTATION'];
         }
 
         $headers = match ($template) {
@@ -80,7 +80,7 @@ class ImportTemplateBuilder
              | vacancy engine counts.
              */
             ImportTemplate::CurrentlyWorkingUs => [
-                'SN', 'STATUS', 'SOURCE', 'EMPLOYEE NO', 'NAME', 'MOBILE', 'DOB', 'QUAL', 'PROMOTION TO POST', 'PROMOTION FROM POST', 'CAT', 'SEAT CATEGORY',
+                'SN', 'STATUS', 'SOURCE', 'EMPLOYEE ID', 'NAME', 'MOBILE', 'DOB', 'QUAL', 'PROMOTION TO POST', 'PROMOTION FROM POST', 'CAT', 'SEAT CATEGORY',
                 'DATE OF JOINING IN SERVICE', 'DATE OF POSTING ON PROMOTION TO POST',
                 'DATE OF POSTING ON PROMOTION FROM POST', 'ROSTER POSITION',
                 'DEPUTATION DATE', 'DEPUTATION TO', 'DATE OF RETIREMENT',
@@ -107,7 +107,7 @@ class ImportTemplateBuilder
             ],
 
             ImportTemplate::EvaluationChartUs => [
-                'SN', 'EMPLOYEE NO', 'NAME OF US', 'MOBILE', 'DOB', 'QUAL', 'DOP', 'CAT',
+                'SN', 'EMPLOYEE ID', 'NAME OF US', 'MOBILE', 'DOB', 'QUAL', 'DOP', 'CAT',
             ],
         };
 
@@ -179,7 +179,6 @@ class ImportTemplateBuilder
             'SN' => (string) __('imports.guide.sn'),
             'STATUS' => (string) __('imports.guide.status'),
             'SOURCE' => (string) __('imports.guide.source'),
-            'EMPLOYEE NO' => (string) __('imports.guide.employee_no'),
             'NAME' => (string) __('imports.guide.name'),
             'NAME OF US' => (string) __('imports.guide.name'),
             'MOBILE' => (string) __('imports.guide.mobile'),
@@ -454,7 +453,6 @@ class ImportTemplateBuilder
             'SOURCE' => 'direct',
             'HERE ON DEPUTATION' => 'N',
             'OUT ON DEPUTATION' => 'N',
-            'EMPLOYEE NO' => 'EMP/2011/0042',
             'NAME' => 'Shri Ram Kumar Sahu',
             'NAME OF US' => 'Shri Ram Kumar Sahu',
             'MOBILE' => '9425012345',

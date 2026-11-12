@@ -278,6 +278,7 @@ final class ProposalVacancyPosition
                     'name' => $officer->name,
                     'here' => $officer->source === DpcWorkingOfficer::SOURCE_DEPUTATION,
                     'out' => $officer->out_on_deputation === true,
+                    'dob' => $officer->dob?->toDateString(),
                 ])->all();
                 $match = $this->matchDeputation($frozen, $rows);
 
@@ -328,8 +329,13 @@ final class ProposalVacancyPosition
      * returned as missing. Only active B1/B2/C rows count; their eligibility (B1 ending
      * in the year, B2 over a year with no promotion) is the record's and untouched.
      *
+     * Retirement (2026-11-12): where the post's mapping gives a retirement age, an
+     * ordinary row's date of birth is checked too — an officer whose retirement
+     * falls inside the Vacancy Year must be in C, and a C retirement must fall on
+     * the date the row's date of birth gives.
+     *
      * @param  array<string, mixed>|null  $frozen  the record's breakdown
-     * @param  list<array{employee_number: string|null, name: string|null, here: bool, out: bool}>  $rows
+     * @param  list<array{employee_number: string|null, name: string|null, here: bool, out: bool, dob?: string|null}>  $rows
      * @return array{rows: array<int, string|null>, missing: list<array{kind: string, name: string}>}
      */
     public function matchDeputation(?array $frozen, array $rows): array
@@ -373,6 +379,10 @@ final class ProposalVacancyPosition
                 default => null,
             };
 
+            if ($results[$index] === null && $wanted === null) {
+                $results[$index] = $this->retirementMismatch($frozen, $row['dob'] ?? null, $found === null ? null : $entries[$found]);
+            }
+
             if ($found !== null && ! isset($matched[$found]) && $side === ($wanted ?? 'C')) {
                 $matched[$found] = true;
             }
@@ -387,6 +397,49 @@ final class ProposalVacancyPosition
         }
 
         return ['rows' => $results, 'missing' => $missing];
+    }
+
+    /**
+     * Whether an ordinary row's date of birth agrees with the record's C: null when
+     * it does, or when there is nothing to check it against.
+     *
+     * @param  array<string, mixed>|null  $frozen
+     * @param  array<string, mixed>|null  $entry  the B1/B2/C row this row matched
+     */
+    private function retirementMismatch(?array $frozen, ?string $dob, ?array $entry): ?string
+    {
+        $age = isset($frozen['retirement_age']) ? (int) $frozen['retirement_age'] : 0;
+
+        if ($age < 1 || $dob === null || $dob === '' || empty($frozen['period_from']) || empty($frozen['period_to'])) {
+            return null;
+        }
+
+        try {
+            $dateOfBirth = Carbon::parse($dob)->startOfDay();
+        } catch (\Throwable) {
+            return null;
+        }
+
+        $retires = VacancyMasterService::retirementDate($dateOfBirth, $age);
+        $inYear = $retires->betweenIncluded(Carbon::parse((string) $frozen['period_from'])->startOfDay(), Carbon::parse((string) $frozen['period_to'])->startOfDay());
+        $params = ['dob' => $dateOfBirth->format('d-m-Y'), 'age' => $age, 'date' => $retires->format('d-m-Y')];
+        $retirementInC = $entry !== null && $entry['side'] === 'C' && ($entry['reason'] ?? null) === VacancyReason::Retirement->value;
+
+        if ($retirementInC) {
+            $recorded = Carbon::parse((string) $entry['effective_date'])->startOfDay();
+
+            return $recorded->equalTo($retires) ? null : (string) __('vacancymaster.proposal.working_list.match.retirement_differs', $params + [
+                'name' => $entry['officer_name'],
+                'recorded' => $recorded->format('d-m-Y'),
+            ]);
+        }
+
+        // Promoted to a higher post in the year (C) leaves before retiring.
+        if ($inYear && ($entry === null || $entry['side'] !== 'C')) {
+            return (string) __('vacancymaster.proposal.working_list.match.retires_not_in_c', $params);
+        }
+
+        return null;
     }
 
     /**

@@ -56,6 +56,7 @@ class ReservationHierarchyTest extends TestCase
                 // A mapping is effective-dated since 2026-08-25 — it is what a
                 // Government Order authorises from a date.
                 'effective_from' => now()->toDateString(),
+                'retirement_age' => 62,
             ])
             ->assertSessionHasNoErrors()
             ->assertRedirect(route('post-mapping.index'));

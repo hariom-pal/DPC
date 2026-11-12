@@ -11,5 +11,9 @@ namespace App\Integrations\Contracts;
  */
 interface SmsSender
 {
-    public function send(string $mobile, string $message): void;
+    /**
+     * @param  string|null  $templateId  the DLT template ID the message is registered
+     *                                   under, from the Administrator's template (2026-11-12)
+     */
+    public function send(string $mobile, string $message, ?string $templateId = null): void;
 }

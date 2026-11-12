@@ -207,12 +207,12 @@ final class MasterRegistry
                     'retirement_age' => 'retirement_age',
                     'effective_from' => 'effective_from', 'status' => 'status',
                 ],
-                required: ['department', 'post_name', 'class_level'],
+                required: ['department', 'post_name', 'class_level', 'retirement_age'],
                 searchable: ['name'],
                 unique: ['department_id', 'name'],
                 lookups: ['department_id' => 'departments.name', 'pay_scale_id' => 'pay_scales.code'],
                 sample: [
-                    ['department' => 'School Education Department', 'post_name' => 'Block Education Officer', 'class_level' => 'II', 'pay_scale' => 'L12', 'promotion_duration_years' => '5', 'effective_from' => '2020-01-01', 'status' => 'active'],
+                    ['department' => 'School Education Department', 'post_name' => 'Block Education Officer', 'class_level' => 'II', 'pay_scale' => 'L12', 'promotion_duration_years' => '5', 'retirement_age' => '62', 'effective_from' => '2020-01-01', 'status' => 'active'],
                 ],
                 // The department's Authorized Officer maps posts, with their orders,
                 // on the screen only (UAT, 2026-11-02): no bulk upload.

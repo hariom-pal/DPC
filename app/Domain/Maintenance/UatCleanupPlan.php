@@ -128,6 +128,7 @@ final class UatCleanupPlan
         'department_post_orders' => 'Government orders behind each post mapping',
         'record_reasons' => 'Missing-record reasons master',
         'ph_types' => 'PH Type master',
+        'message_templates' => 'SMS and e-mail templates kept by the Administrator',
         'sealed_cover_reasons' => 'Sealed Cover reasons master (rule 2.2)',
         'pay_scales' => 'Pay scale master',
         'service_classes' => 'Service class master',

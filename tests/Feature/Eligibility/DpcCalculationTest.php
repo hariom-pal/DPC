@@ -23,6 +23,7 @@ use App\Enums\Role;
 use Database\Seeders\LookupMasterSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Tests\Concerns\RaisesDpcProposals;
@@ -293,6 +294,58 @@ class DpcCalculationTest extends TestCase
         $this->assertTrue($sixth->is_eligible);
         $this->assertSame(ListType::None, $sixth->list_type);
         $this->assertSame('EL', $sixth->remark);
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function sixEqualOfficers(): array
+    {
+        return array_map(fn (int $sn): array => $this->officer($sn, "US{$sn}", [2017 => 'क', 2016 => 'क', 2015 => 'क', 2014 => 'क', 2013 => 'क']), range(1, 6));
+    }
+
+    private function verifyPhClaim(int $sn): void
+    {
+        $this->proposal->fresh()->evaluationRows()->where('sn', $sn)->firstOrFail()->forceFill([
+            'is_ph' => true, 'ph_previously_availed' => false, 'ph_claims_reservation' => true,
+            'ph_verification_status' => 'verified', 'ph_final_decision' => 'benefit',
+        ])->save();
+    }
+
+    public function test_a_ph_candidate_beyond_the_zone_is_considered_for_the_ph_seat(): void
+    {
+        // No zone of consideration for a PH candidate (2026-11-12). One vacancy -> zone
+        // of 5; the PH policy raised so that the one vacancy is a PH seat.
+        DB::table('reservation_policies')->update(['percentage' => 100]);
+        config(['dpc.employee_details.ph_quota_percent' => 100]);
+
+        $this->seedProposal($this->sixEqualOfficers(), ['UR' => 1]);
+        $this->verifyPhClaim(6);
+
+        $run = $this->calculate();
+        $sixth = $run->results()->where('officer_name', 'US6')->firstOrFail();
+
+        $this->assertSame(5, $run->zone['size']);
+        $this->assertTrue($sixth->in_zone);
+        $this->assertSame([ListType::Main, 'PH'], [$sixth->list_type, $sixth->remark]);
+        $this->assertSame(ListType::Waiting, $run->results()->where('officer_name', 'US1')->firstOrFail()->list_type);
+    }
+
+    public function test_beyond_the_zone_a_ph_candidate_takes_no_general_seat(): void
+    {
+        // No PH seat in this DPC: the zone stands for everyone.
+        DB::table('reservation_policies')->update(['percentage' => 0]);
+        config(['dpc.employee_details.ph_quota_percent' => 0]);
+
+        $this->seedProposal($this->sixEqualOfficers(), ['UR' => 1]);
+        $this->verifyPhClaim(6);
+
+        $run = $this->calculate();
+        $sixth = $run->results()->where('officer_name', 'US6')->firstOrFail();
+
+        $this->assertFalse($sixth->in_zone);
+        $this->assertSame(ListType::None, $sixth->list_type);
+        $this->assertSame(ListType::Main, $run->results()->where('officer_name', 'US1')->firstOrFail()->list_type);
     }
 
     // ------------------------------------------------------- self-containment

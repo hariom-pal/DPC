@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Authentication\Listeners;
 
 use App\Domain\Authentication\Events\CredentialsIssued;
+use App\Domain\Notification\Templates\MessageTemplates;
 use App\Enums\Feature;
 use App\Integrations\Contracts\SmsSender;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -24,24 +25,29 @@ class SendCredentialNotification implements ShouldQueue
 {
     public bool $afterCommit = true;
 
-    public function __construct(private readonly SmsSender $sms) {}
+    public function __construct(
+        private readonly SmsSender $sms,
+        private readonly MessageTemplates $templates,
+    ) {}
 
     public function handle(CredentialsIssued $event): void
     {
         $user = $event->user;
         $key = $event->reason === CredentialsIssued::REASON_RESET ? 'reset' : 'created';
         $loginUrl = route('login');
-        $subject = (string) __("authui.credentials.{$key}.subject");
-        $message = (string) __("authui.credentials.{$key}.message", ['login' => $user->email ?? $user->mobile, 'url' => $loginUrl]);
+        // The Administrator's wording (2026-11-12); a channel switched off is not sent.
+        $values = ['login' => $user->email ?? $user->mobile, 'url' => $loginUrl];
+        $sms = $this->templates->sms("account.{$key}", $values);
+        $email = $this->templates->email("account.{$key}", $values);
 
         try {
-            if ($user->mobile !== null && Feature::SmsGateway->enabled()) {
-                $this->sms->send($user->mobile, $message);
+            if ($sms !== null && $user->mobile !== null && Feature::SmsGateway->enabled()) {
+                $this->sms->send($user->mobile, $sms['body'], $sms['dlt_template_id']);
             }
 
-            if ($user->email !== null) {
-                Mail::raw($message, function ($mail) use ($user, $subject): void {
-                    $mail->to($user->email)->subject($subject);
+            if ($email !== null && $user->email !== null) {
+                Mail::raw($email['body'], function ($mail) use ($user, $email): void {
+                    $mail->to($user->email)->subject($email['subject']);
                 });
             }
         } catch (Throwable $e) {

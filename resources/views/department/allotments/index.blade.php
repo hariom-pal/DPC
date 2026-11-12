@@ -64,7 +64,9 @@
                                             <a href="{{ route('pre-dpc.show', $proposal) }}" class="btn btn-outline-dark btn-sm">{{ __('allotments.view') }}</a>
                                         @endif
                                     @endif
-                                    @if ($view !== 'closed' && ! $proposal->status->isTerminal())
+                                    {{-- A DPC's AO and AH may be reassigned until it is cancelled — its
+                                         later steps need them (2026-11-12); a Pre-DPC until approved. --}}
+                                    @if ($kind === 'pre_dpc' ? ($view !== 'closed' && ! $proposal->status->isTerminal()) : $proposal->status->value !== 'cancelled')
                                         <a href="{{ route($kind === 'pre_dpc' ? 'department.allotments.pre-dpc.edit' : 'department.allotments.dpc.edit', $proposal) }}"
                                            class="btn btn-outline-primary btn-sm">{{ $current ? __('allotments.reassign') : __('allotments.allot') }}</a>
                                     @elseif ($view !== 'closed')

@@ -13,7 +13,7 @@
         <div class="card-body row g-3">
             <div class="col-md-4">
                 <label for="dpc_year" class="form-label">{{ __('allotments.field.dpc_year') }}</label>
-                <input type="number" id="dpc_year" name="dpc_year" value="{{ old('dpc_year', now()->year) }}" required min="{{ config('dpc.earliest_dpc_year', 2019) }}" max="{{ now()->addYear()->year }}" step="1" inputmode="numeric" data-whole-number
+                <input type="number" id="dpc_year" name="dpc_year" value="{{ old('dpc_year', now()->year) }}" required min="{{ config('dpc.earliest_dpc_year', 2019) }}" max="{{ config('dpc.latest_dpc_year', 2100) }}" step="1" inputmode="numeric" data-whole-number
                        class="form-control @error('dpc_year') is-invalid @enderror">
                 @error('dpc_year')<div class="invalid-feedback">{{ $message }}</div>@enderror
             </div>

@@ -86,14 +86,11 @@ class SavePreDpcProposalRequest extends FormRequest
             /*
              | DPC Year (item 8).
              |
-             | Bounded rather than free: a four-digit year is the only thing this
-             | can be, and the window stops a typo becoming an exercise filed
-             | under 2062. The upper bound is next year, because a department
-             | legitimately prepares the coming year's exercise in advance, and no
-             | further, because there is nothing to prepare beyond that.
+             | Shown as the current year, but any year may be typed (2026-11-12):
+             | the upper bound only keeps it a sensible four-digit year.
              */
             // Rule 1.4: nothing before 2019 is taken in this software.
-            'dpc_year' => ['required', 'integer', 'min:'.(int) config('dpc.earliest_dpc_year', 2019), 'max:'.((int) now()->addYear()->format('Y'))],
+            'dpc_year' => ['required', 'integer', 'min:'.(int) config('dpc.earliest_dpc_year', 2019), 'max:'.(int) config('dpc.latest_dpc_year', 2100)],
 
             'promotion_to_post_id' => ['required', 'integer', $inDepartment()],
 
@@ -486,7 +483,7 @@ class SavePreDpcProposalRequest extends FormRequest
             'promotion_to_post_id.required' => 'Choose the Promotion To Post — the post officers are promoted into.',
             'promotion_to_post_id.exists' => 'Select a live post of your own department from the Department Post master.',
             'dpc_year.required' => 'Every Pre-DPC belongs to a DPC Year. Enter it.',
-            'dpc_year.max' => 'A Pre-DPC can be prepared for the current or the coming year, not beyond.',
+            'dpc_year.max' => 'Enter the DPC Year as a four-digit year.',
         ];
     }
 }

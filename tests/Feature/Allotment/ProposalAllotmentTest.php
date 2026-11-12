@@ -85,7 +85,7 @@ class ProposalAllotmentTest extends TestCase
         $feederScale = PayScale::query()->create(['code' => 'L10', 'label' => 'Level-10', 'minimum_pay' => 56100, 'status' => MasterStatus::Active->value]);
         $this->fromPost = DepartmentPost::query()->create([
             'department_id' => $this->department->id, 'name' => 'Assistant Professor', 'class_level' => 'I',
-            'pay_scale_id' => $feederScale->id, 'promotion_duration_years' => 5, 'status' => MasterStatus::Active->value,
+            'pay_scale_id' => $feederScale->id, 'promotion_duration_years' => 5, 'retirement_age' => 62, 'status' => MasterStatus::Active->value,
         ]);
         $this->toPost = DepartmentPost::query()->create([
             'department_id' => $this->department->id, 'name' => 'Professor', 'class_level' => 'I',
@@ -429,6 +429,51 @@ class ProposalAllotmentTest extends TestCase
         $this->assertSame($this->ao->id, $proposal->fresh()->currentAllotment->ao_user_id, 'The Pre-DPC keeps its own allotment.');
         $this->actingAs($this->ao)->get(route('dpc-proposals.show', $dpc))->assertForbidden();
         $this->actingAs($this->otherAo)->get(route('dpc-proposals.show', $dpc))->assertOk();
+    }
+
+    /**
+     * A released officer end to end (2026-11-12): released by another department,
+     * allotted here as the DPC's AO, and working on it — posted to this department,
+     * with the AO's role, and the DPC on their screens.
+     */
+    public function test_an_officer_released_by_another_department_is_allotted_and_works_on_the_dpc(): void
+    {
+        $proposal = $this->opened();
+        $this->actingAs($this->ao)->post(route('pre-dpc.submit', $proposal), ['declaration' => '1']);
+        $this->actingAs($this->ah)->post(route('pre-dpc.approve', $proposal));
+        $this->actingAs($this->ao)->post(route('dpc-proposals.store'), $this->dpcStorePayload($proposal->fresh(), [
+            'promotion_from_post_id' => $this->fromPost->id,
+        ]));
+        $dpc = DpcProposal::query()->sole();
+
+        // An AH of another department, released by its Department Admin.
+        $other = Department::query()->create(['code' => 'PW', 'name' => 'Public Works', 'status' => 'registered']);
+        $otherAdmin = User::factory()->assignedTo($other, Role::DepartmentAdmin)->create();
+        $transferred = User::factory()->assignedTo($other, Role::AdministrativeHead)->create(['name' => 'Transferred Officer']);
+        $this->actingAs($otherAdmin)->signedRelease($transferred)->assertSessionHasNoErrors();
+        $this->assertNotNull($transferred->fresh()?->released_at);
+
+        // Not this department's until allotted; then posted here as the AO.
+        $this->actingAs($this->departmentAdmin)->getJson(route('department.officers.lookup', ['email' => $transferred->email]))
+            ->assertOk()->assertJson(['found' => true, 'released' => true, 'released_from' => 'Public Works']);
+        $this->actingAs($this->departmentAdmin)->signedAllot($dpc, [
+            'ao_user_id' => $transferred->id, 'ah_user_id' => $this->ah->id, 'reason' => 'official_permission',
+        ])->assertSessionHasNoErrors()->assertRedirect(route('department.allotments.index'));
+
+        $transferred = $transferred->fresh();
+        $this->assertNull($transferred?->released_at);
+        $this->assertSame($this->department->id, $transferred?->department_id);
+        $this->assertTrue($transferred?->hasRole(Role::AuthorizedOfficer->value));
+        $this->assertFalse($transferred?->hasRole(Role::AdministrativeHead->value), 'The old department\'s role went with the release.');
+        $this->assertSame($transferred?->id, $dpc->fresh()->currentAllotment->ao_user_id);
+
+        $this->actingAs($transferred)->get(route('dpc-proposals.show', $dpc))->assertOk();
+        $this->actingAs($transferred)->get(route('dpc-proposals.index'))->assertOk()->assertSee((string) $dpc->dpc_id);
+        $this->actingAs($this->ao)->get(route('dpc-proposals.show', $dpc))->assertForbidden();
+
+        // And it shows in this department's User Management, no longer the other's.
+        $this->actingAs($this->departmentAdmin)->get(route('department.users.index'))->assertOk()->assertSee('Transferred Officer');
+        $this->actingAs($otherAdmin)->get(route('department.users.index'))->assertOk()->assertDontSee('Transferred Officer');
     }
 
     /**

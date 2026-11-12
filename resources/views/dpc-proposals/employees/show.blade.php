@@ -9,6 +9,7 @@
         $editCr = request()->integer('cr_year') ? $crYears->firstWhere('year', request()->integer('cr_year')) : null;
         $editProperty = request()->integer('property_year') ? $propertyYears->firstWhere('year', request()->integer('property_year')) : null;
         $crGapYears = $row->recordGaps->where('kind', 'cr')->filter(fn ($g) => $g->isJustified())->pluck('year')->all();
+        $propertyGapYears = $row->recordGaps->where('kind', 'property')->filter(fn ($g) => $g->isJustified())->pluck('year')->all();
         $outcome = $row->phOutcome();
         $grader = app(\App\Domain\Dpc\Services\EmployeeDetailsService::class);
         $sectionLabels = [
@@ -84,6 +85,8 @@
             <dl class="row small mb-2">
                 <dt class="col-sm-3">{{ __('dpc.employee_details.employee_id') }}</dt><dd class="col-sm-9">{{ $row->employee_number ?? '—' }}</dd>
                 <dt class="col-sm-3">{{ __('ui.dob') }}</dt><dd class="col-sm-9">{{ $row->dob?->format('d-m-Y') }}</dd>
+                {{-- From the uploaded lists, never typed here (2026-11-12). --}}
+                <dt class="col-sm-3">{{ __('dpc.employee_details.mobile') }}</dt><dd class="col-sm-9">{{ $row->mobile ?? '—' }}</dd>
                 <dt class="col-sm-3">{{ __('dpc.employee_details.date_of_appointment') }}</dt><dd class="col-sm-9">{{ $row->date_of_joining_service?->format('d-m-Y') ?? '—' }}</dd>
             </dl>
             <form method="POST" action="{{ route('dpc-proposals.employees.basic', [$proposal, $row]) }}" class="row g-2">
@@ -103,10 +106,6 @@
                 <div class="col-md-3">
                     <label class="form-label small" for="qualification">{{ __('ui.qualification') }}</label>
                     <input class="form-control form-control-sm" id="qualification" name="qualification" value="{{ old('qualification', $row->qualification) }}" @disabled(! $canEdit)>
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label small" for="mobile">{{ __('dpc.employee_details.mobile') }}</label>
-                    <input class="form-control form-control-sm" id="mobile" name="mobile" value="{{ old('mobile', $row->mobile) }}" @disabled(! $canEdit)>
                 </div>
                 <div class="col-md-3">
                     <label class="form-label small" for="date_of_posting_on_promotion_from_post">{{ __('dpc.employee_details.posting_on_current_post') }}</label>
@@ -318,7 +317,7 @@
                         </div>
                     </div>
                     <p class="small text-muted mt-2 mb-1" data-show-when="put_up=0">{{ __('dpc.employee_details.cr.not_put_up_help') }}</p>
-                    @include('dpc-proposals.employees.partials.missing-record', ['when' => 'put_up=0', 'years' => null, 'prefix' => 'cr', 'reasons' => $reasons])
+                    @include('dpc-proposals.employees.partials.missing-record', ['when' => 'put_up=0', 'years' => null, 'justified' => $crGapYears, 'prefix' => 'cr', 'reasons' => $reasons])
                     <p class="small text-muted mt-2 mb-1" data-show-when="has_grading=0">{{ __('dpc.employee_details.cr.no_grading_help') }}</p>
                     {{-- One CR a year (2026-11-01): whose remarks it carries, and the highest one's grade. --}}
                     @php
@@ -519,7 +518,7 @@
                             <input class="form-control form-control-sm" id="late_decision_remarks" name="late_decision_remarks" value="{{ old('late_decision_remarks', $editProperty?->late_decision_remarks) }}">
                         </div>
                     </div>
-                    @include('dpc-proposals.employees.partials.missing-record', ['when' => 'submitted=0', 'years' => $propertyRuleYears, 'prefix' => 'property', 'reasons' => $reasons])
+                    @include('dpc-proposals.employees.partials.missing-record', ['when' => 'submitted=0', 'years' => $propertyRuleYears, 'justified' => $propertyGapYears, 'prefix' => 'property', 'reasons' => $reasons])
                     <button class="btn btn-success btn-sm mt-2">{{ __('dpc.employee_details.property.save_year') }}</button>
                 </form>
 

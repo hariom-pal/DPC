@@ -223,10 +223,10 @@ class DpcCalculationService
         );
 
         // ---- ranking and lists -------------------------------------------
-        $ranked = $this->rank($assessed->all(), $zone->effectiveSize);
         // Rule 2.1: the PH seats, set aside first for verified PH claims.
         $phTerms = $this->phPolicy->termsFor($proposal);
         $phSeats = $this->phPolicy->posts($totalVacancies, $phTerms['percentage'], $phTerms['rounding']);
+        $ranked = $this->rank($assessed->all(), $zone->effectiveSize, $phSeats > 0);
 
         $placed = $this->placeOnLists($ranked, $vacanciesByCategory, $phSeats);
 
@@ -365,10 +365,15 @@ class DpcCalculationService
      * they are simply not ranked for selection, so their absence from both
      * lists is recorded rather than silent.
      *
+     * No zone for a PH candidate (2026-11-12): where the DPC has PH seats, an
+     * officer with a verified PH claim beyond the zone is considered for a PH
+     * seat all the same — ranked after everyone in the zone, and for the PH seats
+     * only (`ph_beyond_zone`); the general seats stay with the zone.
+     *
      * @param  list<array<string, mixed>>  $assessed
      * @return list<array<string, mixed>>
      */
-    private function rank(array $assessed, int $zoneSize): array
+    private function rank(array $assessed, int $zoneSize, bool $hasPhSeats = false): array
     {
         $bySeniority = collect($assessed)
             ->sortBy(fn (array $e): int => $e['record']->serialNumber ?? PHP_INT_MAX)
@@ -377,6 +382,13 @@ class DpcCalculationService
         $entries = [];
         foreach ($bySeniority as $index => $entry) {
             $entry['in_zone'] = $index < $zoneSize;
+            $entry['ph_beyond_zone'] = false;
+
+            if (! $entry['in_zone'] && $hasPhSeats && $entry['record']->phSeat) {
+                $entry['in_zone'] = true;
+                $entry['ph_beyond_zone'] = true;
+            }
+
             $entries[] = $entry;
         }
 
@@ -386,6 +398,12 @@ class DpcCalculationService
         ));
 
         usort($selectable, static function (array $a, array $b): int {
+            // A PH candidate taken in from beyond the zone never ranks ahead of the zone.
+            $beyond = ($a['ph_beyond_zone'] <=> $b['ph_beyond_zone']);
+            if ($beyond !== 0) {
+                return $beyond;
+            }
+
             $superSeat = ($b['superSeat']->qualifies <=> $a['superSeat']->qualifies);
             if ($superSeat !== 0) {
                 return $superSeat;
@@ -456,6 +474,11 @@ class DpcCalculationService
             // No category-wise reservation: one pool, one list.
             $code = $codeOf($entry);
 
+            // Beyond the zone, a PH candidate is considered for a PH seat only.
+            if (($entry['ph_beyond_zone'] ?? false) && ! isset($phPicked[$entry['record']->serialNumber])) {
+                continue;
+            }
+
             if (isset($phPicked[$entry['record']->serialNumber])) {
                 $placement[$entry['record']->serialNumber] = [
                     'list_type' => ListType::Main,
@@ -489,6 +512,13 @@ class DpcCalculationService
 
         foreach ($entries as $index => $entry) {
             $sn = $entry['record']->serialNumber;
+
+            // A PH candidate from beyond the zone who got no PH seat stays outside it.
+            if (($entry['ph_beyond_zone'] ?? false) && ! isset($phPicked[$sn])) {
+                $entries[$index]['in_zone'] = false;
+                $entries[$index]['rank'] = null;
+            }
+
             $entries[$index]['list_type'] = $placement[$sn]['list_type'] ?? ListType::None;
             $entries[$index]['list_position'] = $placement[$sn]['list_position'] ?? null;
             /*

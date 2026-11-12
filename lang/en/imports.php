@@ -26,7 +26,7 @@ return [
         'sn' => 'Serial number. Start at 1 and count up. Lines starting with # are help text and are ignored.',
         'status' => 'Type working or vacant. For a vacant post, fill only CAT and leave the rest blank.',
         'source' => 'How the officer sitting in this chair got here: direct, promotion or deputation. It says which quota their chair belongs to. Leave it blank on a vacant row — an empty chair belongs to no quota, and the promotion/direct split comes from the Recruitment Rule.',
-        'employee_no' => 'Employee number, as your department records it. Optional.',
+        'employee_no' => 'Employee ID, as your department records it. Optional.',
         'name' => 'Full name, as in the service book.',
         'email' => 'The officer\'s email address. Optional; kept in the employee database for future reference.',
         'mobile' => 'The officer\'s mobile number — ten digits, digits only, no +91. This is what a Promotion Candidate signs in with, and where their OTP goes, so a wrong number is an officer who cannot reach their own record. Optional, but fill it wherever you have it.',

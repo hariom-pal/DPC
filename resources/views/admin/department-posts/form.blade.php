@@ -81,11 +81,11 @@
                         <div class="form-text">{{ __('admin.department_posts.form.hint_promotion_duration') }}</div>
                     </div>
                     <div class="col-md-3 mb-3">
-                        <label class="form-label" for="retirement_age">{{ __('admin.department_posts.form.retirement_age') }}</label>
+                        <label class="form-label" for="retirement_age">{{ __('admin.department_posts.form.retirement_age') }} <span class="text-danger">*</span></label>
                         <input type="number" min="50" max="75" step="1"
                                class="form-control @error('retirement_age') is-invalid @enderror"
                                id="retirement_age" name="retirement_age"
-                               value="{{ old('retirement_age', $post->retirement_age) }}">
+                               value="{{ old('retirement_age', $post->retirement_age) }}" required>
                         @error('retirement_age')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         <div class="form-text">{{ __('admin.department_posts.form.hint_retirement_age') }}</div>
                     </div>
@@ -159,7 +159,7 @@
                         <label class="form-label" for="effective_from">{{ __('admin.department_posts.form.effective_from') }} <span class="text-danger">*</span></label>
                         <input type="date" class="form-control @error('effective_from') is-invalid @enderror"
                                id="effective_from" name="effective_from"
-                               value="{{ old('effective_from', $post->effective_from?->format('Y-m-d') ?? now()->format('Y-m-d')) }}" required>
+                               value="{{ old('effective_from', $post->effective_from?->format('Y-m-d')) }}" required>
                         @error('effective_from')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         <div class="form-text">{{ __('admin.department_posts.form.hint_effective_from') }}</div>
                     </div>

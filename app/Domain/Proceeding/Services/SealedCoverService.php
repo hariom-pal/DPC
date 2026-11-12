@@ -183,6 +183,11 @@ class SealedCoverService
      */
     private function seat(DpcProceeding $proceeding, DpcCalculationResult $sealed, Carbon $openedOn): array
     {
+        // No seat was reserved for an officer the merit did not place on the Main List.
+        if ($sealed->list_type !== ListType::Main || ! $sealed->is_eligible) {
+            return [DpcSealedCoverOpening::REPLACEMENT_NO_SEAT, null];
+        }
+
         $proposal = $proceeding->proposal;
         $year = (int) ($proposal?->dpc_year ?: $proposal?->proposal_date?->year);
         $yearEnd = Carbon::create($year, 12, 31)->startOfDay();

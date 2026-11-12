@@ -1,8 +1,9 @@
 {{-- A mandatory CR or Property Return marked Missing (2026-11-05): the reason and the
      supporting document, required here and recorded as the missing-record
      justification (rule 3.2). Shown when `$when` is answered; `$years`, when given,
-     narrows it to the years the promotion rule makes mandatory. --}}
-<div class="border rounded bg-light p-2 mt-2" data-show-when="{{ $when }}" @if ($years !== null) data-only-years="{{ implode(',', $years) }}" @endif data-missing-record>
+     narrows it to the years the promotion rule makes mandatory; a year in
+     `$justified` already has its reason and document and is not asked again. --}}
+<div class="border rounded bg-light p-2 mt-2" data-show-when="{{ $when }}" @if ($years !== null) data-only-years="{{ implode(',', $years) }}" @endif data-except-years="{{ implode(',', $justified ?? []) }}" data-missing-record>
     <div class="small fw-semibold mb-1">{{ __('dpc.employee_details.missing_record.heading') }}</div>
     <div class="small text-muted mb-2">{{ __('dpc.employee_details.missing_record.help') }}</div>
     <div class="row g-2">

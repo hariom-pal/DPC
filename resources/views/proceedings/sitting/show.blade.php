@@ -70,6 +70,11 @@
                 </div>
             </div>
 
+            {{-- The DPC's Chairman opens its sealed covers once the result is approved (2026-11-05). --}}
+            @php($approvedProceeding = \App\Domain\Proceeding\Models\DpcProceeding::query()->where('dpc_proposal_id', $proposal->id)->where('status', \App\Domain\Proceeding\Enums\DpcProceedingStatus::ResultApproved->value)->latest('id')->first())
+            @if ($approvedProceeding !== null && app(\App\Domain\Proceeding\Services\SealedCoverService::class)->isDpcChairman($proposal, auth()->user()))
+                <a href="{{ route('cgpsc.proceedings.sealed-covers', $approvedProceeding) }}" class="btn btn-outline-warning btn-sm mt-3" id="sealed-covers-link">{{ __('dpc.sealed_cover.title') }}</a>
+            @endif
             <a href="{{ route('sitting.index') }}" class="btn btn-outline-secondary btn-sm mt-3">{{ __('ui.back') }}</a>
         </div>
     </div>

@@ -167,7 +167,14 @@ class ProposalAllotmentService
                 $locked = $proposal->newQuery()->lockForUpdate()->findOrFail($proposal->getKey());
                 $aoSigned = $locked->status->value === 'submitted' && $current->ao_user_id !== $ao->id;
 
-                if ($locked->status->isTerminal() || $aoSigned) {
+                // An approved DPC still has steps ahead of its AO and AH — the
+                // promotion order, a circulation, a Review DPC, a sealed cover's
+                // order — so its officers may be reassigned until it is cancelled
+                // (2026-11-12); the signatures already given stand. A Pre-DPC is
+                // finished once approved.
+                $closed = $locked instanceof DpcProposal ? $locked->status->value === 'cancelled' : $locked->status->isTerminal();
+
+                if ($closed || $aoSigned) {
                     throw new AllotmentRefused((string) __('allotments.errors.locked_after_signature'));
                 }
 

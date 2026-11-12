@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Shared\Listeners;
 
 use App\Domain\Notification\Services\NotificationRecipientResolver;
+use App\Domain\Notification\Templates\MessageTemplates;
 use App\Domain\Shared\Events\WorkflowTransitioned;
 use App\Integrations\Contracts\SmsSender;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -34,6 +35,7 @@ class SendWorkflowNotification implements ShouldQueue
     public function __construct(
         private readonly SmsSender $sms,
         private readonly NotificationRecipientResolver $recipients,
+        private readonly MessageTemplates $templates,
     ) {}
 
     public function handle(WorkflowTransitioned $event): void
@@ -42,10 +44,13 @@ class SendWorkflowNotification implements ShouldQueue
             return;
         }
 
-        $message = "ODPC: {$event->workflow} was '{$event->event}' (status: {$event->toState}).";
+        // The Administrator's wording (2026-11-12).
+        $values = ['workflow' => $event->workflow, 'event' => $event->event, 'status' => $event->toState, 'remarks' => ''];
         if ($event->remarks !== null && $event->remarks !== '') {
-            $message .= " Remarks: {$event->remarks}";
+            $values['remarks'] = " Remarks: {$event->remarks}";
         }
+        $sms = $this->templates->sms('workflow.update', $values);
+        $mailText = $this->templates->email('workflow.update', $values);
 
         // Two independent recipient sets: roles within the subject's
         // department, and specific users named outright. The second exists
@@ -70,14 +75,14 @@ class SendWorkflowNotification implements ShouldQueue
             // person being told, and none of it may surface as a workflow
             // error. Failures are logged so they remain visible.
             try {
-                if ($recipient->mobile !== null) {
-                    $this->sms->send($recipient->mobile, $message);
+                if ($sms !== null && $recipient->mobile !== null) {
+                    $this->sms->send($recipient->mobile, $sms['body'], $sms['dlt_template_id']);
                 }
 
-                if ($recipient->email !== null) {
+                if ($mailText !== null && $recipient->email !== null) {
                     $email = $recipient->email;
-                    Mail::raw($message, function ($mail) use ($email): void {
-                        $mail->to($email)->subject('ODPC Portal — Workflow Update');
+                    Mail::raw($mailText['body'], function ($mail) use ($email, $mailText): void {
+                        $mail->to($email)->subject($mailText['subject']);
                     });
                 }
             } catch (Throwable $e) {

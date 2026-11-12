@@ -4,19 +4,25 @@ declare(strict_types=1);
 
 namespace App\Domain\Proceeding\Requests;
 
+use App\Domain\Proceeding\Models\DpcProceeding;
 use App\Domain\Proceeding\Models\DpcSealedCoverOpening;
+use App\Domain\Proceeding\Services\SealedCoverService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 /**
  * The DPC Chairman opens a sealed cover (2026-11-05): the competent authority's
- * decision, its order, and the evidence. Who may is checked by the service.
+ * decision, its order, and the evidence. Only the DPC's own Chairman, refused
+ * before the form is validated; the service checks again.
  */
 class OpenSealedCoverRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true;
+        $proceeding = $this->route('proceeding');
+
+        return $proceeding instanceof DpcProceeding && $proceeding->proposal !== null
+            && app(SealedCoverService::class)->isDpcChairman($proceeding->proposal, $this->user());
     }
 
     /**

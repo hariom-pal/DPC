@@ -120,6 +120,8 @@ enum ImportTemplate: string
     public function columnMap(): array
     {
         $shared = [
+            // EMPLOYEE ID on every list (2026-11-08); EMPLOYEE NO still read.
+            'employee_id' => 'employee_number',
             'employee_no' => 'employee_number',
             'employee_number' => 'employee_number',
             'emp_no' => 'employee_number',
@@ -306,9 +308,9 @@ enum ImportTemplate: string
     public function expectedHeaders(): array
     {
         return match ($this) {
-            self::CurrentlyWorkingUs => ['SN', 'STATUS', 'SOURCE', 'EMPLOYEE NO', 'NAME', 'MOBILE', 'DOB', 'QUAL', 'PROMOTION TO POST', 'PROMOTION FROM POST', 'CAT', 'SEAT CATEGORY', 'DATE OF JOINING IN SERVICE', 'DATE OF POSTING ON PROMOTION TO POST', 'DATE OF POSTING ON PROMOTION FROM POST', 'ROSTER POSITION', 'DEPUTATION DATE', 'DEPUTATION TO', 'DATE OF RETIREMENT'],
+            self::CurrentlyWorkingUs => ['SN', 'STATUS', 'SOURCE', 'EMPLOYEE ID', 'NAME', 'MOBILE', 'DOB', 'QUAL', 'PROMOTION TO POST', 'PROMOTION FROM POST', 'CAT', 'SEAT CATEGORY', 'DATE OF JOINING IN SERVICE', 'DATE OF POSTING ON PROMOTION TO POST', 'DATE OF POSTING ON PROMOTION FROM POST', 'ROSTER POSITION', 'DEPUTATION DATE', 'DEPUTATION TO', 'DATE OF RETIREMENT'],
             self::FinalSeniorityListUs => ['SENIORITY NO', 'EMPLOYEE ID', 'EMPLOYEE NAME', 'DATE OF BIRTH', 'DATE OF APPOINTMENT', 'CURRENT POST', 'DATE OF POSTING ON CURRENT POST'],
-            self::EvaluationChartUs => ['SN', 'EMPLOYEE NO', 'NAME OF US', 'MOBILE', 'DOB', 'QUAL', 'DOP', 'CAT', 'LOYALTY 2013 …', 'PROPERTY 2013 …', 'CR 2012 …', 'TRIBAL AREA 2012 …', 'TRIBAL AREA SERVICE YEARS', 'NOTE'],
+            self::EvaluationChartUs => ['SN', 'EMPLOYEE ID', 'NAME OF US', 'MOBILE', 'DOB', 'QUAL', 'DOP', 'CAT', 'LOYALTY 2013 …', 'PROPERTY 2013 …', 'CR 2012 …', 'TRIBAL AREA 2012 …', 'TRIBAL AREA SERVICE YEARS', 'NOTE'],
         };
     }
 }

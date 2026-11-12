@@ -53,6 +53,30 @@ class LoginTest extends TestCase
         $this->assertAuthenticatedAs($user);
     }
 
+    /**
+     * An Employee ID may be letters, digits or both (2026-11-12) — ten digits too,
+     * which is first tried as a mobile number and then as the Employee ID.
+     */
+    #[DataProvider('employeeIds')]
+    public function test_a_user_signs_in_with_an_employee_id_of_any_shape(string $employeeId): void
+    {
+        $user = $this->verifiedUser();
+        $user->forceFill(['employee_number' => $employeeId])->save();
+
+        $response = $this->post(route('login.store'), ['login' => $employeeId, 'password' => 'password']);
+
+        $response->assertSessionHasNoErrors();
+        $response->assertRedirect(route('verify.show'));
+    }
+
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function employeeIds(): array
+    {
+        return ['numeric' => ['104523'], 'ten digits' => ['1234567890'], 'alphabetic' => ['ABCDEF'], 'alphanumeric' => ['PHE2026A7']];
+    }
+
     public function test_wrong_password_is_rejected(): void
     {
         $user = $this->verifiedUser();

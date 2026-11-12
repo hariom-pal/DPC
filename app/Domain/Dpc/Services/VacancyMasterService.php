@@ -1453,14 +1453,34 @@ class VacancyMasterService
         }
     }
 
+    /**
+     * The years offered in the vacancy year pickers, latest first: up to the coming
+     * year, or further where a DPC has been opened for a later year (the DPC Year may
+     * be typed as any year, 2026-11-12).
+     *
+     * @return list<int>
+     */
+    public static function selectableYears(): array
+    {
+        $latest = max(
+            (int) now()->year + 1,
+            (int) DB::table('pre_dpc_proposals')->max('dpc_year'),
+            (int) DB::table('dpc_proposals')->max('dpc_year'),
+        );
+
+        return range(min($latest, (int) config('dpc.latest_dpc_year', 2100)), (int) config('dpc.vacancy_master.earliest_year', 2019));
+    }
+
     private function assertYear(int $year): void
     {
         $earliest = (int) config('dpc.vacancy_master.earliest_year', 2019);
 
-        if ($year < $earliest || $year > (int) now()->year + 1) {
+        $latest = (int) config('dpc.latest_dpc_year', 2100);
+
+        if ($year < $earliest || $year > $latest) {
             throw new WorkflowException(__('vacancymaster.errors.year_out_of_range', [
                 'from' => $earliest,
-                'to' => (int) now()->year + 1,
+                'to' => $latest,
             ]));
         }
     }

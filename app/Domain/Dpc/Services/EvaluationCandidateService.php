@@ -114,6 +114,15 @@ class EvaluationCandidateService
 
             $keptIds = array_map(static fn (DpcEvaluationRow $row): int => $row->id, $matched);
 
+            /*
+             | The mobile number comes from the uploaded lists, never typed (2026-11-12):
+             | the Seniority List's own, else the Working Officers List row with the same
+             | Employee ID.
+             */
+            $workingMobiles = $proposal->workingOfficers()->whereNotNull('employee_number')->whereNotNull('mobile')->get(['employee_number', 'mobile'])
+                ->mapWithKeys(fn ($officer): array => [mb_strtoupper((string) preg_replace('/\s+/u', '', (string) $officer->employee_number)) => (string) $officer->mobile])
+                ->all();
+
             foreach ($existing as $row) {
                 if (! in_array($row->id, $keptIds, true)) {
                     $row->delete();
@@ -127,6 +136,7 @@ class EvaluationCandidateService
 
             foreach ($entries as $index => $entry) {
                 $identity = $this->identityFrom($entry);
+                $identity['mobile'] ??= $workingMobiles[mb_strtoupper((string) preg_replace('/\s+/u', '', (string) $entry->employee_number))] ?? null;
                 $row = $matched[$index] ?? null;
 
                 if ($row === null) {
@@ -318,7 +328,7 @@ class EvaluationCandidateService
         }
 
         if ($renamed !== []) {
-            return ['Employee numbers cannot be changed on the Evaluation Chart: '.implode('; ', $renamed).'.'];
+            return ['Employee IDs cannot be changed on the Evaluation Chart: '.implode('; ', $renamed).'.'];
         }
 
         return [];

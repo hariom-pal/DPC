@@ -309,7 +309,7 @@ class DpcEvaluationChartTest extends TestCase
             ->assertSessionHasErrors('rows');
 
         $this->assertStringContainsString(
-            'Employee numbers cannot be changed',
+            'Employee IDs cannot be changed',
             session('errors')->first('rows'),
         );
     }

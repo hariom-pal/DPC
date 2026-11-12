@@ -68,7 +68,7 @@ class RoleBasedUiVisibilityTest extends TestCase
         // Each on a scale, the feeder's lower (MoM of 2026-10-29).
         $this->postFrom = DepartmentPost::query()->create([
             'department_id' => $department->id, 'name' => 'Under Secretary',
-            'class_level' => 'I', 'promotion_duration_years' => 5, 'status' => 'active',
+            'class_level' => 'I', 'promotion_duration_years' => 5, 'retirement_age' => 62, 'status' => 'active',
             'pay_scale_id' => PayScale::query()->create(['code' => 'L10', 'label' => 'Level-10', 'minimum_pay' => 56100, 'status' => 'active'])->id,
         ]);
         $this->postTo = DepartmentPost::query()->create([
