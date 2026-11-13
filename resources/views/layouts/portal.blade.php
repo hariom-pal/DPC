@@ -226,6 +226,7 @@
 <script src="@versioned('js/searchable-select.js')" defer></script>
 <script src="@versioned('js/table-hscroll.js')" defer></script>
 <script src="@versioned('js/date-input.js')" defer></script>
+@include('partials.chatbot')
 @stack('scripts')
 </body>
 </html>

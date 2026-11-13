@@ -127,6 +127,7 @@
         @include('partials.next-step-modal', ['message' => session('status'), 'next' => session('next_step')])
     @endif
     <script src="@versioned('js/next-step.js')" defer></script>
+    @include('partials.chatbot')
     @stack('scripts')
 </body>
 </html>

@@ -720,23 +720,24 @@ class DpcVacancyCalculationTest extends TestCase
             route('dpc-proposals.seniority-list.update', $this->proposal),
             ['seniority_list_as_on' => $this->proposal->seniorityReferenceDate()->toDateString(), 'entries' => $this->seniority(10)],
         )->assertSessionHasErrors([
-            'entries' => 'The uploaded Seniority List must contain exactly 8 officers based on the calculated Zone of Consideration.',
+            'entries' => 'The uploaded Seniority List may contain at most 8 officers based on the calculated Zone of Consideration.',
         ]);
 
         $this->assertSame(0, $this->proposal->fresh()->seniorityEntries()->count());
     }
 
-    public function test_a_seniority_list_shorter_than_the_zone_is_refused(): void
+    public function test_a_seniority_list_shorter_than_the_zone_is_accepted(): void
     {
-        // The directive's example: zone 12, uploaded 9.
+        // Zone 12, but the department has only 9 eligible officers (2026-11-13):
+        // the zone is a ceiling, not a quota.
         $this->withVacancyOf(4); // zone 12
 
         $this->actingAs($this->ao)->put(
             route('dpc-proposals.seniority-list.update', $this->proposal),
             ['seniority_list_as_on' => $this->proposal->seniorityReferenceDate()->toDateString(), 'entries' => $this->seniority(9)],
-        )->assertSessionHasErrors([
-            'entries' => 'The uploaded Seniority List must contain exactly 12 officers based on the calculated Zone of Consideration.',
-        ]);
+        )->assertSessionHasNoErrors();
+
+        $this->assertSame(9, $this->proposal->fresh()->seniorityEntries()->count());
     }
 
     public function test_the_gate_is_silent_before_the_sanctioned_strength_is_known(): void
@@ -788,16 +789,16 @@ class DpcVacancyCalculationTest extends TestCase
         $this->assertStringContainsString('cannot exceed the sanctioned strength', $checklist['detail']);
     }
 
-    public function test_a_seniority_list_that_misses_the_zone_blocks_submission(): void
+    public function test_a_seniority_list_longer_than_the_zone_blocks_submission(): void
     {
         $this->withVacancyOf(3); // zone 10
-        app(DpcProposalService::class)->saveSeniorityEntries($this->proposal, $this->seniority(4), $this->ao);
+        app(DpcProposalService::class)->saveSeniorityEntries($this->proposal, $this->seniority(12), $this->ao);
 
         $checklist = collect(app(DpcProposalCompletenessService::class)->checklist($this->proposal->fresh()))
             ->firstWhere('key', 'seniority_list');
 
         $this->assertFalse($checklist['complete']);
-        $this->assertStringContainsString('exactly 10 officers', $checklist['detail']);
+        $this->assertStringContainsString('at most 10 officers', $checklist['detail']);
     }
 
     // --------------------------------------------------------- standing them down
@@ -879,6 +880,6 @@ class DpcVacancyCalculationTest extends TestCase
             ->get(route('dpc-proposals.seniority-list', $this->proposal))
             ->assertOk()
             ->assertSee('Zone of Consideration')
-            ->assertSee('exactly 10');
+            ->assertSee('at most 10');
     }
 }

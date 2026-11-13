@@ -203,6 +203,7 @@
 <script src="@versioned('js/next-step.js')" defer></script>
 {{-- Saved entries read-only until Edit (MoM of 12 November 2026, point 10). --}}
 <script src="@versioned('js/saved-lock.js')" defer></script>
+@include('partials.chatbot')
 @stack('scripts')
 </body>
 </html>

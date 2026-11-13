@@ -152,7 +152,9 @@ class SaveSeniorityEntriesRequest extends FormRequest
 
         $required = app(VacancyCalculationService::class)->requiredSeniorityCount($proposal);
 
-        if ($required === null || $submitted === $required) {
+        // Up to the zone: a department may have fewer eligible officers than the
+        // zone admits (2026-11-13), but never more.
+        if ($required === null || $submitted <= $required) {
             return;
         }
 

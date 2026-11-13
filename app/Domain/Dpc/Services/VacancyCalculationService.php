@@ -231,7 +231,7 @@ class VacancyCalculationService
      */
     public function seniorityCountMessage(int $required): string
     {
-        return "The uploaded Seniority List must contain exactly {$required} officer"
+        return "The uploaded Seniority List may contain at most {$required} officer"
             .($required === 1 ? '' : 's')
             .' based on the calculated Zone of Consideration.';
     }

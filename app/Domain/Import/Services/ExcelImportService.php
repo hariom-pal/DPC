@@ -451,7 +451,7 @@ class ExcelImportService
 
         $required = $this->vacancies->requiredSeniorityCount($proposal);
 
-        if ($required !== null && $incoming !== $required) {
+        if ($required !== null && $incoming > $required) {
             throw new WorkflowException(
                 $this->vacancies->seniorityCountMessage($required)
                 ." This file carries {$incoming}."

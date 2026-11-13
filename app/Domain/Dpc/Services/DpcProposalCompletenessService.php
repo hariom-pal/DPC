@@ -31,7 +31,7 @@ use App\Domain\Master\Support\ReservationMode;
  *
  *   - working officers must not exceed the sanctioned strength;
  *   - the vacancy classification must sum to `sanctioned − working`;
- *   - the seniority list must carry exactly as many officers as the zone admits.
+ *   - the seniority list may carry at most as many officers as the zone admits.
  *
  * Nothing here still scores or ranks an officer, and no eligibility verdict is
  * reached. The zone is not *computed* here either — it is asked of the M5
@@ -240,7 +240,7 @@ class DpcProposalCompletenessService
                         ." The list currently carries {$sums['seniority_entered']}.",
                     $this->seniorityAsOnProblem($proposal) !== null => (string) $this->seniorityAsOnProblem($proposal),
                     $sums['required_seniority'] !== null => $proposal->seniority_entries_count
-                        .' officer(s), matching the Zone of Consideration of '.$sums['required_seniority'],
+                        .' officer(s), within the Zone of Consideration of '.$sums['required_seniority'],
                     default => $proposal->seniority_entries_count.' officer(s) in the feeder seniority list',
                 },
             ],
@@ -549,7 +549,7 @@ class DpcProposalCompletenessService
         // Null means no exact count can be required — an unentered sanctioned
         // strength, a class pair the deck gives no formula for, or no vacancy.
         return $sums['required_seniority'] === null
-            || $sums['seniority_entered'] === $sums['required_seniority'];
+            || $sums['seniority_entered'] <= $sums['required_seniority'];
     }
 
     /**

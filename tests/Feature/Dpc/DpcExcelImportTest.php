@@ -665,13 +665,31 @@ class DpcExcelImportTest extends TestCase
         $this->assertSame(1, $this->proposal->fresh()->workingOfficers()->count());
     }
 
-    public function test_a_seniority_import_must_match_the_zone_of_consideration(): void
+    public function test_a_seniority_import_shorter_than_the_zone_commits(): void
     {
         // One vacancy sizes the zone at 5 (the deck's single-vacancy rule); the
-        // file below carries 2.
+        // file below carries 2. The zone is a ceiling, not a quota (2026-11-13).
         $this->sanctionVacancies($this->proposal, 1);
 
         $batch = $this->upload(ImportTemplate::FinalSeniorityListUs, $this->seniorityFile());
+
+        $this->actingAs($this->ao)
+            ->post(route('dpc-proposals.imports.commit', [$this->proposal, $batch]))
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(2, $this->proposal->fresh()->seniorityEntries()->count());
+    }
+
+    public function test_a_seniority_import_longer_than_the_zone_is_refused(): void
+    {
+        $this->sanctionVacancies($this->proposal, 1); // zone 5
+
+        $rows = [['SN', 'EMPLOYEE NO', 'NAME OF US', 'DOB', 'QUAL', 'CAT', 'DATE OF JOINING IN SERVICE', 'DATE OF POSTING ON US']];
+        for ($sn = 1; $sn <= 6; $sn++) {
+            $rows[] = [(string) $sn, 'EMP-'.$sn, 'US'.$sn, '20-03-1964', '11TH', 'UR', '01-04-1985', '01-01-2012'];
+        }
+
+        $batch = $this->upload(ImportTemplate::FinalSeniorityListUs, $this->seniorityCsv($rows));
 
         $this->actingAs($this->ao)
             ->post(route('dpc-proposals.imports.commit', [$this->proposal, $batch]))

@@ -35,7 +35,7 @@
             <h1 class="h4 mb-1">{{ __('ui.seniority_list') }}</h1>
             <p class="text-muted small mb-3">{{ __('dpc.seniority_list.lead', ['post' => $proposal->promotionFromPost->name]) }}</p>
 
-            {{-- The list must carry exactly the zone's officer count. Stated
+            {{-- The list may carry up to the zone's officer count (fewer allowed since 2026-11-13). Stated
                  here, before the officer starts typing, rather than only as a
                  refusal afterwards (business directive, 2026-08-22). --}}
             <div class="card border-0 shadow-sm mb-3">
@@ -63,7 +63,7 @@
 
                     @if ($vacancy['required_seniority'] !== null)
                         <hr class="my-3">
-                        @if ($vacancy['seniority_entered'] === $vacancy['required_seniority'])
+                        @if ($vacancy['seniority_entered'] > 0 && $vacancy['seniority_entered'] <= $vacancy['required_seniority'])
                             <p class="mb-0 small text-success">
 {!! __('dpc.seniority_list.matches_zone', ['count' => $vacancy['seniority_entered'], 'formula' => e($vacancy['zone']->formula)]) !!}
                             </p>

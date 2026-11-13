@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Middleware;
 
+use App\Support\ChatbotWidget;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -154,17 +155,20 @@ class SecurityHeaders
             return $configured;
         }
 
+        // The help-desk chatbot, when configured, is the one other origin allowed.
+        $chatbot = ChatbotWidget::enabled() ? ' '.ChatbotWidget::origin() : '';
+
         return implode('; ', [
             "default-src 'self'",
             // See the class docblock: inline styles are needed, inline scripts are
             // not, and the asymmetry is deliberate.
-            "script-src 'self'",
+            "script-src 'self'".$chatbot,
             "style-src 'self' 'unsafe-inline'",
-            "img-src 'self' data:",
+            "img-src 'self' data:".$chatbot,
             "font-src 'self' data:",
             // No CDN, no analytics, no external API from the browser. The whole
             // application is same-origin by design.
-            "connect-src 'self'",
+            "connect-src 'self'".$chatbot,
             "form-action 'self'",
             "frame-ancestors 'self'",
             "base-uri 'self'",

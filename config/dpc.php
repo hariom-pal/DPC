@@ -1092,6 +1092,24 @@ return [
     |
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | Help-desk chatbot
+    |--------------------------------------------------------------------------
+    |
+    | The self-hosted Knowledge Chatbot widget, shown on every page. Off unless
+    | both values are set. DPC_CHATBOT_URL is the chatbot's base URL (it serves
+    | /widget.js and /api); DPC_CHATBOT_SITE_ID is the website's site id in the
+    | chatbot's admin. That one origin is added to the CSP while it is on — see
+    | App\Support\ChatbotWidget.
+    |
+    */
+
+    'chatbot' => [
+        'url' => env('DPC_CHATBOT_URL'),
+        'site_id' => env('DPC_CHATBOT_SITE_ID'),
+    ],
+
     'security' => [
         'headers' => [
             'enabled' => (bool) env('DPC_SECURITY_HEADERS', true),
