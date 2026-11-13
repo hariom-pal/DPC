@@ -107,22 +107,51 @@ class DpcEvaluationCrGrade extends Model
     }
 
     /**
-     * The year's points on the Eligible CR Grades (rule 3.4): its one CR's. One CR a
-     * year and never an average (decision of 2026-11-01), so a year still holding
-     * several CRs from the earlier form is ungraded until it is entered again. Null
-     * when the year carries no grade, or a grade the points do not name.
+     * The year's points on the Eligible CR Grades (rule 3.4): its one graded CR's, or
+     * for several the points of the nearest grade at or below their average (MoM of
+     * 12 November 2026). Null when the year carries no grade, or a grade the points do
+     * not name.
      *
      * @param  array<string, int>  $points  grade code => points
      */
     public function pointsOn(array $points): ?int
     {
-        $grades = $this->finalGrades();
+        $grade = self::yearGradeOf($this->finalGrades(), $points);
 
-        if (count($grades) !== 1 || ! isset($points[$grades[0]])) {
+        return $grade === null ? null : (int) $points[$grade];
+    }
+
+    /**
+     * The year's grade from its CRs' grades (MoM of 12 November 2026): the one grade,
+     * or for several the nearest grade at or below their average — never rounded up.
+     * Null when there is none, or a grade the points do not name.
+     *
+     * @param  list<string>  $grades
+     * @param  array<string, int>  $points  grade code => points
+     */
+    public static function yearGradeOf(array $grades, array $points): ?string
+    {
+        if ($grades === []) {
             return null;
         }
 
-        return $points[$grades[0]];
+        foreach ($grades as $grade) {
+            if (! isset($points[$grade])) {
+                return null;
+            }
+        }
+
+        if (count($grades) === 1) {
+            return $grades[0];
+        }
+
+        $average = array_sum(array_map(fn (string $grade): int => (int) $points[$grade], $grades)) / count($grades);
+        $below = array_filter($points, fn ($value): bool => (int) $value <= $average);
+        arsort($below);
+
+        $grade = array_key_first($below);
+
+        return $grade === null ? null : (string) $grade;
     }
 
     /**

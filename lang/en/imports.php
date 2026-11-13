@@ -35,6 +35,8 @@ return [
         'promotion_to_post' => 'The post being filled by this DPC. It is the same on every row, and it is already filled in on the example line. Copy that value down.',
         'promotion_from_post' => 'The post the officer holds now. Use one of the posts named on the help line — nothing else is accepted.',
         'cat' => 'Category code: UR, SC, ST, OBC or EWS. Fill it on every row, including a vacant one.',
+        'candidate_category' => 'The officer\'s own category: UR, SC, ST, OBC or EWS.',
+        'selection_category' => 'The category the officer was selected (appointed) against — the roster point of the seat. An SC officer selected on merit: CANDIDATE CATEGORY SC, SELECTION CATEGORY UR. Leave blank if your department does not keep a roster.',
         'seat_category' => 'The category of the SEAT the officer sits on — the roster point they were appointed against. Not the same as CAT: an SC officer selected on merit sits on a UR seat, so CAT is SC and this is UR. Leave blank if your department does not keep a roster.',
         'date_of_joining' => 'The day the officer first joined government service. Not this post. Write it as DD-MM-YYYY.',
         'posting_on_to_post' => 'Leave blank. Fill it only if the officer is already working in the promotion post on an officiating basis. Most rows have nothing here.',

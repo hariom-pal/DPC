@@ -11,7 +11,9 @@ use App\Domain\Dpc\Models\DpcCommitteeMember;
 use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Models\VacancyPosition;
+use App\Domain\Dpc\Services\DpcCompletionService;
 use App\Domain\Dpc\Services\DpcProposalCompletenessService;
+use App\Domain\Dpc\Services\DpcProposalService;
 use App\Domain\Dpc\Services\EmployeeDetailsService;
 use App\Domain\Import\Models\ImportBatch;
 use App\Domain\Master\Models\ClassMaster;
@@ -344,7 +346,7 @@ class FreshInstallToPromotionOrderTest extends TestCase
             // both matched by Employee ID, which every row of the record carries (2026-11-02).
             $template = $this->actingAs($ao)->get(route('dpc-import-templates.download-for', [$proposal, 'currently_working_us']))->assertOk()->getContent();
             $lines = array_values(array_filter(explode("\n", str_replace("\xEF\xBB\xBF", '', (string) $template)), fn (string $line): bool => trim($line) !== ''));
-            $this->assertSame('SN,"EMPLOYEE ID",NAME,DOB,MOBILE,EMAIL,"HERE ON DEPUTATION","OUT ON DEPUTATION"', trim($lines[0]));
+            $this->assertSame('SN,"EMPLOYEE ID",NAME,DOB,MOBILE,EMAIL,"HERE ON DEPUTATION","OUT ON DEPUTATION","CANDIDATE CATEGORY","SELECTION CATEGORY"', trim($lines[0]));
             $working = $lines[0]."\n";
             for ($sn = 1; $sn <= 6; $sn++) {
                 $name = match ($sn) {
@@ -404,9 +406,35 @@ class FreshInstallToPromotionOrderTest extends TestCase
             }
             $this->ok($this->actingAs($ah)->post(route('dpc-proposals.approve', $proposal)));
             $this->assertSame('approved', $proposal->fresh()->status->value);
+            // With CGPSC now: the AO/AH part is done (blue).
+            $this->assertSame(DpcCompletionService::WITH_CGPSC, app(DpcCompletionService::class)->phase($proposal->fresh()));
         });
 
-        $this->step('9 CGPSC: allot, accept, schedule, open, calculate, approve', function () use ($chairman, $member, $proposal): void {
+        // MoM of 12 November 2026: the AO may take the DPC back from CGPSC until the result.
+        $this->step('8b The AO takes the approved DPC back to correct it; the AH approves it again', function () use ($ao, $ah, $proposal): void {
+            $revision = (int) $proposal->fresh()->revision_number;
+            $this->actingAs($ah)->post(route('dpc-proposals.recall', $proposal), ['recall_remarks' => 'x'])
+                ->assertSessionHasErrors(['recall' => __('dpc.completion.errors.not_ao')]);
+            $this->actingAs($ao)->get(route('dpc-proposals.show', $proposal))->assertOk()->assertSee('id="dpc-recall"', false);
+            $this->actingAs($ao)->post(route('dpc-proposals.recall', $proposal), [])->assertSessionHasErrors('recall_remarks');
+
+            $this->ok($this->actingAs($ao)->post(route('dpc-proposals.recall', $proposal), ['recall_remarks' => 'Correct one officer\'s CR.']));
+            $this->assertSame('returned', $proposal->fresh()->status->value);
+            $this->assertStringContainsString('Correct one officer\'s CR.', (string) $proposal->fresh()->return_remarks);
+            $this->assertGreaterThan($revision, (int) $proposal->fresh()->revision_number);
+
+            // Rule 1.1 is confirmed again for the new revision, as after any return.
+            foreach (['sanctioned_strength', 'recruitment_rule', 'seniority_list', 'original_documents', 'representations'] as $item) {
+                $this->ok($this->actingAs($ao)->post(route('dpc-proposals.verification.store', [$proposal, $item]), ['confirm' => '1']));
+            }
+            $this->ok($this->actingAs($ao)->post(route('dpc-proposals.verification.store', [$proposal, 'previous_dpc_reconciliation']), ['confirm' => '1', 'previous_dpc_basis' => 'none', 'remarks' => 'No previous DPC for this post.']));
+            $this->ok($this->actingAs($ao)->post(route('dpc-proposals.verification.store', [$proposal, 'recruitment_rule_conformity']), ['confirm' => '1', 'rr_notified_on' => '2026-01-01']));
+            $this->ok($this->actingAs($ao)->post(route('dpc-proposals.submit', $proposal)));
+            $this->ok($this->actingAs($ah)->post(route('dpc-proposals.approve', $proposal)));
+            $this->assertSame('approved', $proposal->fresh()->status->value);
+        });
+
+        $this->step('9 CGPSC: allot, accept, schedule, open, calculate, approve', function () use ($ao, $chairman, $member, $proposal): void {
             $seat = DpcCommitteeMember::query()->where('dpc_proposal_id', $proposal->id)->where('user_id', $member->id)->sole();
             $this->ok($this->actingAs($chairman)->post(route('cgpsc.allotments.store', $proposal), ['allotted_to' => $member->id, 'dpc_chairman_member_id' => $seat->id, 'complete_by' => now()->addDays(30)->toDateString()]));
             $this->ok($this->actingAs($member)->post(route('cgpsc.schedules.accept', $proposal)));
@@ -416,6 +444,10 @@ class FreshInstallToPromotionOrderTest extends TestCase
             $this->ok($this->actingAs($member)->post(route('cgpsc.proceedings.calculate', $proceeding)));
             $this->ok($this->actingAs($member)->post(route('cgpsc.proceedings.approve', $proceeding), ['promotion_as_on_year' => 2026]));
             $this->assertSame('result_approved', $proceeding->fresh()->status->value);
+            // The result approved: no more taking back.
+            $this->assertSame(__('dpc.recall.errors.result_approved'), app(DpcProposalService::class)->recallRefusal($proposal->fresh(), $ao));
+            // Result approved: the promotion order and the mark are the department's (green).
+            $this->assertSame(DpcCompletionService::PENDING, app(DpcCompletionService::class)->phase($proposal->fresh()));
         });
 
         $this->step('10 AH issues the promotion order', function () use ($ah, $proposal): void {
@@ -423,6 +455,41 @@ class FreshInstallToPromotionOrderTest extends TestCase
             $order = DpcPromotionOrder::query()->sole();
             $this->assertStringStartsWith('%PDF', (string) Storage::disk((string) $order->disk)->get((string) $order->path));
             $this->assertCount(3, (array) $order->officers, 'Three promotion vacancies: three officers promoted.');
+        });
+
+        // MoM of 12 November 2026, points 2 and 4: the colours, and the AO's mark.
+        $this->step('11 The DPC is running until the AO marks the DPC Proceeding Complete; then it is Closed for good', function () use ($ao, $ah, $deptAdmin, $proposal): void {
+            $this->actingAs($deptAdmin)->get(route('department.allotments.index'))->assertOk()
+                ->assertSee('data-proposal="'.$proposal->uuid.'"', false)->assertSee('data-dpc-phase="pending"', false);
+            $this->actingAs($deptAdmin)->get(route('department.allotments.index', ['view' => 'closed']))->assertOk()
+                ->assertDontSee('data-proposal="'.$proposal->uuid.'"', false);
+
+            // The AH sees no mark; the AO does.
+            $this->actingAs($ah)->get(route('dpc-proposals.show', $proposal))->assertOk()->assertDontSee('id="dpc-complete"', false);
+            $this->actingAs($ah)->post(route('dpc-proposals.complete', $proposal), ['confirm' => '1'])
+                ->assertSessionHasErrors(['complete' => __('dpc.completion.errors.not_ao')]);
+            // The next step is the AO's, and it is flagged (MoM of 12 November 2026, point 1).
+            $this->actingAs($ao)->get(route('dpc-proposals.show', $proposal))->assertOk()->assertSee('id="dpc-complete"', false)
+                ->assertSee('data-next-step-target="dpc-complete"', false)->assertSee(__('dpc.next_step.mark_complete'))
+                ->assertSee('js/next-step.js', false);
+            $this->actingAs($ah)->get(route('dpc-proposals.show', $proposal))->assertSee(__('dpc.next_step.with_ao_complete'));
+            $this->actingAs($ao)->post(route('dpc-proposals.complete', $proposal), [])->assertSessionHasErrors('confirm');
+
+            $this->ok($this->actingAs($ao)->post(route('dpc-proposals.complete', $proposal), ['confirm' => '1']));
+            $this->assertNotNull($proposal->fresh()->proceeding_completed_at);
+            $this->assertSame($ao->id, $proposal->fresh()->proceeding_completed_by);
+
+            $this->actingAs($ao)->get(route('dpc-proposals.show', $proposal))->assertOk()
+                ->assertSee('id="dpc-completed"', false)->assertDontSee('id="dpc-complete"', false)->assertSee('data-dpc-phase="closed"', false);
+            $this->actingAs($ao)->post(route('dpc-proposals.complete', $proposal), ['confirm' => '1'])
+                ->assertSessionHasErrors(['complete' => __('dpc.completion.errors.already')]);
+
+            // Closed: on the closed list, and no longer reassigned.
+            $this->actingAs($deptAdmin)->get(route('department.allotments.index', ['view' => 'closed']))->assertOk()
+                ->assertSee('data-proposal="'.$proposal->uuid.'"', false)->assertSee('data-dpc-phase="closed"', false)
+                ->assertDontSee(route('department.allotments.dpc.edit', $proposal), false);
+            $this->actingAs($deptAdmin)->get(route('department.allotments.index'))->assertOk()
+                ->assertDontSee('data-proposal="'.$proposal->uuid.'"', false);
         });
     }
 }

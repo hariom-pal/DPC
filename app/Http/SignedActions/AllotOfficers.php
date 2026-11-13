@@ -57,7 +57,9 @@ class AllotOfficers implements SignedAction
         }
 
         return redirect()->route('department.allotments.index', $proposal instanceof PreDpcProposal ? ['view' => 'pre-dpc'] : [])
-            ->with('status', __('allotments.saved', ['proposal' => (string) ($payload['label'] ?? ''), 'ao' => $ao->name, 'ah' => $ah->name]));
+            ->with('status', __('allotments.saved', ['proposal' => (string) ($payload['label'] ?? ''), 'ao' => $ao->name, 'ah' => $ah->name]))
+            // MoM of 12 November 2026: "Allotment is Done. Now ask your AO to create DPC."
+            ->with('next_step', __($proposal instanceof PreDpcProposal ? 'ui.next_step.after.pre_dpc_allotted' : 'ui.next_step.after.dpc_allotted'));
     }
 
     public function abandon(array $payload): RedirectResponse

@@ -32,6 +32,7 @@ use Database\Seeders\LookupMasterSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Testing\TestResponse;
 use Tests\Concerns\CompletesDpcProposals;
@@ -81,6 +82,65 @@ class EmployeeDetailsTest extends TestCase
         ], $this->ao, $this->proposal->seniorityReferenceDate());
 
         $this->row = $this->proposal->evaluationRows()->where('sn', 1)->sole();
+
+        // PH reservation applies to this DPC: two vacancies at 50% give one PH seat
+        // (MoM of 12 November 2026 — the PH section is shown only where it applies).
+        $this->givePhSeats(2, 50);
+    }
+
+    private function givePhSeats(int $vacancies, int $percent): void
+    {
+        DB::table('dpc_vacancies')->where('dpc_proposal_id', $this->proposal->id)->delete();
+        if ($vacancies > 0) {
+            DB::table('dpc_vacancies')->insert([
+                'dpc_proposal_id' => $this->proposal->id,
+                'vacancy_type_id' => DB::table('vacancy_types')->orderBy('id')->value('id'),
+                'reservation_category_id' => DB::table('reservation_categories')->where('code', 'UR')->value('id'),
+                'count' => $vacancies, 'created_at' => now(), 'updated_at' => now(),
+            ]);
+        }
+        DB::table('reservation_policies')->whereIn('reservation_category_id', DB::table('reservation_categories')->where('code', 'PH')->pluck('id'))->update(['percentage' => $percent]);
+        config(['dpc.employee_details.ph_quota_percent' => $percent]);
+    }
+
+    /**
+     * A saved section opens read-only with an Edit button (MoM of 12 November 2026,
+     * point 10); an unsaved one is open for entry.
+     */
+    public function test_a_saved_section_is_locked_until_edit(): void
+    {
+        $show = fn () => (string) $this->actingAs($this->ao)->get(route('dpc-proposals.employees.show', [$this->proposal, $this->row]))->assertOk()->getContent();
+        $lockedForm = fn (string $html, string $route): bool => (bool) preg_match('#<form method="POST" action="'.preg_quote(route($route, [$this->proposal, $this->row]), '#').'"[^>]*data-saved-lock#s', $html);
+
+        $html = $show();
+        $this->assertStringContainsString('js/saved-lock.js', $html);
+        $this->assertFalse($lockedForm($html, 'dpc-proposals.employees.vigilance'), 'Not saved yet: open.');
+
+        $this->actingAs($this->ao)->put(route('dpc-proposals.employees.vigilance', [$this->proposal, $this->row]), ['vigilance_pending' => '0'])->assertSessionHasNoErrors();
+
+        $html = $show();
+        $this->assertTrue($lockedForm($html, 'dpc-proposals.employees.vigilance'), 'Saved: locked until Edit.');
+        $this->assertStringContainsString('data-label-edit="'.__('ui.edit').'"', $html);
+    }
+
+    /**
+     * No PH seat in this DPC's vacancies: the PH Reservation section is neither
+     * shown nor asked (MoM of 12 November 2026).
+     */
+    public function test_without_a_ph_seat_the_ph_section_is_neither_shown_nor_asked(): void
+    {
+        $this->givePhSeats(2, 3);
+        $this->assertFalse(app(EmployeeDetailsService::class)->phApplies($this->proposal->fresh()));
+
+        $this->actingAs($this->ao)->get(route('dpc-proposals.employees.show', [$this->proposal, $this->row]))->assertOk()
+            ->assertDontSee('id="section-ph"', false);
+        $this->get(route('dpc-proposals.employees.index', $this->proposal))->assertOk()->assertDontSee('id="ph-quota"', false);
+        $this->assertSame([], app(EmployeeDetailsService::class)->status($this->row->fresh())['sections']['ph']);
+
+        $this->givePhSeats(2, 50);
+        $this->assertTrue(app(EmployeeDetailsService::class)->phApplies($this->proposal->fresh()));
+        $this->get(route('dpc-proposals.employees.show', [$this->proposal, $this->row]))->assertSee('id="section-ph"', false);
+        $this->assertNotSame([], app(EmployeeDetailsService::class)->status($this->row->fresh())['sections']['ph']);
     }
 
     private function route(string $name, array $extra = []): string
@@ -116,8 +176,11 @@ class EmployeeDetailsTest extends TestCase
      */
     private function saveCr(int $year, string $grade, array $authorities = ['reporter', 'reviewer', 'accepting']): TestResponse
     {
+        // A CR without every authority's remarks carries its NRC (MoM of 12 November 2026).
+        $nrc = count($authorities) < 3 ? ['nrc' => $this->pdf('nrc.pdf')] : [];
+
         return $this->actingAs($this->ao)->post($this->route('cr.save'), [
-            'year' => $year, 'put_up' => '1', 'has_grading' => '1', 'authorities' => $authorities, 'grade' => $grade,
+            'year' => $year, 'put_up' => '1', 'has_grading' => '1', 'authorities' => $authorities, 'grade' => $grade, ...$nrc,
         ]);
     }
 
@@ -194,16 +257,24 @@ class EmployeeDetailsTest extends TestCase
             ->assertSessionHasErrors();
     }
 
-    public function test_an_unticked_authority_needs_an_nrc(): void
+    public function test_an_unticked_authority_needs_an_nrc_uploaded_with_the_cr(): void
     {
+        // MoM of 12 November 2026: the NRC is uploaded there and then, or the CR is not saved.
+        $this->actingAs($this->ao)->post($this->route('cr.save'), [
+            'year' => 2023, 'put_up' => '1', 'has_grading' => '1', 'authorities' => ['reporter', 'reviewer'], 'grade' => 'क',
+        ])->assertSessionHasErrors(['cr' => __('dpc.employee_details.cr.nrc_required')]);
+        $this->assertNull($this->row->crGrades()->where('year', 2023)->first());
+
         $this->saveCr(2023, 'क', ['reporter', 'reviewer'])->assertSessionHasNoErrors();
 
         $this->assertSame('क', $this->row->crGrades()->where('year', 2023)->value('grade'));
-        $this->assertContains('CR 2023: a reporting, reviewing or accepting remark is missing — upload the NRC.', $this->details()['sections']['cr']);
-
-        $this->upload(EvaluationDocumentKind::CrNrc, 2023, false)->assertSessionHasNoErrors();
-
+        $this->assertSame(1, $this->row->currentDocuments()->where('kind', EvaluationDocumentKind::CrNrc->value)->where('year', 2023)->count());
         $this->assertNotContains('CR 2023: a reporting, reviewing or accepting remark is missing — upload the NRC.', $this->details()['sections']['cr']);
+
+        // Saved again, the NRC already on file is enough.
+        $this->actingAs($this->ao)->post($this->route('cr.save'), [
+            'year' => 2023, 'put_up' => '1', 'has_grading' => '1', 'authorities' => ['reporter'], 'grade' => 'ख',
+        ])->assertSessionHasNoErrors();
     }
 
     /**
@@ -365,6 +436,44 @@ class EmployeeDetailsTest extends TestCase
         $this->assertContains('Property Return 2023: accepted late — record the reason and upload the decision.', $this->details()['sections']['property']);
     }
 
+    /**
+     * Property Return (MoM of 12 November 2026): the last five years listed
+     * continuously, recorded or not; a separate "Upload Late Property Return
+     * Document" offering only the late years.
+     */
+    public function test_property_returns_list_five_years_and_late_uploads_offer_only_late_years(): void
+    {
+        $dpcYear = (int) ($this->proposal->dpc_year ?: $this->proposal->proposal_date->year);
+        $late = $dpcYear - 3;
+        $this->actingAs($this->ao)->post($this->route('property.save'), [
+            'year' => $late, 'submitted' => '1', 'submitted_on' => ($late + 1).'-03-01', 'next_increment_date' => ($late + 1).'-07-01',
+            'late_decision' => 'accepted', 'late_decision_remarks' => 'Election duty.',
+        ])->assertSessionHasNoErrors();
+        $onTime = $dpcYear - 2;
+        $this->actingAs($this->ao)->post($this->route('property.save'), [
+            'year' => $onTime, 'submitted' => '1', 'submitted_on' => ($onTime + 1).'-01-15', 'next_increment_date' => ($onTime + 1).'-07-02',
+        ])->assertSessionHasNoErrors();
+
+        $page = $this->actingAs($this->ao)->get(route('dpc-proposals.employees.show', [$this->proposal, $this->row]))->assertOk();
+        foreach (range($dpcYear - 5, $dpcYear - 1) as $year) {
+            $page->assertSee('data-property-year="'.$year.'"', false);
+        }
+        $page->assertSee('data-property-year="'.($dpcYear - 5).'" data-property-missing', false)
+            ->assertDontSee('data-property-year="'.$late.'" data-property-missing', false)
+            ->assertSee(__('dpc.employee_details.property.late_upload_heading'));
+
+        $html = (string) $page->getContent();
+        $form = substr($html, (int) strpos($html, 'id="property-late-upload"'));
+        $form = substr($form, 0, (int) strpos($form, '</form>'));
+        $this->assertStringContainsString('<option value="'.$late.'">', $form);
+        $this->assertStringNotContainsString('<option value="'.$onTime.'">', $form);
+
+        // "Record" on a missing year opens the form on that year.
+        $this->get(route('dpc-proposals.employees.show', [$this->proposal, $this->row, 'property_year' => $dpcYear - 5]))
+            ->assertSee('id="property-year" name="year" required min="'.config('dpc.evaluation.min_year').'" max="'.$dpcYear.'"', false)
+            ->assertSee('value="'.($dpcYear - 5).'"', false);
+    }
+
     public function test_the_same_next_increment_date_for_two_years_is_refused(): void
     {
         $this->actingAs($this->ao)->post($this->route('property.save'), [
@@ -473,6 +582,7 @@ class EmployeeDetailsTest extends TestCase
         $vacancyType = VacancyType::query()->firstOrFail();
         $category = ReservationCategory::query()->firstOrFail();
         $quota = fn (): array => app(EmployeeDetailsService::class)->phQuota($this->proposal->refresh());
+        $this->givePhSeats(0, 3);
 
         // 33 × 3% = 0.99 — not rounded up (rule 2.1: "even if it is .9").
         $this->proposal->vacancies()->create(['vacancy_type_id' => $vacancyType->id, 'reservation_category_id' => $category->id, 'count' => 33]);
@@ -493,6 +603,7 @@ class EmployeeDetailsTest extends TestCase
         $vacancyType = VacancyType::query()->firstOrFail();
         $category = ReservationCategory::query()->firstOrFail();
         $quota = fn (): array => app(EmployeeDetailsService::class)->phQuota($this->proposal->refresh());
+        $this->givePhSeats(0, 3);
 
         $this->proposal->vacancies()->create(['vacancy_type_id' => $vacancyType->id, 'reservation_category_id' => $category->id, 'count' => 100]);
         $this->assertSame(3, $quota()['posts']);
@@ -591,8 +702,13 @@ class EmployeeDetailsTest extends TestCase
         $document = DpcEvaluationDocument::query()->sole();
         $url = route('dpc-proposals.employees.documents.download', [$this->proposal, $this->row, $document]);
 
-        $this->actingAs($this->ao)->get($url)->assertOk();
+        // Opened in the browser, not saved (MoM of 12 November 2026).
+        $this->assertStringStartsWith('inline;', (string) $this->actingAs($this->ao)->get($url)->assertOk()->headers->get('Content-Disposition'));
         $this->actingAs($this->ah)->get($url)->assertOk();
+        $this->actingAs($this->ao)->get(route('dpc-proposals.employees.show', [$this->proposal, $this->row]))->assertOk()
+            ->assertSee('data-uploaded-document="'.$document->uuid.'"', false)
+            ->assertSee(__('dpc.employee_details.documents.uploaded'))
+            ->assertSee('target="_blank"', false);
 
         $other = Department::query()->create(['code' => 'PW', 'name' => 'Public Works', 'status' => 'active']);
         $intruder = User::factory()->assignedTo($other->id, Role::AuthorizedOfficer)->create();
@@ -651,6 +767,9 @@ class EmployeeDetailsTest extends TestCase
     {
         $this->makeProposalSubmittable($this->proposal, $this->ao);
         $this->assertTrue(app(DpcProposalCompletenessService::class)->isComplete($this->proposal->refresh()));
+        // PH applies to this DPC, so its answer is asked.
+        DB::table('reservation_policies')->whereIn('reservation_category_id', DB::table('reservation_categories')->where('code', 'PH')->pluck('id'))->update(['percentage' => 100]);
+        config(['dpc.employee_details.ph_quota_percent' => 100]);
 
         // One officer's PH answer withdrawn: the gate names the officer. (The
         // fixture may have sized the list to the zone, so the officer is read back.)
@@ -849,22 +968,58 @@ class EmployeeDetailsTest extends TestCase
         $this->assertSame([9, 5], array_column($this->ruleCheck()['years'], 'points'));
     }
 
-    public function test_a_year_is_never_averaged_and_one_left_with_several_crs_is_ungraded(): void
+    /**
+     * Several CRs in a year (MoM of 12 November 2026): up to four; one graded counts as
+     * it is; several are averaged and taken down to the nearest grade at or below.
+     */
+    public function test_several_crs_in_a_year_are_averaged_down_to_the_nearest_grade(): void
     {
         $this->promotionRule(min: 1, total: 2);
-        $this->saveCr(2025, 'क+')->assertSessionHasNoErrors();
-        $this->saveCr(2024, 'ग')->assertSessionHasNoErrors();
+        $all = ['reporter', 'reviewer', 'accepting'];
+        $save = fn (int $year, array $reports, int $count) => $this->actingAs($this->ao)->post($this->route('cr.save'), [
+            'year' => $year, 'put_up' => '1', 'has_grading' => '1', 'cr_count' => $count, 'reports' => $reports,
+        ]);
 
-        $this->assertSame([9, 3], array_column($this->ruleCheck()['years'], 'points'));
+        // क+ (9) and क (7): average 8, taken down to क (7) — never up to क+.
+        $save(2025, [['authorities' => $all, 'grade' => 'क+'], ['authorities' => $all, 'grade' => 'क']], 2)->assertSessionHasNoErrors();
+        $this->assertSame('क', $this->row->crGrades()->where('year', 2025)->value('grade'));
 
-        // A year still holding two CRs from the earlier form is not averaged: it scores
-        // nothing until it is entered again as one CR.
-        $this->row->crGrades()->where('year', 2024)->update(['reports' => json_encode([
-            ['reporter_grade' => 'क+', 'reviewer_grade' => null, 'accepting_grade' => null],
-            ['reporter_grade' => 'ग', 'reviewer_grade' => null, 'accepting_grade' => null],
-        ])]);
+        // Two CRs, only one graded: that grade.
+        $save(2024, [['authorities' => $all, 'grade' => 'ग'], ['authorities' => $all, 'grade' => '']], 2)->assertSessionHasNoErrors();
+        $this->assertSame('ग', $this->row->crGrades()->where('year', 2024)->value('grade'));
+        $this->assertSame([7, 3], array_column($this->ruleCheck()['years'], 'points'), 'The engine reads the same grades.');
 
-        $this->assertSame([9, null], array_column($this->ruleCheck()['years'], 'points'));
+        // Four at most; a fifth is refused.
+        $five = array_fill(0, 5, ['authorities' => $all, 'grade' => 'क']);
+        $save(2023, $five, 4)->assertSessionHasErrors('reports');
+
+        // Graded, but no grade at all: refused.
+        $save(2022, [['authorities' => $all, 'grade' => '']], 1)->assertSessionHasErrors(['cr' => __('dpc.employee_details.cr.reports_required')]);
+    }
+
+    /** The DPC year is not a CR year; the year list stops at the year before it and drops recorded years. */
+    public function test_the_cr_year_list_stops_before_the_dpc_year_and_drops_recorded_years(): void
+    {
+        $dpcYear = (int) ($this->proposal->dpc_year ?: $this->proposal->proposal_date->year);
+        $this->saveCr($dpcYear, 'क')->assertSessionHasErrors(['cr' => __('dpc.employee_details.cr.year_before_dpc_year', ['year' => $dpcYear - 1])]);
+        $this->saveCr($dpcYear - 1, 'क')->assertSessionHasNoErrors();
+
+        $html = (string) $this->actingAs($this->ao)->get(route('dpc-proposals.employees.show', [$this->proposal, $this->row]))->assertOk()->getContent();
+        $select = substr($html, (int) strpos($html, 'id="cr-year"'));
+        $select = substr($select, 0, (int) strpos($select, '</select>'));
+        $this->assertStringNotContainsString('<option value="'.$dpcYear.'"', $select);
+        $this->assertStringNotContainsString('<option value="'.($dpcYear - 1).'"', $select, 'Recorded: changed with its Edit.');
+        $this->assertStringContainsString('<option value="'.($dpcYear - 2).'"', $select);
+        $this->assertStringContainsString('js/forms/cr-reports.js', $html);
+
+        // Its CR uploaded, the year leaves the upload list too.
+        $this->saveCr($dpcYear - 2, 'क')->assertSessionHasNoErrors();
+        $this->upload(EvaluationDocumentKind::CrReport, $dpcYear - 1)->assertSessionHasNoErrors();
+        $html = (string) $this->get(route('dpc-proposals.employees.show', [$this->proposal, $this->row]))->getContent();
+        $form = substr($html, (int) strpos($html, 'id="cr-upload"'));
+        $form = substr($form, 0, (int) strpos($form, '</form>'));
+        $this->assertStringNotContainsString('<option value="'.($dpcYear - 1).'">', $form);
+        $this->assertStringContainsString('<option value="'.($dpcYear - 2).'">', $form);
     }
 
     public function test_a_cr_below_the_years_minimum_does_not_meet_the_rule(): void

@@ -135,7 +135,7 @@
                     <div class="mb-2" style="max-width:18rem">
                         <label class="form-label small" for="manual-list-as-on">{{ __('dpc.seniority_list.as_on_label') }}</label>
                         <input type="date" class="form-control form-control-sm" id="manual-list-as-on" name="seniority_list_as_on" required
-                               value="{{ old('seniority_list_as_on', $proposal->seniority_list_as_on?->format('Y-m-d')) }}">
+                               value="{{ old('seniority_list_as_on', $proposal->seniority_list_as_on?->format('Y-m-d') ?? $proposal->seniorityReferenceDate()->format('Y-m-d')) }}">
                     </div>
                 @endif
 

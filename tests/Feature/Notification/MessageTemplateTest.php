@@ -156,9 +156,10 @@ class MessageTemplateTest extends TestCase
         $values = ['dpc' => 'DPC-1'];
         $default = app(MessageTemplates::class)->sms('result.published', $values)['body'] ?? null;
 
-        // An Active SMS without its DLT ID is refused.
+        // An Active SMS may be saved without its DLT ID (2026-11-13); the panel flags it.
         $this->put(route('admin.message-templates.update', ['result.published', 'sms']), ['body' => 'Result of {dpc} is out.', 'status' => 'active'])
-            ->assertSessionHasErrors(['dlt_template_id' => __('admin.message_templates.dlt_required')]);
+            ->assertSessionHasNoErrors();
+        $this->get(route('admin.message-templates.index', 'sms'))->assertSee('id="dlt-missing-warning"', false);
 
         // Draft: saved, but the system default still goes out.
         $this->put(route('admin.message-templates.update', ['result.published', 'sms']), ['body' => 'Result of {dpc} is out.', 'status' => 'draft'])

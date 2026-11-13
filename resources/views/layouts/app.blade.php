@@ -196,6 +196,13 @@
 <script src="@versioned('js/table-hscroll.js')" defer></script>
 <script src="@versioned('js/date-input.js')" defer></script>
 <script src="@versioned('js/forms/whole-number.js')" defer></script>
+{{-- The pop-up after an action that names its next step (MoM of 12 November 2026). --}}
+@if (session('next_step'))
+    @include('partials.next-step-modal', ['message' => session('status'), 'next' => session('next_step')])
+@endif
+<script src="@versioned('js/next-step.js')" defer></script>
+{{-- Saved entries read-only until Edit (MoM of 12 November 2026, point 10). --}}
+<script src="@versioned('js/saved-lock.js')" defer></script>
 @stack('scripts')
 </body>
 </html>

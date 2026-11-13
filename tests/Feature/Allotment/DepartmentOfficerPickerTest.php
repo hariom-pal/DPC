@@ -205,7 +205,10 @@ class DepartmentOfficerPickerTest extends TestCase
             ->assertSessionHasErrors(['ao_user_id' => __('allotments.errors.not_in_pool', ['name' => $foreign->name])]);
 
         // A released officer: allotted, and posted to this department.
-        $this->signedAllot($proposal, ['ao_user_id' => $ao->id, 'ah_user_id' => $released->id])->assertSessionHasNoErrors();
+        $this->signedAllot($proposal, ['ao_user_id' => $ao->id, 'ah_user_id' => $released->id])->assertSessionHasNoErrors()
+            // The pop-up's words (MoM of 12 November 2026).
+            ->assertSessionHas('next_step', 'Allotment is Done. Now ask your AO to create DPC.');
+        $this->get(route('department.allotments.index', ['view' => 'pre-dpc']))->assertSee('id="next-step-modal"', false)->assertSee('Allotment is Done. Now ask your AO to create DPC.');
 
         $allotments = app(ProposalAllotmentService::class);
         $this->assertTrue($allotments->isAllotted($ao->fresh(), $proposal, Role::AuthorizedOfficer));

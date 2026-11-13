@@ -74,7 +74,7 @@
                     <div class="d-flex flex-wrap gap-3 align-items-center">
                         @foreach (\App\Domain\Committee\Enums\MemberCategory::socialCategories() as $attribute)
                             <div class="form-check">
-                                <input class="form-check-input member-social-input @error($attribute->column()) is-invalid @enderror"
+                                <input data-one-social-title="{{ __('dpc.committee.one_social_category') }}" class="form-check-input member-social-input @error($attribute->column()) is-invalid @enderror"
                                        type="checkbox" value="1"
                                        id="replacement-{{ $attribute->value }}"
                                        name="{{ $attribute->column() }}"

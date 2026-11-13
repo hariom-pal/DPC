@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Dpc;
 
+use App\Domain\Committee\Services\CommitteeDesignationLevel;
 use App\Domain\Dpc\Models\DpcCommitteeMember;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Requests\ReplaceCommitteeMemberRequest;
@@ -71,10 +72,11 @@ class DpcCommitteeMemberController extends Controller
 
             // The successor's designation is chosen from the master, exactly as on
             // the composition form (DPC-MODULE-FIX-001, second pass).
-            'designations' => Designation::query()
+            // At the feeder post's level, above it, or one level below (MoM of 12 November 2026).
+            'designations' => app(CommitteeDesignationLevel::class)->selectable($dpcProposal, Designation::query()
                 ->where('status', MasterStatus::Active)
                 ->orderBy('name')
-                ->get(),
+                ->get()),
         ]);
     }
 

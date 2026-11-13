@@ -123,6 +123,10 @@
     <script src="@versioned('js/multiselect-dropdown.js')" defer></script>
     <script src="@versioned('js/table-hscroll.js')" defer></script>
     <script src="@versioned('js/date-input.js')" defer></script>
+    @if (session('next_step'))
+        @include('partials.next-step-modal', ['message' => session('status'), 'next' => session('next_step')])
+    @endif
+    <script src="@versioned('js/next-step.js')" defer></script>
     @stack('scripts')
 </body>
 </html>

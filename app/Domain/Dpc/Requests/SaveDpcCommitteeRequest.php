@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace App\Domain\Dpc\Requests;
 
 use App\Domain\Committee\Services\CommitteeComplianceService;
+use App\Domain\Committee\Services\CommitteeDesignationLevel;
 use App\Domain\Committee\Services\CommitteeMemberDirectory;
 use App\Domain\Dpc\Enums\CommitteeCapacity;
 use App\Domain\Dpc\Models\DpcCommitteeMember;
 use App\Domain\Dpc\Models\DpcProposal;
+use App\Domain\Master\Models\Designation;
 use App\Support\OfficialEmail;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
@@ -192,6 +194,18 @@ class SaveDpcCommitteeRequest extends FormRequest
              */
             foreach (app(CommitteeComplianceService::class)->blockingFindings($proposal, $this->withChairmanSeat($members)) as $finding) {
                 $validator->errors()->add('members', $finding);
+            }
+
+            // The designation's level (MoM of 12 November 2026).
+            $levels = app(CommitteeDesignationLevel::class);
+            foreach ($members as $index => $member) {
+                $designation = isset($member['designation_id']) && $member['designation_id'] !== ''
+                    ? Designation::query()->whereKey((int) $member['designation_id'])->value('name')
+                    : ($member['designation'] ?? null);
+
+                if (! $levels->allows($proposal, is_string($designation) ? $designation : null)) {
+                    $validator->errors()->add("members.{$index}.designation_id", (string) __('dpc.committee.designation_below_level', ['designation' => $designation]));
+                }
             }
         });
     }

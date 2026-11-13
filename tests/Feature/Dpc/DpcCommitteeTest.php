@@ -222,6 +222,8 @@ class DpcCommitteeTest extends TestCase
         }
 
         $this->assertStringContainsString('data-covered-title="'.e(__('dpc.committee.category_covered')).'"', $page);
+        // SC, ST or OBC: one ticked disables the other two (MoM of 12 November 2026).
+        $this->assertStringContainsString('data-one-social-title="'.e(__('dpc.committee.one_social_category')).'"', $page);
         $this->assertStringContainsString('committee-social-category.js', $page);
     }
 

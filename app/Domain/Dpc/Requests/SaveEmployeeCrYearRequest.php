@@ -15,8 +15,10 @@ use Illuminate\Validation\Validator;
 /**
  * Section C — one CR year, answered as page 3 of the Coder Instructions asks.
  *
- * One CR a year (decision of 2026-11-01): the authorities whose remarks it carries,
- * ticked, and the grade of the highest of them — a configured CR grade code.
+ * Up to four CRs a year (MoM of 12 November 2026): how many, and for each the
+ * authorities whose remarks it carries and its grade, if any; and the year's NRC
+ * where a CR lacks an authority's remarks. The single-CR fields of the earlier form
+ * (`authorities`, `grade`) are still read.
  */
 class SaveEmployeeCrYearRequest extends FormRequest
 {
@@ -45,6 +47,12 @@ class SaveEmployeeCrYearRequest extends FormRequest
             'authorities' => ['nullable', 'array'],
             'authorities.*' => ['string', Rule::in(EmployeeDetailsService::CR_AUTHORITIES)],
             'grade' => ['nullable', 'string', Rule::in((array) config('dpc.evaluation.cr_grades'))],
+            'cr_count' => ['nullable', 'integer', 'min:1', 'max:'.(int) config('dpc.employee_details.max_crs_per_year', 4)],
+            'reports' => ['nullable', 'array', 'max:'.(int) config('dpc.employee_details.max_crs_per_year', 4)],
+            'reports.*.authorities' => ['nullable', 'array'],
+            'reports.*.authorities.*' => ['string', Rule::in(EmployeeDetailsService::CR_AUTHORITIES)],
+            'reports.*.grade' => ['nullable', 'string', Rule::in((array) config('dpc.evaluation.cr_grades'))],
+            'nrc' => ['nullable', 'file', 'mimes:pdf', 'max:'.(int) config('dpc.documents.max_kb', 10240)],
             ...$this->missingRecordRules(),
         ];
     }

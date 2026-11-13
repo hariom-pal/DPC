@@ -78,6 +78,8 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property Carbon|null $returned_at
  * @property string|null $return_remarks
  * @property Carbon|null $cancelled_at
+ * @property Carbon|null $proceeding_completed_at marked by the AO (MoM of 12 November 2026)
+ * @property int|null $proceeding_completed_by
  */
 class DpcProposal extends Model implements Auditable
 {
@@ -207,6 +209,8 @@ class DpcProposal extends Model implements Auditable
         'returned_at',
         'return_remarks',
         'cancelled_at',
+        'proceeding_completed_at',
+        'proceeding_completed_by',
         'seniority_list_as_on',
         'vacancy_source',
         'vacancy_position_id',
@@ -231,6 +235,7 @@ class DpcProposal extends Model implements Auditable
             'approved_at' => 'datetime',
             'returned_at' => 'datetime',
             'cancelled_at' => 'datetime',
+            'proceeding_completed_at' => 'datetime',
             'seniority_list_as_on' => 'date',
         ];
     }

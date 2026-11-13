@@ -68,6 +68,7 @@ class DpcEmployeeDetailsController extends Controller
             'statuses' => $statuses,
             'completeCount' => $statuses->filter(fn (array $entry): bool => $entry['status']['complete'])->count(),
             'phQuota' => $this->details->phQuota($dpcProposal),
+            'phApplies' => $this->details->phApplies($dpcProposal),
             // Each candidate against the Class Master promotion rule.
             'ruleChecks' => $statuses->mapWithKeys(fn (array $entry): array => [
                 $entry['row']->id => $ruleCheck->check($entry['row'], $dpcProposal),
@@ -116,6 +117,7 @@ class DpcEmployeeDetailsController extends Controller
             'sealedCoverReasons' => SealedCoverReason::query()->selectable()->get(),
             'requiredCrCount' => (int) config('dpc.merit.required_cr_count', 5),
             'propertyYearsRequired' => (int) config('dpc.merit.property_return_years', 5),
+            'phApplies' => $this->details->phApplies($dpcProposal),
             'latestYear' => (int) ($dpcProposal->dpc_year ?: $dpcProposal->proposal_date->year),
             'earlierPh' => $this->details->earlierPhRecords($evaluationRow),
         ]);
@@ -132,7 +134,7 @@ class DpcEmployeeDetailsController extends Controller
     {
         return $this->write($request, $dpcProposal, $evaluationRow, 'cr', function () use ($request, $evaluationRow): void {
             DB::transaction(function () use ($request, $evaluationRow): void {
-                $this->details->saveCrYear($evaluationRow, $request->integer('year'), $request->validated(), $request->user());
+                $this->details->saveCrYear($evaluationRow, $request->integer('year'), $request->validated(), $request->user(), $request->file('nrc'));
                 $this->recordMissing($request, $evaluationRow, DpcEvaluationRecordGap::KIND_CR);
             });
         });
@@ -251,7 +253,8 @@ class DpcEmployeeDetailsController extends Controller
     }
 
     /**
-     * Streamed from the private disk, to whoever may view the proposal.
+     * Streamed from the private disk, to whoever may view the proposal — inline, so
+     * the document's name opens it (MoM of 12 November 2026).
      */
     public function download(DpcProposal $dpcProposal, DpcEvaluationRow $evaluationRow, DpcEvaluationDocument $document): StreamedResponse
     {
@@ -263,7 +266,7 @@ class DpcEmployeeDetailsController extends Controller
 
         abort_unless($disk->exists($document->path), 404);
 
-        return $disk->download($document->path, $document->original_name, ['Content-Type' => 'application/pdf']);
+        return $disk->response($document->path, $document->original_name, ['Content-Type' => 'application/pdf'], 'inline');
     }
 
     /**

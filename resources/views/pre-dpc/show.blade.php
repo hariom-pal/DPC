@@ -13,6 +13,8 @@
         <div class="col-lg-10">
             @include('partials.alerts')
             @include('partials.esign-issue', ['proposal' => $proposal])
+            {{-- What comes next, and for whom (MoM of 12 November 2026, point 1). --}}
+            @include('partials.next-step', ['nextStep' => app(\App\Domain\Dpc\Services\DpcNextStep::class)->forPreDpc($proposal, auth()->user())])
 
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <div>
@@ -244,7 +246,7 @@
 
                     @can('approve', $proposal)
                         @if ($blockers === [])
-                            <a href="{{ route('esign.show', ['kind' => 'pre-dpc-approve', 'uuid' => $proposal->uuid]) }}" class="btn btn-success btn-sm" data-esign>{{ __('esign.button.approve') }}</a>
+                            <a href="{{ route('esign.show', ['kind' => 'pre-dpc-approve', 'uuid' => $proposal->uuid]) }}" class="btn btn-success btn-sm" data-esign id="pre-dpc-approve">{{ __('esign.button.approve') }}</a>
                         @else
                             <button type="button" class="btn btn-success btn-sm" disabled>{{ __('esign.button.approve') }}</button>
                         @endif

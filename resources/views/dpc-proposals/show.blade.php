@@ -28,8 +28,19 @@
 
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h1 class="h4 mb-0">{{ $proposal->citation() }}</h1>
-                <span class="badge {{ $proposal->status->badgeClass() }} fs-6">{{ $proposal->status->label() }}</span>
+                <span class="d-flex gap-1">
+                    <x-dpc-phase :proposal="$proposal" class="fs-6" />
+                    <span class="badge {{ $proposal->status->badgeClass() }} fs-6">{{ $proposal->status->label() }}</span>
+                </span>
             </div>
+
+            {{-- What comes next, and for whom (MoM of 12 November 2026, point 1). --}}
+            @include('partials.next-step', ['nextStep' => app(\App\Domain\Dpc\Services\DpcNextStep::class)->for($proposal, auth()->user())])
+
+            {{-- The AO marks the DPC Proceeding Complete, and may take it back to correct it
+                 until the result (MoM of 12 November 2026). --}}
+            @include('dpc-proposals._completion')
+            @include('dpc-proposals._recall')
 
             @if ($proposal->status->value === 'returned' && $proposal->return_remarks)
                 <div class="alert alert-warning"><strong>{{ __('ui.returned') }}</strong> {{ $proposal->return_remarks }}</div>
@@ -66,7 +77,7 @@
                         <h2 class="h6">{{ __('dpc.show.readiness_for_submission') }}</h2>
                         <ul class="list-group list-group-flush">
                             @foreach ($checklist as $section)
-                                <li class="list-group-item px-0 d-flex justify-content-between align-items-start">
+                                <li class="list-group-item px-0 d-flex justify-content-between align-items-start" id="checklist-{{ $section['key'] }}">
                                     <span>
                                         @if ($section['complete'])
                                             <span class="badge text-bg-success">✓</span>
@@ -150,12 +161,12 @@
                     @if ($proposal->status->isEditable() && $isAO)
                         <a href="{{ route('dpc-proposals.edit', $proposal) }}" class="btn btn-outline-primary btn-sm">{{ __('ui.edit') }}</a>
                         {{-- eSigned by the AO (MoM of 2026-10-29). --}}
-                        <a href="{{ route('esign.show', ['kind' => 'dpc-submit', 'uuid' => $proposal->uuid]) }}" class="btn btn-success btn-sm" data-esign>{{ __('esign.button.submit') }}</a>
+                        <a href="{{ route('esign.show', ['kind' => 'dpc-submit', 'uuid' => $proposal->uuid]) }}" class="btn btn-success btn-sm" data-esign id="dpc-submit">{{ __('esign.button.submit') }}</a>
                         <form method="POST" action="{{ route('dpc-proposals.cancel', $proposal) }}" data-confirm="{{ __('ui.cancel_this_proposal') }}">@csrf<button class="btn btn-outline-danger btn-sm">{{ __('ui.cancel') }}</button></form>
                     @endif
 
                     @if ($proposal->status->value === 'submitted' && $isAH)
-                        <a href="{{ route('esign.show', ['kind' => 'dpc-approve', 'uuid' => $proposal->uuid]) }}" class="btn btn-success btn-sm" data-esign>{{ __('esign.button.approve_dpc') }}</a>
+                        <a href="{{ route('esign.show', ['kind' => 'dpc-approve', 'uuid' => $proposal->uuid]) }}" class="btn btn-success btn-sm" data-esign id="dpc-approve">{{ __('esign.button.approve_dpc') }}</a>
                     @endif
 
                     @if ($proposal->status->isTerminal())

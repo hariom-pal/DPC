@@ -63,7 +63,8 @@ class ImportTemplateBuilder
          | (2026-11-02, optional) goes to the employee database.
          */
         if ($template === ImportTemplate::CurrentlyWorkingUs && ($proposal === null || $proposal->usesVacancyMaster())) {
-            return ['SN', 'EMPLOYEE ID', 'NAME', 'DOB', 'MOBILE', 'EMAIL', 'HERE ON DEPUTATION', 'OUT ON DEPUTATION'];
+            // CANDIDATE CATEGORY and SELECTION CATEGORY (MoM of 12 November 2026).
+            return ['SN', 'EMPLOYEE ID', 'NAME', 'DOB', 'MOBILE', 'EMAIL', 'HERE ON DEPUTATION', 'OUT ON DEPUTATION', 'CANDIDATE CATEGORY', 'SELECTION CATEGORY'];
         }
 
         $headers = match ($template) {
@@ -104,6 +105,8 @@ class ImportTemplateBuilder
             ImportTemplate::FinalSeniorityListUs => [
                 'SENIORITY NO', 'EMPLOYEE ID', 'EMPLOYEE NAME', 'DATE OF BIRTH', 'DATE OF APPOINTMENT',
                 'CURRENT POST', 'DATE OF POSTING ON CURRENT POST',
+                // From the list, never typed (MoM of 12 November 2026).
+                'MOBILE', 'QUALIFICATION',
             ],
 
             ImportTemplate::EvaluationChartUs => [
@@ -185,10 +188,13 @@ class ImportTemplateBuilder
             'EMAIL' => (string) __('imports.guide.email'),
             'DOB' => (string) __('imports.guide.dob'),
             'QUAL' => (string) __('imports.guide.qual'),
+            'QUALIFICATION' => (string) __('imports.guide.qual'),
             'PROMOTION TO POST' => (string) __('imports.guide.promotion_to_post'),
             'PROMOTION FROM POST' => (string) __('imports.guide.promotion_from_post'),
             'CAT' => (string) __('imports.guide.cat'),
             'SEAT CATEGORY' => (string) __('imports.guide.seat_category'),
+            'CANDIDATE CATEGORY' => (string) __('imports.guide.candidate_category'),
+            'SELECTION CATEGORY' => (string) __('imports.guide.selection_category'),
             'DATE OF JOINING IN SERVICE' => (string) __('imports.guide.date_of_joining'),
             'DATE OF POSTING ON PROMOTION TO POST' => (string) __('imports.guide.posting_on_to_post'),
             'DATE OF POSTING ON PROMOTION FROM POST' => (string) __('imports.guide.posting_on_from_post'),
@@ -364,12 +370,12 @@ class ImportTemplateBuilder
             'PROMOTION TO POST' => [$proposal->promotionToPost->name],
             'PROMOTION FROM POST' => $this->feederPostNames($proposal),
             'CURRENT POST' => $this->currentPostNames($proposal),
-            'QUAL' => Qualification::query()
+            'QUAL', 'QUALIFICATION' => Qualification::query()
                 ->where('status', MasterStatus::Active)
                 ->orderBy('name_en')
                 ->pluck('name_en')
                 ->all(),
-            'CAT', 'SEAT CATEGORY' => ReservationCategory::query()
+            'CAT', 'SEAT CATEGORY', 'CANDIDATE CATEGORY', 'SELECTION CATEGORY' => ReservationCategory::query()
                 ->where('status', MasterStatus::Active)
                 ->orderBy('code')
                 ->pluck('code')
@@ -459,12 +465,15 @@ class ImportTemplateBuilder
             'EMAIL' => 'ramkumar.sahu@example.gov.in',
             'DOB' => '14-03-1974',
             'QUAL' => 'M.A., B.Ed.',
+            'QUALIFICATION' => 'M.A., B.Ed.',
             'PROMOTION TO POST' => $proposal === null ? 'Deputy Secretary' : $proposal->promotionToPost->name,
             'PROMOTION FROM POST' => $proposal === null ? 'Under Secretary' : $proposal->promotionFromPost->name,
             'CAT' => 'UR',
             // The seat, not the officer: an SC officer on a General point is the
             // case this column exists for.
             'SEAT CATEGORY' => 'UR',
+            'CANDIDATE CATEGORY' => 'UR',
+            'SELECTION CATEGORY' => 'UR',
             'DATE OF JOINING IN SERVICE' => '02-08-1999',
             /*
              | **Blank on a Seniority List, filled on a Working list** (business

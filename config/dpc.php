@@ -672,6 +672,9 @@ return [
                 'approve' => ['from' => ['submitted'], 'to' => 'approved', 'role' => 'administrative_head', 'signature' => true, 'notify' => ['authorized_officer']],
                 'return' => ['from' => ['submitted'], 'to' => 'returned', 'role' => 'administrative_head', 'signature' => false, 'notify' => ['authorized_officer']],
                 'cancel' => ['from' => ['draft', 'returned'], 'to' => 'cancelled', 'role' => 'authorized_officer', 'signature' => false, 'notify' => ['administrative_head']],
+                // The AO takes the DPC back to correct it, until CGPSC approves the result
+                // (MoM of 12 November 2026); the AH approves it again.
+                'recall' => ['from' => ['submitted', 'approved'], 'to' => 'returned', 'role' => 'authorized_officer', 'signature' => false, 'notify' => ['administrative_head']],
             ],
         ],
     ],

@@ -294,6 +294,11 @@ class DpcCalculationTest extends TestCase
         $this->assertTrue($sixth->is_eligible);
         $this->assertSame(ListType::None, $sixth->list_type);
         $this->assertSame('EL', $sixth->remark);
+
+        // The result screen shows only the zone (MoM of 12 November 2026), and says how many are left out.
+        $this->actingAs($this->ao)->get(route('dpc-proposals.calculations.show', [$this->proposal, $run]))->assertOk()
+            ->assertSee('US5')->assertDontSee('US6')
+            ->assertSee(__('dpc.calculations.show.beyond_zone', ['count' => 1]));
     }
 
     /**

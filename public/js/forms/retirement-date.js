@@ -1,7 +1,8 @@
 /**
  * Vacancy Management, Section C. A retirement's date is calculated, never entered
- * (business rule confirmed 2026-11-12): the last calendar day of the officer's
- * birth month in the retirement year — the birth year plus the retirement age of
+ * (MoM of 12 November 2026): the last calendar day of the officer's birth month in
+ * the retirement year — for a birthday on the 1st, of the month before — the birth
+ * year plus the retirement age of
  * the post's mapping in force on 1 January of the Vacancy Year. It is shown in a
  * read-only field that follows the date of birth as it is typed; the server
  * calculates it again and ignores anything posted. A promotion to a higher post
@@ -23,9 +24,10 @@
     function retires(dob, age) {
         var parts = dob.split('-').map(Number);
         if (parts.length !== 3 || parts.some(isNaN) || parts[0] < 1000) { return ''; }
-        // Day 0 of the month after the birth month is the birth month's last day,
-        // so February comes out as the 28th or, in a leap year, the 29th.
-        var date = new Date(parts[0] + age, parts[1], 0);
+        // Day 0 of a month is the last day of the month before: the birth month's
+        // last day, or for a birthday on the 1st the month before's (MoM of
+        // 12 November 2026, rule 3). February comes out as the 28th or the 29th.
+        var date = new Date(parts[0] + age, parts[2] === 1 ? parts[1] - 1 : parts[1], 0);
         return pad(date.getDate()) + '-' + pad(date.getMonth() + 1) + '-' + date.getFullYear();
     }
 

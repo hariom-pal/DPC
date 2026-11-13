@@ -53,7 +53,9 @@ class ProposalAllotmentController extends Controller
      * The department's DPC lists (2026-10-28):
      * - `pre-dpc`: Pre-DPCs not yet raised to a DPC;
      * - `running` (default): DPCs raised from a Pre-DPC and still in progress;
-     * - `closed`: DPCs whose proceeding is closed or cancelled, or that were cancelled.
+     * - `closed`: DPCs the AO has marked Proceeding Complete (MoM of 12 November 2026),
+     *   that were cancelled, or whose proceeding was cancelled. A DPC whose result is
+     *   approved stays running until the AO marks it.
      * AO and AH are allotted and reassigned on the first two, until signed.
      */
     public function index(Request $request): View
@@ -70,17 +72,17 @@ class ProposalAllotmentController extends Controller
                 ->orderByDesc('dpc_year')->orderByDesc('id')
                 ->get();
         } else {
-            // A closed proceeding (result approved) or a cancelled one closes the DPC.
-            $proceedingClosed = fn ($p) => $p->selectRaw('1')->from('dpc_proceedings')
+            // The AO's mark, a cancellation, or a cancelled proceeding closes the DPC.
+            $proceedingCancelled = fn ($p) => $p->selectRaw('1')->from('dpc_proceedings')
                 ->whereColumn('dpc_proceedings.dpc_proposal_id', 'dpc_proposals.id')
-                ->where(fn ($c) => $c->whereNotNull('dpc_proceedings.closed_at')->orWhereNotNull('dpc_proceedings.cancelled_at'));
+                ->whereNotNull('dpc_proceedings.cancelled_at');
 
             $rows = DpcProposal::query()
                 ->where('department_id', $admin->department_id)
                 ->when(
                     $view === 'closed',
-                    fn ($q) => $q->where(fn ($w) => $w->where('status', 'cancelled')->orWhereExists($proceedingClosed)),
-                    fn ($q) => $q->where('status', '!=', 'cancelled')->whereNotExists($proceedingClosed),
+                    fn ($q) => $q->where(fn ($w) => $w->where('status', 'cancelled')->orWhereNotNull('proceeding_completed_at')->orWhereExists($proceedingCancelled)),
+                    fn ($q) => $q->where('status', '!=', 'cancelled')->whereNull('proceeding_completed_at')->whereNotExists($proceedingCancelled),
                 )
                 ->with(['promotionToPost', 'promotionFromPost', 'currentAllotment.ao', 'currentAllotment.ah'])
                 ->latest('id')

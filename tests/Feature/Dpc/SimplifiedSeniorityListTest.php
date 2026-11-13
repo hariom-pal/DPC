@@ -143,7 +143,8 @@ class SimplifiedSeniorityListTest extends TestCase
     {
         $headers = app(ImportTemplateBuilder::class)->headers(ImportTemplate::FinalSeniorityListUs);
 
-        $this->assertSame([...self::HEADER, 'DATE OF POSTING ON CURRENT POST'], $headers);
+        // MOBILE and QUALIFICATION since the MoM of 12 November 2026.
+        $this->assertSame([...self::HEADER, 'DATE OF POSTING ON CURRENT POST', 'MOBILE', 'QUALIFICATION'], $headers);
 
         foreach ($headers as $header) {
             $this->assertDoesNotMatchRegularExpression('/\b(CR|PROPERTY|LOYALTY|PH|CAT|CATEGORY)\b/', $header);

@@ -146,6 +146,9 @@ enum ImportTemplate: string
             'qual' => 'qualification',
             'qualification' => 'qualification',
             'cat' => 'reservation_category',
+            // The Working Officers List's names for the two (MoM of 12 November 2026).
+            'candidate_category' => 'reservation_category',
+            'selection_category' => 'seat_reservation_category',
             'category' => 'reservation_category',
             'reservation_category' => 'reservation_category',
 
@@ -309,7 +312,7 @@ enum ImportTemplate: string
     {
         return match ($this) {
             self::CurrentlyWorkingUs => ['SN', 'STATUS', 'SOURCE', 'EMPLOYEE ID', 'NAME', 'MOBILE', 'DOB', 'QUAL', 'PROMOTION TO POST', 'PROMOTION FROM POST', 'CAT', 'SEAT CATEGORY', 'DATE OF JOINING IN SERVICE', 'DATE OF POSTING ON PROMOTION TO POST', 'DATE OF POSTING ON PROMOTION FROM POST', 'ROSTER POSITION', 'DEPUTATION DATE', 'DEPUTATION TO', 'DATE OF RETIREMENT'],
-            self::FinalSeniorityListUs => ['SENIORITY NO', 'EMPLOYEE ID', 'EMPLOYEE NAME', 'DATE OF BIRTH', 'DATE OF APPOINTMENT', 'CURRENT POST', 'DATE OF POSTING ON CURRENT POST'],
+            self::FinalSeniorityListUs => ['SENIORITY NO', 'EMPLOYEE ID', 'EMPLOYEE NAME', 'DATE OF BIRTH', 'DATE OF APPOINTMENT', 'CURRENT POST', 'DATE OF POSTING ON CURRENT POST', 'MOBILE', 'QUALIFICATION'],
             self::EvaluationChartUs => ['SN', 'EMPLOYEE ID', 'NAME OF US', 'MOBILE', 'DOB', 'QUAL', 'DOP', 'CAT', 'LOYALTY 2013 …', 'PROPERTY 2013 …', 'CR 2012 …', 'TRIBAL AREA 2012 …', 'TRIBAL AREA SERVICE YEARS', 'NOTE'],
         };
     }

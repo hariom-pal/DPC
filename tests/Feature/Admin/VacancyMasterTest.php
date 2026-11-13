@@ -492,7 +492,9 @@ class VacancyMasterTest extends TestCase
     {
         $first = $this->openDraft(100);
         $this->saveWorking()->assertSessionHasNoErrors();
-        $this->actingAs($this->ao)->post($this->url('finalize'))->assertSessionHasNoErrors();
+        // The pop-up says the matter is now with the AH (MoM of 12 November 2026).
+        $this->actingAs($this->ao)->post($this->url('finalize'))->assertSessionHasNoErrors()
+            ->assertSessionHas('next_step', __('ui.next_step.after.vacancy_finalized'));
 
         $this->actingAs($this->ao)->post($this->url('revise'), ['revision_reason' => 'Order re-read.'])->assertSessionHasNoErrors();
 
@@ -1324,8 +1326,9 @@ class VacancyMasterTest extends TestCase
     }
 
     /**
-     * The retirement date (business rule confirmed 2026-11-12): the last calendar
-     * day of the officer's birth month in the year of birth plus the retirement age.
+     * The retirement date: the last calendar day of the officer's birth month in the
+     * year of birth plus the retirement age; for a birthday on the 1st, the last day
+     * of the month before (MoM of 12 November 2026, rule 3).
      */
     public function test_the_retirement_date_is_the_last_day_of_the_birth_month_in_the_retirement_year(): void
     {
@@ -1333,7 +1336,10 @@ class VacancyMasterTest extends TestCase
 
         // The confirmed examples, at 60.
         $this->assertSame('2030-03-31', $on('1970-03-15'));
-        $this->assertSame('2030-07-31', $on('1970-07-01'), 'A birthday on the 1st is no exception.');
+        $this->assertSame('2030-06-30', $on('1970-07-01'), 'Born on the 1st: the month before.');
+        $this->assertSame('2029-12-31', $on('1970-01-01'), 'Born on 1 January: 31 December of the year before.');
+        $this->assertSame('2030-02-28', $on('1970-03-01'), 'Born on 1 March: the end of February …');
+        $this->assertSame('2032-02-29', $on('1972-03-01'), '… the 29th in a leap year.');
         $this->assertSame('2030-02-28', $on('1970-02-28'));
         $this->assertSame('2030-11-30', $on('1970-11-10'));
 
@@ -1341,7 +1347,7 @@ class VacancyMasterTest extends TestCase
         $this->assertSame('2030-01-31', $on('1970-01-31'));
         $this->assertSame('2030-04-30', $on('1970-04-30'));
         $this->assertSame('2030-12-31', $on('1970-12-31'));
-        $this->assertSame('2030-06-30', $on('1970-06-01'));
+        $this->assertSame('2030-05-31', $on('1970-06-01'));
 
         // February and leap years: born on 29 February 1972 (leap) …
         $this->assertSame('2032-02-29', $on('1972-02-29'), 'retiring in a leap year …');
@@ -1382,9 +1388,9 @@ class VacancyMasterTest extends TestCase
             ->assertSessionHasErrors(['date_of_birth' => __('vacancymaster.errors.retires_outside_year', ['date' => '31-03-2027', 'age' => 62, 'year' => 2026])]);
 
         // The date typed is not the one kept.
-        $this->addEntry(['officer_name' => 'R. Sharma', 'date_of_birth' => '1964-08-01', 'effective_date' => '2026-01-15'])->assertSessionHasNoErrors();
+        $this->addEntry(['officer_name' => 'R. Sharma', 'date_of_birth' => '1964-09-01', 'effective_date' => '2026-01-15'])->assertSessionHasNoErrors();
         $entry = VacancyPositionEntry::query()->sole();
-        $this->assertSame(['2026-08-31', '1964-08-01'], [$entry->effective_date->toDateString(), $entry->date_of_birth?->toDateString()]);
+        $this->assertSame(['2026-08-31', '1964-09-01'], [$entry->effective_date->toDateString(), $entry->date_of_birth?->toDateString()]);
         $this->assertSame(1, $this->breakdown()['retirement_vacancy']);
 
     }

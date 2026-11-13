@@ -68,22 +68,56 @@
         });
 
         Array.prototype.forEach.call(cards, function (card) {
+            // The member's own social category, if one is ticked (MoM of 12 Nov 2026).
+            var ownSocial = card.querySelector('.member-social-input:checked');
+
             card.querySelectorAll('.member-attribute-input').forEach(function (box) {
                 var key = column(box);
                 var taken = !box.checked && (holders[key] || []).some(function (holder) { return holder !== card; });
                 var check = box.closest('.form-check');
 
-                if (box.disabled !== taken) { box.disabled = taken; }
+                // SC, ST or OBC ticked: the other two are not offered to this member.
+                var otherSocial = !box.checked && ownSocial !== null && box.classList.contains('member-social-input');
+                var off = taken || otherSocial;
+
+                if (box.disabled !== off) { box.disabled = off; }
                 if (check) {
-                    check.classList.toggle('opacity-50', taken);
-                    if (taken) { check.title = box.getAttribute('data-covered-title') || ''; } else { check.removeAttribute('title'); }
+                    check.classList.toggle('opacity-50', off);
+                    if (taken) {
+                        check.title = box.getAttribute('data-covered-title') || '';
+                    } else if (otherSocial) {
+                        check.title = box.getAttribute('data-one-social-title') || '';
+                    } else {
+                        check.removeAttribute('title');
+                    }
                 }
             });
         });
     }
 
+    /* SC, ST and OBC: with one ticked the other two are disabled, in every fieldset —
+       the replacement form too, which has no member cards (MoM of 12 November 2026). */
+    function disableOtherSocial(fieldset) {
+        var boxes = fieldset.querySelectorAll('.member-social-input');
+        var ticked = Array.prototype.filter.call(boxes, function (box) { return box.checked; });
+
+        boxes.forEach(function (box) {
+            if (box.closest('.member-card')) { return; } // the cards are handled by lockCovered()
+            var off = ticked.length > 0 && !box.checked;
+            box.disabled = off;
+            var check = box.closest('.form-check');
+            if (check) {
+                check.classList.toggle('opacity-50', off);
+                if (off) { check.title = box.getAttribute('data-one-social-title') || ''; } else { check.removeAttribute('title'); }
+            }
+        });
+    }
+
     function refreshAll() {
-        document.querySelectorAll('.member-social').forEach(refreshBadge);
+        document.querySelectorAll('.member-social').forEach(function (fieldset) {
+            refreshBadge(fieldset);
+            disableOtherSocial(fieldset);
+        });
         lockCovered();
     }
 
@@ -96,9 +130,10 @@
 
         if (!fieldset) { return; }
 
-        /* Ticking one clears the other two. Unticking clears nothing — that is the
-           officer returning the member to UR, which is a legitimate state and the
-           default one. */
+        /* Ticking one disables the other two (MoM of 12 November 2026); unticking it
+           offers all three again — that is the officer returning the member to UR,
+           a legitimate state and the default one. A pair already ticked (an old
+           record) is cleared to the one just ticked. */
         if (box.checked) {
             fieldset.querySelectorAll('.member-social-input').forEach(function (other) {
                 if (other !== box) { other.checked = false; }
@@ -106,6 +141,7 @@
         }
 
         refreshBadge(fieldset);
+        disableOtherSocial(fieldset);
     });
 
     document.addEventListener('change', function (e) {

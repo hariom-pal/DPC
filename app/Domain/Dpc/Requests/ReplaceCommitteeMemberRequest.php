@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace App\Domain\Dpc\Requests;
 
 use App\Domain\Committee\Enums\MemberCategory;
+use App\Domain\Committee\Services\CommitteeDesignationLevel;
 use App\Domain\Dpc\Models\DpcCommitteeMember;
+use App\Domain\Dpc\Models\DpcProposal;
+use App\Domain\Master\Models\Designation;
 use App\Support\OfficialEmail;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
@@ -97,6 +100,16 @@ class ReplaceCommitteeMemberRequest extends FormRequest
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator): void {
+            // The successor's designation level (MoM of 12 November 2026).
+            $proposal = $this->route('dpcProposal');
+            $designation = $this->filled('designation_id')
+                ? Designation::query()->whereKey($this->integer('designation_id'))->value('name')
+                : $this->input('designation');
+
+            if ($proposal instanceof DpcProposal && ! app(CommitteeDesignationLevel::class)->allows($proposal, is_string($designation) ? $designation : null)) {
+                $validator->errors()->add('designation_id', (string) __('dpc.committee.designation_below_level', ['designation' => $designation]));
+            }
+
             $claimed = array_values(array_filter(
                 MemberCategory::socialCategories(),
                 fn (MemberCategory $category): bool => $this->boolean($category->column()),

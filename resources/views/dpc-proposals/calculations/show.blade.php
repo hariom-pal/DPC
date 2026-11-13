@@ -105,10 +105,19 @@
                 </div>
             </div>
 
-            {{-- Every officer, including those on neither list, so an absent name is explained. --}}
+            {{-- Every officer within the zone, including those on neither list, so an absent
+                 name is explained; officers beyond the zone are not shown (MoM of 12 November
+                 2026), only counted. --}}
+            @php
+                $beyondZone = $allResults->reject(fn ($r) => (bool) $r->in_zone)->count();
+                $allResults = $allResults->filter(fn ($r) => (bool) $r->in_zone)->values();
+            @endphp
             <div class="card border-0 shadow-sm">
                 <div class="card-body">
                     {!! __('dpc.calculations.show.all_officers_heading', ['count' => $allResults->count()]) !!}
+                    @if ($beyondZone > 0)
+                        <div class="alert alert-info py-1 small" id="beyond-zone">{{ __('dpc.calculations.show.beyond_zone', ['count' => $beyondZone]) }}</div>
+                    @endif
                     <p class="text-muted small">
                         {{ __('dpc.calculations.show.every_officer_on_the_evaluation_chart_appears_he') }}
                     </p>

@@ -24,6 +24,7 @@
                 </div>
             </div></div>
         </div>
+        @if ($phApplies)
         <div class="col-md-8">
             <div class="card border-0 shadow-sm h-100"><div class="card-body py-2 small">
                 <div class="text-muted">{{ __('dpc.employee_details.ph.quota_heading') }}</div>
@@ -31,6 +32,7 @@
                 <div class="text-muted">{{ __('dpc.employee_details.ph.quota_note') }}</div>
             </div></div>
         </div>
+        @endif
     </div>
 
     <div class="card border-0 shadow-sm">

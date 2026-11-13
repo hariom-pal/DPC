@@ -838,7 +838,7 @@ class FullDpcConditionsTest extends TestCase
             // both matched by Employee ID, which every row of the record carries (2026-11-02).
             $template = $this->actingAs($ao)->get(route('dpc-import-templates.download-for', [$proposal, 'currently_working_us']))->assertOk()->getContent();
             $lines = array_values(array_filter(explode("\n", str_replace("\xEF\xBB\xBF", '', (string) $template)), fn (string $line): bool => trim($line) !== ''));
-            $this->assertSame('SN,"EMPLOYEE ID",NAME,DOB,MOBILE,EMAIL,"HERE ON DEPUTATION","OUT ON DEPUTATION"', trim($lines[0]));
+            $this->assertSame('SN,"EMPLOYEE ID",NAME,DOB,MOBILE,EMAIL,"HERE ON DEPUTATION","OUT ON DEPUTATION","CANDIDATE CATEGORY","SELECTION CATEGORY"', trim($lines[0]));
             $working = $lines[0]."\n".implode("\n", $o['working_rows'] ?? array_slice(array_map('trim', file(base_path('docs/new-dpc-guide/samples/working_officers_sample.csv'))), 1))."\n";
             foreach ([['currently_working_us', 'working.csv', [], $working], ['final_seniority_list_us', 'seniority_list_10_officers.csv', ['seniority_list_as_on' => '2025-04-01'], file_get_contents(base_path('docs/new-dpc-guide/samples/seniority_list_sample.csv'))]] as [$template, $name, $extra, $contents]) {
                 $copy = tempnam(sys_get_temp_dir(), 'e2e').'.csv';

@@ -231,13 +231,13 @@ class ClassMasterRuleCalculationTest extends TestCase
         $this->assertStringContainsString('CR 2025 scored 3, below the minimum of 5', implode(' ', $result->verdict['failure_reasons']));
     }
 
-    public function test_a_year_with_several_crs_is_not_averaged(): void
+    public function test_a_year_with_several_crs_is_averaged_down_to_the_nearest_grade(): void
     {
         $this->rule(total: 31);
         $row = $this->chart([$this->officer(1, $this->five('क'))])[1];
 
-        // One CR a year (2026-11-01): a year still holding two CRs from the earlier form
-        // scores nothing — no average of क+ and क is taken.
+        // MoM of 12 November 2026: two CRs, क+ (9, the accepting officer's) and क (7) —
+        // the average 8 is taken down to क (7), never up to क+.
         $row->crGrades()->where('year', 2025)->update(['reports' => json_encode([
             ['reporter_grade' => 'घ', 'reviewer_grade' => 'ख', 'accepting_grade' => 'क+'],
             ['reporter_grade' => 'क', 'reviewer_grade' => null, 'accepting_grade' => null],
@@ -245,7 +245,7 @@ class ClassMasterRuleCalculationTest extends TestCase
 
         $result = $this->resultFor($this->calculate(), 1);
 
-        $this->assertArrayNotHasKey(2025, (array) $result->score_breakdown['marks_by_year']);
+        $this->assertSame(7, (int) ((array) $result->score_breakdown['marks_by_year'])[2025]);
     }
 
     public function test_a_mandatory_year_missing_is_refused_or_held_on_its_reason_and_document(): void

@@ -646,6 +646,10 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
                     ->name('calculations.explain');
 
                 Route::post('/{dpcProposal}/submit', [DpcProposalController::class, 'submit'])->name('submit');
+                // The AO marks the DPC Proceeding Complete (MoM of 12 November 2026).
+                Route::post('/{dpcProposal}/complete', [DpcProposalController::class, 'complete'])->name('complete');
+                // The AO takes the DPC back to correct it, until the result (MoM of 12 November 2026).
+                Route::post('/{dpcProposal}/recall', [DpcProposalController::class, 'recall'])->name('recall');
                 Route::post('/{dpcProposal}/approve', [DpcProposalController::class, 'approve'])->name('approve');
                 Route::post('/{dpcProposal}/return', [DpcProposalController::class, 'return'])->name('return');
                 Route::post('/{dpcProposal}/cancel', [DpcProposalController::class, 'cancel'])->name('cancel');

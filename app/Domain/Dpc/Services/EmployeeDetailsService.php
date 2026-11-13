@@ -58,7 +58,7 @@ class EmployeeDetailsService
 
     /**
      * The fields the simplified Seniority List does not carry, recorded by the
-     * Authorized Officer. Name, date of birth, mobile number (2026-11-12), Employee ID
+     * Authorized Officer. Name, date of birth, mobile number (2026-11-12), qualification (MoM of 12 November 2026), Employee ID
      * and seniority number come from the uploaded lists and are not editable here.
      *
      * @param  array<string, mixed>  $data
@@ -69,7 +69,6 @@ class EmployeeDetailsService
 
         $row->forceFill([
             'reservation_category_id' => $data['reservation_category_id'] ?? null,
-            'qualification' => $this->blankToNull($data['qualification'] ?? null),
             'date_of_posting_on_promotion_from_post' => $data['date_of_posting_on_promotion_from_post'] ?? null,
             'dob_order_number' => $this->blankToNull($data['dob_order_number'] ?? null),
             'dob_order_date' => $data['dob_order_date'] ?? null,
@@ -92,35 +91,49 @@ class EmployeeDetailsService
     // ------------------------------------------------------------------
 
     /**
-     * One CR year: was a CR put up; does it carry a grading; and, if so, the one CR of
-     * the year (decision of 2026-11-01): which authorities' remarks it carries, ticked,
-     * and the grade of the highest of them. One CR a year and no average.
+     * One CR year (MoM of 12 November 2026, point 7): was a CR put up; does it carry a
+     * grading; and, if so, how many CRs were written that year — up to four — each
+     * with the authorities whose remarks it carries and its grade, if it has one. The
+     * year's grade is the one graded CR's, or for several the nearest grade at or
+     * below their average. A CR missing an authority's remarks needs the year's NRC,
+     * uploaded with it. The DPC year itself is not a CR year.
      *
      * A year without a grading, or with no CR put up, keeps no grade.
      *
      * @param  array<string, mixed>  $data
      */
-    public function saveCrYear(DpcEvaluationRow $row, int $year, array $data, User $actor): DpcEvaluationCrGrade
+    public function saveCrYear(DpcEvaluationRow $row, int $year, array $data, User $actor, ?UploadedFile $nrc = null): DpcEvaluationCrGrade
     {
         $this->assertEditable($row);
         $this->assertYear($row, $year);
+
+        $dpcYear = (int) ($row->proposal->dpc_year ?: $row->proposal->proposal_date->year);
+        if ($year >= $dpcYear) {
+            throw new WorkflowException(__('dpc.employee_details.cr.year_before_dpc_year', ['year' => $dpcYear - 1]));
+        }
 
         $putUp = (bool) $data['put_up'];
         $hasGrading = $putUp ? (bool) ($data['has_grading'] ?? false) : null;
         $reports = null;
 
         if ($putUp && $hasGrading) {
-            $authorities = array_values(array_intersect(self::CR_AUTHORITIES, (array) ($data['authorities'] ?? [])));
-            $grade = $this->blankToNull($data['grade'] ?? null);
+            $reports = $this->reportsFrom($data);
 
-            if ($authorities === [] || $grade === null) {
+            if ($reports === [] || array_filter($reports, fn (array $report): bool => $report['grade'] !== null) === []) {
                 throw new WorkflowException(__('dpc.employee_details.cr.reports_required'));
             }
 
-            $reports = [['authorities' => $authorities, 'authority' => end($authorities), 'grade' => $grade]];
+            $needsNrc = array_filter($reports, fn (array $report): bool => $this->reportNeedsNrc($report)) !== [];
+            if ($needsNrc && $nrc === null && ! $this->hasDocument($row->loadMissing('currentDocuments'), EvaluationDocumentKind::CrNrc, $year)) {
+                throw new WorkflowException(__('dpc.employee_details.cr.nrc_required'));
+            }
         }
 
-        $grade = $reports === null ? null : $this->yearGrade($reports);
+        $grade = $reports === null ? null : $this->yearGrade($reports, $dpcYear);
+
+        if ($nrc !== null) {
+            $this->storeDocument($row, EvaluationDocumentKind::CrNrc, $year, $nrc, false, null, $actor);
+        }
 
         /** @var DpcEvaluationCrGrade $record */
         $record = $row->crGrades()->firstOrNew(['year' => $year]);
@@ -137,9 +150,47 @@ class EmployeeDetailsService
             'has_grading' => $hasGrading,
             'grade' => $grade,
             'authority' => $reports[0]['authority'] ?? null,
+            'cr_count' => $reports === null ? null : count($reports),
         ], $actor);
 
         return $record;
+    }
+
+    /**
+     * The CRs of a year as posted: `reports[]` (each with `authorities` and `grade`)
+     * up to `cr_count`, or the single CR of the earlier form (`authorities`, `grade`).
+     *
+     * @param  array<string, mixed>  $data
+     * @return list<array{authorities: list<string>, authority: string|null, grade: string|null}>
+     */
+    private function reportsFrom(array $data): array
+    {
+        $max = (int) config('dpc.employee_details.max_crs_per_year', 4);
+        $posted = isset($data['reports']) && is_array($data['reports'])
+            ? array_slice(array_values($data['reports']), 0, max(1, min($max, (int) ($data['cr_count'] ?? count($data['reports'])))))
+            : [['authorities' => $data['authorities'] ?? [], 'grade' => $data['grade'] ?? null]];
+
+        $reports = [];
+        foreach ($posted as $report) {
+            $authorities = array_values(array_intersect(self::CR_AUTHORITIES, (array) ($report['authorities'] ?? [])));
+            $grade = $this->blankToNull($report['grade'] ?? null);
+
+            if ($authorities === [] && $grade === null) {
+                continue;
+            }
+
+            if ($authorities === []) {
+                throw new WorkflowException(__('dpc.employee_details.cr.reports_required'));
+            }
+
+            $reports[] = ['authorities' => $authorities, 'authority' => end($authorities), 'grade' => $grade];
+        }
+
+        if (count($reports) > $max) {
+            throw new WorkflowException(__('dpc.employee_details.cr.too_many_crs', ['max' => $max]));
+        }
+
+        return $reports;
     }
 
     /** The authorities a CR can carry remarks of, lowest first. */
@@ -175,18 +226,31 @@ class EmployeeDetailsService
     }
 
     /**
-     * The year's grade: its one CR's (decision of 2026-11-01 — one CR a year, never an
-     * average).
+     * The year's grade (MoM of 12 November 2026): the graded CR's grade where only one
+     * is graded; where several are, the average of their points, taken down to the
+     * nearest grade at or below it — never rounded up.
      *
      * @param  list<array<string, mixed>>  $reports
      */
-    public function yearGrade(array $reports): string
+    public function yearGrade(array $reports, ?int $dpcYear = null): string
     {
-        if (count($reports) !== 1) {
-            throw new WorkflowException(__('dpc.employee_details.cr.one_cr_per_year'));
+        $grades = array_values(array_filter(array_map(fn (array $report): ?string => $this->finalGrade($report), $reports)));
+
+        if ($grades === []) {
+            throw new WorkflowException(__('dpc.employee_details.cr.reports_required'));
         }
 
-        return (string) $this->finalGrade($reports[0]);
+        if (count($grades) === 1) {
+            return $grades[0];
+        }
+
+        $grade = DpcEvaluationCrGrade::yearGradeOf($grades, app(PromotionCrRules::class)->pointsForYear($dpcYear ?? (int) now()->year));
+
+        if ($grade === null) {
+            throw new WorkflowException(__('dpc.employee_details.cr.grade_without_points'));
+        }
+
+        return $grade;
     }
 
     /**
@@ -527,15 +591,17 @@ class EmployeeDetailsService
      *
      * @return array{complete: bool, sections: array<string, list<string>>, summary: string}
      */
-    public function status(DpcEvaluationRow $row): array
+    public function status(DpcEvaluationRow $row, ?bool $phApplies = null): array
     {
+        $phApplies ??= $row->proposal === null || $this->phApplies($row->proposal);
+
         $row->loadMissing(['crGrades', 'propertyFlags', 'recordGaps.reason', 'currentDocuments', 'sealedCoverReason']);
 
         $sections = [
             'basic' => $this->basicMissing($row),
             'cr' => $this->crMissing($row),
             'property' => $this->propertyMissing($row),
-            'ph' => $this->phMissing($row),
+            'ph' => $phApplies ? $this->phMissing($row) : [],
             'vigilance' => $this->vigilanceMissing($row),
             'declarations' => $this->declarationsMissing($row),
         ];
@@ -560,13 +626,15 @@ class EmployeeDetailsService
     public function statuses(DpcProposal $proposal): Collection
     {
         $proposal->loadMissing(['promotionFromPost', 'promotionToPost']);
+        // Read once for the whole list (MoM of 12 November 2026).
+        $phApplies = $this->phApplies($proposal);
 
         return $proposal->evaluationRows()
             ->with(['crGrades', 'propertyFlags', 'recordGaps.reason', 'currentDocuments', 'reservationCategory', 'sealedCoverReason'])
             ->get()
             // The proposal is the same for every row: its promotion rule is read once.
             ->each(fn (DpcEvaluationRow $row) => $row->setRelation('proposal', $proposal))
-            ->map(fn (DpcEvaluationRow $row): array => ['row' => $row, 'status' => $this->status($row)])
+            ->map(fn (DpcEvaluationRow $row): array => ['row' => $row, 'status' => $this->status($row, $phApplies)])
             ->values();
     }
 
@@ -614,7 +682,12 @@ class EmployeeDetailsService
     {
         $ph = app(PhReservationPolicy::class);
         $terms = $ph->termsFor($proposal);
+        // The stored vacancies once written; before that, the promotion vacancy the
+        // Vacancy Management record gives (MoM of 12 November 2026).
         $vacancies = (int) $proposal->vacancies()->sum('count');
+        if ($vacancies === 0) {
+            $vacancies = max(0, (int) (app(VacancyCalculationService::class)->breakdown($proposal)->promotionVacancy ?? 0));
+        }
 
         return [
             'percent' => rtrim(rtrim($terms['percentage'], '0'), '.'),
@@ -626,6 +699,16 @@ class EmployeeDetailsService
                 ->where('ph_claims_reservation', true)
                 ->count(),
         ];
+    }
+
+    /**
+     * Whether PH reservation applies to this DPC: its vacancies give at least one
+     * PH seat (MoM of 12 November 2026). Where none does, the PH Reservation section
+     * is not shown and not asked.
+     */
+    public function phApplies(DpcProposal $proposal): bool
+    {
+        return $this->phQuota($proposal)['posts'] > 0;
     }
 
     // ------------------------------------------------------------------

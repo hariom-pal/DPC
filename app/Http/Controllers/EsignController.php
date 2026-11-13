@@ -185,7 +185,9 @@ class EsignController extends Controller
             return $this->back($proposal)->withErrors(['workflow' => $e->getMessage()]);
         }
 
-        return $this->back($proposal)->with('status', __(self::KINDS[$kind][2]));
+        // The pop-up names what comes next (MoM of 12 November 2026, point 1).
+        return $this->back($proposal)->with('status', __(self::KINDS[$kind][2]))
+            ->with('next_step', __('ui.next_step.after.'.str_replace('-', '_', $kind)));
     }
 
     /**

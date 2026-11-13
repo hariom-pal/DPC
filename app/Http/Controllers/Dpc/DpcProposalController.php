@@ -8,6 +8,7 @@ use App\Domain\Allotment\Services\ProposalAllotmentService;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Committee\Enums\MemberCategory;
 use App\Domain\Committee\Services\CgpscChairmanService;
+use App\Domain\Committee\Services\CommitteeDesignationLevel;
 use App\Domain\Committee\Services\CommitteeMemberDirectory;
 use App\Domain\Committee\Services\CommitteeRuleResolver;
 use App\Domain\Dpc\Models\DpcProposal;
@@ -18,6 +19,7 @@ use App\Domain\Dpc\Requests\SaveEvaluationChartRequest;
 use App\Domain\Dpc\Requests\SaveSeniorityEntriesRequest;
 use App\Domain\Dpc\Requests\SaveWorkingOfficersRequest;
 use App\Domain\Dpc\Services\DpcCommitteeService;
+use App\Domain\Dpc\Services\DpcCompletionService;
 use App\Domain\Dpc\Services\DpcProposalCompletenessService;
 use App\Domain\Dpc\Services\DpcProposalService;
 use App\Domain\Dpc\Services\EvaluationCandidateService;
@@ -206,7 +208,8 @@ class DpcProposalController extends Controller
              | already carries every one of them, including each department post's
              | own name, and it is the master `users.designation_id` points at.
              */
-            'designations' => $this->selectableDesignations(),
+            // At the feeder post's level, above it, or one level below (MoM of 12 November 2026).
+            'designations' => app(CommitteeDesignationLevel::class)->selectable($dpcProposal, $this->selectableDesignations()),
             'chairman' => $this->chairmen->servingOn($dpcProposal->proposal_date ?? Carbon::today())
                 ?? $this->chairmen->serving(),
         ]);
@@ -577,6 +580,42 @@ class DpcProposalController extends Controller
         $this->authorize('submit', $dpcProposal);
 
         return $this->runTransition($dpcProposal, fn () => $this->service->submit($dpcProposal, $request->user(), $request), 'Proposal submitted for approval.');
+    }
+
+    /**
+     * The AO marks the DPC Proceeding Complete (MoM of 12 November 2026): once the
+     * promotion orders are issued, for good. The service checks who and when.
+     */
+    public function complete(Request $request, DpcProposal $dpcProposal): RedirectResponse
+    {
+        $request->validate(['confirm' => ['accepted']], ['confirm.accepted' => (string) __('dpc.completion.confirm_required')]);
+
+        try {
+            app(DpcCompletionService::class)->complete($dpcProposal, $request->user());
+        } catch (WorkflowException $e) {
+            return redirect()->route('dpc-proposals.show', $dpcProposal)->withErrors(['complete' => $e->getMessage()]);
+        }
+
+        return redirect()->route('dpc-proposals.show', $dpcProposal)->with('status', __('dpc.completion.done'));
+    }
+
+    /**
+     * The AO takes the DPC back to correct it (MoM of 12 November 2026), until CGPSC
+     * approves the result. The service checks who and when.
+     */
+    public function recall(Request $request, DpcProposal $dpcProposal): RedirectResponse
+    {
+        $remarks = (string) $request->validate([
+            'recall_remarks' => ['required', 'string', 'max:1000'],
+        ], ['recall_remarks.required' => (string) __('dpc.recall.remarks_required')])['recall_remarks'];
+
+        try {
+            $this->service->recall($dpcProposal, $request->user(), trim($remarks), $request);
+        } catch (WorkflowException $e) {
+            return redirect()->route('dpc-proposals.show', $dpcProposal)->withErrors(['recall' => $e->getMessage()]);
+        }
+
+        return redirect()->route('dpc-proposals.show', $dpcProposal)->with('status', __('dpc.recall.done'));
     }
 
     public function approve(Request $request, DpcProposal $dpcProposal): RedirectResponse

@@ -43,7 +43,7 @@
                                     <td>{{ $proposal->dpcType->name_en }}</td>
                                     <td>{{ $proposal->promotionFromPost->name }} → {{ $proposal->promotionToPost->name }}</td>
                                     <td>{{ $proposal->proposal_date->format('d-m-Y') }}</td>
-                                    <td><span class="badge {{ $proposal->status->badgeClass() }}">{{ $proposal->status->label() }}</span></td>
+                                    <td><x-dpc-phase :proposal="$proposal" /> <span class="badge {{ $proposal->status->badgeClass() }}">{{ $proposal->status->label() }}</span></td>
                                     <td class="text-end"><a href="{{ route('dpc-proposals.show', $proposal) }}" class="btn btn-outline-primary btn-sm">{{ __('ui.open') }}</a></td>
                                 </tr>
                             @empty

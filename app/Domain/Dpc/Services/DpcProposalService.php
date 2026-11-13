@@ -17,6 +17,7 @@ use App\Domain\Master\Models\RecruitmentRule;
 use App\Domain\Master\Services\PromotionCrRules;
 use App\Domain\PreDpc\Models\PreDpcPromotionSource;
 use App\Domain\PreDpc\Models\PreDpcProposal;
+use App\Domain\Proceeding\Models\DpcProceeding;
 use App\Domain\Review\Models\DpcReviewLink;
 use App\Domain\Shared\Services\ActivityTimelineService;
 use App\Domain\Shared\Services\IdentifierSequenceService;
@@ -784,6 +785,54 @@ class DpcProposalService
         });
 
         $proposal->refresh();
+    }
+
+    /**
+     * The AO takes the DPC back to correct it (MoM of 12 November 2026): from the AH,
+     * or from CGPSC until the result is approved. It returns to the AO as Returned —
+     * a new revision — and goes to the AH again, who approves it again; CGPSC must
+     * then calculate again, since an earlier calculation is stale and can never be
+     * approved.
+     */
+    public function recall(DpcProposal $proposal, User $actor, string $remarks, Request $request): void
+    {
+        DB::transaction(function () use ($proposal, $actor, $remarks, $request): void {
+            $locked = $this->lock($proposal);
+            $refusal = $this->recallRefusal($locked, $actor);
+
+            if ($refusal !== null) {
+                throw new WorkflowException($refusal);
+            }
+
+            $from = $locked->status->value;
+            $def = $this->engine->assertAllowed('dpc_proposal', 'recall', $from, $actor);
+            $text = (string) __('dpc.recall.remarks', ['remarks' => $remarks]);
+
+            $locked->forceFill([
+                'status' => DpcProposalStatus::Returned->value,
+                'returned_at' => now(),
+                'return_remarks' => $text,
+            ])->save();
+
+            $this->revisions->recordReturn($locked, $actor, $text);
+            $this->engine->record($locked, 'dpc_proposal', 'recall', $from, $def, $actor, $request, $text, null, $locked->department_id);
+        });
+
+        $proposal->refresh();
+    }
+
+    /** Why the AO may not take this DPC back now, or null when they may. */
+    public function recallRefusal(DpcProposal $proposal, ?User $actor): ?string
+    {
+        $proceeding = DpcProceeding::query()->where('dpc_proposal_id', $proposal->id)->latest('id')->first();
+
+        return match (true) {
+            ! in_array($proposal->status, [DpcProposalStatus::Submitted, DpcProposalStatus::Approved], true) => (string) __('dpc.recall.errors.status'),
+            $proposal->proceeding_completed_at !== null => (string) __('dpc.completion.errors.already'),
+            ! $this->allotments->isAllotted($actor, $proposal, Role::AuthorizedOfficer) => (string) __('dpc.completion.errors.not_ao'),
+            $proceeding !== null && ($proceeding->closed_at !== null || $proceeding->cancelled_at !== null) => (string) __('dpc.recall.errors.result_approved'),
+            default => null,
+        };
     }
 
     public function cancel(DpcProposal $proposal, User $actor, Request $request): void

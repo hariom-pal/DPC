@@ -235,11 +235,18 @@ class VacancyMasterController extends Controller
         $this->assertCanManage($request, $department);
         $position = $this->draftFor($department, $year, $post);
 
-        return $this->attempt($department, $year, $post, function () use ($position, $request): string {
+        $response = $this->attempt($department, $year, $post, function () use ($position, $request): string {
             $this->vacancies->finalize($position, $request->user());
 
             return __('vacancymaster.flash.finalized');
         }, 'summary', 'summary');
+
+        // MoM of 12 November 2026: the pop-up says the matter is now with the AH.
+        if ($position->fresh()?->isDraft() === false) {
+            session()->flash('next_step', __('ui.next_step.after.vacancy_finalized'));
+        }
+
+        return $response;
     }
 
     public function revise(Request $request, Department $department, int $year, DepartmentPost $post): RedirectResponse

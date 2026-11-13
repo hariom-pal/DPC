@@ -13,6 +13,7 @@ use App\Domain\Dpc\Services\VacancyMasterService;
 use App\Domain\Employee\Models\Employee;
 use App\Domain\Import\Models\ImportBatch;
 use App\Domain\Master\Models\DepartmentPost;
+use App\Domain\Master\Models\ReservationCategory;
 use App\Enums\MasterStatus;
 use App\Enums\Role;
 use Database\Seeders\LookupMasterSeeder;
@@ -151,7 +152,53 @@ class WorkingListDeputationImportTest extends TestCase
     {
         $csv = $this->actingAs($this->ao)->get(route('dpc-import-templates.download-for', [$this->proposal, 'currently_working_us']))->assertOk()->getContent();
 
-        $this->assertStringContainsString('SN,"EMPLOYEE ID",NAME,DOB,MOBILE,EMAIL,"HERE ON DEPUTATION","OUT ON DEPUTATION"', (string) $csv);
+        // CANDIDATE CATEGORY and SELECTION CATEGORY (MoM of 12 November 2026).
+        $this->assertStringContainsString('SN,"EMPLOYEE ID",NAME,DOB,MOBILE,EMAIL,"HERE ON DEPUTATION","OUT ON DEPUTATION","CANDIDATE CATEGORY","SELECTION CATEGORY"', (string) $csv);
+    }
+
+    /**
+     * Candidate Category and Selection Category (MoM of 12 November 2026): the officer's
+     * own category and the one the seat was filled against, where reservation is
+     * category-wise.
+     */
+    public function test_candidate_and_selection_category_are_read_from_the_list(): void
+    {
+        config(['dpc.reservation.category_wise' => true]);
+        $codes = ReservationCategory::query()->pluck('id', 'code');
+
+        $path = tempnam(sys_get_temp_dir(), 'wl').'.csv';
+        $handle = fopen($path, 'w');
+        fputcsv($handle, [...self::HEADER, 'CANDIDATE CATEGORY', 'SELECTION CATEGORY']);
+        foreach ($this->rows() as $row) {
+            array_splice($row, 5, 0, ['']);
+            fputcsv($handle, [...$row, $row[0] === '2' ? 'SC' : 'UR', $row[0] === '2' ? 'UR' : '']);
+        }
+        fclose($handle);
+        $this->actingAs($this->ao)->post(route('dpc-proposals.imports.store', $this->proposal), [
+            'template' => 'currently_working_us',
+            'file' => new UploadedFile($path, 'working.csv', 'text/csv', null, true),
+        ])->assertSessionHasNoErrors();
+        $batch = ImportBatch::query()->latest('id')->firstOrFail();
+        $this->assertSame(0, (int) $batch->rejected_count);
+        $this->actingAs($this->ao)->post(route('dpc-proposals.imports.commit', [$this->proposal, $batch]))->assertSessionHasNoErrors();
+
+        $officer = DpcWorkingOfficer::query()->where('dpc_proposal_id', $this->proposal->id)->where('employee_number', 'E-2')->sole();
+        $this->assertSame([$codes['SC'], $codes['UR']], [$officer->reservation_category_id, $officer->seat_reservation_category_id]);
+        $this->assertNull(DpcWorkingOfficer::query()->where('dpc_proposal_id', $this->proposal->id)->where('employee_number', 'E-1')->sole()->seat_reservation_category_id, 'Blank: not recorded.');
+
+        // An unknown code is refused on its row.
+        $handle = fopen($path, 'w');
+        fputcsv($handle, [...self::HEADER, 'CANDIDATE CATEGORY', 'SELECTION CATEGORY']);
+        foreach ($this->rows() as $row) {
+            array_splice($row, 5, 0, ['']);
+            fputcsv($handle, [...$row, $row[0] === '3' ? 'XYZ' : 'UR', '']);
+        }
+        fclose($handle);
+        $this->actingAs($this->ao)->post(route('dpc-proposals.imports.store', $this->proposal), [
+            'template' => 'currently_working_us',
+            'file' => new UploadedFile($path, 'working.csv', 'text/csv', null, true),
+        ])->assertSessionHasNoErrors();
+        $this->assertStringContainsString('Unknown category code "XYZ"', implode(' ', $this->errorsOf(ImportBatch::query()->latest('id')->firstOrFail(), 4)));
     }
 
     public function test_a_list_that_agrees_with_b1_and_b2_imports_and_reconciles(): void
@@ -198,7 +245,7 @@ class WorkingListDeputationImportTest extends TestCase
         $this->actingAs($this->ao)->from(route('dpc-proposals.working-officers', $this->proposal))->post(route('dpc-proposals.imports.store', $this->proposal), [
             'template' => 'currently_working_us',
             'file' => new UploadedFile($path, 'working.csv', 'text/csv', null, true),
-        ])->assertSessionHasErrors(['file' => "The file was not imported: its first row has none of the template's column headings. Expected: ".implode(', ', self::HEADER).'.']);
+        ])->assertSessionHasErrors(['file' => "The file was not imported: its first row has none of the template's column headings. Expected: ".implode(', ', [...self::HEADER, 'CANDIDATE CATEGORY', 'SELECTION CATEGORY']).'.']);
     }
 
     /**
@@ -212,10 +259,10 @@ class WorkingListDeputationImportTest extends TestCase
     {
         $this->assertSame(60, app(ProposalVacancyPosition::class)->for($this->proposal)?->breakdown['retirement_age']);
 
-        // E-3, born 01-03-1966, retires on 31-03-2026 — the 1st is no exception —
-        // inside the year, and is not in C. E-5 agrees with C.
+        // E-3, born 01-03-1966, retires on 28-02-2026 — born on the 1st, the month
+        // before — inside the year, and is not in C. E-5 agrees with C.
         $batch = $this->preview($this->rows([3 => ['3', 'E-3', 'Officer 3', '01-03-1966', '', 'N', 'N']]));
-        $this->assertStringContainsString('retires on 31-03-2026, inside the Vacancy Year, but Vacancy Management does not record the retirement in C', implode(' ', $this->errorsOf($batch, 4)));
+        $this->assertStringContainsString('retires on 28-02-2026, inside the Vacancy Year, but Vacancy Management does not record the retirement in C', implode(' ', $this->errorsOf($batch, 4)));
         $this->assertSame([], $this->errorsOf($batch, 6));
         $this->assertSame(1, (int) $batch->rejected_count);
 
@@ -241,7 +288,7 @@ class WorkingListDeputationImportTest extends TestCase
         $this->assertTrue($reconciliation['matches']);
         $retires = collect($reconciliation['officers'])->mapWithKeys(fn (array $o): array => [$o['employee_number'] => $o['retires']?->toDateString()])->all();
         $this->assertSame('2026-09-30', $retires['E-5']);
-        $this->assertSame('2035-01-31', $retires['E-1']);
+        $this->assertSame('2034-12-31', $retires['E-1'], 'Born on 1 January 1975.');
 
         $this->actingAs($this->ao)->get(route('dpc-proposals.working-officers', $this->proposal))->assertOk()
             ->assertSee(__('vacancymaster.proposal.working_list.retirement.date'))

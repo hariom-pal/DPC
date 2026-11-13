@@ -385,7 +385,7 @@ return [
             'retirement' => [
                 'officers' => 'Officers on the list and their Retirement Dates (:count)',
                 'date' => 'Retirement Date (calculated)',
-                'help' => 'Calculated, not entered: the last day of the officer\'s birth month in the year they reach :age, the Retirement Age of the post mapping in force on 1 January of the Vacancy Year.',
+                'help' => 'Calculated, not entered: the last day of the officer\'s birth month in the year they reach :age — for a birthday on the 1st, the last day of the month before — :age being the Retirement Age of the post mapping in force on 1 January of the Vacancy Year.',
                 'not_calculated' => 'Not calculated',
                 'no_age' => 'This Vacancy Management record carries no Retirement Age, so retirement dates are not calculated or checked against Section C. Ask the CGPSC Administrator to set the Retirement Age in Post Mapping, then revise and finalize the record again.',
             ],
@@ -494,7 +494,7 @@ return [
         'promotion_not_made' => 'No, no promotion has been made',
         'promotion_made' => 'Yes, a promotion has been made',
         'date_in_year' => 'Date (in the year)',
-        'retirement_calculated' => 'Calculated, not entered: the last day of the officer\'s birth month in the year they reach :age (the post\'s retirement age).',
+        'retirement_calculated' => 'Calculated, not entered: the last day of the officer\'s birth month in the year they reach :age (the post\'s retirement age) — for a birthday on the 1st, the last day of the month before.',
         'retirement_manual' => 'No Retirement Age is set on this post\'s mapping in force on 1 January of the Vacancy Year, so a retirement cannot be recorded. Ask the CGPSC Administrator to set it in Post Mapping.',
         'retirement_date_calculated' => 'Retirement Date (calculated)',
         'retirement_date_pending' => 'Shown once the date of birth is entered.',

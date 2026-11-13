@@ -141,6 +141,14 @@
                     </div>
                 @endforeach
 
+                {{-- Within the zone only (MoM of 12 November 2026); the rest only counted. --}}
+                @php
+                    $beyondZone = $lists['others']->reject(fn ($r) => (bool) $r->in_zone)->count();
+                    $lists['others'] = $lists['others']->filter(fn ($r) => (bool) $r->in_zone)->values();
+                @endphp
+                @if ($beyondZone > 0)
+                    <div class="alert alert-info py-1 small" id="beyond-zone">{{ __('dpc.calculations.show.beyond_zone', ['count' => $beyondZone]) }}</div>
+                @endif
                 @if ($lists['others']->isNotEmpty())
                     <div class="card border-0 shadow-sm mb-3">
                         <div class="card-body">

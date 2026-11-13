@@ -130,6 +130,30 @@ class ServiceDeclarationsTest extends TestCase
             ->assertOk()->assertSee('9425012345')->assertDontSee('name="mobile"', false);
     }
 
+    /**
+     * The Seniority List carries MOBILE and QUALIFICATION (MoM of 12 November 2026):
+     * both reach Basic Information, view-only.
+     */
+    public function test_mobile_and_qualification_come_from_the_seniority_list_and_are_view_only(): void
+    {
+        app(DpcProposalService::class)->saveSeniorityEntries($this->proposal, [
+            ['seniority_number' => 1, 'employee_number' => 'E-1', 'name' => 'Officer One', 'dob' => '1970-03-20', 'date_of_joining_service' => '1995-07-01', 'promotion_from_post' => 'Block Education Officer',
+                'mobile' => '9425011111', 'qualification' => 'M.Sc., B.Ed.'],
+        ], $this->ao, $this->proposal->seniorityReferenceDate());
+        $this->assertSame(['9425011111', 'M.Sc., B.Ed.'], [$this->row->refresh()->mobile, $this->row->qualification]);
+
+        $this->actingAs($this->ao)->put(route('dpc-proposals.employees.basic', [$this->proposal, $this->row]), ['qualification' => 'Typed', 'mobile' => '9999999999', 'service_record_undertaking' => '0'])
+            ->assertSessionHasNoErrors();
+        $this->assertSame(['9425011111', 'M.Sc., B.Ed.'], [$this->row->refresh()->mobile, $this->row->qualification]);
+
+        $this->actingAs($this->ao)->get(route('dpc-proposals.employees.show', [$this->proposal, $this->row]))->assertOk()
+            ->assertSee('M.Sc., B.Ed.')->assertSee('9425011111')
+            ->assertDontSee('name="qualification"', false)->assertDontSee('name="mobile"', false);
+
+        $csv = (string) $this->actingAs($this->ao)->get(route('dpc-import-templates.download-for', [$this->proposal, 'final_seniority_list_us']))->assertOk()->getContent();
+        $this->assertStringContainsString('"DATE OF POSTING ON CURRENT POST",MOBILE,QUALIFICATION', $csv);
+    }
+
     public function test_the_declarations_must_be_answered_and_evidenced(): void
     {
         $this->assertSame([__('dpc.employee_details.missing.declarations_unanswered')], $this->sections()['declarations']);

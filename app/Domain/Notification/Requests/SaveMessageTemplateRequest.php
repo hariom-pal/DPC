@@ -13,22 +13,14 @@ use Illuminate\Validation\Validator;
 /**
  * The Administrator's wording for one message on one channel (2026-11-12): only the
  * message's own placeholders, every placeholder it cannot do without, and a message
- * needed for access (the OTP, an invitation) never Inactive. An Active SMS carries
- * its DLT content template ID (2026-11-13): the operator delivers nothing without it.
+ * needed for access (the OTP, an invitation) never Inactive. An SMS's DLT content
+ * template ID is optional when saving (2026-11-13).
  */
 class SaveMessageTemplateRequest extends FormRequest
 {
     public function authorize(): bool
     {
         return true;
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    public function messages(): array
-    {
-        return ['dlt_template_id.required_if' => (string) __('admin.message_templates.dlt_required')];
     }
 
     /**
@@ -42,7 +34,10 @@ class SaveMessageTemplateRequest extends FormRequest
             'subject' => $email ? ['required', 'string', 'max:255'] : ['prohibited'],
             'body' => ['required', 'string', 'max:'.($email ? 10000 : 1000)],
             // TRAI DLT template IDs are numeric (typically 19 digits).
-            'dlt_template_id' => $email ? ['prohibited'] : ['nullable', 'required_if:status,'.MessageTemplate::ACTIVE, 'regex:/^\d{10,30}$/'],
+            // Optional, Active or not (2026-11-13): a template may be saved before its DLT
+            // ID is obtained. The Admin panel flags the missing ID, and the real gateway
+            // still does not send a text without one.
+            'dlt_template_id' => $email ? ['prohibited'] : ['nullable', 'regex:/^\d{10,30}$/'],
             'status' => ['required', Rule::in(MessageTemplate::STATUSES)],
         ];
     }

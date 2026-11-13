@@ -30,6 +30,7 @@ use Database\Seeders\LookupMasterSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Testing\TestResponse;
 use Tests\Concerns\CompletesDpcProposals;
@@ -243,7 +244,9 @@ class AoProposalSequenceTest extends TestCase
             ->assertSee('data-reconciled="yes"', false);
         $this->actingAs($this->ao)->get(route('dpc-proposals.seniority-list', $this->proposal))
             ->assertDontSee('id="seniority-blocked"', false)
-            ->assertSee('value="final_seniority_list_us"', false);
+            ->assertSee('value="final_seniority_list_us"', false)
+            // As on Date defaults to 1 April of the year before the DPC year (MoM of 12 November 2026).
+            ->assertSee('value="'.((int) $this->proposal->dpc_year - 1).'-04-01"', false);
 
         // Past the gate: the upload is judged on its own rules from here.
         $errors = $this->seniorityUpload()->getSession()?->get('errors');
@@ -335,6 +338,9 @@ class AoProposalSequenceTest extends TestCase
     public function test_every_ph_employee_needs_one_document_and_nothing_is_granted(): void
     {
         $row = $this->throughSeniority();
+        // PH applies to this DPC (MoM of 12 November 2026: otherwise it is not asked).
+        DB::table('reservation_policies')->whereIn('reservation_category_id', DB::table('reservation_categories')->where('code', 'PH')->pluck('id'))->update(['percentage' => 100]);
+        config(['dpc.employee_details.ph_quota_percent' => 100]);
         $answer = function (array $answers) use ($row): PhReservationOutcome {
             // A PH officer's type, from the PH Type master (2026-11-05).
             if ((string) ($answers['is_ph'] ?? '') === '1') {

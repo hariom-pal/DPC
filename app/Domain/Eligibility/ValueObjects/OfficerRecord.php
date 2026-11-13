@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Eligibility\ValueObjects;
 
+use App\Domain\Dpc\Models\DpcEvaluationCrGrade;
 use App\Domain\Dpc\Models\DpcEvaluationRecordGap;
 use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\Master\Data\QualificationCatalogue;
@@ -109,9 +110,11 @@ final class OfficerRecord
         $tribalByYear = [];
 
         foreach ($row->crGrades as $crGrade) {
-            // One CR a year and no average (2026-11-01): a year still holding several
-            // CRs from the earlier form is ungraded until it is entered again.
-            $grades[$crGrade->year] = count($crGrade->finalGrades()) > 1 ? null : $crGrade->grade;
+            // Several CRs: the nearest grade at or below their average (MoM of 12
+            // November 2026); without the points to average by, the stored grade.
+            $grades[$crGrade->year] = count($crGrade->finalGrades()) > 1 && $gradePoints !== null
+                ? DpcEvaluationCrGrade::yearGradeOf($crGrade->finalGrades(), $gradePoints)
+                : $crGrade->grade;
 
             $yearPoints = $gradePoints === null ? null : $crGrade->pointsOn($gradePoints);
 

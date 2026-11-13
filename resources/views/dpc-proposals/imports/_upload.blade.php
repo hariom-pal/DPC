@@ -23,7 +23,7 @@
                 <div class="col-md-4">
                     <label class="form-label small" for="import-list-as-on">{{ __('dpc.seniority_list.as_on_label') }}</label>
                     <input type="date" class="form-control form-control-sm" id="import-list-as-on" name="seniority_list_as_on" required
-                           value="{{ old('seniority_list_as_on') }}">
+                           value="{{ old('seniority_list_as_on', $proposal->seniority_list_as_on?->format('Y-m-d') ?? $proposal->seniorityReferenceDate()->format('Y-m-d')) }}">
                     <div class="form-text">{{ __('dpc.seniority_list.as_on_required', ['date' => $proposal->seniorityReferenceDate()->format('d-m-Y')]) }}</div>
                 </div>
             @endif

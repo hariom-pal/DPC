@@ -339,6 +339,7 @@
                             <div class="form-check">
                                 <input class="form-check-input member-social-input member-attribute-input" type="checkbox" value="1"
                                        data-covered-title="{{ __('dpc.committee.category_covered') }}"
+                                       data-one-social-title="{{ __('dpc.committee.one_social_category') }}"
                                        id="member-__M__-{{ $attribute->value }}"
                                        name="members[__M__][{{ $attribute->column() }}]">
                                 <label class="form-check-label small" for="member-__M__-{{ $attribute->value }}">

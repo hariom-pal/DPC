@@ -1157,14 +1157,17 @@ class VacancyMasterService
     }
 
     /**
-     * The date an officer retires at the post's retirement age (business rule
-     * confirmed 2026-11-12): the last calendar day of the officer's birth month in
-     * the retirement year — the birth year plus the retirement age. A birthday on the
-     * 1st is no exception, and February ends on the 28th or, in a leap year, the 29th.
+     * The date an officer retires at the post's retirement age: the last calendar day
+     * of the officer's birth month in the retirement year — the birth year plus the
+     * retirement age — and, for a birthday on the 1st, the last day of the month
+     * before (MoM of 12 November 2026, rule 3). February ends on the 28th or, in a
+     * leap year, the 29th.
      */
     public static function retirementDate(Carbon $dateOfBirth, int $age): Carbon
     {
-        return Carbon::create($dateOfBirth->year + $age, $dateOfBirth->month, 1)->endOfMonth()->startOfDay();
+        $monthEnd = Carbon::create($dateOfBirth->year + $age, $dateOfBirth->month, 1)->endOfMonth()->startOfDay();
+
+        return $dateOfBirth->day === 1 ? $monthEnd->subMonthNoOverflow()->endOfMonth()->startOfDay() : $monthEnd;
     }
 
     /**
