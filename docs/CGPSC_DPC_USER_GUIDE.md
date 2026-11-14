@@ -212,18 +212,20 @@ You may also split each type by reservation category, and the same rule applies 
 
 **An important practical point.** Because the vacancy is *derived* from the officer count, **you must list every officer in post** — not a sample. A post with 40 sanctioned posts and 37 officers serving needs all 37 on the chart; filing 3 of them would tell the portal there are 37 vacancies.
 
-### 5.2b The Seniority List may not exceed the Zone of Consideration
+### 5.2b The Seniority List and the Zone of Consideration
 
-Where a Zone of Consideration applies, the **Seniority List may contain up to that many officers** — fewer is accepted (a department may not have that many eligible officers), more is refused. *(Changed 2026-11-13; previously the count had to match exactly.)*
+Where a Zone of Consideration applies, it is a **ceiling, not a quota** *(changed 2026-11-13; previously the count had to match exactly)*:
+
+- **Fewer officers than the zone** — accepted as they are, with no error (a department may not have that many eligible officers).
+- **More officers than the zone** — accepted as they are, with no error. Every officer is assessed, but the **result lists only the officers within the zone**; a PH candidate beyond the zone is still considered for the PH seat (MoM of 12 November 2026).
 
 ```
-Zone of Consideration : 10   →   the list may carry 1 to 10 officers
+Zone of Consideration : 10   →   a list of 7 or of 14 is accepted; the result lists those within the zone
 ```
 
 The Seniority List screen shows all four figures at the top, and says how many officers it currently holds, so you know the target before you start rather than after being refused.
 
-> **"The uploaded Seniority List may contain at most 8 officers based on the calculated Zone of Consideration."**
-> The list is too long. The message always names the required number. This applies to typing and to uploading alike, and an upload of the wrong length is refused without disturbing the list you already have.
+This applies to typing and to uploading alike.
 
 **When no exact count is required.** Two cases, both shown on screen rather than left to be guessed:
 

@@ -81,7 +81,6 @@ class SaveSeniorityEntriesRequest extends FormRequest
 
             $this->assertListAsOn($validator);
 
-            $this->assertZoneOfConsideration($validator, count($entries));
         });
     }
 
@@ -120,47 +119,5 @@ class SaveSeniorityEntriesRequest extends FormRequest
                 'stated' => Carbon::parse($stated)->format('d-m-Y'),
             ]));
         }
-    }
-
-    private function assertZoneOfConsideration(Validator $validator, int $submitted): void
-    {
-        if (! (bool) config('dpc.vacancy.enforce_seniority_matches_zone', true)) {
-            return;
-        }
-
-        $proposal = $this->route('dpcProposal');
-
-        if (! $proposal instanceof DpcProposal) {
-            return;
-        }
-
-        /*
-         * **Silent on a proposal that cannot be edited, and this is load-bearing
-         * rather than tidy.** A Form Request is validated *before* the
-         * controller authorises, so without this a submitted proposal would
-         * answer an edit attempt with "your list is the wrong length" (302)
-         * instead of "this proposal is closed" (403) — telling the officer to
-         * fix something they are not permitted to touch, and quietly replacing
-         * the immutability refusal with a validation one.
-         *
-         * Caught by `test_seniority_list_is_immutable_once_submitted`, which
-         * asserts the 403 and went red the moment this check was added.
-         */
-        if (! $proposal->status->isEditable()) {
-            return;
-        }
-
-        $required = app(VacancyCalculationService::class)->requiredSeniorityCount($proposal);
-
-        // Up to the zone: a department may have fewer eligible officers than the
-        // zone admits (2026-11-13), but never more.
-        if ($required === null || $submitted <= $required) {
-            return;
-        }
-
-        $validator->errors()->add(
-            'entries',
-            app(VacancyCalculationService::class)->seniorityCountMessage($required),
-        );
     }
 }

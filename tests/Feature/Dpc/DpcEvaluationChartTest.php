@@ -681,7 +681,8 @@ class DpcEvaluationChartTest extends TestCase
 
     public function test_evaluation_chart_is_immutable_once_submitted(): void
     {
-        $this->save([$this->row(1)]);
+        // Every Property Return year answered, so the officer's details can be complete.
+        $this->save([$this->row(1, ['property_flags' => [['year' => 2012, 'flag' => '1'], ['year' => 2013, 'flag' => '1'], ['year' => 2014, 'flag' => '1'], ['year' => 2015, 'flag' => '1'], ['year' => 2016, 'flag' => '0']]])]);
         $this->makeProposalSubmittable($this->proposal);
         $this->actingAs($this->ao)->post(route('dpc-proposals.submit', $this->proposal));
 
@@ -691,7 +692,8 @@ class DpcEvaluationChartTest extends TestCase
 
     public function test_service_layer_rejects_mutation_after_submission_even_bypassing_http(): void
     {
-        $this->save([$this->row(1)]);
+        // Every Property Return year answered, so the officer's details can be complete.
+        $this->save([$this->row(1, ['property_flags' => [['year' => 2012, 'flag' => '1'], ['year' => 2013, 'flag' => '1'], ['year' => 2014, 'flag' => '1'], ['year' => 2015, 'flag' => '1'], ['year' => 2016, 'flag' => '0']]])]);
         $this->makeProposalSubmittable($this->proposal);
         $this->actingAs($this->ao)->post(route('dpc-proposals.submit', $this->proposal));
 

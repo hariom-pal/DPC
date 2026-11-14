@@ -249,18 +249,71 @@ class VacancyMasterController extends Controller
         return $response;
     }
 
+    /**
+     * The AO no longer opens a revision of the whole record (2026-11-13): the AH
+     * unlocks the section to be corrected. Kept as a route so an old bookmark is
+     * refused plainly.
+     */
     public function revise(Request $request, Department $department, int $year, DepartmentPost $post): RedirectResponse
     {
-        $this->assertCanManage($request, $department);
+        abort(403, __('vacancymaster.section_revision.how_to_revise'));
+    }
+
+    public function unlockSection(Request $request, Department $department, int $year, DepartmentPost $post, string $section): RedirectResponse
+    {
+        $this->assertCanApprove($request, $department);
         $this->assertPostInDepartment($department, $post);
-        $data = $request->validate(['revision_reason' => ['required', 'string', 'max:2000']], [], ['revision_reason' => __('vacancymaster.revision_reason_label')]);
+        $data = $request->validate(['revision_reason' => ['required', 'string', 'max:2000']], [], ['revision_reason' => __('vacancymaster.section_revision.reason')]);
         $position = $this->vacancies->current($department->id, $post->name, $year);
         abort_if($position === null, 404);
 
-        return $this->attempt($department, $year, $post, function () use ($position, $data, $request): string {
-            $this->vacancies->revise($position, $data['revision_reason'], $request->user());
+        return $this->attempt($department, $year, $post, function () use ($position, $section, $data, $request): string {
+            $this->vacancies->unlockSection($position, $section, $data['revision_reason'], $request->user());
+            session()->flash('next_step', __('vacancymaster.flash.section_unlocked'));
 
-            return __('vacancymaster.flash.revision_opened');
+            return __('vacancymaster.flash.section_unlocked');
+        }, 'summary', $section === VacancyMasterService::SECTION_STRENGTH ? 'sanctioned' : 'vacancies', 'default', ['part' => self::partOf($section)]);
+    }
+
+    public function submitRevision(Request $request, Department $department, int $year, DepartmentPost $post): RedirectResponse
+    {
+        $this->assertCanManage($request, $department);
+        $position = $this->draftFor($department, $year, $post);
+
+        return $this->attempt($department, $year, $post, function () use ($position, $request): string {
+            $this->vacancies->submitRevision($position, $request->user());
+            session()->flash('next_step', __('vacancymaster.flash.revision_submitted'));
+
+            return __('vacancymaster.flash.revision_submitted');
+        }, 'summary', 'summary');
+    }
+
+    public function approveRevision(Request $request, Department $department, int $year, DepartmentPost $post): RedirectResponse
+    {
+        $this->assertCanApprove($request, $department);
+        $position = $this->draftFor($department, $year, $post);
+
+        return $this->attempt($department, $year, $post, function () use ($position, $request): string {
+            $result = $this->vacancies->approveRevision($position, $request->user());
+
+            return implode(' ', array_filter([
+                __('vacancymaster.flash.revision_approved'),
+                $result['updated'] === [] ? null : __('vacancymaster.flash.revision_dpc_updated', ['list' => implode(', ', $result['updated'])]),
+                $result['kept'] === [] ? null : __('vacancymaster.flash.revision_dpc_kept', ['list' => implode(', ', $result['kept'])]),
+            ]));
+        }, 'summary', 'summary');
+    }
+
+    public function returnRevision(Request $request, Department $department, int $year, DepartmentPost $post): RedirectResponse
+    {
+        $this->assertCanApprove($request, $department);
+        $data = $request->validate(['return_remarks' => ['required', 'string', 'max:2000']], [], ['return_remarks' => __('vacancymaster.section_revision.return_remarks')]);
+        $position = $this->draftFor($department, $year, $post);
+
+        return $this->attempt($department, $year, $post, function () use ($position, $data, $request): string {
+            $this->vacancies->returnRevision($position, $data['return_remarks'], $request->user());
+
+            return __('vacancymaster.flash.revision_returned');
         }, 'summary', 'summary');
     }
 
@@ -391,10 +444,28 @@ class VacancyMasterController extends Controller
     }
 
     /**
+     * Who unlocks a section and approves or returns a revision (2026-11-13): the
+     * department's own Administrative Head.
+     */
+    private function canApprove(Request $request, Department $department): bool
+    {
+        $user = $request->user();
+
+        return $user !== null
+            && $user->hasRole(Role::AdministrativeHead->value)
+            && $user->department_id === $department->id;
+    }
+
+    private function assertCanApprove(Request $request, Department $department): void
+    {
+        abort_unless($this->canApprove($request, $department), 403);
+    }
+
+    /**
      * The routes and layout the screens use: the department's area only, since the
      * Administrator's copy was removed (2026-11-02).
      *
-     * @return array{records: string, management: string, layout: string, canManage: bool}
+     * @return array{records: string, management: string, layout: string, canManage: bool, canApprove: bool}
      */
     private function context(Request $request, Department $department): array
     {
@@ -403,6 +474,7 @@ class VacancyMasterController extends Controller
             'management' => 'vacancy-management',
             'layout' => 'layouts.app',
             'canManage' => $this->canManage($request, $department),
+            'canApprove' => $this->canApprove($request, $department),
         ];
     }
 

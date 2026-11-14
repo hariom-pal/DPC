@@ -680,7 +680,7 @@ class DpcExcelImportTest extends TestCase
         $this->assertSame(2, $this->proposal->fresh()->seniorityEntries()->count());
     }
 
-    public function test_a_seniority_import_longer_than_the_zone_is_refused(): void
+    public function test_a_seniority_import_longer_than_the_zone_is_committed_whole(): void
     {
         $this->sanctionVacancies($this->proposal, 1); // zone 5
 
@@ -693,9 +693,10 @@ class DpcExcelImportTest extends TestCase
 
         $this->actingAs($this->ao)
             ->post(route('dpc-proposals.imports.commit', [$this->proposal, $batch]))
-            ->assertSessionHasErrors('commit');
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas('status', fn (string $status): bool => str_contains($status, '6 rows committed'));
 
-        $this->assertSame(0, $this->proposal->fresh()->seniorityEntries()->count());
+        $this->assertSame(6, $this->proposal->fresh()->seniorityEntries()->count());
     }
 
     public function test_a_seniority_import_matching_the_zone_commits(): void

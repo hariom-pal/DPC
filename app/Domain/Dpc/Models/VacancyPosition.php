@@ -33,6 +33,11 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property VacancyPositionStatus $status
  * @property int|null $supersedes_id
  * @property string|null $revision_reason
+ * @property list<string>|null $unlocked_sections
+ * @property int|null $submitted_by
+ * @property Carbon|null $submitted_at
+ * @property string|null $return_remarks
+ * @property Carbon|null $returned_at
  * @property int|null $working_strength_id
  * @property Carbon $period_from
  * @property Carbon $period_to
@@ -64,6 +69,11 @@ class VacancyPosition extends Model implements Auditable
         'status',
         'supersedes_id',
         'revision_reason',
+        'unlocked_sections',
+        'submitted_by',
+        'submitted_at',
+        'return_remarks',
+        'returned_at',
         'working_strength_id',
         'sanctioned_strength_id',
         'period_from',
@@ -112,12 +122,43 @@ class VacancyPosition extends Model implements Auditable
             'direct_vacancy' => 'integer',
             'breakdown' => 'array',
             'finalized_at' => 'datetime',
+            'unlocked_sections' => 'array',
+            'submitted_at' => 'datetime',
+            'returned_at' => 'datetime',
         ];
     }
 
     public function isDraft(): bool
     {
         return $this->status === VacancyPositionStatus::Draft;
+    }
+
+    public function isPendingApproval(): bool
+    {
+        return $this->status === VacancyPositionStatus::PendingApproval;
+    }
+
+    /**
+     * A revision opened section by section by the AH (2026-11-13): only its
+     * unlocked sections may be edited, and it is finalized by the AH's approval.
+     */
+    public function isSectionRevision(): bool
+    {
+        return $this->supersedes_id !== null && is_array($this->unlocked_sections);
+    }
+
+    /** May this section be edited? Every section, unless this is a section revision. */
+    public function sectionUnlocked(string $section): bool
+    {
+        return ! is_array($this->unlocked_sections) || in_array($section, $this->unlocked_sections, true);
+    }
+
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function submitter(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'submitted_by');
     }
 
     /**

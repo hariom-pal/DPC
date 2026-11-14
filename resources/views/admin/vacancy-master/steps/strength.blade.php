@@ -9,7 +9,10 @@
     $hasFigures = $sanctioned !== null && $working !== null;
 @endphp
 <div class="card border-0 shadow-sm mb-3" id="strength-step">
-    <div class="card-header bg-white"><strong>1. {{ __('vacancymaster.pm.strength_heading', ['year' => $year]) }}</strong></div>
+    <div class="card-header bg-white d-flex flex-wrap align-items-center gap-2">
+        <strong class="me-auto">1. {{ __('vacancymaster.pm.strength_heading', ['year' => $year]) }}</strong>
+        @include('admin.vacancy-master.partials.section-unlock', ['sectionKey' => 'strength'])
+    </div>
     <div class="card-body">
         @if ($sanctioned !== null || $working !== null)
             <div class="table-responsive mb-3">
@@ -49,7 +52,7 @@
             </div>
         @endif
 
-        @if ($editable)
+        @if ($sectionEditable('strength'))
 @php
     $focus = collect(['sanctioned_total', 'working_total', 'order_number', 'order_date', 'document', 'remarks', 'correction_reason'])->first(fn ($field) => $errors->has($field));
 @endphp

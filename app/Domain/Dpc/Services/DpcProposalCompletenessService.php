@@ -31,7 +31,7 @@ use App\Domain\Master\Support\ReservationMode;
  *
  *   - working officers must not exceed the sanctioned strength;
  *   - the vacancy classification must sum to `sanctioned − working`;
- *   - the seniority list may carry at most as many officers as the zone admits.
+ *   - the seniority list is not limited by the zone: the result lists those within it.
  *
  * Nothing here still scores or ranks an officer, and no eligibility verdict is
  * reached. The zone is not *computed* here either — it is asked of the M5
@@ -232,15 +232,15 @@ class DpcProposalCompletenessService
                 'label' => 'Seniority List',
                 'screen' => 'S17',
                 'route' => 'dpc-proposals.seniority-list',
-                'complete' => $proposal->seniority_entries_count > 0 && $this->seniorityMatchesZone($sums)
+                // The Zone of Consideration does not limit the list (2026-11-13): fewer
+                // or more officers are accepted, and the result lists those within it.
+                'complete' => $proposal->seniority_entries_count > 0
                     && $this->seniorityAsOnProblem($proposal) === null,
                 'detail' => match (true) {
                     $proposal->seniority_entries_count < 1 => 'No seniority entries yet.',
-                    ! $this->seniorityMatchesZone($sums) => $this->vacancies->seniorityCountMessage((int) $sums['required_seniority'])
-                        ." The list currently carries {$sums['seniority_entered']}.",
                     $this->seniorityAsOnProblem($proposal) !== null => (string) $this->seniorityAsOnProblem($proposal),
                     $sums['required_seniority'] !== null => $proposal->seniority_entries_count
-                        .' officer(s), within the Zone of Consideration of '.$sums['required_seniority'],
+                        .' officer(s); Zone of Consideration '.$sums['required_seniority'],
                     default => $proposal->seniority_entries_count.' officer(s) in the feeder seniority list',
                 },
             ],
@@ -535,21 +535,6 @@ class DpcProposalCompletenessService
         // Unknowable while the sanctioned strength is absent; that case is
         // reported by the sanctioned-count check instead of twice.
         return $sums['total_vacancy'] === null || $sums['balanced'] === true;
-    }
-
-    /**
-     * @param  array<string, mixed>  $sums
-     */
-    private function seniorityMatchesZone(array $sums): bool
-    {
-        if (! (bool) config('dpc.vacancy.enforce_seniority_matches_zone', true)) {
-            return true;
-        }
-
-        // Null means no exact count can be required — an unentered sanctioned
-        // strength, a class pair the deck gives no formula for, or no vacancy.
-        return $sums['required_seniority'] === null
-            || $sums['seniority_entered'] <= $sums['required_seniority'];
     }
 
     /**

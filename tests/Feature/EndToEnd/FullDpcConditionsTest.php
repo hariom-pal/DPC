@@ -797,7 +797,7 @@ class FullDpcConditionsTest extends TestCase
             if ($o['entries']) {
                 $this->ok($this->actingAs($ao)->post(route('vacancy-records.entries.store', $params), ['kind' => 'deputation_in', 'officer_name' => 'Shri Dinesh Kumar Patel', 'employee_number' => 'WRD2001', 'deputation_from' => '2024-07-01', 'deputation_to' => '2026-06-30', 'deputation_only_post' => '0']));
                 $this->ok($this->actingAs($ao)->post(route('vacancy-records.entries.store', $params), ['kind' => 'deputation', 'officer_name' => 'Smt. Meena Baghel', 'employee_number' => 'EMP1005', 'deputation_from' => '2024-03-01', 'promotion_made' => '0']));
-                $this->ok($this->actingAs($ao)->post(route('vacancy-records.entries.store', $params), ['kind' => 'anticipated', 'officer_name' => 'Shri Rajendra Prasad Sahu', 'employee_number' => 'EMP1007', 'reason' => 'retirement', 'date_of_birth' => '1964-08-15', 'effective_date' => '2026-08-31']));
+                $this->ok($this->actingAs($ao)->post(route('vacancy-records.entries.store', $params), ['kind' => 'anticipated', 'officer_name' => 'Shri Rajendra Prasad Sahu', 'employee_number' => 'EMP1007', 'reason' => 'retirement', 'date_of_birth' => '1964-08-31', 'effective_date' => '2026-08-31']));
                 $se = DepartmentPost::query()->where('department_id', $department->id)->where('name', 'Superintending Engineer')->value('id');
                 $this->ok($this->actingAs($ao)->post(route('vacancy-records.entries.store', $params), [
                     'kind' => 'anticipated', 'officer_name' => 'Shri Harish Kumar Netam', 'employee_number' => 'EMP1008', 'reason' => 'higher_post_promotion', 'effective_date' => '2026-05-01',

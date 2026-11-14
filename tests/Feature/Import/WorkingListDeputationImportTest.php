@@ -8,6 +8,7 @@ use App\Domain\Authentication\Models\User;
 use App\Domain\Department\Models\Department;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Models\DpcWorkingOfficer;
+use App\Domain\Dpc\Models\VacancyPosition;
 use App\Domain\Dpc\Services\ProposalVacancyPosition;
 use App\Domain\Dpc\Services\VacancyMasterService;
 use App\Domain\Employee\Models\Employee;
@@ -273,6 +274,37 @@ class WorkingListDeputationImportTest extends TestCase
         // Born 1965 retires in 2025, before the year: not a C matter.
         $batch = $this->preview($this->rows([3 => ['3', 'E-3', 'Officer 3', '10-11-1965', '', 'N', 'N']]));
         $this->assertSame([], $this->errorsOf($batch, 4));
+    }
+
+    /**
+     * The date of birth recorded in Vacancy Management is checked against the
+     * list's (2026-11-13) — even a date in the same month, which gives the same
+     * retirement date and so slipped past the retirement check.
+     */
+    public function test_the_list_date_of_birth_must_match_the_one_vacancy_management_records(): void
+    {
+        $this->assertSame('1966-09-15', collect(app(ProposalVacancyPosition::class)->for($this->proposal)?->breakdown['entries'])->firstWhere('employee_number', 'E-5')['date_of_birth']);
+
+        $batch = $this->preview($this->rows([5 => ['5', 'E-5', 'Officer 5', '20-09-1966', '', 'N', 'N']]));
+
+        $this->assertStringContainsString('The date of birth on this row (20-09-1966) differs from the one Vacancy Management records for Officer 5 (15-09-1966)', implode(' ', $this->errorsOf($batch, 6)));
+        $this->assertSame(1, (int) $batch->rejected_count);
+    }
+
+    public function test_a_record_finalised_before_dates_of_birth_were_snapshotted_reads_the_entry(): void
+    {
+        $position = VacancyPosition::query()->latest('id')->firstOrFail();
+        $breakdown = $position->breakdown;
+        $breakdown['entries'] = array_map(function (array $entry): array {
+            unset($entry['date_of_birth']);
+
+            return $entry;
+        }, $breakdown['entries']);
+        DB::table('vacancy_positions')->where('id', $position->id)->update(['breakdown' => json_encode($breakdown)]);
+
+        $batch = $this->preview($this->rows([5 => ['5', 'E-5', 'Officer 5', '20-09-1966', '', 'N', 'N']]));
+
+        $this->assertStringContainsString('differs from the one Vacancy Management records for Officer 5 (15-09-1966)', implode(' ', $this->errorsOf($batch, 6)));
     }
 
     /**

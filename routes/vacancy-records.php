@@ -25,3 +25,8 @@ Route::post('/{year}/posts/{post}/entries/{entry}/withdraw', 'withdrawEntry')->w
 Route::get('/{year}/posts/{post}/entries/{entry}/document', 'entryDocument')->whereNumber('year')->name('entries.document');
 Route::post('/{year}/posts/{post}/finalize', 'finalize')->whereNumber('year')->name('finalize');
 Route::post('/{year}/posts/{post}/revise', 'revise')->whereNumber('year')->name('revise');
+// Section-wise revision (2026-11-13): the AH unlocks, the AO submits, the AH decides.
+Route::post('/{year}/posts/{post}/sections/{section}/unlock', 'unlockSection')->whereNumber('year')->whereIn('section', ['strength', 'deputation_in', 'deputation', 'anticipated'])->name('sections.unlock');
+Route::post('/{year}/posts/{post}/submit-revision', 'submitRevision')->whereNumber('year')->name('submit-revision');
+Route::post('/{year}/posts/{post}/approve-revision', 'approveRevision')->whereNumber('year')->name('approve-revision');
+Route::post('/{year}/posts/{post}/return-revision', 'returnRevision')->whereNumber('year')->name('return-revision');

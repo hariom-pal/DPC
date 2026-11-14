@@ -10,6 +10,7 @@ use App\Domain\Dpc\Enums\VacancyReason;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Models\DpcWorkingOfficer;
 use App\Domain\Dpc\Models\VacancyPosition;
+use App\Domain\Dpc\Models\VacancyPositionEntry;
 use App\Domain\Dpc\ValueObjects\VacancyBreakdown;
 use Illuminate\Support\Carbon;
 
@@ -393,8 +394,14 @@ final class ProposalVacancyPosition
                 default => null,
             };
 
-            if ($results[$index] === null && $wanted === null) {
-                $results[$index] = $this->retirementMismatch($frozen, $row['dob'] ?? null, $found === null ? null : $entries[$found]);
+            // The date of birth recorded in Vacancy Management must be the list's
+            // (2026-11-13) — for B1, B2 and C alike.
+            if ($results[$index] === null) {
+                // Both are said when both are wrong: the officer sees every reason.
+                $results[$index] = implode(' ', array_filter([
+                    $found === null ? null : $this->dateOfBirthMismatch($row['dob'] ?? null, $entries[$found]),
+                    $wanted === null ? $this->retirementMismatch($frozen, $row['dob'] ?? null, $found === null ? null : $entries[$found]) : null,
+                ])) ?: null;
             }
 
             if ($found !== null && ! isset($matched[$found]) && $side === ($wanted ?? 'C')) {
@@ -411,6 +418,40 @@ final class ProposalVacancyPosition
         }
 
         return ['rows' => $results, 'missing' => $missing];
+    }
+
+    /**
+     * The date of birth Vacancy Management recorded for the officer this row
+     * matched, against the row's own: null when they agree, or when either is
+     * missing.
+     *
+     * A record finalised before the snapshot carried dates of birth (2026-11-13)
+     * has none in it, so the entry itself is read.
+     *
+     * @param  array<string, mixed>  $entry
+     */
+    private function dateOfBirthMismatch(?string $dob, array $entry): ?string
+    {
+        $recorded = array_key_exists('date_of_birth', $entry)
+            ? $entry['date_of_birth']
+            : (isset($entry['uuid']) ? VacancyPositionEntry::query()->where('uuid', $entry['uuid'])->value('date_of_birth') : null);
+
+        if ($dob === null || $dob === '' || $recorded === null || $recorded === '') {
+            return null;
+        }
+
+        try {
+            $listed = Carbon::parse($dob)->startOfDay();
+            $recordedOn = Carbon::parse((string) $recorded)->startOfDay();
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return $listed->equalTo($recordedOn) ? null : (string) __('vacancymaster.proposal.working_list.match.dob_differs', [
+            'dob' => $listed->format('d-m-Y'),
+            'name' => $entry['officer_name'] ?? '',
+            'recorded' => $recordedOn->format('d-m-Y'),
+        ]);
     }
 
     /**

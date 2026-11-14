@@ -50,7 +50,7 @@
 
     document.addEventListener('click', function (event) {
         var btn = event.target.closest('.btn-font');
-        if (btn) { applyFont(btn.dataset.font === 'sm' ? 'md' : btn.dataset.font); }
+        if (btn) { applyFont(btn.dataset.font); }
     });
 
     /* ------------------------------------------------------ stat counters */

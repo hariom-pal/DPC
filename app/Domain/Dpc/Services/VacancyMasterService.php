@@ -21,6 +21,7 @@ use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\RecruitmentRule;
 use App\Domain\PreDpc\Enums\PreDpcStatus;
 use App\Domain\PreDpc\Models\PreDpcProposal;
+use App\Domain\Proceeding\Models\DpcProceeding;
 use App\Domain\Shared\Services\ActivityTimelineService;
 use App\Domain\Shared\Workflow\WorkflowException;
 use Illuminate\Http\UploadedFile;
@@ -362,6 +363,9 @@ class VacancyMasterService
                 'employee_number' => $entry->employee_number,
                 'count' => $entry->vacancy_count,
                 'effective_date' => $entry->effective_date->toDateString(),
+                // So an uploaded list's date of birth can be checked against the
+                // one recorded here (2026-11-13).
+                'date_of_birth' => $entry->date_of_birth?->toDateString(),
                 'deputation_from' => $entry->deputation_from?->toDateString(),
                 'deputation_to' => $entry->deputation_to?->toDateString(),
                 'promotion_made' => $entry->promotion_made,
@@ -520,7 +524,7 @@ class VacancyMasterService
      */
     public function saveSanctionedStrength(VacancyPosition $position, array $data, ?UploadedFile $document, User $actor): VacancyPositionSanctionedStrength
     {
-        $this->assertDraft($position);
+        $this->assertSectionEditable($position, self::SECTION_STRENGTH);
 
         if ($document === null) {
             throw new WorkflowException(__('vacancymaster.errors.document_required'), 'document');
@@ -588,7 +592,7 @@ class VacancyMasterService
      */
     public function saveStrength(VacancyPosition $position, array $data, ?UploadedFile $document, User $actor): void
     {
-        $this->assertDraft($position);
+        $this->assertSectionEditable($position, self::SECTION_STRENGTH);
 
         $sanctioned = (int) $data['sanctioned_total'];
         $working = (int) $data['working_total'];
@@ -657,7 +661,7 @@ class VacancyMasterService
      */
     public function saveWorkingStrength(VacancyPosition $position, array $data, ?UploadedFile $document, User $actor): VacancyPositionWorkingStrength
     {
-        $this->assertDraft($position);
+        $this->assertSectionEditable($position, self::SECTION_STRENGTH);
 
         $total = (int) $data['working_total'];
         $previous = $position->workingStrength;
@@ -731,6 +735,8 @@ class VacancyMasterService
             throw new WorkflowException(__('vacancymaster.errors.kind_invalid'), 'kind');
         }
 
+        $this->assertSectionEditable($position, $kind->value);
+
         $name = trim((string) ($data['officer_name'] ?? ''));
 
         if ($name === '') {
@@ -795,7 +801,7 @@ class VacancyMasterService
     public function verifyEntry(VacancyPositionEntry $entry, array $data, User $actor): VacancyPositionEntry
     {
         $position = $entry->position;
-        $this->assertDraft($position);
+        $this->assertSectionEditable($position, self::sectionOfKind($entry->kind));
 
         if (! $entry->isActive() || $entry->eligibility !== VacancyEntryEligibility::PendingVerification) {
             throw new WorkflowException(__('vacancymaster.errors.not_pending'));
@@ -863,7 +869,7 @@ class VacancyMasterService
     public function withdrawEntry(VacancyPositionEntry $entry, string $reason, User $actor): void
     {
         $position = $entry->position;
-        $this->assertDraft($position);
+        $this->assertSectionEditable($position, self::sectionOfKind($entry->kind));
 
         if (! $entry->isActive()) {
             throw new WorkflowException(__('vacancymaster.errors.already_withdrawn'));
@@ -897,6 +903,20 @@ class VacancyMasterService
     {
         $this->assertDraft($position);
 
+        if ($position->isSectionRevision()) {
+            throw new WorkflowException(__('vacancymaster.errors.revision_needs_approval'));
+        }
+
+        return $this->freeze($position, $actor, VacancyPositionStatus::Draft);
+    }
+
+    /**
+     * Freeze every figure, the mapping, the rule and the breakdown, superseding the
+     * finalized revision before it: the AO's finalize of a first draft, or the AH's
+     * approval of a section revision.
+     */
+    private function freeze(VacancyPosition $position, User $actor, VacancyPositionStatus $from): VacancyPosition
+    {
         $breakdown = $this->breakdown($position->fresh() ?? $position);
 
         if (! $breakdown['complete']) {
@@ -908,9 +928,12 @@ class VacancyMasterService
             ]));
         }
 
-        return DB::transaction(function () use ($position, $breakdown, $actor): VacancyPosition {
+        return DB::transaction(function () use ($position, $breakdown, $actor, $from): VacancyPosition {
             $locked = VacancyPosition::query()->whereKey($position->id)->lockForUpdate()->firstOrFail();
-            $this->assertDraft($locked);
+
+            if ($locked->status !== $from) {
+                throw new WorkflowException(__('vacancymaster.errors.not_draft'));
+            }
 
             VacancyPosition::query()
                 ->where('department_id', $locked->department_id)
@@ -1010,6 +1033,175 @@ class VacancyMasterService
 
             return $draft;
         });
+    }
+
+    // ------------------------------------------------- section-wise revision
+
+    public const SECTION_STRENGTH = 'strength';
+
+    /** The four sections the AH unlocks one by one (2026-11-13). */
+    public const SECTIONS = [self::SECTION_STRENGTH, 'deputation_in', 'deputation', 'anticipated'];
+
+    /** The section an entry of this kind belongs to. */
+    public static function sectionOfKind(VacancyEntryKind $kind): string
+    {
+        return $kind === VacancyEntryKind::Existing ? self::SECTION_STRENGTH : $kind->value;
+    }
+
+    /**
+     * The AH's Edit on a section (2026-11-13). On a finalized record it opens a
+     * revision with only this section unlocked; on a revision already open it
+     * unlocks one more. The AO can then edit the unlocked sections only.
+     */
+    public function unlockSection(VacancyPosition $current, string $section, string $reason, User $actor): VacancyPosition
+    {
+        if (! in_array($section, self::SECTIONS, true)) {
+            throw new WorkflowException(__('vacancymaster.errors.section_invalid'));
+        }
+
+        if (trim($reason) === '') {
+            throw new WorkflowException(__('vacancymaster.errors.revision_reason_required'), 'revision_reason');
+        }
+
+        if ($current->status === VacancyPositionStatus::Finalized) {
+            $draft = $this->revise($current, $reason, $actor);
+            $draft->forceFill(['unlocked_sections' => [$section]])->save();
+        } elseif ($current->isDraft() && $current->isSectionRevision()) {
+            $draft = $current;
+            $draft->forceFill([
+                'unlocked_sections' => array_values(array_unique([...(array) $draft->unlocked_sections, $section])),
+                'revision_reason' => trim((string) $draft->revision_reason.' | '.trim($reason), ' |'),
+            ])->save();
+        } elseif ($current->isPendingApproval()) {
+            throw new WorkflowException(__('vacancymaster.errors.pending_approval'));
+        } else {
+            throw new WorkflowException(__('vacancymaster.errors.unlock_only_finalized'));
+        }
+
+        $this->record('vacancy_position.section_unlocked', $draft, __('vacancymaster.timeline.section_unlocked', [
+            'section' => __('vacancymaster.sections.'.$section),
+            'revision' => $draft->revision,
+        ]), ['section' => $section, 'reason' => trim($reason)], $actor);
+
+        return $draft;
+    }
+
+    /** The AO's Submit for approval on a section revision. */
+    public function submitRevision(VacancyPosition $position, User $actor): VacancyPosition
+    {
+        $this->assertDraft($position);
+
+        if (! $position->isSectionRevision()) {
+            throw new WorkflowException(__('vacancymaster.errors.not_section_revision'));
+        }
+
+        $breakdown = $this->breakdown($position->fresh() ?? $position);
+
+        if (! $breakdown['complete']) {
+            throw new WorkflowException(__('vacancymaster.errors.cannot_finalize', [
+                'issues' => implode(' ', array_map(
+                    fn (array $issue): string => __('vacancymaster.issues.'.$issue['key'], $issue['params']),
+                    $breakdown['issues'],
+                )),
+            ]));
+        }
+
+        $position->forceFill([
+            'status' => VacancyPositionStatus::PendingApproval->value,
+            'submitted_by' => $actor->id,
+            'submitted_at' => now(),
+        ])->save();
+
+        $this->record('vacancy_position.revision_submitted', $position, __('vacancymaster.timeline.revision_submitted', [
+            'revision' => $position->revision,
+        ]), [], $actor);
+
+        return $position;
+    }
+
+    /**
+     * The AH's approval: the revision is finalized and the DPC raised on this
+     * record (one per Pre-DPC) runs on it — until the CGPSC result, after which a
+     * Review DPC is the way to change a result.
+     *
+     * @return array{position: VacancyPosition, updated: list<string>, kept: list<string>}
+     */
+    public function approveRevision(VacancyPosition $position, User $actor): array
+    {
+        if (! $position->isPendingApproval()) {
+            throw new WorkflowException(__('vacancymaster.errors.not_pending_approval'));
+        }
+
+        $previous = $position->supersedes_id;
+        $finalized = $this->freeze($position, $actor, VacancyPositionStatus::PendingApproval);
+        $updated = [];
+        $kept = [];
+
+        if ($previous !== null) {
+            $proposals = DpcProposal::query()->where('vacancy_position_id', $previous)->get();
+
+            foreach ($proposals as $proposal) {
+                if ($this->resultIsOut($proposal)) {
+                    $kept[] = (string) ($proposal->dpc_code ?? $proposal->id);
+
+                    continue;
+                }
+
+                app(DpcProposalService::class)->adoptVacancyRevision($proposal, $finalized->id, $actor);
+                $updated[] = (string) ($proposal->dpc_code ?? $proposal->id);
+            }
+        }
+
+        $this->record('vacancy_position.revision_approved', $finalized, __('vacancymaster.timeline.revision_approved', [
+            'revision' => $finalized->revision,
+        ]), ['dpc_updated' => $updated, 'dpc_kept' => $kept], $actor);
+
+        return ['position' => $finalized, 'updated' => $updated, 'kept' => $kept];
+    }
+
+    /** The AH's return: back to the AO, with what is wrong. */
+    public function returnRevision(VacancyPosition $position, string $remarks, User $actor): VacancyPosition
+    {
+        if (! $position->isPendingApproval()) {
+            throw new WorkflowException(__('vacancymaster.errors.not_pending_approval'));
+        }
+
+        if (trim($remarks) === '') {
+            throw new WorkflowException(__('vacancymaster.errors.return_remarks_required'), 'return_remarks');
+        }
+
+        $position->forceFill([
+            'status' => VacancyPositionStatus::Draft->value,
+            'return_remarks' => trim($remarks),
+            'returned_at' => now(),
+        ])->save();
+
+        $this->record('vacancy_position.revision_returned', $position, __('vacancymaster.timeline.revision_returned', [
+            'revision' => $position->revision,
+        ]), ['remarks' => trim($remarks)], $actor);
+
+        return $position;
+    }
+
+    /** Cancelled, completed, or past the CGPSC result: a vacancy change no longer reaches it. */
+    private function resultIsOut(DpcProposal $proposal): bool
+    {
+        if ($proposal->status === DpcProposalStatus::Cancelled || $proposal->proceeding_completed_at !== null) {
+            return true;
+        }
+
+        $proceeding = DpcProceeding::query()->where('dpc_proposal_id', $proposal->id)->latest('id')->first();
+
+        return $proceeding !== null && ($proceeding->closed_at !== null || $proceeding->cancelled_at !== null);
+    }
+
+    private function assertSectionEditable(VacancyPosition $position, string $section): void
+    {
+        $this->assertDraft($position);
+
+        if (! $position->sectionUnlocked($section)) {
+            throw new WorkflowException(__('vacancymaster.errors.section_locked', ['section' => __('vacancymaster.sections.'.$section)]));
+        }
     }
 
     // ----------------------------------------------------------------- helpers

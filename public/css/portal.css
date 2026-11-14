@@ -43,7 +43,8 @@ body {
     font-family: "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", "Noto Sans Devanagari", Arial, sans-serif;
     color: var(--gov-ink);
     background: var(--gov-surface);
-    font-size: 15px;
+    /* 15px at the default size, in rem so the A- / A / A+ control scales it. */
+    font-size: .9375rem;
     line-height: 1.6;
     -webkit-font-smoothing: antialiased;
 }
@@ -54,9 +55,13 @@ a:hover { color: var(--gov-blue-dark); }
 
 .text-muted, .text-body-secondary { color: var(--gov-muted) !important; }
 
-/* Accessibility: the font-size control writes this attribute on <html>. */
-html[data-font="lg"] body { font-size: 16.5px; }
-html[data-font="xl"] body { font-size: 18px; }
+/* Accessibility: the font-size control writes this attribute on <html>. The root
+   size is what changes, so every rem-sized element (Bootstrap's buttons, tables,
+   forms, headings) scales with the text — changing only body left them as they
+   were, and A+ looked the same as A (2026-11-13). */
+html[data-font="sm"] { font-size: 87.5%; }
+html[data-font="lg"] { font-size: 112.5%; }
+html[data-font="xl"] { font-size: 125%; }
 
 /* Keyboard focus must stay obvious — a government portal is assessed on it. */
 a:focus-visible, button:focus-visible, .btn:focus-visible,

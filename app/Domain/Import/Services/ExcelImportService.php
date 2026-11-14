@@ -11,7 +11,6 @@ use App\Domain\Dpc\Services\DpcProposalService;
 use App\Domain\Dpc\Services\EvaluationCandidateService;
 use App\Domain\Dpc\Services\ProposalVacancyPosition;
 use App\Domain\Dpc\Services\SanctionedStrengthSource;
-use App\Domain\Dpc\Services\VacancyCalculationService;
 use App\Domain\Dpc\Services\VacancyMasterService;
 use App\Domain\Dpc\Validation\DpcRowRules;
 use App\Domain\Import\Enums\ImportBatchStatus;
@@ -55,7 +54,6 @@ class ExcelImportService
     public function __construct(
         private readonly DpcProposalService $proposals,
         private readonly ActivityTimelineService $timeline,
-        private readonly VacancyCalculationService $vacancies,
         private readonly EvaluationCandidateService $candidates,
         private readonly ImportTemplateBuilder $templates,
     ) {}
@@ -403,7 +401,10 @@ class ExcelImportService
     {
         match ($template) {
             ImportTemplate::CurrentlyWorkingUs => $this->assertWithinSanctionedStrength($proposal, count($payloads)),
-            ImportTemplate::FinalSeniorityListUs => $this->assertMatchesZone($proposal, count($payloads)),
+            // Longer than the zone is no longer refused (2026-11-13): every officer
+            // is kept, the result lists only those within the zone, and a PH
+            // candidate beyond it is still considered for the PH seat (MoM).
+            ImportTemplate::FinalSeniorityListUs => null,
             // The officer set must be the Seniority List's (business directive,
             // 2026-08-22). Asserted here, before the transaction, because the
             // service would throw inside it and roll the whole commit back with a
@@ -439,22 +440,6 @@ class ExcelImportService
             throw new WorkflowException(
                 'Working Officers cannot exceed the sanctioned strength.'
                 ." This file carries {$incoming} row(s) against a sanctioned strength of {$sanctioned}."
-            );
-        }
-    }
-
-    private function assertMatchesZone(DpcProposal $proposal, int $incoming): void
-    {
-        if (! (bool) config('dpc.vacancy.enforce_seniority_matches_zone', true)) {
-            return;
-        }
-
-        $required = $this->vacancies->requiredSeniorityCount($proposal);
-
-        if ($required !== null && $incoming > $required) {
-            throw new WorkflowException(
-                $this->vacancies->seniorityCountMessage($required)
-                ." This file carries {$incoming}."
             );
         }
     }

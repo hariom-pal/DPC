@@ -496,9 +496,11 @@ class VacancyMasterTest extends TestCase
         $this->actingAs($this->ao)->post($this->url('finalize'))->assertSessionHasNoErrors()
             ->assertSessionHas('next_step', __('ui.next_step.after.vacancy_finalized'));
 
-        $this->actingAs($this->ao)->post($this->url('revise'), ['revision_reason' => 'Order re-read.'])->assertSessionHasNoErrors();
+        // The AH's Edit on the section opens the revision (2026-11-13).
+        $this->actingAs($this->ah)->post($this->url('sections.unlock', ['strength']), ['revision_reason' => 'Order re-read.'])->assertSessionHasNoErrors();
 
         $draft = VacancyPosition::query()->where('revision', 2)->firstOrFail();
+        $this->assertSame(['strength'], $draft->unlocked_sections);
         $this->assertSame(100, $draft->sanctionedStrength->sanctioned_total);
         $this->assertSame($this->preDpc->id, $draft->pre_dpc_proposal_id, 'The revision belongs to the same Pre-DPC.');
         $this->assertNotSame($first->sanctioned_strength_id, $draft->sanctioned_strength_id, 'The copy belongs to the new revision.');
@@ -1158,8 +1160,8 @@ class VacancyMasterTest extends TestCase
         $this->addEntry(['officer_name' => 'B'])->assertSessionHasNoErrors();
         $this->actingAs($this->ao)->post($this->url('finalize'))->assertSessionHasNoErrors();
 
-        $this->actingAs($this->ao)->post($this->url('revise'), [])->assertSessionHasErrors('revision_reason');
-        $this->actingAs($this->ao)->post($this->url('revise'), ['revision_reason' => 'Retirement order corrected.'])->assertSessionHasNoErrors();
+        $this->actingAs($this->ah)->post($this->url('sections.unlock', ['anticipated']), [])->assertSessionHasErrors('revision_reason');
+        $this->actingAs($this->ah)->post($this->url('sections.unlock', ['anticipated']), ['revision_reason' => 'Retirement order corrected.'])->assertSessionHasNoErrors();
 
         $second = app(VacancyMasterService::class)->current($this->department->id, 'Principal', self::YEAR);
         $this->assertSame(2, $second->revision);
@@ -1172,7 +1174,9 @@ class VacancyMasterTest extends TestCase
 
         $entry = $second->entries()->where('officer_name', 'B')->sole();
         $this->actingAs($this->ao)->post($this->url('entries.withdraw', [$entry]), ['withdrawal_reason' => 'Order cancelled.'])->assertSessionHasNoErrors();
-        $this->actingAs($this->ao)->post($this->url('finalize'))->assertSessionHasNoErrors();
+        // A section revision is finalized by the AH's approval, not by the AO.
+        $this->actingAs($this->ao)->post($this->url('submit-revision'))->assertSessionHasNoErrors();
+        $this->actingAs($this->ah)->post($this->url('approve-revision'))->assertSessionHasNoErrors();
 
         $this->assertSame(VacancyPositionStatus::Superseded, $first->fresh()->status);
         // Working 75 of 100, two of them retiring → clear 25 + 2 = 27 × 50 % = 13.5 → 14.
@@ -1187,6 +1191,92 @@ class VacancyMasterTest extends TestCase
         $this->actingAs($this->ao)->get($this->url('show'))
             ->assertOk()
             ->assertSee('Retirement order corrected.');
+    }
+
+    // ------------------------------------------- section-wise revision (2026-11-13)
+
+    private function finalizedRecord(): VacancyPosition
+    {
+        $first = $this->openDraft();
+        $this->saveWorking()->assertSessionHasNoErrors();
+        $this->addEntry(['officer_name' => 'A'])->assertSessionHasNoErrors();
+        $this->actingAs($this->ao)->post($this->url('finalize'))->assertSessionHasNoErrors();
+
+        return $first->fresh();
+    }
+
+    public function test_the_ao_no_longer_opens_a_revision_and_the_ah_sees_an_edit_on_each_section(): void
+    {
+        $this->finalizedRecord();
+
+        $this->actingAs($this->ao)->post($this->url('revise'), ['revision_reason' => 'x'])->assertForbidden();
+        $this->actingAs($this->ao)->post($this->url('sections.unlock', ['strength']), ['revision_reason' => 'x'])->assertForbidden();
+
+        $this->actingAs($this->ah)->get($this->url('show', ['section' => 'sanctioned']))->assertOk()
+            ->assertSee('data-section-unlock="strength"', false);
+        $this->actingAs($this->ah)->get($this->url('show', ['section' => 'vacancies']))->assertOk()
+            ->assertSee('data-section-unlock="deputation_in"', false)
+            ->assertSee('data-section-unlock="deputation"', false)
+            ->assertSee('data-section-unlock="anticipated"', false);
+        $this->actingAs($this->ao)->get($this->url('show', ['section' => 'vacancies']))->assertOk()
+            ->assertDontSee('data-section-unlock=', false);
+    }
+
+    public function test_the_ao_edits_only_the_sections_the_ah_unlocked(): void
+    {
+        $this->finalizedRecord();
+        $this->actingAs($this->ah)->post($this->url('sections.unlock', ['anticipated']), ['revision_reason' => 'Retirement order corrected.'])->assertSessionHasNoErrors();
+
+        // C is open; strength and B1 are not.
+        $this->addEntry(['officer_name' => 'C1'])->assertSessionHasNoErrors();
+        $this->saveWorking(['working_total' => '70', 'correction_reason' => 'Recount.'])->assertSessionHasErrors();
+        $this->addEntry(['kind' => 'deputation_in', 'officer_name' => 'Visitor', 'reason' => null, 'deputation_from' => '2025-01-01', 'deputation_to' => '2026-09-30'])->assertSessionHasErrors();
+        $this->assertSame(75, $this->position()->workingStrength->working_total);
+
+        // The screen says so, and offers no form for a locked section.
+        $this->actingAs($this->ao)->get($this->url('show', ['section' => 'sanctioned']))->assertOk()
+            ->assertSee('id="section-revision-banner"', false)
+            ->assertSee('data-section-state="strength"', false)
+            ->assertDontSee('name="working_total"', false);
+
+        // The AH may unlock one more on the same revision.
+        $this->actingAs($this->ah)->post($this->url('sections.unlock', ['strength']), ['revision_reason' => 'Recount ordered.'])->assertSessionHasNoErrors();
+        $this->assertSame(['anticipated', 'strength'], $this->position()->unlocked_sections);
+        $this->assertSame(2, VacancyPosition::query()->count(), 'Still one revision.');
+    }
+
+    public function test_the_ah_approves_or_returns_the_submitted_revision(): void
+    {
+        $first = $this->finalizedRecord();
+        $this->actingAs($this->ah)->post($this->url('sections.unlock', ['anticipated']), ['revision_reason' => 'One more retirement.'])->assertSessionHasNoErrors();
+        $this->addEntry(['officer_name' => 'B'])->assertSessionHasNoErrors();
+
+        // The AO's finalize is refused on a section revision; it is submitted instead.
+        $this->actingAs($this->ao)->post($this->url('finalize'))->assertSessionHasErrors();
+        $this->actingAs($this->ah)->post($this->url('submit-revision'))->assertForbidden();
+        $this->actingAs($this->ao)->post($this->url('submit-revision'))->assertSessionHasNoErrors();
+        $this->assertSame(VacancyPositionStatus::PendingApproval, $this->position()->status);
+
+        // Nothing can be edited while it is pending; only the AH decides.
+        $this->addEntry(['officer_name' => 'Late'])->assertSessionHasErrors();
+        $this->actingAs($this->ao)->post($this->url('approve-revision'))->assertForbidden();
+        $this->actingAs($this->ah)->get($this->url('show'))->assertOk()->assertSee('id="section-revision-decision"', false);
+
+        // Returned with remarks: back to the AO, who sees them.
+        $this->actingAs($this->ah)->post($this->url('return-revision'), [])->assertSessionHasErrors('return_remarks');
+        $this->actingAs($this->ah)->post($this->url('return-revision'), ['return_remarks' => 'Attach the retirement order.'])->assertSessionHasNoErrors();
+        $this->assertTrue($this->position()->isDraft());
+        $this->actingAs($this->ao)->get($this->url('show'))->assertOk()->assertSee('Attach the retirement order.');
+
+        // Resubmitted and approved: the revision is the record in force.
+        $this->actingAs($this->ao)->post($this->url('submit-revision'))->assertSessionHasNoErrors();
+        $this->actingAs($this->ah)->post($this->url('approve-revision'))->assertSessionHasNoErrors();
+
+        $second = $this->position();
+        $this->assertSame(VacancyPositionStatus::Finalized, $second->status);
+        $this->assertSame($this->ah->id, $second->finalized_by);
+        $this->assertSame(VacancyPositionStatus::Superseded, $first->fresh()->status);
+        $this->assertSame(2, $second->breakdown['anticipated_vacancy']);
     }
 
     // ------------------------------------------------- seniority & proposals

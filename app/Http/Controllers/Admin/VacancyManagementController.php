@@ -51,7 +51,7 @@ class VacancyManagementController extends Controller
             ->whereRaw('revision = (select max(v2.revision) from vacancy_positions v2 where v2.department_id = vacancy_positions.department_id and v2.post_name = vacancy_positions.post_name and v2.vacancy_year = vacancy_positions.vacancy_year)')
             ->where('department_id', $departmentId)
             ->when($year !== null, fn ($query) => $query->where('vacancy_year', $year))
-            ->when(in_array($status, ['draft', 'finalized'], true), fn ($query) => $query->where('status', $status))
+            ->when(in_array($status, self::statuses(), true), fn ($query) => $query->where('status', $status))
             ->when($search !== '', fn ($query) => $query->where('post_name', 'like', '%'.addcslashes($search, '%_\\').'%'))
             ->orderByDesc('vacancy_year')
             ->orderBy('department_id')
@@ -218,6 +218,6 @@ class VacancyManagementController extends Controller
      */
     public static function statuses(): array
     {
-        return [VacancyPositionStatus::Draft->value, VacancyPositionStatus::Finalized->value];
+        return [VacancyPositionStatus::Draft->value, VacancyPositionStatus::PendingApproval->value, VacancyPositionStatus::Finalized->value];
     }
 }

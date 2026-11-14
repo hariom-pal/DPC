@@ -223,20 +223,6 @@ class VacancyCalculationService
     }
 
     /**
-     * The one wording for a seniority-list count mismatch.
-     *
-     * Defined once and used by the Form Request, the Excel commit and the
-     * submission checklist, so an officer who meets the same refusal by three
-     * different routes is told the same thing each time.
-     */
-    public function seniorityCountMessage(int $required): string
-    {
-        return "The uploaded Seniority List may contain at most {$required} officer"
-            .($required === 1 ? '' : 's')
-            .' based on the calculated Zone of Consideration.';
-    }
-
-    /**
      * A read-model for the screens, so the Blade views do no arithmetic.
      *
      * @return array{

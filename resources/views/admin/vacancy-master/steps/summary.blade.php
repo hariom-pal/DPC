@@ -71,7 +71,15 @@
 {{-- Finalize, or correct a finalized position by revision. --}}
 <div class="card border-0 shadow-sm mb-3">
     <div class="card-body">
-        @if ($editable)
+        @if ($editable && $position->isSectionRevision())
+            <form method="POST" action="{{ route($records.'.submit-revision', [$department, $year, $post]) }}" data-confirm="{{ __('vacancymaster.section_revision.submit_confirm') }}">
+                @csrf
+                <button class="btn btn-success btn-sm" id="submit-revision" @disabled(! $b['complete'])>{{ __('vacancymaster.section_revision.submit') }}</button>
+                @unless ($b['complete'])
+                    <span class="small text-muted ms-2">{{ __('vacancymaster.finalize_blocked') }}</span>
+                @endunless
+            </form>
+        @elseif ($editable)
             <form method="POST" action="{{ route($records.'.finalize', [$department, $year, $post]) }}" data-confirm="{{ __('vacancymaster.finalize_confirm') }}">
                 @csrf
                 <button class="btn btn-success btn-sm" @disabled(! $b['complete'])>{{ __('vacancymaster.finalize') }}</button>
@@ -81,15 +89,7 @@
             </form>
         @elseif ($isLatestFinalized)
             <p class="small mb-2">{{ __('vacancymaster.finalized_note', ['name' => $position->finalizer?->name ?? '—', 'at' => $position->finalized_at?->format('d-m-Y H:i') ?? '—']) }}</p>
-            @if ($canManage)
-            <form method="POST" action="{{ route($records.'.revise', [$department, $year, $post]) }}">
-                @csrf
-                <label class="form-label small" for="revision_reason">{{ __('vacancymaster.revision_reason_label') }}</label>
-                <textarea class="form-control form-control-sm mb-2 @error('revision_reason') is-invalid @enderror" id="revision_reason" name="revision_reason" rows="2" maxlength="2000" required @error('revision_reason') autofocus @enderror>{{ old('revision_reason') }}</textarea>
-@include('admin.vacancy-master.partials.field-error', ['field' => 'revision_reason'])
-                <button class="btn btn-outline-warning btn-sm">{{ __('vacancymaster.revise') }}</button>
-            </form>
-            @endif
+            <p class="small text-muted mb-0" id="how-to-revise">{{ __('vacancymaster.section_revision.how_to_revise') }}</p>
         @endif
     </div>
 </div>

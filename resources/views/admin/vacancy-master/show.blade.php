@@ -8,6 +8,12 @@
         $isLatestFinalized = $position !== null && $position->status->value === 'finalized';
         // Forms only for the department's Authorized Officer; everyone else reads.
         $editable = $isDraft && $canManage;
+        // Section-wise revision (2026-11-13): the AO edits only what the AH unlocked,
+        // and the AH's Edit on a section opens (or widens) the revision.
+        $sectionEditable = fn (string $key): bool => $editable && $position->sectionUnlocked($key);
+        $canUnlock = fn (string $key): bool => $canApprove && $position !== null
+            && ($isLatestFinalized || ($isDraft && $position->isSectionRevision() && ! $position->sectionUnlocked($key)));
+        $isPending = $position !== null && $position->isPendingApproval();
         $sanctioned = $position?->sanctionedStrength;
         $working = $position?->workingStrength;
         $b = $breakdown;
@@ -15,13 +21,13 @@
         $activeEntries = $position === null ? collect() : $position->entries->filter(fn ($entry) => $entry->isActive());
         $pendingEntries = $activeEntries->filter(fn ($entry) => $entry->eligibility->value === 'pending_verification')->count();
         // A record kept before 2026-10-30 and frozen then is read the old way.
-        $perPreDpc = $position === null || $position->isDraft() || \App\Domain\Dpc\Services\VacancyMasterService::isPerPreDpc($b);
+        $perPreDpc = $position === null || $position->isDraft() || $position->isPendingApproval() || \App\Domain\Dpc\Services\VacancyMasterService::isPerPreDpc($b);
 
         // One question per step. Each step knows whether it is done. A record kept per
         // Pre-DPC enters sanctioned and working strength on one screen (2026-10-31).
         $vacanciesState = $pendingEntries > 0 ? 'pending' : ($activeEntries->isNotEmpty() ? 'done' : 'optional');
         // Done only once finalized — "ready" is not done.
-        $summaryState = $position !== null && ! $isDraft ? 'done' : 'pending';
+        $summaryState = $position !== null && ! $isDraft && ! $isPending ? 'done' : 'pending';
         if ($perPreDpc) {
             $section = $section === 'working' ? 'sanctioned' : $section;
             $steps = [
@@ -86,7 +92,7 @@
         </div>
         <div class="text-end">
             @if ($position !== null)
-                <span class="badge {{ $position->status->value === 'finalized' ? 'text-bg-success' : 'text-bg-warning' }}">{{ $position->status->label() }}</span>
+                <span class="badge {{ $position->status->value === 'finalized' ? 'text-bg-success' : ($position->status->value === 'pending_approval' ? 'text-bg-info' : 'text-bg-warning') }}">{{ $position->status->label() }}</span>
                 <div class="small text-muted">{{ __('vacancymaster.revision_n', ['revision' => $position->revision]) }}</div>
             @endif
         </div>
@@ -115,6 +121,45 @@
     @else
         @if ($position->revision_reason)
             <div class="alert alert-info small">{{ __('vacancymaster.revision_reason_label') }}: {{ $position->revision_reason }}</div>
+        @endif
+
+        @if ($position->isSectionRevision() && ($isDraft || $isPending))
+            @php
+                $unlockedNames = collect($position->unlocked_sections)->map(fn ($key) => __('vacancymaster.sections.'.$key))->implode(', ');
+            @endphp
+            @if ($isDraft)
+                <div class="alert alert-warning small" id="section-revision-banner">
+                    {{ __('vacancymaster.section_revision.banner', ['revision' => $position->revision, 'sections' => $unlockedNames]) }}
+                </div>
+                @if ($position->return_remarks)
+                    <div class="alert alert-danger small" id="section-revision-returned">
+                        {{ __('vacancymaster.section_revision.returned', ['at' => $position->returned_at?->format('d-m-Y H:i') ?? '—', 'remarks' => $position->return_remarks]) }}
+                    </div>
+                @endif
+            @elseif ($canApprove)
+                <div class="card border-info shadow-sm mb-3" id="section-revision-decision">
+                    <div class="card-body">
+                        <p class="small mb-2">{{ __('vacancymaster.section_revision.pending_ah', ['revision' => $position->revision, 'at' => $position->submitted_at?->format('d-m-Y H:i') ?? '—', 'sections' => $unlockedNames]) }}</p>
+                        <div class="d-flex flex-wrap gap-2 align-items-start">
+                            <form method="POST" action="{{ route($records.'.approve-revision', [$department, $year, $post]) }}" data-confirm="{{ __('vacancymaster.section_revision.approve_confirm') }}">
+                                @csrf
+                                <button class="btn btn-success btn-sm">{{ __('vacancymaster.section_revision.approve') }}</button>
+                            </form>
+                            <form method="POST" action="{{ route($records.'.return-revision', [$department, $year, $post]) }}" class="flex-grow-1">
+                                @csrf
+                                <label class="form-label small mb-1" for="return_remarks">{{ __('vacancymaster.section_revision.return_remarks') }}</label>
+                                <textarea class="form-control form-control-sm mb-2 @error('return_remarks') is-invalid @enderror" id="return_remarks" name="return_remarks" rows="2" maxlength="2000" required>{{ old('return_remarks') }}</textarea>
+@include('admin.vacancy-master.partials.field-error', ['field' => 'return_remarks'])
+                                <button class="btn btn-outline-danger btn-sm">{{ __('vacancymaster.section_revision.return') }}</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            @else
+                <div class="alert alert-info small" id="section-revision-pending">
+                    {{ __('vacancymaster.section_revision.pending_ao', ['at' => $position->submitted_at?->format('d-m-Y H:i') ?? '—']) }}
+                </div>
+            @endif
         @endif
 
         {{-- The four steps, one screen each. --}}

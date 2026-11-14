@@ -32,7 +32,7 @@ enum DpcProposalStatus: string
      * while they are still editable.
      *
      * **Defined here rather than in the views** for the same reason
-     * `VacancyCalculationService::seniorityCountMessage()` is defined once: an
+     * `EvaluationCandidateService::mismatchMessage()` is defined once: an
      * officer who meets the same lock on the Seniority List, the Committee and
      * the Evaluation Chart has to be told the same thing, and the sentence has
      * to name the way *out* of the lock — otherwise a correct refusal is

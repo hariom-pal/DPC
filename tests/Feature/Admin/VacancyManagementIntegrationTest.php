@@ -434,6 +434,34 @@ class VacancyManagementIntegrationTest extends TestCase
         $this->assertSame(3, $breakdown->promotionVacancy);
     }
 
+    /**
+     * A section revision approved by the AH (2026-11-13) reaches the DPC raised on
+     * the record — one DPC per Pre-DPC — even once submitted, until the CGPSC result.
+     */
+    public function test_an_approved_section_revision_reaches_the_submitted_dpc(): void
+    {
+        $proposal = $this->raise();
+        $this->share($proposal, '75.00');
+        $position = $this->finalize(12, 7, 2, [['reason' => 'retirement', 'quota' => 'promotion', 'count' => 1]]);
+
+        $this->makeProposalSubmittable($proposal, $this->ao);
+        $this->actingAs($this->ao)->post(route('dpc-proposals.submit', $proposal))->assertSessionHasNoErrors();
+        $this->assertSame($position->id, $proposal->fresh()->vacancy_position_id);
+
+        $service = app(VacancyMasterService::class);
+        $draft = $service->unlockSection($position->fresh(), 'strength', 'New sanction order.', $this->ao);
+        $service->saveSanctionedStrength($draft, ['sanctioned_total' => 20, 'order_number' => 'SANC/2', 'order_date' => '2026-03-01', 'correction_reason' => 'New order.'], $this->pdf(), $this->ao);
+        $service->submitRevision($draft->fresh(), $this->ao);
+        $result = $service->approveRevision($draft->fresh(), $this->ao);
+
+        $proposal->refresh();
+        $this->assertSame($draft->id, $proposal->vacancy_position_id);
+        $this->assertSame(20, $proposal->sanctioned_post_count);
+        $this->assertSame(20, app(VacancyCalculationService::class)->breakdown($proposal)->sanctionedStrength);
+        $this->assertSame(1, count($result['updated']));
+        $this->assertSame([], $result['kept']);
+    }
+
     public function test_the_promotion_vacancy_reaches_the_main_list(): void
     {
         $proposal = $this->raise();

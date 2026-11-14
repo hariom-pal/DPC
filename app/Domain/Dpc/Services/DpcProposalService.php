@@ -316,6 +316,26 @@ class DpcProposalService
     {
         $this->assertEditable($proposal);
 
+        return $this->writeVacancies($proposal, $actor);
+    }
+
+    /**
+     * A section revision of the proposal's vacancy record was approved by the AH
+     * (2026-11-13): the DPC — one per Pre-DPC, so the record is this DPC's — now
+     * runs on the new revision, submitted or not, until the CGPSC result. Pinned to
+     * it and its vacancy snapshot rewritten from it.
+     */
+    public function adoptVacancyRevision(DpcProposal $proposal, int $vacancyPositionId, User $actor): void
+    {
+        $proposal->forceFill(['vacancy_position_id' => $vacancyPositionId])->save();
+
+        if ($proposal->usesVacancyMaster()) {
+            $this->writeVacancies($proposal->refresh(), $actor);
+        }
+    }
+
+    private function writeVacancies(DpcProposal $proposal, ?User $actor): DpcProposal
+    {
         DB::transaction(function () use ($proposal): void {
             /*
              | The sanctioned strength is **read, not received** (change register of

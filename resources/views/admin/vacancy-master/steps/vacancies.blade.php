@@ -75,13 +75,15 @@
 @foreach ($cards as $kind => $card)
     @php
         $rows = $rowsOf($kind);
-        $canAdd = $editable && $sanctioned !== null && $working !== null;
+        $cardEditable = $sectionEditable($kind);
+        $canAdd = $cardEditable && $sanctioned !== null && $working !== null;
         $activeRows = $rows->filter(fn ($entry) => $entry->isActive());
     @endphp
     <div @class(['tab-pane', 'show active' => $part === $card['id']]) id="pane-{{ $card['id'] }}" role="tabpanel" aria-labelledby="tab-{{ $card['id'] }}" tabindex="0">
     <div class="card border-0 shadow-sm vm-part-card" id="vacancy-{{ $card['id'] }}">
         <div class="card-header bg-white d-flex flex-wrap align-items-center gap-2">
             <strong class="me-auto">{{ __('vacancymaster.pm.'.$card['title']) }}</strong>
+            @include('admin.vacancy-master.partials.section-unlock', ['sectionKey' => $kind])
             @if ($activeRows->isNotEmpty())
                 <span class="badge text-bg-light border">{{ __('vacancymaster.pm.rows_counted', ['counted' => $activeRows->filter(fn ($entry) => $entry->isCounted())->count(), 'rows' => $activeRows->count()]) }}</span>
             @endif
@@ -138,13 +140,13 @@
                                 @endif
                             </td>
                             <td class="text-end text-nowrap">
-                                @if ($editable && $entry->isActive())
+                                @if ($cardEditable && $entry->isActive())
                                     <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="collapse" data-bs-target="#withdraw-{{ $entry->id }}"
                                             aria-expanded="false" aria-controls="withdraw-{{ $entry->id }}">{{ __('vacancymaster.pm.remove') }}</button>
                                 @endif
                             </td>
                         </tr>
-                        @if ($editable && $entry->isActive())
+                        @if ($cardEditable && $entry->isActive())
 @php $entryBag = $errors->getBag('entry_'.$entry->id); @endphp
                             <tr @class(['collapse vm-withdraw', 'show' => $entryBag->any()]) id="withdraw-{{ $entry->id }}">
                                 <td colspan="4">
