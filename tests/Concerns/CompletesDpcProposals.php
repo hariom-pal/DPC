@@ -16,11 +16,13 @@ use App\Domain\Dpc\Models\DpcWorkingOfficer;
 use App\Domain\Dpc\Services\DpcCommitteeService;
 use App\Domain\Dpc\Services\DpcProposalCompletenessService;
 use App\Domain\Dpc\Services\DpcProposalService;
+use App\Domain\Dpc\Services\EmployeeDetailsService;
 use App\Domain\Dpc\Services\ProposalVacancyPosition;
 use App\Domain\Dpc\Services\ProposalVerificationService;
 use App\Domain\Dpc\Services\SanctionedStrengthSource;
 use App\Domain\Dpc\Services\VacancyCalculationService;
 use App\Domain\Dpc\Services\VacancyMasterService;
+use App\Domain\Master\Models\IntegrityOption;
 use App\Domain\Master\Models\RecruitmentRule;
 use App\Domain\Master\Models\ReservationCategory;
 use App\Enums\MasterStatus;
@@ -318,6 +320,12 @@ trait CompletesDpcProposals
                 $row->propertyFlags()->create(['year' => $year, 'flag' => true]);
             }
 
+            // The five years before the DPC year are each mandatory (2026-11-14).
+            $recordedProperty = $row->propertyFlags()->pluck('year')->all();
+            foreach (array_diff(app(EmployeeDetailsService::class)->propertyYearWindow($row), $recordedProperty) as $year) {
+                $row->propertyFlags()->create(['year' => $year, 'flag' => true]);
+            }
+
             $row->load(['crGrades', 'propertyFlags']);
 
             if ($row->reservation_category_id === null) {
@@ -327,6 +335,13 @@ trait CompletesDpcProposals
             // No departmental matter pending (rule 2.2), unless a test recorded one.
             if ($row->vigilance_pending === null) {
                 $row->forceFill(['vigilance_pending' => false])->save();
+            }
+
+            // No case ongoing, no punishment in effect, each with its document (2026-11-14).
+            if ($row->enquiry_ongoing === null) {
+                $row->forceFill(['enquiry_ongoing' => false, 'punishment_effective' => false])->save();
+                $this->fixtureDocument($row, EvaluationDocumentKind::EnquiryDocument, null, $actor);
+                $this->fixtureDocument($row, EvaluationDocumentKind::PunishmentDocument, null, $actor);
             }
 
             // Rule 4.4's service-record orders and undertaking, and rules 2.3 and 4.4's
@@ -359,6 +374,12 @@ trait CompletesDpcProposals
                 $this->fixtureDocument($row, EvaluationDocumentKind::CrReport, $cr->year, $actor);
             }
 
+            // Integrity of every CR put up, a Fit answer unless a test recorded one (2026-11-14).
+            $fit = IntegrityOption::query()->where('fit', true)->orderBy('sort_order')->value('id');
+            foreach ($row->crGrades()->where('put_up', true)->whereNull('integrity_option_id')->get() as $cr) {
+                $cr->forceFill(['integrity_option_id' => $fit])->save();
+            }
+
             if ($row->crGrades->isNotEmpty() && $row->cr_channel_undertaking_at === null) {
                 $row->forceFill(['cr_channel_undertaking_by' => $actor->id, 'cr_channel_undertaking_at' => now()])->save();
                 $this->fixtureDocument($row, EvaluationDocumentKind::CrChannel, null, $actor);
@@ -369,9 +390,10 @@ trait CompletesDpcProposals
                     continue;
                 }
 
+                // On time: by 31 January of its own year (2026-11-14).
                 $property->forceFill([
-                    'submitted_on' => sprintf('%d-01-15', $property->year + 1),
-                    'next_increment_date' => sprintf('%d-07-01', $property->year + 1),
+                    'submitted_on' => sprintf('%d-01-15', $property->year),
+                    'next_increment_date' => sprintf('%d-07-01', $property->year),
                 ])->save();
 
                 $this->fixtureDocument($row, EvaluationDocumentKind::PropertyReturn, $property->year, $actor);

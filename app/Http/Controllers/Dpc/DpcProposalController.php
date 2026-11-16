@@ -622,7 +622,7 @@ class DpcProposalController extends Controller
     {
         $this->authorize('approve', $dpcProposal);
 
-        return $this->runTransition($dpcProposal, fn () => $this->service->approve($dpcProposal, $request->user(), $request), 'Proposal approved, signed, and forwarded to CGPSC.');
+        return $this->runTransition($dpcProposal, fn () => $this->service->approve($dpcProposal, $request->user(), $request), 'Proposal approved, signed, and forwarded to the Secretary, CGPSC.');
     }
 
     public function return(ReturnDpcProposalRequest $request, DpcProposal $dpcProposal): RedirectResponse

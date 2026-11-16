@@ -10,6 +10,7 @@ use App\Domain\Dpc\Enums\EvaluationDocumentKind;
 use App\Domain\Dpc\Enums\PhReservationOutcome;
 use App\Domain\Dpc\Models\DpcEvaluationCrGrade;
 use App\Domain\Dpc\Models\DpcEvaluationDocument;
+use App\Domain\Dpc\Models\DpcEvaluationLoyaltyFlag;
 use App\Domain\Dpc\Models\DpcEvaluationPropertyFlag;
 use App\Domain\Dpc\Models\DpcEvaluationRecordGap;
 use App\Domain\Dpc\Models\DpcEvaluationRow;
@@ -69,7 +70,7 @@ class EmployeeDetailsService
 
         $row->forceFill([
             'reservation_category_id' => $data['reservation_category_id'] ?? null,
-            'date_of_posting_on_promotion_from_post' => $data['date_of_posting_on_promotion_from_post'] ?? null,
+            // The posting date is the Seniority List's, read-only here (2026-11-14).
             'dob_order_number' => $this->blankToNull($data['dob_order_number'] ?? null),
             'dob_order_date' => $data['dob_order_date'] ?? null,
             'joining_order_number' => $this->blankToNull($data['joining_order_number'] ?? null),
@@ -112,9 +113,17 @@ class EmployeeDetailsService
             throw new WorkflowException(__('dpc.employee_details.cr.year_before_dpc_year', ['year' => $dpcYear - 1]));
         }
 
+        // At most the required CRs (2026-11-14): a new year only inside the window,
+        // which a year missing or without grading in the middle stretches back by one.
+        if (! $row->crGrades()->where('year', $year)->exists() && ! in_array($year, $this->crYearWindow($row), true)) {
+            throw new WorkflowException(__('dpc.employee_details.cr.year_outside_window', ['years' => implode(', ', $this->crYearWindow($row)) ?: '—']));
+        }
+
         $putUp = (bool) $data['put_up'];
         $hasGrading = $putUp ? (bool) ($data['has_grading'] ?? false) : null;
         $reports = null;
+        // Integrity (सत्यनिष्ठा) of a CR put up, chosen beside the grade (2026-11-14).
+        $integrityId = $putUp && ! empty($data['integrity_option_id']) ? (int) $data['integrity_option_id'] : null;
 
         if ($putUp && $hasGrading) {
             $reports = $this->reportsFrom($data);
@@ -142,7 +151,16 @@ class EmployeeDetailsService
             'has_grading' => $hasGrading,
             'reports' => $reports,
             'grade' => $grade,
+            'integrity_option_id' => $integrityId,
         ])->save();
+
+        // The engine reads the year's Integrity Certificate as held once an answer is
+        // recorded; whether that answer is Fit is the Unfit ground's (2026-11-14).
+        if ($integrityId !== null) {
+            DpcEvaluationLoyaltyFlag::query()->updateOrCreate(['dpc_evaluation_row_id' => $row->id, 'year' => $year], ['flag' => true]);
+            $row->unsetRelation('loyaltyFlags');
+        }
+        $row->unsetRelation('crGrades');
 
         $this->log($row, 'cr_year_saved', sprintf('CR %d recorded: %s', $year, $grade ?? ($putUp ? 'no grading' : 'not put up')), [
             'year' => $year,
@@ -151,6 +169,7 @@ class EmployeeDetailsService
             'grade' => $grade,
             'authority' => $reports[0]['authority'] ?? null,
             'cr_count' => $reports === null ? null : count($reports),
+            'integrity_option_id' => $integrityId,
         ], $actor);
 
         return $record;
@@ -191,6 +210,72 @@ class EmployeeDetailsService
         }
 
         return $reports;
+    }
+
+    /**
+     * The CR document uploaded with its year (2026-11-14): the CR for a graded year,
+     * the CR without grading for one without — chosen from the year just saved, so the
+     * document always matches its answer. A year whose CR was not put up has no CR to
+     * upload; the file is ignored. The same checks as the separate upload apply.
+     */
+    public function uploadCrWithYear(DpcEvaluationRow $row, int $year, UploadedFile $file, bool $undertaking, bool $verified, User $actor): ?DpcEvaluationDocument
+    {
+        $record = $row->crGrades()->where('year', $year)->first();
+
+        if ($record === null || $record->put_up !== true) {
+            return null;
+        }
+
+        return $this->upload($row, EvaluationDocumentKind::CrReport, $year, $file, $undertaking, null, $actor, $verified);
+    }
+
+    /**
+     * The CR years asked for (business decisions of 2026-11-14): the required number
+     * (five), counted back from the year before the DPC year. A year recorded as
+     * missing, or put up without a grading, does not count, so the window stretches
+     * one year further back for each — except the year just before the DPC year,
+     * which stays in the window (four CRs then suffice). Never before the officer
+     * joined service.
+     *
+     * @return list<int> latest first
+     */
+    public function crYearWindow(DpcEvaluationRow $row): array
+    {
+        $proposal = $row->proposal;
+        $last = (int) ($proposal->dpc_year ?: $proposal->proposal_date->year) - 1;
+        $from = max((int) config('dpc.evaluation.min_year', 1950), $row->date_of_joining_service->year ?? ($last - 20));
+        $records = $row->crGrades()->get()->keyBy('year');
+        $slots = max(1, (int) config('dpc.merit.required_cr_count', 5));
+        $years = [];
+
+        for ($year = $last; $year >= $from && $slots > 0; $year--) {
+            $years[] = $year;
+            $record = $records->get($year);
+            $notCounted = $record !== null && ($record->put_up === false || ($record->put_up === true && $record->has_grading === false));
+
+            if ($notCounted && $year !== $last) {
+                continue;
+            }
+
+            $slots--;
+        }
+
+        return $years;
+    }
+
+    /**
+     * The Property Return years (2026-11-14): exactly the five continuous years before
+     * the DPC year — a 2026 DPC asks 2021 to 2025, no fewer and no more.
+     *
+     * @return list<int> latest first
+     */
+    public function propertyYearWindow(DpcEvaluationRow $row): array
+    {
+        $proposal = $row->proposal;
+        $last = (int) ($proposal->dpc_year ?: $proposal->proposal_date->year) - 1;
+        $count = max(1, (int) config('dpc.merit.property_return_years', 5));
+
+        return range($last, $last - $count + 1);
     }
 
     /** The authorities a CR can carry remarks of, lowest first. */
@@ -299,6 +384,11 @@ class EmployeeDetailsService
     {
         $this->assertEditable($row);
         $this->assertYear($row, $year);
+
+        // Only the five years before the DPC year (2026-11-14); a year already recorded keeps its Edit.
+        if (! $row->propertyFlags()->where('year', $year)->exists() && ! in_array($year, $this->propertyYearWindow($row), true)) {
+            throw new WorkflowException(__('dpc.employee_details.property.year_outside_window', ['years' => implode(', ', array_reverse($this->propertyYearWindow($row)))]));
+        }
 
         $submitted = (bool) $data['submitted'];
         $submittedOn = $submitted ? Carbon::parse((string) $data['submitted_on'])->startOfDay() : null;
@@ -452,6 +542,9 @@ class EmployeeDetailsService
         $pending = (bool) $data['vigilance_pending'];
 
         $row->forceFill([
+            // 2026-11-14: a case ongoing, a punishment in effect, in the DPC's period — a Yes is Unfit.
+            'enquiry_ongoing' => array_key_exists('enquiry_ongoing', $data) ? (bool) $data['enquiry_ongoing'] : $row->enquiry_ongoing,
+            'punishment_effective' => array_key_exists('punishment_effective', $data) ? (bool) $data['punishment_effective'] : $row->punishment_effective,
             'vigilance_pending' => $pending,
             'sealed_cover_reason_id' => $pending ? (int) $data['sealed_cover_reason_id'] : null,
             'vigilance_date' => $pending ? $data['vigilance_date'] : null,
@@ -466,9 +559,25 @@ class EmployeeDetailsService
             ? 'Departmental matter pending: '.($row->sealedCoverReason->code ?? '—')
             : 'No departmental matter pending', [
                 'pending' => $pending,
+                'enquiry_ongoing' => $row->enquiry_ongoing,
+                'punishment_effective' => $row->punishment_effective,
                 'reason' => $row->sealedCoverReason?->code,
                 'sealed_cover' => $row->isUnderSealedCover(),
             ], $actor);
+    }
+
+    /**
+     * The period the two enquiry questions ask about (2026-11-14): from 1 January of
+     * the year before the DPC year to the proposal's date — for a 2026 DPC, from
+     * 1 January 2025.
+     *
+     * @return array{from: Carbon, to: Carbon}
+     */
+    public function enquiryPeriod(DpcProposal $proposal): array
+    {
+        $year = (int) ($proposal->dpc_year ?: $proposal->proposal_date->year);
+
+        return ['from' => Carbon::create($year - 1, 1, 1)->startOfDay(), 'to' => ($proposal->proposal_date ?? now())->copy()->startOfDay()];
     }
 
     // ------------------------------------------------------------------
@@ -505,7 +614,34 @@ class EmployeeDetailsService
             return $this->confirmChannel($row, $file, $actor);
         }
 
+        // A CR's kind follows the year's answer, not the uploader's choice (2026-11-14):
+        // a graded CR is the CR, one without grading the CR without grading.
+        if (in_array($kind, [EvaluationDocumentKind::CrReport, EvaluationDocumentKind::CrWithoutGrading], true) && $year !== null) {
+            $record = $row->crGrades()->where('year', $year)->first();
+
+            if ($record !== null) {
+                if ($record->put_up !== true) {
+                    throw new WorkflowException(__('dpc.employee_details.cr.no_cr_to_upload', ['year' => $year]));
+                }
+
+                $kind = $record->has_grading ? EvaluationDocumentKind::CrReport : EvaluationDocumentKind::CrWithoutGrading;
+            }
+        }
+
         return $this->storeDocument($row, $kind, $year, $file, $undertaking, $remarks, $actor);
+    }
+
+    /**
+     * An NRC certifies the remarks missing from a CR, so it comes with the CR
+     * (2026-11-14): a year whose NRC is uploaded needs its CR on file too.
+     */
+    public function assertNrcHasItsCr(DpcEvaluationRow $row, int $year): void
+    {
+        $row->unsetRelation('currentDocuments');
+
+        if (! $this->hasDocument($row, EvaluationDocumentKind::CrReport, $year)) {
+            throw new WorkflowException(__('dpc.employee_details.cr.nrc_needs_cr'));
+        }
     }
 
     /**
@@ -595,7 +731,7 @@ class EmployeeDetailsService
     {
         $phApplies ??= $row->proposal === null || $this->phApplies($row->proposal);
 
-        $row->loadMissing(['crGrades', 'propertyFlags', 'recordGaps.reason', 'currentDocuments', 'sealedCoverReason']);
+        $row->loadMissing(['crGrades.integrityOption', 'propertyFlags', 'recordGaps.reason', 'currentDocuments', 'sealedCoverReason']);
 
         $sections = [
             'basic' => $this->basicMissing($row),
@@ -630,7 +766,7 @@ class EmployeeDetailsService
         $phApplies = $this->phApplies($proposal);
 
         return $proposal->evaluationRows()
-            ->with(['crGrades', 'propertyFlags', 'recordGaps.reason', 'currentDocuments', 'reservationCategory', 'sealedCoverReason'])
+            ->with(['crGrades.integrityOption', 'propertyFlags', 'recordGaps.reason', 'currentDocuments', 'reservationCategory', 'sealedCoverReason'])
             ->get()
             // The proposal is the same for every row: its promotion rule is read once.
             ->each(fn (DpcEvaluationRow $row) => $row->setRelation('proposal', $proposal))
@@ -815,6 +951,11 @@ class EmployeeDetailsService
 
             $anyPutUp = true;
 
+            // Integrity, beside the grade (2026-11-14).
+            if ($cr->integrity_option_id === null) {
+                $missing[] = (string) __('dpc.employee_details.missing.cr_integrity', ['year' => $year]);
+            }
+
             if ($cr->has_grading === false) {
                 if (! $this->hasDocument($row, EvaluationDocumentKind::CrWithoutGrading, $year)) {
                     $missing[] = (string) __('dpc.employee_details.missing.cr_without_grading_document', ['year' => $year]);
@@ -848,12 +989,18 @@ class EmployeeDetailsService
      */
     private function propertyMissing(DpcEvaluationRow $row): array
     {
-        // Every year the promotion rule makes mandatory is answered (2026-11-05).
+        // Every year the promotion rule makes mandatory is answered (2026-11-05), and
+        // every one of the five years before the DPC year (2026-11-14).
         $ruleYears = $this->rulePropertyYears($row);
+        $recordedYears = $row->propertyFlags->pluck('year')->all();
         $ruleMissing = array_values(array_map(
             static fn (int $year): string => (string) __('dpc.employee_details.missing.property_rule_year', ['year' => $year]),
-            array_diff($ruleYears, $row->propertyFlags->pluck('year')->all()),
+            array_diff($ruleYears, $recordedYears),
         ));
+        $windowMissing = $row->proposal === null ? [] : array_diff(array_reverse($this->propertyYearWindow($row)), $recordedYears, $ruleYears);
+        foreach ($windowMissing as $year) {
+            $ruleMissing[] = (string) __('dpc.employee_details.missing.property_window_year', ['year' => $year]);
+        }
 
         if ($row->propertyFlags->isEmpty()) {
             return $ruleMissing !== [] ? $ruleMissing : [(string) __('dpc.employee_details.missing.property_none')];
@@ -935,6 +1082,24 @@ class EmployeeDetailsService
      * @return list<string>
      */
     private function vigilanceMissing(DpcEvaluationRow $row): array
+    {
+        // The two questions of 2026-11-14, each with its document whatever the answer.
+        $missing = [];
+        foreach (['enquiry_ongoing' => EvaluationDocumentKind::EnquiryDocument, 'punishment_effective' => EvaluationDocumentKind::PunishmentDocument] as $field => $kind) {
+            if ($row->{$field} === null) {
+                $missing[] = (string) __("dpc.employee_details.missing.{$field}");
+            } elseif (! $this->hasDocument($row, $kind, null)) {
+                $missing[] = (string) __("dpc.employee_details.missing.{$field}_document");
+            }
+        }
+
+        return [...$missing, ...$this->sealedCoverMissing($row)];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function sealedCoverMissing(DpcEvaluationRow $row): array
     {
         if ($row->vigilance_pending === null) {
             return [(string) __('dpc.employee_details.missing.vigilance_unanswered')];

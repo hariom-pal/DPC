@@ -83,6 +83,8 @@
                        href="{{ route('admin.record-reasons.index') }}">{{ __('ui.layouts.admin.nav.record_reasons') }}</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.sealed-cover-reasons.*') ? 'active' : '' }}"
                        href="{{ route('admin.sealed-cover-reasons.index') }}">{{ __('ui.layouts.admin.nav.sealed_cover_reasons') }}</a>
+                    <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.integrity-options.*') ? 'active' : '' }}"
+                       href="{{ route('admin.integrity-options.index') }}">{{ __('ui.layouts.admin.nav.integrity_options') }}</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.ph-types.*') ? 'active' : '' }}"
                        href="{{ route('admin.ph-types.index') }}">{{ __('ui.layouts.admin.nav.ph_types') }}</a>
                     {{-- Notifications (2026-11-13): each channel's templates and its settings. --}}

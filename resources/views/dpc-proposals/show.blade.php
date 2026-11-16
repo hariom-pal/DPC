@@ -169,6 +169,11 @@
                         <a href="{{ route('esign.show', ['kind' => 'dpc-approve', 'uuid' => $proposal->uuid]) }}" class="btn btn-success btn-sm" data-esign id="dpc-approve">{{ __('esign.button.approve_dpc') }}</a>
                     @endif
 
+                    {{-- The Secretary, CGPSC decides on the review screens (2026-11-14). --}}
+                    @can('secretaryApprove', $proposal)
+                        <a href="{{ route('dpc-proposals.review', [$proposal, 1]) }}" class="btn btn-primary btn-sm" id="secretary-review">{{ __('dpc.secretary.open') }}</a>
+                    @endcan
+
                     @if ($proposal->status->isTerminal())
                         <span class="text-muted small align-self-center">{{ __('dpc.show.no_further_actions_available_in_this_state') }}</span>
                     @endif
@@ -213,7 +218,13 @@
                                         <td>{{ $revision->submitter?->name ?? '—' }}</td>
                                         <td>{{ $revision->returned_at?->format('d-m-Y H:i') ?? '—' }}</td>
                                         <td>{{ $revision->returner?->name ?? '—' }}</td>
-                                        <td class="small">{{ $revision->return_reason ?? '—' }}</td>
+                                        <td class="small">
+                                            @if ($revision->returnedBySecretary())<span class="badge text-bg-warning" data-returned-by-secretary>{{ __('dpc.secretary.returned_by_secretary') }}</span>@endif
+                                            {{ $revision->return_reason ?? '—' }}
+                                            @if ($revision->return_document_path)
+                                                <div><a href="{{ route('dpc-proposals.revisions.return-document', [$proposal, $revision]) }}" target="_blank" rel="noopener">{{ __('dpc.secretary.document') }}: {{ $revision->return_document_name }}</a></div>
+                                            @endif
+                                        </td>
                                         <td><span class="badge {{ $revision->status->badgeClass() }}">{{ $revision->status->label() }}</span></td>
                                     </tr>
                                 @empty

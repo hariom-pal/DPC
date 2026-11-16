@@ -22,6 +22,7 @@ use App\Domain\Master\Models\DepartmentPostChange;
 use App\Domain\Master\Models\Designation;
 use App\Domain\Master\Models\District;
 use App\Domain\Master\Models\DpcType;
+use App\Domain\Master\Models\IntegrityOption;
 use App\Domain\Master\Models\PayScale;
 use App\Domain\Master\Models\Qualification;
 use App\Domain\Master\Models\RecruitmentRule;
@@ -36,6 +37,7 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\ViewErrorBag;
 use Illuminate\Testing\TestResponse;
+use Tests\Concerns\ApprovesAsSecretary;
 use Tests\Concerns\ReadsSentMail;
 use Tests\Concerns\SignsAsDepartmentAdmin;
 use Tests\TestCase;
@@ -57,6 +59,7 @@ use Throwable;
  */
 class FreshInstallToPromotionOrderTest extends TestCase
 {
+    use ApprovesAsSecretary;
     use ReadsSentMail;
     use RefreshDatabase;
     use SignsAsDepartmentAdmin;
@@ -94,6 +97,25 @@ class FreshInstallToPromotionOrderTest extends TestCase
         $this->assertTrue($response->isRedirect() || $response->isOk(), 'HTTP '.$response->status());
 
         return $response;
+    }
+
+    /** A Fit Integrity answer (2026-11-14). */
+    private function fitIntegrity(): int
+    {
+        return (int) IntegrityOption::query()->where('fit', true)->orderBy('sort_order')->value('id');
+    }
+
+    /**
+     * No case ongoing, no punishment in effect, each with its document (2026-11-14).
+     *
+     * @return array<string, mixed>
+     */
+    private function vigilanceAnswers(DpcEvaluationRow $row): array
+    {
+        return [
+            'enquiry_ongoing' => '0', 'punishment_effective' => '0', 'vigilance_verified' => '1',
+            'enquiry_document' => $this->pdf("enq{$row->sn}.pdf"), 'punishment_document' => $this->pdf("pun{$row->sn}.pdf"),
+        ];
     }
 
     private function pdf(string $name): UploadedFile
@@ -370,13 +392,13 @@ class FreshInstallToPromotionOrderTest extends TestCase
             foreach ($proposal->evaluationRows()->orderBy('sn')->get() as $row) {
                 $this->ok($this->actingAs($ao)->put($route('basic', $row), ['dob_order_number' => 'SR/'.$row->sn, 'dob_order_date' => '1997-03-03', 'joining_order_number' => 'J/'.$row->sn, 'joining_order_date' => '1997-03-03', 'service_record_undertaking' => '1']));
                 foreach ([2021, 2022, 2023, 2024, 2025] as $year) {
-                    $this->ok($this->actingAs($ao)->post($route('cr.save', $row), ['year' => $year, 'put_up' => '1', 'has_grading' => '1', 'authorities' => ['reporter', 'reviewer', 'accepting'], 'grade' => 'क']));
+                    $this->ok($this->actingAs($ao)->post($route('cr.save', $row), ['year' => $year, 'put_up' => '1', 'has_grading' => '1', 'integrity_option_id' => $this->fitIntegrity(), 'authorities' => ['reporter', 'reviewer', 'accepting'], 'grade' => 'क']));
                     $this->ok($this->actingAs($ao)->post($route('documents.store', $row), ['verified' => '1', 'kind' => 'cr_report', 'year' => $year, 'undertaking' => '1', 'document' => $this->pdf("cr{$row->sn}{$year}.pdf")]));
-                    $this->ok($this->actingAs($ao)->post($route('property.save', $row), ['year' => $year, 'submitted' => '1', 'submitted_on' => ($year + 1).'-01-15', 'next_increment_date' => ($year + 1).'-07-01']));
+                    $this->ok($this->actingAs($ao)->post($route('property.save', $row), ['year' => $year, 'submitted' => '1', 'submitted_on' => $year.'-01-15', 'next_increment_date' => ($year + 1).'-07-01']));
                     $this->ok($this->actingAs($ao)->post($route('documents.store', $row), ['verified' => '1', 'kind' => 'property_return', 'year' => $year, 'undertaking' => '1', 'document' => $this->pdf("ipr{$row->sn}{$year}.pdf")]));
                 }
                 $this->ok($this->actingAs($ao)->post($route('documents.store', $row), ['verified' => '1', 'kind' => 'cr_channel', 'undertaking' => '1', 'document' => $this->pdf("ch{$row->sn}.pdf")]));
-                $this->ok($this->actingAs($ao)->put($route('vigilance', $row), ['vigilance_pending' => '0']));
+                $this->ok($this->actingAs($ao)->put($route('vigilance', $row), ['vigilance_pending' => '0'] + $this->vigilanceAnswers($row)));
                 $this->ok($this->actingAs($ao)->put($route('ph', $row), ['is_ph' => '0']));
                 $this->ok($this->actingAs($ao)->put($route('declarations', $row), ['unsanctioned_deputation' => '0', 'refused_promotion' => '0']));
                 $this->assertSame([], array_filter(app(EmployeeDetailsService::class)->status($row->fresh())['sections']));
@@ -405,6 +427,7 @@ class FreshInstallToPromotionOrderTest extends TestCase
                 $this->ok($this->actingAs($ah)->post(route('dpc-proposals.employees.documents.verify-all', [$proposal, $row])));
             }
             $this->ok($this->actingAs($ah)->post(route('dpc-proposals.approve', $proposal)));
+            $this->approveAsSecretary($proposal);
             $this->assertSame('approved', $proposal->fresh()->status->value);
             // With CGPSC now: the AO/AH part is done (blue).
             $this->assertSame(DpcCompletionService::WITH_CGPSC, app(DpcCompletionService::class)->phase($proposal->fresh()));
@@ -431,6 +454,7 @@ class FreshInstallToPromotionOrderTest extends TestCase
             $this->ok($this->actingAs($ao)->post(route('dpc-proposals.verification.store', [$proposal, 'recruitment_rule_conformity']), ['confirm' => '1', 'rr_notified_on' => '2026-01-01']));
             $this->ok($this->actingAs($ao)->post(route('dpc-proposals.submit', $proposal)));
             $this->ok($this->actingAs($ah)->post(route('dpc-proposals.approve', $proposal)));
+            $this->approveAsSecretary($proposal);
             $this->assertSame('approved', $proposal->fresh()->status->value);
         });
 

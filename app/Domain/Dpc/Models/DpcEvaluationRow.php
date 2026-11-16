@@ -59,6 +59,8 @@ use Illuminate\Support\Carbon;
  * @property string|null $vigilance_remarks
  * @property Carbon|null $vigilance_recorded_at
  * @property-read SealedCoverReason|null $sealedCoverReason
+ * @property bool|null $enquiry_ongoing 2026-11-14: a departmental case or court case ongoing in the DPC's period
+ * @property bool|null $punishment_effective 2026-11-14: a punishment in effect in the DPC's period
  * @property string|null $dob_order_number
  * @property Carbon|null $dob_order_date
  * @property string|null $joining_order_number
@@ -118,6 +120,9 @@ class DpcEvaluationRow extends Model
         'vigilance_remarks',
         'vigilance_recorded_by',
         'vigilance_recorded_at',
+        // 2026-11-14: a case ongoing, a punishment in effect, in the DPC's period — a Yes is Unfit.
+        'enquiry_ongoing',
+        'punishment_effective',
 
         // Rule 4.4 — the orders behind the date of birth and of joining.
         'dob_order_number',
@@ -156,6 +161,8 @@ class DpcEvaluationRow extends Model
             'vigilance_pending' => 'boolean',
             'vigilance_date' => 'date',
             'vigilance_recorded_at' => 'datetime',
+            'enquiry_ongoing' => 'boolean',
+            'punishment_effective' => 'boolean',
             'dob_order_date' => 'date',
             'joining_order_date' => 'date',
             'service_record_undertaking_at' => 'datetime',
@@ -203,6 +210,58 @@ class DpcEvaluationRow extends Model
     public function holdsVerifiedPhClaim(): bool
     {
         return $this->phOutcome()->isClaim() && $this->ph_verification_status === 'verified';
+    }
+
+    /**
+     * Why the officer is Unfit, from the employee details (business decisions of
+     * 2026-11-14): an Unfit Integrity answer in a CR year, a CR year missing for a
+     * reason that leaves no record ever (appointed in this year), or a departmental /
+     * court case ongoing or a punishment in effect in the DPC's period.
+     *
+     * Each ground as a translation key and its parameters, so the engine can word it
+     * in English and the screens in the reader's language.
+     *
+     * @return list<array{key: string, params: array<string, string|int>}>
+     */
+    public function unfitGrounds(): array
+    {
+        $this->loadMissing(['crGrades.integrityOption', 'recordGaps.reason']);
+        $grounds = [];
+
+        foreach ($this->crGrades as $cr) {
+            if ($cr->integrityOption !== null && ! $cr->integrityOption->fit) {
+                $grounds[] = ['key' => 'dpc.employee_details.unfit.integrity', 'params' => ['year' => $cr->year, 'option' => $cr->integrityOption->name_en]];
+            }
+        }
+
+        foreach ($this->recordGaps as $gap) {
+            if ($gap->reason?->makes_unfit === true) {
+                $grounds[] = ['key' => 'dpc.employee_details.unfit.record_reason', 'params' => ['year' => $gap->year, 'reason' => $gap->reason->name_en]];
+            }
+        }
+
+        if ($this->enquiry_ongoing === true) {
+            $grounds[] = ['key' => 'dpc.employee_details.unfit.enquiry_ongoing', 'params' => []];
+        }
+
+        if ($this->punishment_effective === true) {
+            $grounds[] = ['key' => 'dpc.employee_details.unfit.punishment_effective', 'params' => []];
+        }
+
+        return $grounds;
+    }
+
+    /**
+     * The unfit grounds worded in one language.
+     *
+     * @return list<string>
+     */
+    public function unfitReasons(?string $locale = null): array
+    {
+        return array_map(
+            static fn (array $ground): string => (string) __($ground['key'], $ground['params'], $locale),
+            $this->unfitGrounds(),
+        );
     }
 
     public function isUnderSealedCover(): bool

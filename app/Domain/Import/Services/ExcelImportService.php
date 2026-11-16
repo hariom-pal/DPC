@@ -695,7 +695,7 @@ class ExcelImportService
         $errors = $validator->errors()->toArray();
 
         if ($template->hasYearColumns()) {
-            foreach (['cr_grades' => 'CR', 'loyalty_flags' => 'Loyalty', 'property_flags' => 'Immovable Property'] as $key => $label) {
+            foreach (['cr_grades' => 'CR', 'loyalty_flags' => 'Integrity', 'property_flags' => 'Immovable Property'] as $key => $label) {
                 $yearRules = $key === 'cr_grades'
                     ? DpcRowRules::evaluationCrGrade()
                     : DpcRowRules::evaluationYearFlag();

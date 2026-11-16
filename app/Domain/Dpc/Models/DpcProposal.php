@@ -75,6 +75,9 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property int|null $approved_by
  * @property Carbon|null $approved_at
  * @property int|null $signature_id
+ * @property int|null $secretary_approved_by
+ * @property Carbon|null $secretary_approved_at
+ * @property int|null $secretary_signature_id
  * @property Carbon|null $returned_at
  * @property string|null $return_remarks
  * @property Carbon|null $cancelled_at
@@ -206,6 +209,9 @@ class DpcProposal extends Model implements Auditable
         'approved_by',
         'approved_at',
         'signature_id',
+        'secretary_approved_by',
+        'secretary_approved_at',
+        'secretary_signature_id',
         'returned_at',
         'return_remarks',
         'cancelled_at',
@@ -233,6 +239,7 @@ class DpcProposal extends Model implements Auditable
             'forwarded_at' => 'datetime',
             'submitted_at' => 'datetime',
             'approved_at' => 'datetime',
+            'secretary_approved_at' => 'datetime',
             'returned_at' => 'datetime',
             'cancelled_at' => 'datetime',
             'proceeding_completed_at' => 'datetime',
@@ -331,6 +338,12 @@ class DpcProposal extends Model implements Auditable
     public function approver(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    /** @return BelongsTo<User, $this> */
+    public function secretaryApprover(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'secretary_approved_by');
     }
 
     /**

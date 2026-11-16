@@ -7,7 +7,8 @@ return [
     'button' => [
         'submit' => 'eSign and submit for approval',
         'approve' => 'eSign and approve',
-        'approve_dpc' => 'eSign, approve and forward to CGPSC',
+        'approve_dpc' => 'eSign, approve and forward to the Secretary, CGPSC',
+        'secretary_approve' => 'eSign, approve and forward to the Chairman',
     ],
     'page' => [
         'title' => 'eSign',
@@ -15,6 +16,7 @@ return [
         'title_pre-dpc-approve' => 'eSign and approve the Pre-DPC',
         'title_pre-dpc-return' => 'eSign and return the Pre-DPC for correction',
         'title_dpc-approve' => 'eSign and approve the DPC',
+        'title_dpc-secretary-approve' => 'eSign and approve the DPC as Secretary, CGPSC',
         'title_dpc-submit' => 'eSign and submit the DPC proposal',
         'lead' => 'Every submission and approval is signed with a fresh eSign; an earlier eSign never counts for this one.',
         'what' => 'What you are signing',
@@ -27,6 +29,7 @@ return [
     ],
     'consent_required' => 'Give your consent to proceed to eSign.',
     'done' => [
+        'secretary_approve' => 'eSigned and approved. The DPC is forwarded to the Chairman, CGPSC.',
         'submit' => 'eSigned and submitted for approval.',
         'approve' => 'eSigned and approved.',
         'return' => 'eSigned and returned to the Authorized Officer for correction.',

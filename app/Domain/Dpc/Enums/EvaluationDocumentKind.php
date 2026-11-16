@@ -34,6 +34,12 @@ enum EvaluationDocumentKind: string
     /** The order behind a pending departmental enquiry, charge-sheet, show-cause or suspension (rule 2.2). */
     case VigilanceOrder = 'vigilance_order';
 
+    /** 2026-11-14: the document behind the answer on a departmental / court case ongoing in the DPC's period. */
+    case EnquiryDocument = 'enquiry_document';
+
+    /** 2026-11-14: the document behind the answer on a punishment in effect in the DPC's period. */
+    case PunishmentDocument = 'punishment_document';
+
     /** Rule 2.3: the order of an officer on deputation without a sanctioned setup. */
     case DeputationOrder = 'deputation_order';
 

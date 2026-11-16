@@ -10,7 +10,8 @@
 (function () {
     'use strict';
 
-    document.querySelectorAll('form[data-saved-lock]').forEach(function (form) {
+    function init(root) {
+    root.querySelectorAll('form[data-saved-lock]').forEach(function (form) {
         // The labels come from the page, in its language.
         var text = {
             edit: form.getAttribute('data-label-edit') || 'Edit',
@@ -54,4 +55,9 @@
 
         lock(true);
     });
+    }
+
+    init(document);
+    // Drawn again after a section is saved without a page load (2026-11-14).
+    document.addEventListener('edpc:content', function (event) { init(event.detail.root); });
 })();

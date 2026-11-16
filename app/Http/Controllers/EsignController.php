@@ -42,6 +42,8 @@ class EsignController extends Controller
         'pre-dpc-return' => [PreDpcProposal::class, 'return', 'esign.done.return'],
         'dpc-submit' => [DpcProposal::class, 'submit', 'esign.done.submit'],
         'dpc-approve' => [DpcProposal::class, 'approve', 'esign.done.approve'],
+        // The Secretary, CGPSC's approval (2026-11-14).
+        'dpc-secretary-approve' => [DpcProposal::class, 'secretaryApprove', 'esign.done.secretary_approve'],
     ];
 
     public function show(Request $request, string $kind, string $uuid): View|RedirectResponse
@@ -179,6 +181,7 @@ class EsignController extends Controller
                 'pre-dpc-return' => app(PreDpcProposalService::class)->return($proposal, $user, trim((string) $request->input('return_remarks')), $request),
                 'dpc-submit' => app(DpcProposalService::class)->submit($proposal, $user, $request),
                 'dpc-approve' => app(DpcProposalService::class)->approve($proposal, $user, $request),
+                'dpc-secretary-approve' => app(DpcProposalService::class)->secretaryApprove($proposal, $user, $request),
                 default => abort(404),
             };
         } catch (WorkflowException $e) {

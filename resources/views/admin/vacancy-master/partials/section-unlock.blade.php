@@ -1,6 +1,7 @@
 {{-- Section-wise revision (2026-11-13): on a section revision the section says
      whether the AO may edit it; the AH's Edit unlocks it, with a reason. --}}
-@if ($position !== null && $position->isSectionRevision())
+{{-- Only while the revision is open: once approved, no section is unlocked for anyone. --}}
+@if ($position !== null && $position->isSectionRevision() && ($position->isDraft() || $position->isPendingApproval()))
     @if ($position->sectionUnlocked($sectionKey))
         <span class="badge text-bg-warning" data-section-state="{{ $sectionKey }}">{{ __('vacancymaster.section_revision.unlocked_badge') }}</span>
     @else

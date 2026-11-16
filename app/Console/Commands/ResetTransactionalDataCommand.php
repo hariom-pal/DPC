@@ -222,6 +222,7 @@ class ResetTransactionalDataCommand extends Command
         // The Sealed Cover reasons (Coder Instructions rule 2.2): a master the
         // Administrator maintains, cited by the officers it was recorded for.
         'sealed_cover_reasons',
+        'integrity_options',
 
         // The PH Type master (2026-11-05), cited by the officers recorded with it.
         'ph_types',

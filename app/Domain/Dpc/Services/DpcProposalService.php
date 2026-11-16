@@ -32,8 +32,10 @@ use App\Enums\MasterStatus;
 use App\Enums\Role;
 use Carbon\CarbonInterface;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * DPC Proposal workflow (PPT S12–S25) — M4 Phase 1–5 scope: post selection
@@ -765,17 +767,123 @@ class DpcProposalService
         // was issued when the proposal was created, and it is the same string
         // through every return and resubmission. Minting at approval would
         // have meant a returned proposal had no number to be discussed by.
+        //
+        // The AH's approval sends the DPC to the Secretary, CGPSC, not yet to the
+        // Chairman (2026-11-14): it is forwarded when the Secretary approves it.
         $locked->forceFill([
-            'status' => DpcProposalStatus::Approved->value,
+            'status' => DpcProposalStatus::PendingSecretary->value,
             'approved_by' => $actor->id,
             'approved_at' => now(),
             'signature_id' => $signature->id,
-            'forwarded_at' => now(),
+            'secretary_approved_by' => null,
+            'secretary_approved_at' => null,
+            'secretary_signature_id' => null,
+            'forwarded_at' => null,
         ])->save();
 
         $this->revisions->recordApproval($locked);
 
-        $this->engine->record($locked, 'dpc_proposal', 'approve', $from, $def, $actor, $request, null, $signature->id, $locked->department_id);
+        $this->engine->record(
+            $locked, 'dpc_proposal', 'approve', $from, $def, $actor, $request, null, $signature->id, $locked->department_id,
+            notifyUserIds: $this->activeUserIdsWithRole(Role::Secretary),
+        );
+    }
+
+    /**
+     * The Secretary, CGPSC approves a DPC the AH approved (2026-11-14), with an
+     * eSign, and it is forwarded to the Chairman.
+     */
+    public function secretaryApprove(DpcProposal $proposal, User $actor, Request $request): void
+    {
+        $this->assertSignatureAvailable();
+
+        try {
+            DB::transaction(function () use ($proposal, $actor, $request): void {
+                $locked = $this->lock($proposal);
+                $from = $locked->status->value;
+                $def = $this->engine->assertAllowed('dpc_proposal', 'secretary_approve', $from, $actor);
+
+                $signature = $this->signatures->signVerified(
+                    $actor,
+                    $locked,
+                    $this->renderDocument($locked),
+                    "dpc-proposal-{$locked->id}-secretary.txt",
+                    ['action' => 'secretary_approve'],
+                );
+
+                $locked->forceFill([
+                    'status' => DpcProposalStatus::Approved->value,
+                    'secretary_approved_by' => $actor->id,
+                    'secretary_approved_at' => now(),
+                    'secretary_signature_id' => $signature->id,
+                    'forwarded_at' => now(),
+                ])->save();
+
+                $this->revisions->recordApproval($locked);
+
+                $this->engine->record(
+                    $locked, 'dpc_proposal', 'secretary_approve', $from, $def, $actor, $request, null, $signature->id, $locked->department_id,
+                    notifyUserIds: $this->activeUserIdsWithRole(Role::Chairman),
+                );
+            });
+        } catch (SignatureVerificationFailed $e) {
+            app(SecurityLog::class)->record('esign.'.$e->reason, $actor, context: ['subject' => 'dpc_proposal', 'id' => $proposal->id, 'action' => 'secretary_approve']);
+            app(SignatureAttemptLog::class)->record($actor, $proposal, 'secretary_approve', $e->reason, $e->assertedName);
+
+            throw new WorkflowException($e->getMessage());
+        }
+
+        $proposal->refresh();
+    }
+
+    /**
+     * The Secretary, CGPSC returns a DPC to the AO (2026-11-14): with the reason and
+     * a supporting document, both kept on the revision returned. It comes back as
+     * Returned — a new revision — and goes through the AH and the Secretary again.
+     */
+    public function secretaryReturn(DpcProposal $proposal, User $actor, string $remarks, UploadedFile $document, Request $request): void
+    {
+        DB::transaction(function () use ($proposal, $actor, $remarks, $document, $request): void {
+            $locked = $this->lock($proposal);
+            $from = $locked->status->value;
+            $def = $this->engine->assertAllowed('dpc_proposal', 'secretary_return', $from, $actor);
+
+            $disk = (string) config('dpc.documents.disk', 'local');
+            $path = Storage::disk($disk)->putFile(sprintf('private/dpc-return-documents/%d', $locked->id), $document);
+
+            if (! is_string($path)) {
+                throw new WorkflowException((string) __('dpc.secretary.errors.document_not_stored'));
+            }
+
+            $locked->forceFill([
+                'status' => DpcProposalStatus::Returned->value,
+                'returned_at' => now(),
+                'return_remarks' => $remarks,
+            ])->save();
+
+            $this->revisions->recordReturn($locked, $actor, $remarks, 'secretary', $path, $document->getClientOriginalName());
+
+            $this->engine->record($locked, 'dpc_proposal', 'secretary_return', $from, $def, $actor, $request, $remarks, null, $locked->department_id);
+        });
+
+        $proposal->refresh();
+    }
+
+    /**
+     * Active holders of a Commission role, reached by id — the role holds no
+     * department, so a department query cannot find them.
+     *
+     * @return list<int>
+     */
+    private function activeUserIdsWithRole(Role $role): array
+    {
+        return User::query()
+            ->where('is_active', true)
+            ->whereHas('roles', fn ($query) => $query->where('name', $role->value))
+            ->pluck('id')
+            ->map(fn ($id): int => (int) $id)
+            ->values()
+            ->all();
     }
 
     public function return(DpcProposal $proposal, User $actor, string $remarks, Request $request): void
@@ -1017,7 +1125,7 @@ class DpcProposalService
 
             $lines[] = sprintf('   %d. %s | DOB %s | %s | DOP %s', $row->sn, $row->name, $date($row->dob), $row->reservationCategory->code ?? '—', $date($row->date_of_posting_on_promotion_from_post));
             $lines[] = "      CR: {$cr}";
-            $lines[] = "      Loyalty: {$loyalty}";
+            $lines[] = "      Integrity: {$loyalty}";
             $lines[] = "      Immovable Property: {$property}";
             $lines[] = '      Note: '.($row->note ?? '—').' | Tribal-area service (yrs): '.($row->tribal_area_service_years ?? '—');
         }

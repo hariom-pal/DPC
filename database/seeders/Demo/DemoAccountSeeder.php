@@ -82,6 +82,14 @@ class DemoAccountSeeder extends Seeder
     ];
 
     /**
+     * The Secretary, CGPSC (2026-11-14), who approves every DPC after its AH and
+     * before the Chairman.
+     *
+     * @var array{name:string, email:string, mobile:string, designation:string}
+     */
+    public const SECRETARY = ['name' => 'Shri Rajesh Kumar Tiwari', 'email' => 'secretary@cgpsc.gov.in', 'mobile' => '9000000301', 'designation' => 'Secretary, CGPSC'];
+
+    /**
      * Five Members, because the demo needs five distinct Commission-side
      * situations on screen at once and a Member's queue is personal to them:
      * one who has concluded a DPC and its Review, one who has concluded a DPC
@@ -115,6 +123,8 @@ class DemoAccountSeeder extends Seeder
             $this->cgpscAccount($member['name'], $member['email'], $member['mobile'], $member['designation'], Role::Member);
         }
 
+        $this->cgpscAccount(self::SECRETARY['name'], self::SECRETARY['email'], self::SECRETARY['mobile'], self::SECRETARY['designation'], Role::Secretary);
+
         foreach (self::DEPARTMENTS as $code => $spec) {
             $this->registerDepartment($provisioning, $code, $spec);
         }
@@ -127,7 +137,7 @@ class DemoAccountSeeder extends Seeder
     private function seedDesignations(): void
     {
         $names = [
-            'Chairman, CGPSC', 'Member, CGPSC', 'System Administrator',
+            'Chairman, CGPSC', 'Member, CGPSC', 'Secretary, CGPSC', 'System Administrator',
             'Director, Public Instruction', 'Additional Director, Education',
             'Joint Director, Education', 'District Education Officer',
             'Principal, Higher Secondary School', 'Block Education Officer',

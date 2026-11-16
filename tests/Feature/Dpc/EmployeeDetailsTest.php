@@ -19,6 +19,7 @@ use App\Domain\Dpc\Services\EmployeeDetailsService;
 use App\Domain\Dpc\Services\PromotionRuleCheck;
 use App\Domain\Master\Models\CrGradeValue;
 use App\Domain\Master\Models\DepartmentPost;
+use App\Domain\Master\Models\IntegrityOption;
 use App\Domain\Master\Models\PhType;
 use App\Domain\Master\Models\PromotionCrRule;
 use App\Domain\Master\Models\PromotionCrRuleYear;
@@ -116,7 +117,7 @@ class EmployeeDetailsTest extends TestCase
         $this->assertStringContainsString('js/saved-lock.js', $html);
         $this->assertFalse($lockedForm($html, 'dpc-proposals.employees.vigilance'), 'Not saved yet: open.');
 
-        $this->actingAs($this->ao)->put(route('dpc-proposals.employees.vigilance', [$this->proposal, $this->row]), ['vigilance_pending' => '0'])->assertSessionHasNoErrors();
+        $this->actingAs($this->ao)->put(route('dpc-proposals.employees.vigilance', [$this->proposal, $this->row]), $this->vigilanceForm())->assertSessionHasNoErrors();
 
         $html = $show();
         $this->assertTrue($lockedForm($html, 'dpc-proposals.employees.vigilance'), 'Saved: locked until Edit.');
@@ -163,6 +164,32 @@ class EmployeeDetailsTest extends TestCase
         ], $extra));
     }
 
+    /** The Department Enquiry/Court Case section, nothing pending, each answer with its document (2026-11-14). */
+    private function vigilanceForm(array $overrides = []): array
+    {
+        return [
+            'enquiry_ongoing' => '0', 'punishment_effective' => '0',
+            'enquiry_document' => $this->pdf('enquiry.pdf'), 'punishment_document' => $this->pdf('punishment.pdf'),
+            'vigilance_verified' => '1', 'vigilance_pending' => '0', ...$overrides,
+        ];
+    }
+
+    /** A Fit Integrity answer (2026-11-14). */
+    private function fitIntegrity(): int
+    {
+        return (int) IntegrityOption::query()->where('fit', true)->orderBy('sort_order')->value('id');
+    }
+
+    /**
+     * The Property Return items naming one year.
+     *
+     * @return list<string>
+     */
+    private function propertyItems(int $year): array
+    {
+        return array_values(array_filter($this->details()['sections']['property'], fn (string $item): bool => str_contains($item, (string) $year)));
+    }
+
     private function details(): array
     {
         return app(EmployeeDetailsService::class)->status($this->row->refresh());
@@ -177,10 +204,12 @@ class EmployeeDetailsTest extends TestCase
     private function saveCr(int $year, string $grade, array $authorities = ['reporter', 'reviewer', 'accepting']): TestResponse
     {
         // A CR without every authority's remarks carries its NRC (MoM of 12 November 2026).
-        $nrc = count($authorities) < 3 ? ['nrc' => $this->pdf('nrc.pdf')] : [];
+        // The NRC comes with its CR (2026-11-14).
+        $nrc = count($authorities) < 3 ? ['nrc' => $this->pdf('nrc.pdf'), 'cr_document' => $this->pdf('cr.pdf'), 'cr_verified' => '1', 'cr_undertaking' => '1'] : [];
 
         return $this->actingAs($this->ao)->post($this->route('cr.save'), [
-            'year' => $year, 'put_up' => '1', 'has_grading' => '1', 'authorities' => $authorities, 'grade' => $grade, ...$nrc,
+            'year' => $year, 'put_up' => '1', 'has_grading' => '1', 'authorities' => $authorities, 'grade' => $grade,
+            'integrity_option_id' => $this->fitIntegrity(), ...$nrc,
         ]);
     }
 
@@ -220,6 +249,7 @@ class EmployeeDetailsTest extends TestCase
 
         $this->actingAs($this->ao)->put($this->route('basic'), [
             'reservation_category_id' => $category->id,
+            // The posting date is the list's: posted, it changes nothing (2026-11-14).
             'date_of_posting_on_promotion_from_post' => '2015-06-01',
             // Rule 4.4: the service-record orders and the undertaking.
             'dob_order_number' => 'SR/1', 'dob_order_date' => '1995-07-01',
@@ -232,8 +262,11 @@ class EmployeeDetailsTest extends TestCase
         // Resume: the screen shows what was saved, and only that section moved on.
         $this->actingAs($this->ao)->get($this->route('show'))
             ->assertOk()
-            ->assertSee('2015-06-01', false)
+            ->assertSee('SR/1', false)
+            ->assertDontSee('name="date_of_posting_on_promotion_from_post"', false)
+            ->assertSee('id="basic-from-csv"', false)
             ->assertSee('data-cr-year="2023"', false);
+        $this->assertNotEquals('2015-06-01', $this->row->refresh()->date_of_posting_on_promotion_from_post?->toDateString());
 
         $status = $this->details();
         $this->assertSame([], $status['sections']['basic']);
@@ -312,7 +345,7 @@ class EmployeeDetailsTest extends TestCase
 
     public function test_a_cr_without_grading_needs_the_cr_uploaded(): void
     {
-        $this->actingAs($this->ao)->post($this->route('cr.save'), ['year' => 2022, 'put_up' => '1', 'has_grading' => '0'])
+        $this->actingAs($this->ao)->post($this->route('cr.save'), ['year' => 2022, 'put_up' => '1', 'has_grading' => '0', 'integrity_option_id' => $this->fitIntegrity()])
             ->assertSessionHasNoErrors();
 
         $this->assertNull($this->row->crGrades()->where('year', 2022)->value('grade'));
@@ -331,6 +364,139 @@ class EmployeeDetailsTest extends TestCase
 
         $this->upload(EvaluationDocumentKind::CrReport, 2023, true)->assertSessionHasNoErrors();
         $this->assertNotNull(DpcEvaluationDocument::query()->sole()->undertaking_confirmed_at);
+    }
+
+    /** 2026-11-14: the CR is uploaded on the same form as its grading. */
+    public function test_the_cr_is_uploaded_with_its_grading(): void
+    {
+        $form = ['year' => 2023, 'put_up' => '1', 'has_grading' => '1', 'authorities' => ['reporter', 'reviewer', 'accepting'], 'grade' => 'क', 'integrity_option_id' => $this->fitIntegrity()];
+
+        $this->get(route('dpc-proposals.employees.show', [$this->proposal, $this->row]))->assertSee('name="cr_document"', false);
+
+        // Verified against the original and with the undertaking, or nothing is saved.
+        $this->actingAs($this->ao)->post($this->route('cr.save'), [...$form, 'cr_document' => $this->pdf('cr.pdf')])
+            ->assertSessionHasErrors(['cr_verified', 'cr_undertaking']);
+        $this->assertSame(0, $this->row->crGrades()->count());
+        $this->assertSame(0, DpcEvaluationDocument::query()->count());
+
+        $this->post($this->route('cr.save'), [...$form, 'cr_document' => $this->pdf('cr.pdf'), 'cr_verified' => '1', 'cr_undertaking' => '1'])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('क', $this->row->crGrades()->where('year', 2023)->value('grade'));
+        $document = DpcEvaluationDocument::query()->sole();
+        $this->assertSame(EvaluationDocumentKind::CrReport, $document->kind);
+        $this->assertSame(2023, $document->year);
+        $this->assertNotNull($document->undertaking_confirmed_at);
+        $this->assertStringNotContainsString('CR 2023', implode(' ', $this->details()['sections']['cr']));
+
+        // A year without grading takes the CR without grading; one not put up has no CR.
+        $this->post($this->route('cr.save'), [
+            'year' => 2022, 'put_up' => '1', 'has_grading' => '0', 'cr_document' => $this->pdf('cr.pdf'), 'cr_verified' => '1', 'cr_undertaking' => '1',
+        ])->assertSessionHasNoErrors();
+        $this->assertSame(EvaluationDocumentKind::CrWithoutGrading, DpcEvaluationDocument::query()->where('year', 2022)->sole()->kind);
+    }
+
+    /** 2026-11-14: no kind to choose — the year's answer says which CR it is. */
+    public function test_the_cr_upload_takes_its_kind_from_the_year(): void
+    {
+        $this->saveCr(2023, 'क');
+        $this->actingAs($this->ao)->post($this->route('cr.save'), ['year' => 2022, 'put_up' => '1', 'has_grading' => '0'])->assertSessionHasNoErrors();
+
+        $page = $this->get(route('dpc-proposals.employees.show', [$this->proposal, $this->row]));
+        $page->assertDontSee('id="cr-doc-kind"', false);
+
+        // Sent as a CR, a year without grading is stored as the CR without grading.
+        $this->upload(EvaluationDocumentKind::CrReport, 2022)->assertSessionHasNoErrors();
+        $this->assertSame(EvaluationDocumentKind::CrWithoutGrading, DpcEvaluationDocument::query()->where('year', 2022)->sole()->kind);
+
+        // A year whose CR was not put up has no CR to upload.
+        $this->post($this->route('cr.save'), [
+            'year' => 2021, 'put_up' => '0',
+            'missing_reason_id' => RecordReason::query()->where('code', 'nrc_issued')->value('id'),
+            'missing_document' => $this->pdf('nrc.pdf'),
+        ])->assertSessionHasNoErrors();
+        $this->upload(EvaluationDocumentKind::CrReport, 2021)->assertSessionHasErrors('cr');
+    }
+
+    /** 2026-11-14: the NRC certifies remarks missing from a CR, so the CR comes with it. */
+    public function test_an_nrc_comes_with_its_cr(): void
+    {
+        $form = ['year' => 2023, 'put_up' => '1', 'has_grading' => '1', 'authorities' => ['reporter'], 'grade' => 'क', 'nrc' => $this->pdf('nrc.pdf')];
+
+        $this->actingAs($this->ao)->post($this->route('cr.save'), $form)
+            ->assertSessionHasErrors(['cr' => __('dpc.employee_details.cr.nrc_needs_cr')]);
+        $this->assertSame(0, $this->row->crGrades()->count());
+
+        $this->post($this->route('cr.save'), [...$form, 'nrc' => $this->pdf('nrc.pdf'), 'cr_document' => $this->pdf('cr.pdf'), 'cr_verified' => '1', 'cr_undertaking' => '1'])
+            ->assertSessionHasNoErrors();
+        $this->assertSame(2, DpcEvaluationDocument::query()->where('year', 2023)->count());
+    }
+
+    /**
+     * 2026-11-14: with the required CRs with remarks recorded — not counting a missing
+     * year or one without grading — "Record a CR year" is no longer offered; a missing
+     * year just before the DPC year leaves one fewer.
+     */
+    public function test_the_cr_form_closes_once_the_required_crs_are_recorded(): void
+    {
+        $dpcYear = (int) ($this->proposal->dpc_year ?: $this->proposal->proposal_date->year);
+        $show = fn () => $this->actingAs($this->ao)->get(route('dpc-proposals.employees.show', [$this->proposal, $this->row]));
+
+        $this->post($this->route('cr.save'), [
+            'year' => $dpcYear - 1, 'put_up' => '0',
+            'missing_reason_id' => RecordReason::query()->where('code', 'long_leave')->value('id'),
+            'missing_document' => $this->pdf('leave.pdf'),
+        ])->assertSessionHasNoErrors();
+        $this->post($this->route('cr.save'), ['year' => $dpcYear - 2, 'put_up' => '1', 'has_grading' => '0'])->assertSessionHasNoErrors();
+        foreach (range($dpcYear - 3, $dpcYear - 5) as $year) {
+            $this->saveCr($year, 'क')->assertSessionHasNoErrors();
+        }
+        $show()->assertSee('data-employee-cr-form', false);
+
+        $this->saveCr($dpcYear - 6, 'क')->assertSessionHasNoErrors();
+        $show()->assertDontSee('data-employee-cr-form', false)->assertSee('id="cr-years-complete"', false);
+
+        // A recorded year is still changed with its Edit.
+        $this->get(route('dpc-proposals.employees.show', [$this->proposal, $this->row, 'cr_year' => $dpcYear - 3]))
+            ->assertSee('data-employee-cr-form', false);
+
+        // Without the missing year just before the DPC year, five are needed.
+        $this->delete(route('dpc-proposals.employees.cr.remove', [$this->proposal, $this->row, $dpcYear - 1]));
+        $show()->assertSee('data-employee-cr-form', false);
+    }
+
+    /** 2026-11-14: the last five years offered, the return uploaded with its year, the form closed once all five are saved. */
+    public function test_the_property_form_offers_the_last_five_years_and_closes_when_saved(): void
+    {
+        $dpcYear = (int) ($this->proposal->dpc_year ?: $this->proposal->proposal_date->year);
+        $html = (string) $this->actingAs($this->ao)->get(route('dpc-proposals.employees.show', [$this->proposal, $this->row]))->getContent();
+        $select = substr($html, (int) strpos($html, 'id="property-year"'));
+        $select = substr($select, 0, (int) strpos($select, '</select>'));
+        foreach (range($dpcYear - 5, $dpcYear - 1) as $year) {
+            $this->assertStringContainsString('<option value="'.$year.'"', $select);
+        }
+        $this->assertStringNotContainsString('<option value="'.($dpcYear - 6).'"', $select);
+        $this->assertStringNotContainsString('<option value="'.$dpcYear.'"', $select);
+        $this->assertSame(3, substr_count($html, 'data-show-if-late'), 'The late-return questions and document are asked only for a late return.');
+
+        // The return uploaded with its year, verified against its original.
+        $first = $dpcYear - 5;
+        $form = ['year' => $first, 'submitted' => '1', 'submitted_on' => $first.'-01-10', 'next_increment_date' => ($first + 1).'-07-01', 'property_document' => $this->pdf('ipr.pdf')];
+        $this->post($this->route('property.save'), $form)->assertSessionHasErrors('property_verified');
+        $this->assertSame(0, $this->row->propertyFlags()->count());
+        $this->post($this->route('property.save'), [...$form, 'property_document' => $this->pdf('ipr.pdf'), 'property_verified' => '1'])->assertSessionHasNoErrors();
+        $this->assertSame(EvaluationDocumentKind::PropertyReturn, DpcEvaluationDocument::query()->where('year', $first)->sole()->kind);
+
+        foreach (range($dpcYear - 4, $dpcYear - 1) as $i => $year) {
+            $this->post($this->route('property.save'), [
+                'year' => $year, 'submitted' => '1', 'submitted_on' => $year.'-01-10', 'next_increment_date' => ($year + 1).'-07-0'.($i + 2),
+            ])->assertSessionHasNoErrors();
+        }
+
+        $this->get(route('dpc-proposals.employees.show', [$this->proposal, $this->row]))
+            ->assertDontSee('data-employee-property-form', false)->assertSee('id="property-years-complete"', false);
+        $this->get(route('dpc-proposals.employees.show', [$this->proposal, $this->row, 'property_year' => $first]))
+            ->assertSee('data-employee-property-form', false);
     }
 
     public function test_the_cr_section_is_complete_with_its_documents_and_the_channel_undertaking(): void
@@ -394,14 +560,14 @@ class EmployeeDetailsTest extends TestCase
     public function test_a_submitted_return_is_complete_with_its_dates_and_document(): void
     {
         $this->actingAs($this->ao)->post($this->route('property.save'), [
-            'year' => 2023, 'submitted' => '1', 'submitted_on' => '2024-01-20', 'next_increment_date' => '2024-07-01',
+            'year' => 2023, 'submitted' => '1', 'submitted_on' => '2023-01-20', 'next_increment_date' => '2024-07-01',
         ])->assertSessionHasNoErrors();
 
-        $this->assertSame(['Property Return 2023: upload the return.'], $this->details()['sections']['property']);
+        $this->assertSame(['Property Return 2023: upload the return.'], $this->propertyItems(2023));
 
         $this->upload(EvaluationDocumentKind::PropertyReturn, 2023)->assertSessionHasNoErrors();
 
-        $this->assertSame([], $this->details()['sections']['property']);
+        $this->assertSame([], $this->propertyItems(2023));
         $this->assertTrue((bool) $this->row->propertyFlags()->where('year', 2023)->value('flag'));
     }
 
@@ -411,7 +577,7 @@ class EmployeeDetailsTest extends TestCase
             ->assertSessionHasNoErrors();
 
         $this->assertFalse((bool) $this->row->propertyFlags()->where('year', 2023)->value('flag'));
-        $this->assertSame([], $this->details()['sections']['property'], 'Recorded; the engine judges it.');
+        $this->assertSame([], $this->propertyItems(2023), 'Recorded; the engine judges it.');
     }
 
     public function test_a_late_return_needs_the_departments_decision(): void
@@ -449,9 +615,10 @@ class EmployeeDetailsTest extends TestCase
             'year' => $late, 'submitted' => '1', 'submitted_on' => ($late + 1).'-03-01', 'next_increment_date' => ($late + 1).'-07-01',
             'late_decision' => 'accepted', 'late_decision_remarks' => 'Election duty.',
         ])->assertSessionHasNoErrors();
+        // On time: by 31 January of its own year (2026-11-14).
         $onTime = $dpcYear - 2;
         $this->actingAs($this->ao)->post($this->route('property.save'), [
-            'year' => $onTime, 'submitted' => '1', 'submitted_on' => ($onTime + 1).'-01-15', 'next_increment_date' => ($onTime + 1).'-07-02',
+            'year' => $onTime, 'submitted' => '1', 'submitted_on' => $onTime.'-01-15', 'next_increment_date' => ($onTime + 1).'-07-02',
         ])->assertSessionHasNoErrors();
 
         $page = $this->actingAs($this->ao)->get(route('dpc-proposals.employees.show', [$this->proposal, $this->row]))->assertOk();
@@ -462,26 +629,25 @@ class EmployeeDetailsTest extends TestCase
             ->assertDontSee('data-property-year="'.$late.'" data-property-missing', false)
             ->assertSee(__('dpc.employee_details.property.late_upload_heading'));
 
-        $html = (string) $page->getContent();
-        $form = substr($html, (int) strpos($html, 'id="property-late-upload"'));
-        $form = substr($form, 0, (int) strpos($form, '</form>'));
-        $this->assertStringContainsString('<option value="'.$late.'">', $form);
-        $this->assertStringNotContainsString('<option value="'.$onTime.'">', $form);
+        // The late decision's document goes with its year — no separate upload (2026-11-14).
+        $page->assertDontSee('id="property-late-upload"', false)->assertSee('data-property-late-document', false);
+        $this->assertTrue($this->row->propertyFlags()->where('year', $late)->sole()->isLate());
+        $this->assertFalse($this->row->propertyFlags()->where('year', $onTime)->sole()->isLate());
 
         // "Record" on a missing year opens the form on that year.
         $this->get(route('dpc-proposals.employees.show', [$this->proposal, $this->row, 'property_year' => $dpcYear - 5]))
-            ->assertSee('id="property-year" name="year" required min="'.config('dpc.evaluation.min_year').'" max="'.$dpcYear.'"', false)
-            ->assertSee('value="'.($dpcYear - 5).'"', false);
+            ->assertSee('id="property-year" name="year" required', false)
+            ->assertSee('<option value="'.($dpcYear - 5).'" selected', false);
     }
 
     public function test_the_same_next_increment_date_for_two_years_is_refused(): void
     {
         $this->actingAs($this->ao)->post($this->route('property.save'), [
-            'year' => 2022, 'submitted' => '1', 'submitted_on' => '2023-01-20', 'next_increment_date' => '2023-07-01',
-        ]);
+            'year' => 2022, 'submitted' => '1', 'submitted_on' => '2022-01-20', 'next_increment_date' => '2023-07-01',
+        ])->assertSessionHasNoErrors();
 
         $this->actingAs($this->ao)->post($this->route('property.save'), [
-            'year' => 2023, 'submitted' => '1', 'submitted_on' => '2024-01-20', 'next_increment_date' => '2023-07-01',
+            'year' => 2023, 'submitted' => '1', 'submitted_on' => '2023-01-20', 'next_increment_date' => '2023-07-01',
         ])->assertSessionHasErrors('property');
 
         $this->assertSame(1, $this->row->propertyFlags()->count());
@@ -491,8 +657,8 @@ class EmployeeDetailsTest extends TestCase
     {
         foreach ([2022, 2023] as $year) {
             $this->actingAs($this->ao)->post($this->route('property.save'), [
-                'year' => $year, 'submitted' => '1', 'submitted_on' => ($year + 1).'-01-20', 'next_increment_date' => ($year + 1).'-07-01',
-            ]);
+                'year' => $year, 'submitted' => '1', 'submitted_on' => $year.'-01-20', 'next_increment_date' => ($year + 1).'-07-01',
+            ])->assertSessionHasNoErrors();
         }
 
         $file = UploadedFile::fake()->createWithContent('ipr.pdf', '%PDF-1.4 same bytes');
@@ -797,7 +963,7 @@ class EmployeeDetailsTest extends TestCase
         $this->actingAs($this->ah)->post(route('dpc-proposals.approve', $this->proposal))
             ->assertRedirect(route('dpc-proposals.show', $this->proposal));
 
-        $this->assertSame(DpcProposalStatus::Approved, $this->proposal->refresh()->status, 'The Administrative Head\'s stage is unchanged.');
+        $this->assertSame(DpcProposalStatus::PendingSecretary, $this->proposal->refresh()->status, 'The Administrative Head\'s stage is unchanged.');
     }
 
     public function test_the_ao_verifies_each_document_on_upload(): void
@@ -839,7 +1005,7 @@ class EmployeeDetailsTest extends TestCase
         $this->assertSame($this->ah->id, $document->refresh()->ah_verified_by);
 
         $this->actingAs($this->ah)->post(route('dpc-proposals.approve', $this->proposal))->assertSessionHasNoErrors();
-        $this->assertSame(DpcProposalStatus::Approved, $this->proposal->refresh()->status);
+        $this->assertSame(DpcProposalStatus::PendingSecretary, $this->proposal->refresh()->status);
     }
 
     public function test_the_administrative_head_decides_every_ph_claim_before_approving(): void
@@ -875,7 +1041,7 @@ class EmployeeDetailsTest extends TestCase
         $this->assertTrue($row->holdsVerifiedPhClaim());
 
         $this->actingAs($this->ah)->post(route('dpc-proposals.approve', $this->proposal))->assertSessionHasNoErrors();
-        $this->assertSame(DpcProposalStatus::Approved, $this->proposal->refresh()->status);
+        $this->assertSame(DpcProposalStatus::PendingSecretary, $this->proposal->refresh()->status);
     }
 
     public function test_the_section_can_be_stood_down(): void
@@ -955,7 +1121,7 @@ class EmployeeDetailsTest extends TestCase
 
         $this->actingAs($this->ao)->get(route('dpc-proposals.employees.index', $this->proposal))
             ->assertOk()
-            ->assertSee('Meets rule');
+            ->assertSee('FIT');
     }
 
     public function test_the_highest_available_authority_counts_within_a_cr(): void
@@ -1012,14 +1178,10 @@ class EmployeeDetailsTest extends TestCase
         $this->assertStringContainsString('<option value="'.($dpcYear - 2).'"', $select);
         $this->assertStringContainsString('js/forms/cr-reports.js', $html);
 
-        // Its CR uploaded, the year leaves the upload list too.
-        $this->saveCr($dpcYear - 2, 'क')->assertSessionHasNoErrors();
-        $this->upload(EvaluationDocumentKind::CrReport, $dpcYear - 1)->assertSessionHasNoErrors();
-        $html = (string) $this->get(route('dpc-proposals.employees.show', [$this->proposal, $this->row]))->getContent();
-        $form = substr($html, (int) strpos($html, 'id="cr-upload"'));
-        $form = substr($form, 0, (int) strpos($form, '</form>'));
-        $this->assertStringNotContainsString('<option value="'.($dpcYear - 1).'">', $form);
-        $this->assertStringContainsString('<option value="'.($dpcYear - 2).'">', $form);
+        // Only the five-year window is offered (2026-11-14), and the CR goes with its year — no separate upload.
+        $this->assertStringContainsString('<option value="'.($dpcYear - 5).'"', $select);
+        $this->assertStringNotContainsString('<option value="'.($dpcYear - 6).'"', $select);
+        $this->assertStringNotContainsString('id="cr-upload"', $html);
     }
 
     public function test_a_cr_below_the_years_minimum_does_not_meet_the_rule(): void
@@ -1033,7 +1195,7 @@ class EmployeeDetailsTest extends TestCase
         $this->assertContains(__('dpc.employee_details.rule.cr_below_min', ['year' => 2025, 'points' => 5, 'min' => 7]), $check['findings']);
 
         $this->actingAs($this->ao)->get(route('dpc-proposals.employees.index', $this->proposal))
-            ->assertSee('Does not meet rule');
+            ->assertSee('Unfit');
     }
 
     public function test_a_missing_mandatory_cr_year_does_not_meet_the_rule(): void

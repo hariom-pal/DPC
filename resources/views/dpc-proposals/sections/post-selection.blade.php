@@ -63,7 +63,10 @@
                         <dd class="col-sm-9"><strong>{{ $proposal->dpc_code ?? '—' }}</strong></dd>
                         <dt class="col-sm-3">{{ __('dpc.sections.post_selection.revision') }}</dt>
                         <dd class="col-sm-9">{{ $proposal->revision_number }}</dd>
-                        @if ($proposal->approved_at)
+                        {{-- Only once forwarded to CGPSC: after the Secretary's return, or while
+                             pending with the Secretary, the AH's earlier approval is not the
+                             proposal's state (2026-11-15). --}}
+                        @if ($proposal->approved_at && $proposal->forwarded_at && ! in_array($proposal->status, [\App\Domain\Dpc\Enums\DpcProposalStatus::Draft, \App\Domain\Dpc\Enums\DpcProposalStatus::Submitted, \App\Domain\Dpc\Enums\DpcProposalStatus::PendingSecretary, \App\Domain\Dpc\Enums\DpcProposalStatus::Returned], true))
                             <dt class="col-sm-3">{{ __('ui.approved') }}</dt>
                             <dd class="col-sm-9">{{ __('dpc.sections.post_selection.approved_and_forwarded', [
                                 'at' => $proposal->approved_at->format('d-m-Y H:i'),

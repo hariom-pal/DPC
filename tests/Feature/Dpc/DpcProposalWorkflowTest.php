@@ -89,9 +89,10 @@ class DpcProposalWorkflowTest extends TestCase
             ->assertRedirect(route('dpc-proposals.show', $proposal));
 
         $proposal->refresh();
-        $this->assertSame(DpcProposalStatus::Approved, $proposal->status);
+        // The AH's approval goes to the Secretary, CGPSC; the Secretary forwards it (2026-11-14).
+        $this->assertSame(DpcProposalStatus::PendingSecretary, $proposal->status);
         $this->assertNotNull($proposal->approved_at);
-        $this->assertNotNull($proposal->forwarded_at);
+        $this->assertNull($proposal->forwarded_at);
         $this->assertNotNull($proposal->signature_id);
         // Change item 18: the number was issued when the draft was raised, so
         // approval finds it already there rather than minting it.
@@ -109,7 +110,7 @@ class DpcProposalWorkflowTest extends TestCase
             ->where('auditable_type', $proposal->getMorphClass())
             ->where('auditable_id', $proposal->id)
             ->where('event', 'updated')
-            ->where('new_values', 'like', '%"status":"approved"%')
+            ->where('new_values', 'like', '%"status":"pending_secretary"%')
             ->count());
     }
 

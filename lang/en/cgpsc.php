@@ -222,7 +222,7 @@ return [
             'grade_y_n_or_years' => 'Grade, Y/N, or years',
             'hint_clear_entry' => 'Leave empty to clear the entry.',
             'immovable_property' => '<th colspan=":span">Immovable Property</th>',
-            'loyalty' => '<th colspan=":span">Loyalty</th>',
+            'loyalty' => '<th colspan=":span">Integrity</th>',
             'no_chart_rows' => 'This proposal has no evaluation chart rows.',
             'not_year_specific_tribal' => 'Not year-specific (Tribal)',
             'not_yet_closed' => 'Not yet closed',

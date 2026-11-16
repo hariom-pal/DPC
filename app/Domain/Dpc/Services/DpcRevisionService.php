@@ -72,7 +72,7 @@ class DpcRevisionService
      * so the counter and the row that depends on it cannot be written by two
      * pieces of code that disagree about the order.
      */
-    public function recordReturn(DpcProposal $proposal, User $actor, string $reason): DpcProposalRevision
+    public function recordReturn(DpcProposal $proposal, User $actor, string $reason, ?string $stage = null, ?string $documentPath = null, ?string $documentName = null): DpcProposalRevision
     {
         $closing = $this->current($proposal);
 
@@ -80,6 +80,10 @@ class DpcRevisionService
             'returned_at' => now(),
             'returned_by' => $actor->id,
             'return_reason' => $reason,
+            // Who returned it and the supporting document, where the Secretary, CGPSC did (2026-11-14).
+            'returned_stage' => $stage,
+            'return_document_path' => $documentPath,
+            'return_document_name' => $documentName,
             'status' => $proposal->status->value,
         ])->save();
 

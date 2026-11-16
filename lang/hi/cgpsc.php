@@ -205,7 +205,7 @@ return [
             'grade_y_n_or_years' => 'श्रेणी, हाँ/नहीं, अथवा वर्ष',
             'hint_clear_entry' => 'प्रविष्टि हटाने हेतु रिक्त छोड़ें।',
             'immovable_property' => '<th colspan=":span">अचल संपत्ति</th>',
-            'loyalty' => '<th colspan=":span">निष्ठा</th>',
+            'loyalty' => '<th colspan=":span">सत्यनिष्ठा</th>',
             'no_chart_rows' => 'इस प्रस्ताव में कोई मूल्यांकन चार्ट पंक्ति नहीं है।',
             'not_year_specific_tribal' => 'वर्ष-विशिष्ट नहीं (आदिवासी क्षेत्र)',
             'not_yet_closed' => 'अभी बंद नहीं',

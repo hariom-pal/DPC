@@ -98,12 +98,26 @@ class NotificationGatewayController extends Controller
         ]);
 
         if ($request->filled('secret')) {
-            $gateway->secret = (string) $request->input('secret');
+            $secret = (string) $request->input('secret');
+
+            // Google shows an App Password as four groups of four ("abcd efgh ijkl mnop");
+            // pasted as shown, the spaces are not part of it (2026-11-15).
+            if ($channel === NotificationGateway::SMTP && self::isGmail((string) ($settings['host'] ?? ''))) {
+                $secret = (string) preg_replace('/\s+/', '', $secret);
+            }
+
+            $gateway->secret = $secret;
         }
 
         $gateway->save();
 
         return redirect()->route('admin.notification-gateways.edit', $channel)->with('status', __('admin.notification_gateways.saved'));
+    }
+
+    /** Gmail / Google Workspace, which takes an App Password rather than the account password. */
+    private static function isGmail(string $host): bool
+    {
+        return in_array(strtolower(trim($host)), ['smtp.gmail.com', 'smtp.googlemail.com'], true);
     }
 
     /** A test message through the saved settings, to an address or number typed here. */

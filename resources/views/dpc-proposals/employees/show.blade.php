@@ -8,15 +8,13 @@
         $propertyYears = $row->propertyFlags->sortBy('year')->values();
         $editCr = request()->integer('cr_year') ? $crYears->firstWhere('year', request()->integer('cr_year')) : null;
         $editProperty = request()->integer('property_year') ? $propertyYears->firstWhere('year', request()->integer('property_year')) : null;
-        // The last five years, continuously, recorded or not (MoM of 12 November 2026).
-        $propertyWindow = range($latestYear - (int) $propertyYearsRequired, $latestYear - 1);
+        // Exactly the five years before the DPC year, recorded or not (2026-11-14).
+        $propertyWindow = array_reverse($propertyYearWindow);
         $propertyRows = collect(array_values(array_unique([...$propertyWindow, ...$propertyYears->pluck('year')->all()])))->sort()->values()
             ->map(fn (int $year) => ['year' => $year, 'record' => $propertyYears->firstWhere('year', $year)]);
         $addPropertyYear = $editProperty === null && in_array(request()->integer('property_year'), $propertyWindow, true) ? request()->integer('property_year') : null;
-        $lateYears = $propertyYears->filter(fn ($p) => $p->isLate())->pluck('year')->values();
-        $crUploadYears = $crYears->pluck('year')
-            ->reject(fn (int $year) => $docFor('cr_report', $year) !== null || $docFor('cr_without_grading', $year) !== null)
-            ->values();
+        $anyCrPutUp = $crYears->contains(fn ($cr) => $cr->put_up === true);
+        $crGaps = $row->recordGaps->where('kind', 'cr')->keyBy('year');
         $crGapYears = $row->recordGaps->where('kind', 'cr')->filter(fn ($g) => $g->isJustified())->pluck('year')->all();
         $propertyGapYears = $row->recordGaps->where('kind', 'property')->filter(fn ($g) => $g->isJustified())->pluck('year')->all();
         $outcome = $row->phOutcome();
@@ -29,6 +27,13 @@
             'vigilance' => __('dpc.employee_details.sections.vigilance'),
             'declarations' => __('dpc.employee_details.sections.declarations'),
         ];
+        // "Save & Next" (2026-11-14): each section's form names the section after it.
+        $sectionOrder = ['basic', 'cr', 'property', ...($phApplies ? ['ph'] : []), 'vigilance', 'declarations', 'documents'];
+        $nextSection = function (string $key) use ($sectionOrder): ?string {
+            $i = array_search($key, $sectionOrder, true);
+
+            return $i === false ? null : ($sectionOrder[$i + 1] ?? null);
+        };
     @endphp
 
     <nav aria-label="{{ __('ui.screen.breadcrumb') }}">
@@ -43,6 +48,7 @@
         </ol>
     </nav>
 
+    <div id="employee-details" data-employee-details>
     @include('partials.alerts')
 
     <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
@@ -91,16 +97,22 @@
         <div class="card-body">
             <h2 class="h6">A. {{ __('dpc.employee_details.sections.basic') }}</h2>
             @error('basic')<div class="alert alert-danger py-2">{{ $message }}</div>@enderror
-            <dl class="row small mb-2">
+            {{-- Everything the Seniority List CSV carries, here and read-only (2026-11-14):
+                 it is the list's, corrected by uploading the list again, never typed here. --}}
+            <p class="small text-muted mb-1">{{ __('dpc.employee_details.from_csv') }}</p>
+            <dl class="row small mb-2" id="basic-from-csv">
+                <dt class="col-sm-3">{{ __('dpc.employee_details.seniority_no') }}</dt><dd class="col-sm-9">{{ $row->sn }}</dd>
                 <dt class="col-sm-3">{{ __('dpc.employee_details.employee_id') }}</dt><dd class="col-sm-9">{{ $row->employee_number ?? '—' }}</dd>
+                <dt class="col-sm-3">{{ __('ui.name') }}</dt><dd class="col-sm-9">{{ $row->name }}</dd>
                 <dt class="col-sm-3">{{ __('ui.dob') }}</dt><dd class="col-sm-9">{{ $row->dob?->format('d-m-Y') }}</dd>
-                {{-- From the uploaded lists, never typed here (2026-11-12). --}}
+                <dt class="col-sm-3">{{ __('dpc.employee_details.date_of_appointment') }}</dt><dd class="col-sm-9">{{ $row->date_of_joining_service?->format('d-m-Y') ?? '—' }}</dd>
+                <dt class="col-sm-3">{{ __('dpc.employee_details.current_post') }}</dt><dd class="col-sm-9">{{ $row->promotion_from_post ?? '—' }}</dd>
+                <dt class="col-sm-3">{{ __('dpc.employee_details.posting_on_current_post') }}</dt><dd class="col-sm-9" id="basic-posting">{{ $row->date_of_posting_on_promotion_from_post?->format('d-m-Y') ?? '—' }}</dd>
                 <dt class="col-sm-3">{{ __('dpc.employee_details.mobile') }}</dt><dd class="col-sm-9" id="basic-mobile">{{ $row->mobile ?? '—' }}</dd>
                 <dt class="col-sm-3">{{ __('ui.qualification') }}</dt><dd class="col-sm-9" id="basic-qualification">{{ $row->qualification ?? '—' }}</dd>
-                <dt class="col-sm-3">{{ __('dpc.employee_details.date_of_appointment') }}</dt><dd class="col-sm-9">{{ $row->date_of_joining_service?->format('d-m-Y') ?? '—' }}</dd>
             </dl>
             {{-- Saved: shown read-only until Edit is pressed (MoM of 12 November 2026, point 10). --}}
-            <form method="POST" action="{{ route('dpc-proposals.employees.basic', [$proposal, $row]) }}" class="row g-2"
+            <form method="POST" action="{{ route('dpc-proposals.employees.basic', [$proposal, $row]) }}" class="row g-2" data-ajax-section
                   @if (! $errors->any() && ($row->service_record_undertaking_at !== null || $row->dob_order_number !== null || $row->joining_order_number !== null)) data-saved-lock data-label-edit="{{ __('ui.edit') }}" data-label-cancel="{{ __('ui.cancel') }}" data-label-saved="{{ __('ui.saved_entry') }}" @endif>
                 @csrf @method('PUT')
                 @if (config('dpc.reservation.category_wise'))
@@ -115,11 +127,6 @@
                     <div class="form-text">{{ __('dpc.employee_details.category_help') }}</div>
                 </div>
                 @endif
-                <div class="col-md-3">
-                    <label class="form-label small" for="date_of_posting_on_promotion_from_post">{{ __('dpc.employee_details.posting_on_current_post') }}</label>
-                    <input type="date" class="form-control form-control-sm" id="date_of_posting_on_promotion_from_post" name="date_of_posting_on_promotion_from_post"
-                           value="{{ old('date_of_posting_on_promotion_from_post', $row->date_of_posting_on_promotion_from_post?->format('Y-m-d')) }}" @disabled(! $canEdit)>
-                </div>
                 {{-- Rule 4.4: the orders behind the date of birth and of joining. --}}
                 <div class="col-md-3">
                     <label class="form-label small" for="dob_order_number">{{ __('dpc.employee_details.service_record.dob_order_number') }}</label>
@@ -146,7 +153,7 @@
                     </label>
                 </div>
                 @if ($canEdit)
-                    <div class="col-12"><button class="btn btn-success btn-sm">{{ __('dpc.employee_details.save_section') }}</button></div>
+                    <div class="col-12">@include('dpc-proposals.employees.partials.save-buttons', ['next' => $nextSection('basic')])</div>
                 @endif
             </form>
         </div>
@@ -157,8 +164,6 @@
         <div class="card-body">
             <h2 class="h6">B. {{ __('dpc.employee_details.sections.seniority') }}</h2>
             <dl class="row small mb-0">
-                <dt class="col-sm-3">{{ __('dpc.employee_details.seniority_no') }}</dt><dd class="col-sm-9">{{ $row->sn }}</dd>
-                <dt class="col-sm-3">{{ __('dpc.employee_details.current_post') }}</dt><dd class="col-sm-9">{{ $row->promotion_from_post ?? '—' }}</dd>
                 <dt class="col-sm-3">{{ __('dpc.seniority_list.as_on_label') }}</dt>
                 <dd class="col-sm-9">{{ $proposal->seniority_list_as_on?->format('d-m-Y') ?? '—' }} ({{ __('dpc.seniority_list.as_on_required', ['date' => $proposal->seniorityReferenceDate()->format('d-m-Y')]) }})</dd>
             </dl>
@@ -240,6 +245,7 @@
                         <th>{{ __('dpc.employee_details.cr.grading') }}</th>
                         <th>{{ __('dpc.employee_details.cr.reports') }}</th>
                         <th>{{ __('dpc.employee_details.cr.year_grade') }}</th>
+                        <th>{{ __('dpc.employee_details.cr.integrity') }}</th>
                         <th>{{ __('dpc.employee_details.documents.heading') }}</th>
                         <th class="text-end">{{ __('ui.actions') }}</th>
                     </tr></thead>
@@ -247,7 +253,17 @@
                         @forelse ($crYears as $cr)
                             <tr data-cr-year="{{ $cr->year }}">
                                 <td>{{ $cr->year }}</td>
-                                <td>{{ $cr->put_up === null ? __('dpc.employee_details.not_answered') : ($cr->put_up ? __('ui.yes') : __('ui.no')) }}</td>
+                                <td>
+                                    {{ $cr->put_up === null ? __('dpc.employee_details.not_answered') : ($cr->put_up ? __('ui.yes') : __('ui.no')) }}
+                                    {{-- Why it is missing, in the table (2026-11-14). --}}
+                                    @if ($cr->put_up === false && ($gap = $crGaps->get($cr->year)))
+                                        <div class="small" data-cr-missing-reason="{{ $cr->year }}">
+                                            <span class="text-muted">{{ __('dpc.employee_details.cr.missing_reason') }}:</span> {{ $gap->reason?->label() ?? '—' }}
+                                            @if ($gap->reason?->makes_unfit)<span class="badge text-bg-danger">{{ __('dpc.employee_details.rule.status.does_not_meet') }}</span>@endif
+                                            @if ($gap->remarks)<div class="text-muted">{{ $gap->remarks }}</div>@endif
+                                        </div>
+                                    @endif
+                                </td>
                                 <td>{{ $cr->has_grading === null ? '—' : ($cr->has_grading ? __('ui.yes') : __('ui.no')) }}</td>
                                 <td class="small">
                                     @foreach ((array) $cr->reports as $report)
@@ -260,25 +276,28 @@
                                     @endforeach
                                 </td>
                                 <td><strong>{{ $cr->grade ?? '—' }}</strong></td>
+                                <td class="small" data-cr-integrity="{{ $cr->year }}">
+                                    @if ($cr->integrityOption)
+                                        {{ $cr->integrityOption->label() }}
+                                        <span class="badge {{ $cr->integrityOption->fit ? 'text-bg-success' : 'text-bg-danger' }}">{{ $cr->integrityOption->fit ? __('dpc.employee_details.rule.status.meets') : __('dpc.employee_details.rule.status.does_not_meet') }}</span>
+                                    @else
+                                        —
+                                    @endif
+                                </td>
                                 <td class="small">
                                     @foreach (['cr_report', 'cr_without_grading', 'cr_nrc'] as $kind)
                                         @if ($document = $docFor($kind, $cr->year))
                                             @include('dpc-proposals.employees.partials.uploaded-document')
                                         @endif
                                     @endforeach
-                                    @if ($cr->put_up === false)
-                                        <div>
-                                            @if (in_array($cr->year, $crGapYears, true))
-                                                <span class="badge text-bg-success">{{ __('dpc.employee_details.cr.reason_recorded') }}</span>
-                                            @endif
-                                            <a href="{{ route('dpc-proposals.record-gaps.index', [$proposal, $row]) }}">{{ __('dpc.employee_details.cr.record_reason') }}</a>
-                                        </div>
+                                    @if ($cr->put_up === false && ! in_array($cr->year, $crGapYears, true))
+                                        <div><a href="{{ route('dpc-proposals.record-gaps.index', [$proposal, $row]) }}">{{ __('dpc.employee_details.cr.record_reason') }}</a></div>
                                     @endif
                                 </td>
                                 <td class="text-end text-nowrap">
                                     @if ($canEdit)
-                                        <a class="btn btn-outline-primary btn-sm" href="{{ route('dpc-proposals.employees.show', [$proposal, $row, 'cr_year' => $cr->year]) }}#section-cr">{{ __('ui.edit') }}</a>
-                                        <form method="POST" class="d-inline" action="{{ route('dpc-proposals.employees.cr.remove', [$proposal, $row, $cr->year]) }}"
+                                        <a class="btn btn-outline-primary btn-sm" data-ajax-link href="{{ route('dpc-proposals.employees.show', [$proposal, $row, 'cr_year' => $cr->year]) }}#cr-form">{{ __('ui.edit') }}</a>
+                                        <form method="POST" class="d-inline" data-ajax-section action="{{ route('dpc-proposals.employees.cr.remove', [$proposal, $row, $cr->year]) }}"
                                               data-confirm="{{ __('dpc.employee_details.remove_year_confirm', ['year' => $cr->year]) }}">
                                             @csrf @method('DELETE')
                                             <button class="btn btn-outline-danger btn-sm">{{ __('dpc.employee_details.remove') }}</button>
@@ -287,23 +306,31 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="7" class="text-muted text-center">{{ __('dpc.employee_details.cr.none') }}</td></tr>
+                            <tr><td colspan="8" class="text-muted text-center">{{ __('dpc.employee_details.cr.none') }}</td></tr>
                         @endforelse
                     </tbody>
                 </table>
             </div>
 
+            @php
+                // At most the required CRs (2026-11-14): the years offered are the window —
+                // five back from the year before the DPC year, one further for each year in
+                // the middle missing or without grading — less those recorded. Once all are
+                // recorded the form closes; a recorded year is changed with its Edit.
+                $gradedCrYears = $crYears->filter(fn ($cr) => $cr->put_up === true && $cr->has_grading === true)->count();
+                $crYearOptions = $editCr ? [$editCr->year] : array_values(array_diff($crYearWindow, $crYears->pluck('year')->all()));
+                $showCrForm = $editCr !== null || $crYearOptions !== [];
+            @endphp
+            @if ($canEdit && ! $showCrForm)
+                <p class="small text-success mb-3" id="cr-years-complete">{{ __('dpc.employee_details.cr.years_complete', ['count' => $gradedCrYears]) }}</p>
+            @endif
             @if ($canEdit)
-                <form method="POST" action="{{ route('dpc-proposals.employees.cr.save', [$proposal, $row]) }}" class="border rounded p-2 mb-3" enctype="multipart/form-data" data-employee-cr-form>
+                @if ($showCrForm)
+                <form method="POST" action="{{ route('dpc-proposals.employees.cr.save', [$proposal, $row]) }}" class="border rounded p-2 mb-3" enctype="multipart/form-data" data-employee-cr-form data-ajax-section id="cr-form">
                     @csrf
                     <h3 class="h6">{{ $editCr ? __('dpc.employee_details.cr.edit_year', ['year' => $editCr->year]) : __('dpc.employee_details.cr.add_year') }}</h3>
                     <div class="row g-2">
-                        {{-- Years up to the one before the DPC year, without those already recorded
-                             (MoM of 12 November 2026); a recorded year is changed with its Edit. --}}
-                        @php
-                            $crYearFrom = max((int) config('dpc.evaluation.min_year'), $row->date_of_joining_service?->year ?? ($latestYear - 20));
-                            $crYearOptions = $editCr ? [$editCr->year] : array_values(array_diff(range($latestYear - 1, $crYearFrom), $crYears->pluck('year')->all()));
-                        @endphp
+                        {{-- The window's years not yet recorded (2026-11-14); a recorded year is changed with its Edit. --}}
                         <div class="col-md-2">
                             <label class="form-label small" for="cr-year">{{ __('ui.year') }}</label>
                             <select class="form-select form-select-sm" id="cr-year" name="year" required @if ($editCr) data-locked @endif>
@@ -396,44 +423,58 @@
                             <div class="form-text">{{ __('dpc.employee_details.cr.nrc_help') }}</div>
                         </div>
                     </div>
-                    <button class="btn btn-success btn-sm mt-2">{{ __('dpc.employee_details.cr.save_year') }}</button>
-                </form>
-
-                @if ($crUploadYears->isNotEmpty())
-                    <form method="POST" enctype="multipart/form-data" action="{{ route('dpc-proposals.employees.documents.store', [$proposal, $row]) }}" class="border rounded p-2 mb-3 row g-2 align-items-end" id="cr-upload">
-                        @csrf
-                        <h3 class="h6 col-12 mb-0">{{ __('dpc.employee_details.cr.upload_heading') }}</h3>
-                        <div class="col-md-3">
-                            <label class="form-label small" for="cr-doc-kind">{{ __('dpc.employee_details.documents.kind') }}</label>
-                            <select class="form-select form-select-sm" id="cr-doc-kind" name="kind" required>
-                                @foreach (\App\Domain\Dpc\Enums\EvaluationDocumentKind::yearlyCrKinds() as $kind)
-                                    <option value="{{ $kind->value }}">{{ $kind->label() }}</option>
+                    {{-- Integrity (सत्यनिष्ठा) of the year, beside the grade, from the Administrator's
+                         options — each Fit or Unfit (2026-11-14). --}}
+                    <div class="row g-2 mt-1" data-show-when="put_up=1" data-cr-integrity-field>
+                        <div class="col-md-8">
+                            <label class="form-label small fw-semibold" for="cr-integrity">{{ __('dpc.employee_details.cr.integrity') }}</label>
+                            <select class="form-select form-select-sm @error('integrity_option_id') is-invalid @enderror" id="cr-integrity" name="integrity_option_id" data-required-when-shown>
+                                <option value="">{{ __('ui.select') }}</option>
+                                @foreach ($integrityOptions as $integrity)
+                                    <option value="{{ $integrity->id }}" @selected((string) old('integrity_option_id', $editCr?->integrity_option_id) === (string) $integrity->id)>{{ $integrity->label() }} — {{ $integrity->fit ? __('dpc.employee_details.rule.status.meets') : __('dpc.employee_details.rule.status.does_not_meet') }}</option>
                                 @endforeach
                             </select>
+                            @error('integrity_option_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
-                        <div class="col-md-2">
-                            <label class="form-label small" for="cr-doc-year">{{ __('ui.year') }}</label>
-                            <select class="form-select form-select-sm" id="cr-doc-year" name="year" required>
-                                {{-- A year whose CR is uploaded leaves the list (MoM of 12 November 2026). --}}
-                                @foreach ($crUploadYears as $uploadYear)<option value="{{ $uploadYear }}">{{ $uploadYear }}</option>@endforeach
-                            </select>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label small" for="cr-doc-file">{{ __('dpc.employee_details.documents.file') }}</label>
-                            <input type="file" accept="application/pdf" class="form-control form-control-sm" id="cr-doc-file" name="document" required><label class="form-check small mt-1"><input class="form-check-input" type="checkbox" name="verified" value="1" required> {{ __('dpc.employee_details.verification.ao_confirm') }}</label>
-                        </div>
-                        <div class="col-md-3">
-                            <button class="btn btn-outline-primary btn-sm w-100">{{ __('dpc.employee_details.documents.upload') }}</button>
-                        </div>
-                        <div class="col-12">
-                            <label class="form-check small">
-                                <input class="form-check-input" type="checkbox" name="undertaking" value="1">
-                                {{ __('dpc.employee_details.cr.duplicate_undertaking') }}
-                            </label>
-                        </div>
-                    </form>
+                    </div>
+                    {{-- The CR itself, uploaded with its grading (2026-11-14): a graded CR as the CR,
+                         one without grading as the CR without grading; there is no separate upload.
+                         Both confirmations are mandatory with the file. --}}
+                    @php
+                        $currentCrDocument = $editCr ? ($docFor('cr_report', $editCr->year) ?? $docFor('cr_without_grading', $editCr->year)) : null;
+                    @endphp
+                    <div class="border rounded p-2 mt-2 bg-body-tertiary" data-show-when="put_up=1" data-cr-document>
+                        <label class="form-label small fw-semibold" for="cr-document">{{ __('dpc.employee_details.cr.document_upload') }}</label>
+                        @if ($currentCrDocument)
+                            <div class="small mb-1">@include('dpc-proposals.employees.partials.uploaded-document', ['document' => $currentCrDocument])</div>
+                        @endif
+                        <input type="file" accept="application/pdf" class="form-control form-control-sm @error('cr_document') is-invalid @enderror" id="cr-document" name="cr_document" @unless ($currentCrDocument) data-required-when-shown @endunless>
+                        @error('cr_document')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        <div class="form-text">{{ __('dpc.employee_details.cr.document_help') }}</div>
+                        <label class="form-check small mt-1">
+                            <input class="form-check-input @error('cr_verified') is-invalid @enderror" type="checkbox" name="cr_verified" value="1" @checked(old('cr_verified')) @unless ($currentCrDocument) data-required-when-shown @endunless>
+                            {{ __('dpc.employee_details.verification.ao_confirm') }}
+                        </label>
+                        @error('cr_verified')<div class="text-danger small">{{ $message }}</div>@enderror
+                        <label class="form-check small">
+                            <input class="form-check-input @error('cr_undertaking') is-invalid @enderror" type="checkbox" name="cr_undertaking" value="1" @checked(old('cr_undertaking')) @unless ($currentCrDocument) data-required-when-shown @endunless>
+                            {{ __('dpc.employee_details.cr.duplicate_undertaking') }}
+                        </label>
+                        @error('cr_undertaking')<div class="text-danger small">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="mt-2 d-flex gap-2">
+                        <button class="btn btn-success btn-sm">{{ __('dpc.employee_details.cr.save_year') }}</button>
+                        @if ($editCr)
+                            <a class="btn btn-outline-secondary btn-sm" data-ajax-link href="{{ route('dpc-proposals.employees.show', [$proposal, $row]) }}#section-cr">{{ __('ui.cancel') }}</a>
+                        @endif
+                    </div>
+                </form>
+                @endif
 
-                    <form method="POST" enctype="multipart/form-data" action="{{ route('dpc-proposals.employees.documents.store', [$proposal, $row]) }}" class="border rounded p-2 row g-2 align-items-end">
+                {{-- The CR channel undertaking: once for the employee, not per CR (2026-11-14);
+                     the document and both confirmations are mandatory. --}}
+                @if ($anyCrPutUp)
+                    <form method="POST" enctype="multipart/form-data" action="{{ route('dpc-proposals.employees.documents.store', [$proposal, $row]) }}" class="border rounded p-2 row g-2 align-items-end" id="cr-channel" data-ajax-section>
                         @csrf
                         <input type="hidden" name="kind" value="cr_channel">
                         <h3 class="h6 col-12 mb-0">{{ __('dpc.employee_details.cr.channel_heading') }}</h3>
@@ -452,9 +493,10 @@
                                 {{ __('dpc.employee_details.cr.channel_undertaking') }}
                             </label>
                         </div>
-                        <div class="col-12"><button class="btn btn-outline-primary btn-sm">{{ __('dpc.employee_details.documents.upload') }}</button></div>
+                        <div class="col-12"><button class="btn btn-outline-primary btn-sm">{{ ($channel ?? null) ? __('dpc.employee_details.documents.replace') : __('dpc.employee_details.documents.upload') }}</button></div>
                     </form>
                 @endif
+                <div class="mt-2">@include('dpc-proposals.employees.partials.save-buttons', ['next' => $nextSection('cr'), 'only' => 'next'])</div>
             @endif
         </div>
     </div>
@@ -488,7 +530,7 @@
                                     <td colspan="6" class="small text-muted">{{ __('dpc.employee_details.property.not_recorded') }}</td>
                                     <td class="text-end text-nowrap">
                                         @if ($canEdit)
-                                            <a class="btn btn-outline-success btn-sm" href="{{ route('dpc-proposals.employees.show', [$proposal, $row, 'property_year' => $line['year']]) }}#property-form">{{ __('dpc.employee_details.property.record') }}</a>
+                                            <a class="btn btn-outline-success btn-sm" data-ajax-link href="{{ route('dpc-proposals.employees.show', [$proposal, $row, 'property_year' => $line['year']]) }}#property-form">{{ __('dpc.employee_details.property.record') }}</a>
                                         @endif
                                     </td>
                                 </tr>
@@ -520,8 +562,8 @@
                                 </td>
                                 <td class="text-end text-nowrap">
                                     @if ($canEdit)
-                                        <a class="btn btn-outline-primary btn-sm" href="{{ route('dpc-proposals.employees.show', [$proposal, $row, 'property_year' => $property->year]) }}#section-property">{{ __('ui.edit') }}</a>
-                                        <form method="POST" class="d-inline" action="{{ route('dpc-proposals.employees.property.remove', [$proposal, $row, $property->year]) }}"
+                                        <a class="btn btn-outline-primary btn-sm" data-ajax-link href="{{ route('dpc-proposals.employees.show', [$proposal, $row, 'property_year' => $property->year]) }}#property-form">{{ __('ui.edit') }}</a>
+                                        <form method="POST" class="d-inline" data-ajax-section action="{{ route('dpc-proposals.employees.property.remove', [$proposal, $row, $property->year]) }}"
                                               data-confirm="{{ __('dpc.employee_details.remove_year_confirm', ['year' => $property->year]) }}">
                                             @csrf @method('DELETE')
                                             <button class="btn btn-outline-danger btn-sm">{{ __('dpc.employee_details.remove') }}</button>
@@ -534,15 +576,28 @@
                 </table>
             </div>
 
+            @php
+                // The last five years offered, without those already saved; once all are saved
+                // the form is not shown — a saved year is changed with its Edit (2026-11-14).
+                $propertyYearOptions = $editProperty ? [$editProperty->year] : array_values(array_diff(array_reverse($propertyWindow), $propertyYears->pluck('year')->all()));
+            @endphp
+            @if ($canEdit && $propertyYearOptions === [])
+                <p class="small text-success mb-3" id="property-years-complete">{{ __('dpc.employee_details.property.years_complete') }}</p>
+            @endif
             @if ($canEdit)
-                <form method="POST" action="{{ route('dpc-proposals.employees.property.save', [$proposal, $row]) }}" class="border rounded p-2 mb-3" enctype="multipart/form-data" data-employee-property-form id="property-form">
+                @if ($propertyYearOptions !== [])
+                <form method="POST" action="{{ route('dpc-proposals.employees.property.save', [$proposal, $row]) }}" class="border rounded p-2 mb-3" enctype="multipart/form-data" data-employee-property-form data-ajax-section id="property-form">
                     @csrf
                     <h3 class="h6">{{ $editProperty ? __('dpc.employee_details.property.edit_year', ['year' => $editProperty->year]) : __('dpc.employee_details.property.add_year') }}</h3>
                     <div class="row g-2">
                         <div class="col-md-2">
                             <label class="form-label small" for="property-year">{{ __('ui.year') }}</label>
-                            <input type="number" class="form-control form-control-sm" id="property-year" name="year" required min="{{ config('dpc.evaluation.min_year') }}" max="{{ $latestYear }}"
-                                   value="{{ old('year', $editProperty?->year ?? $addPropertyYear) }}" @if ($editProperty) readonly @endif>
+                            <select class="form-select form-select-sm" id="property-year" name="year" required @if ($editProperty) data-locked @endif>
+                                @unless ($editProperty)<option value="">{{ __('dpc.employee_details.cr.select_year') }}</option>@endunless
+                                @foreach ($propertyYearOptions as $option)
+                                    <option value="{{ $option }}" @selected((int) old('year', $editProperty?->year ?? $addPropertyYear) === $option)>{{ $option }}</option>
+                                @endforeach
+                            </select>
                         </div>
                         <div class="col-md-3">
                             <span class="form-label small d-block">{{ __('dpc.employee_details.property.q_submitted') }}</span>
@@ -563,7 +618,9 @@
                             <input type="date" class="form-control form-control-sm" id="next_increment_date" name="next_increment_date" value="{{ old('next_increment_date', $editProperty?->next_increment_date?->format('Y-m-d')) }}">
                             <div class="form-text">{{ __('dpc.employee_details.property.next_increment_help') }}</div>
                         </div>
-                        <div class="col-md-4" data-show-when="submitted=1">
+                        {{-- Asked only for a return submitted after 31 January of its own year — the 2025
+                             return after 31 January 2025 (2026-11-14). --}}
+                        <div class="col-md-4" data-show-when="submitted=1" data-show-if-late>
                             <label class="form-label small" for="late_decision">{{ __('dpc.employee_details.property.late_decision') }}</label>
                             <select class="form-select form-select-sm" id="late_decision" name="late_decision">
                                 <option value="">—</option>
@@ -573,57 +630,45 @@
                             </select>
                             <div class="form-text">{{ __('dpc.employee_details.property.late_help') }}</div>
                         </div>
-                        <div class="col-md-8" data-show-when="submitted=1">
+                        <div class="col-md-8" data-show-when="submitted=1" data-show-if-late>
                             <label class="form-label small" for="late_decision_remarks">{{ __('dpc.employee_details.property.late_reason') }}</label>
                             <input class="form-control form-control-sm" id="late_decision_remarks" name="late_decision_remarks" value="{{ old('late_decision_remarks', $editProperty?->late_decision_remarks) }}">
                         </div>
+                        {{-- The department's decision document, with the year — no separate upload (2026-11-14). --}}
+                        <div class="col-md-8" data-show-when="submitted=1" data-show-if-late data-property-late-document>
+                            <label class="form-label small" for="late-document">{{ __('dpc.employee_details.property.late_upload_heading') }}</label>
+                            @if ($editProperty && ($currentLate = $docFor('property_late_decision', $editProperty->year)))
+                                <div class="small mb-1">@include('dpc-proposals.employees.partials.uploaded-document', ['document' => $currentLate])</div>
+                            @endif
+                            <input type="file" accept="application/pdf" class="form-control form-control-sm @error('late_document') is-invalid @enderror" id="late-document" name="late_document">
+                            @error('late_document')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
                     </div>
                     @include('dpc-proposals.employees.partials.missing-record', ['when' => 'submitted=0', 'years' => $propertyRuleYears, 'justified' => $propertyGapYears, 'prefix' => 'property', 'reasons' => $reasons])
-                    <button class="btn btn-success btn-sm mt-2">{{ __('dpc.employee_details.property.save_year') }}</button>
+                    {{-- The return itself, uploaded with its year — no separate upload (2026-11-14). --}}
+                    <div class="border rounded p-2 mt-2 bg-body-tertiary" data-show-when="submitted=1" data-property-document>
+                        <label class="form-label small fw-semibold" for="property-document">{{ __('dpc.employee_details.property.document_upload') }}</label>
+                        @if ($editProperty && ($currentReturn = $docFor('property_return', $editProperty->year)))
+                            <div class="small mb-1">@include('dpc-proposals.employees.partials.uploaded-document', ['document' => $currentReturn])</div>
+                        @endif
+                        <input type="file" accept="application/pdf" class="form-control form-control-sm @error('property_document') is-invalid @enderror" id="property-document" name="property_document" @unless ($editProperty && $docFor('property_return', $editProperty->year)) data-required-when-shown @endunless>
+                        @error('property_document')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        <label class="form-check small mt-1">
+                            <input class="form-check-input @error('property_verified') is-invalid @enderror" type="checkbox" name="property_verified" value="1" @checked(old('property_verified')) @unless ($editProperty && $docFor('property_return', $editProperty->year)) data-required-when-shown @endunless>
+                            {{ __('dpc.employee_details.verification.ao_confirm') }}
+                        </label>
+                        @error('property_verified')<div class="text-danger small">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="mt-2 d-flex gap-2">
+                        <button class="btn btn-success btn-sm">{{ __('dpc.employee_details.property.save_year') }}</button>
+                        @if ($editProperty)
+                            <a class="btn btn-outline-secondary btn-sm" data-ajax-link href="{{ route('dpc-proposals.employees.show', [$proposal, $row]) }}#section-property">{{ __('ui.cancel') }}</a>
+                        @endif
+                    </div>
                 </form>
-
-                @if ($propertyYears->isNotEmpty())
-                    <form method="POST" enctype="multipart/form-data" action="{{ route('dpc-proposals.employees.documents.store', [$proposal, $row]) }}" class="border rounded p-2 row g-2 align-items-end">
-                        @csrf
-                        <h3 class="h6 col-12 mb-0">{{ __('dpc.employee_details.property.upload_heading') }}</h3>
-                        <div class="col-md-3">
-                            <label class="form-label small" for="property-doc-kind">{{ __('dpc.employee_details.documents.kind') }}</label>
-                            <input type="hidden" name="kind" value="{{ \App\Domain\Dpc\Enums\EvaluationDocumentKind::PropertyReturn->value }}">
-                            <input type="text" readonly class="form-control-plaintext form-control-sm" id="property-doc-kind" value="{{ \App\Domain\Dpc\Enums\EvaluationDocumentKind::PropertyReturn->label() }}">
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label small" for="property-doc-year">{{ __('ui.year') }}</label>
-                            <select class="form-select form-select-sm" id="property-doc-year" name="year" required>
-                                @foreach ($propertyYears as $property)<option value="{{ $property->year }}">{{ $property->year }}</option>@endforeach
-                            </select>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label small" for="property-doc-file">{{ __('dpc.employee_details.documents.file') }}</label>
-                            <input type="file" accept="application/pdf" class="form-control form-control-sm" id="property-doc-file" name="document" required><label class="form-check small mt-1"><input class="form-check-input" type="checkbox" name="verified" value="1" required> {{ __('dpc.employee_details.verification.ao_confirm') }}</label>
-                        </div>
-                        <div class="col-md-3"><button class="btn btn-outline-primary btn-sm w-100">{{ __('dpc.employee_details.documents.upload') }}</button></div>
-                    </form>
                 @endif
 
-                {{-- Upload Late Property Return Document: only the years found late (MoM of 12 November 2026). --}}
-                @if ($lateYears->isNotEmpty())
-                    <form method="POST" enctype="multipart/form-data" action="{{ route('dpc-proposals.employees.documents.store', [$proposal, $row]) }}" class="border rounded p-2 row g-2 align-items-end mt-2" id="property-late-upload">
-                        @csrf
-                        <h3 class="h6 col-12 mb-0">{{ __('dpc.employee_details.property.late_upload_heading') }}</h3>
-                        <input type="hidden" name="kind" value="{{ \App\Domain\Dpc\Enums\EvaluationDocumentKind::PropertyLateDecision->value }}">
-                        <div class="col-md-3">
-                            <label class="form-label small" for="property-late-year">{{ __('dpc.employee_details.property.late_year') }}</label>
-                            <select class="form-select form-select-sm" id="property-late-year" name="year" required>
-                                @foreach ($lateYears as $lateYear)<option value="{{ $lateYear }}">{{ $lateYear }}</option>@endforeach
-                            </select>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label small" for="property-late-file">{{ __('dpc.employee_details.documents.file') }}</label>
-                            <input type="file" accept="application/pdf" class="form-control form-control-sm" id="property-late-file" name="document" required><label class="form-check small mt-1"><input class="form-check-input" type="checkbox" name="verified" value="1" required> {{ __('dpc.employee_details.verification.ao_confirm') }}</label>
-                        </div>
-                        <div class="col-md-3"><button class="btn btn-outline-primary btn-sm w-100">{{ __('dpc.employee_details.documents.upload') }}</button></div>
-                    </form>
-                @endif
+                <div>@include('dpc-proposals.employees.partials.save-buttons', ['next' => $nextSection('property'), 'only' => 'next'])</div>
             @endif
         </div>
     </div>
@@ -695,7 +740,7 @@
             @endif
 
             @if ($canEdit)
-                <form method="POST" action="{{ route('dpc-proposals.employees.ph', [$proposal, $row]) }}" class="border rounded p-2 mb-3" data-employee-ph-form
+                <form method="POST" action="{{ route('dpc-proposals.employees.ph', [$proposal, $row]) }}" class="border rounded p-2 mb-3" data-employee-ph-form data-ajax-section
                       @if (! $errors->any() && $row->is_ph !== null) data-saved-lock data-label-edit="{{ __('ui.edit') }}" data-label-cancel="{{ __('ui.cancel') }}" data-label-saved="{{ __('ui.saved_entry') }}" @endif>
                     @csrf @method('PUT')
                     <div class="mb-2">
@@ -746,7 +791,7 @@
                         @endforeach
                         <div class="form-text">{{ __('dpc.employee_details.ph.q3_help') }}</div>
                     </div>
-                    <button class="btn btn-success btn-sm">{{ __('dpc.employee_details.save_section') }}</button>
+                    @include('dpc-proposals.employees.partials.save-buttons', ['next' => $nextSection('ph')])
                 </form>
             @endif
 
@@ -764,7 +809,7 @@
                         <p class="small mb-2"><span class="badge text-bg-danger">{{ __('dpc.employee_details.missing.ph_undertaking') }}</span></p>
                     @endif
                     @if ($canEdit)
-                        <form method="POST" enctype="multipart/form-data" action="{{ route('dpc-proposals.employees.documents.store', [$proposal, $row]) }}" class="row g-2 align-items-end">
+                        <form method="POST" enctype="multipart/form-data" action="{{ route('dpc-proposals.employees.documents.store', [$proposal, $row]) }}" class="row g-2 align-items-end" data-ajax-section>
                             @csrf
                             <input type="hidden" name="kind" value="ph_undertaking">
                             <div class="col-md-6">
@@ -794,6 +839,13 @@
             @error('vigilance')<div class="alert alert-danger py-2">{{ $message }}</div>@enderror
 
             <dl class="row small mb-2" id="vigilance-outcome">
+                @foreach (['enquiry_ongoing' => 'enquiry_question_short', 'punishment_effective' => 'punishment_question_short'] as $field => $labelKey)
+                    <dt class="col-sm-4">{{ __('dpc.employee_details.vigilance.'.$labelKey) }}</dt>
+                    <dd class="col-sm-8" data-vigilance-answer="{{ $field }}">
+                        {{ $row->{$field} === null ? '—' : ($row->{$field} ? __('ui.yes') : __('ui.no')) }}
+                        @if ($row->{$field})<span class="badge text-bg-danger">{{ __('dpc.employee_details.rule.status.does_not_meet') }}</span>@endif
+                    </dd>
+                @endforeach
                 <dt class="col-sm-4">{{ __('dpc.employee_details.vigilance.answer') }}</dt>
                 <dd class="col-sm-8">{{ $row->vigilance_pending === null ? '—' : ($row->vigilance_pending ? __('ui.yes') : __('ui.no')) }}</dd>
                 @if ($row->vigilance_pending && $row->sealedCoverReason)
@@ -809,9 +861,41 @@
             </dl>
 
             @if ($canEdit)
-                <form method="POST" action="{{ route('dpc-proposals.employees.vigilance', [$proposal, $row]) }}" class="border rounded p-2 mb-3"
-                      @if (! $errors->any() && $row->vigilance_pending !== null) data-saved-lock data-label-edit="{{ __('ui.edit') }}" data-label-cancel="{{ __('ui.cancel') }}" data-label-saved="{{ __('ui.saved_entry') }}" @endif>
+                <form method="POST" action="{{ route('dpc-proposals.employees.vigilance', [$proposal, $row]) }}" class="border rounded p-2 mb-3" enctype="multipart/form-data" data-ajax-section id="vigilance-form"
+                      @if (! $errors->any() && $row->vigilance_pending !== null && $row->enquiry_ongoing !== null) data-saved-lock data-label-edit="{{ __('ui.edit') }}" data-label-cancel="{{ __('ui.cancel') }}" data-label-saved="{{ __('ui.saved_entry') }}" @endif>
                     @csrf @method('PUT')
+                    {{-- The two questions of 2026-11-14, for the DPC's period; each answered with its
+                         document, Yes or No. A Yes makes the officer Unfit. --}}
+                    @php
+                        $period = ['from' => $enquiryPeriod['from']->format('d-m-Y'), 'to' => $enquiryPeriod['to']->format('d-m-Y')];
+                    @endphp
+                    @foreach (['enquiry_ongoing' => ['enquiry_question', 'enquiry_document'], 'punishment_effective' => ['punishment_question', 'punishment_document']] as $field => [$questionKey, $documentKind])
+                        <div class="border rounded p-2 mb-2" data-unfit-question="{{ $field }}">
+                            <span class="form-label small d-block fw-semibold">{{ $loop->iteration }}. {{ __('dpc.employee_details.vigilance.'.$questionKey, $period) }}</span>
+                            @foreach ([1 => __('ui.yes'), 0 => __('ui.no')] as $value => $label)
+                                <label class="form-check form-check-inline small">
+                                    <input class="form-check-input" type="radio" name="{{ $field }}" value="{{ $value }}" required
+                                           @checked((string) old($field, $row->{$field} === null ? '' : (int) $row->{$field}) === (string) $value)>
+                                    {{ $label }}
+                                </label>
+                            @endforeach
+                            @error($field)<div class="text-danger small">{{ $message }}</div>@enderror
+                            <div class="form-text">{{ __('dpc.employee_details.vigilance.unfit_help') }}</div>
+                            <div class="mt-1">
+                                <label class="form-label small" for="{{ $documentKind }}">{{ __('dpc.employee_details.documents.kinds.'.$documentKind) }}</label>
+                                @if ($existingDocument = $docFor($documentKind))
+                                    <div class="small mb-1">@include('dpc-proposals.employees.partials.uploaded-document', ['document' => $existingDocument])</div>
+                                @endif
+                                <input type="file" accept="application/pdf" class="form-control form-control-sm @error($documentKind) is-invalid @enderror" id="{{ $documentKind }}" name="{{ $documentKind }}" @unless ($existingDocument) required @endunless>
+                                @error($documentKind)<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+                        </div>
+                    @endforeach
+                    <label class="form-check small mb-2">
+                        <input class="form-check-input @error('vigilance_verified') is-invalid @enderror" type="checkbox" name="vigilance_verified" value="1" @checked(old('vigilance_verified')) @unless ($docFor('enquiry_document') && $docFor('punishment_document')) required @endunless>
+                        {{ __('dpc.employee_details.verification.ao_confirm') }}
+                    </label>
+                    @error('vigilance_verified')<div class="text-danger small">{{ $message }}</div>@enderror
                     <div class="mb-2">
                         <span class="form-label small d-block">{{ __('dpc.employee_details.vigilance.question') }}</span>
                         @foreach ([1 => __('ui.yes'), 0 => __('ui.no')] as $value => $label)
@@ -846,7 +930,7 @@
                             <textarea class="form-control form-control-sm" id="vigilance_remarks" name="vigilance_remarks" rows="2" maxlength="2000">{{ old('vigilance_remarks', $row->vigilance_remarks) }}</textarea>
                         </div>
                     </div>
-                    <button class="btn btn-success btn-sm">{{ __('dpc.employee_details.save_section') }}</button>
+                    @include('dpc-proposals.employees.partials.save-buttons', ['next' => $nextSection('vigilance')])
                 </form>
             @endif
 
@@ -863,7 +947,7 @@
                         <p class="small mb-2"><span class="badge text-bg-danger">{{ __('dpc.employee_details.missing.vigilance_order') }}</span></p>
                     @endif
                     @if ($canEdit)
-                        <form method="POST" enctype="multipart/form-data" action="{{ route('dpc-proposals.employees.documents.store', [$proposal, $row]) }}" class="row g-2 align-items-end">
+                        <form method="POST" enctype="multipart/form-data" action="{{ route('dpc-proposals.employees.documents.store', [$proposal, $row]) }}" class="row g-2 align-items-end" data-ajax-section>
                             @csrf
                             <input type="hidden" name="kind" value="vigilance_order">
                             <div class="col-md-6">
@@ -887,7 +971,7 @@
             @endif
 
             @if ($canEdit)
-                <form method="POST" action="{{ route('dpc-proposals.employees.declarations', [$proposal, $row]) }}" class="border rounded p-2 mb-3"
+                <form method="POST" action="{{ route('dpc-proposals.employees.declarations', [$proposal, $row]) }}" class="border rounded p-2 mb-3" data-ajax-section
                       @if (! $errors->any() && $row->unsanctioned_deputation !== null) data-saved-lock data-label-edit="{{ __('ui.edit') }}" data-label-cancel="{{ __('ui.cancel') }}" data-label-saved="{{ __('ui.saved_entry') }}" @endif>
                     @csrf @method('PUT')
                     <div class="mb-2">
@@ -916,7 +1000,7 @@
                                min="1950" max="{{ $latestYear }}" value="{{ old('refused_promotion_year', $row->refused_promotion_year) }}">
                         @error('refused_promotion_year')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
-                    <button class="btn btn-success btn-sm">{{ __('dpc.employee_details.save_section') }}</button>
+                    @include('dpc-proposals.employees.partials.save-buttons', ['next' => $nextSection('declarations')])
                 </form>
             @endif
 
@@ -939,7 +1023,7 @@
                         <p class="small mb-2"><span class="badge text-bg-danger">{{ __('dpc.employee_details.declarations.document_missing') }}</span></p>
                     @endif
                     @if ($canEdit)
-                        <form method="POST" enctype="multipart/form-data" action="{{ route('dpc-proposals.employees.documents.store', [$proposal, $row]) }}" class="row g-2 align-items-end">
+                        <form method="POST" enctype="multipart/form-data" action="{{ route('dpc-proposals.employees.documents.store', [$proposal, $row]) }}" class="row g-2 align-items-end" data-ajax-section>
                             @csrf
                             <input type="hidden" name="kind" value="{{ $declarationKind }}">
                             <div class="col-md-6">
@@ -1012,7 +1096,7 @@
             @endif
 
             @if ($canEdit)
-                <form method="POST" enctype="multipart/form-data" action="{{ route('dpc-proposals.employees.documents.store', [$proposal, $row]) }}" class="border rounded p-2 row g-2 align-items-end">
+                <form method="POST" enctype="multipart/form-data" action="{{ route('dpc-proposals.employees.documents.store', [$proposal, $row]) }}" class="border rounded p-2 row g-2 align-items-end" data-ajax-section>
                     @csrf
                     <input type="hidden" name="kind" value="other">
                     <h3 class="h6 col-12 mb-0">{{ __('dpc.employee_details.documents.other_heading') }}</h3>
@@ -1031,9 +1115,11 @@
     </div>
 
     <a href="{{ route('dpc-proposals.employees.index', $proposal) }}" class="btn btn-outline-secondary">{{ __('dpc.employee_details.back_to_list') }}</a>
+    </div>
 @endsection
 
 @push('scripts')
     <script src="@versioned('js/forms/dpc-employee-details.js')" defer></script>
     <script src="@versioned('js/forms/cr-reports.js')" defer></script>
+    <script src="@versioned('js/forms/dpc-employee-ajax.js')" defer></script>
 @endpush

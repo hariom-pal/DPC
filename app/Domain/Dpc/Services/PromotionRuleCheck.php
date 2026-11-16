@@ -58,8 +58,12 @@ final class PromotionRuleCheck
         // One proposal's candidates share the rule and the points; a list asks once.
         $rule = $this->rules->ruleForProposal($proposal);
 
+        // The employee details' Unfit grounds (2026-11-14) make the officer Unfit whatever the rule says.
+        $unfit = $row->unfitReasons();
+
         if ($rule === null) {
-            return ['rule' => null, 'status' => 'no_rule', 'years' => [], 'total' => null, 'required_total' => null, 'holds' => [], 'findings' => [
+            return ['rule' => null, 'status' => $unfit !== [] ? 'does_not_meet' : 'no_rule', 'years' => [], 'total' => null, 'required_total' => null, 'holds' => [], 'findings' => [
+                ...$unfit,
                 (string) __('dpc.employee_details.rule.no_rule', ['from' => $from ?? '—', 'to' => $to ?? '—', 'year' => $year]),
             ]];
         }
@@ -67,7 +71,7 @@ final class PromotionRuleCheck
         $row->loadMissing(['crGrades', 'propertyFlags', 'loyaltyFlags']);
         $points = $this->pointsCache[$year] ??= $this->rules->pointsForYear($year);
         $byYear = $rule->years->keyBy('years_before');
-        $findings = [];
+        $findings = $unfit;
         $holds = [];
         $years = [];
 
@@ -87,7 +91,10 @@ final class PromotionRuleCheck
             if ($crRequired && $yearPoints === null) {
                 $crOk = false;
                 // Missing and justified: CIR, as the calculation holds it (2026-11-05).
-                if ($this->justified($row, DpcEvaluationRecordGap::KIND_CR, $calendar)) {
+                // A reason that makes the officer Unfit is already among the findings: not CIR (2026-11-15).
+                if ($this->unfitGap($row, DpcEvaluationRecordGap::KIND_CR, $calendar)) {
+                    // nothing held
+                } elseif ($this->justified($row, DpcEvaluationRecordGap::KIND_CR, $calendar)) {
                     $holds[] = (string) __('dpc.employee_details.rule.cr_cir', ['year' => $calendar]);
                 } else {
                     $findings[] = (string) __('dpc.employee_details.rule.cr_missing', ['year' => $calendar]);
@@ -101,7 +108,9 @@ final class PromotionRuleCheck
             $propertyOk = ! $propertyRequired || $row->propertyFlags->firstWhere('year', $calendar)?->flag === true;
 
             if (! $propertyOk) {
-                if ($this->justified($row, DpcEvaluationRecordGap::KIND_PROPERTY, $calendar)) {
+                if ($this->unfitGap($row, DpcEvaluationRecordGap::KIND_PROPERTY, $calendar)) {
+                    // nothing held: the officer is Unfit
+                } elseif ($this->justified($row, DpcEvaluationRecordGap::KIND_PROPERTY, $calendar)) {
                     $holds[] = (string) __('dpc.employee_details.rule.property_cir', ['year' => $calendar]);
                 } else {
                     $findings[] = (string) __('dpc.employee_details.rule.property_missing', ['year' => $calendar]);
@@ -157,6 +166,14 @@ final class PromotionRuleCheck
     }
 
     /** A mandatory record missing with its reason and document (rule 3.2). */
+    /** A gap whose reason makes the officer Unfit ("appointed in this year"). */
+    private function unfitGap(DpcEvaluationRow $row, string $kind, int $year): bool
+    {
+        return $row->recordGaps->contains(
+            fn (DpcEvaluationRecordGap $gap): bool => $gap->kind === $kind && $gap->year === $year && $gap->reason?->makes_unfit === true,
+        );
+    }
+
     private function justified(DpcEvaluationRow $row, string $kind, int $year): bool
     {
         return $row->recordGaps->contains(

@@ -9,7 +9,8 @@
 (function () {
     'use strict';
 
-    document.querySelectorAll('[data-cr-reports]').forEach(function (box) {
+    function init(root) {
+    root.querySelectorAll('[data-cr-reports]').forEach(function (box) {
         var count = box.querySelector('[data-cr-count]');
         var nrc = box.querySelector('[data-cr-nrc]');
         if (!count) { return; }
@@ -37,4 +38,8 @@
         box.addEventListener('change', sync);
         sync();
     });
+    }
+
+    init(document);
+    document.addEventListener('edpc:content', function (event) { init(event.detail.root); });
 })();

@@ -49,6 +49,11 @@ class DpcCompletionService
             return self::CLOSED;
         }
 
+        // With the Secretary, CGPSC: the AO/AH part is done (2026-11-14).
+        if ($proposal->status === DpcProposalStatus::PendingSecretary) {
+            return self::WITH_CGPSC;
+        }
+
         if ($proposal->status !== DpcProposalStatus::Approved) {
             return self::PENDING;
         }

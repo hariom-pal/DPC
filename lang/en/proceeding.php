@@ -39,7 +39,7 @@ return [
         'record' => 'Record',
         'chart' => 'Evaluation Chart',
         'chart_empty' => 'No evaluation data has been entered for this officer yet.',
-        'loyalty' => 'Loyalty certificate',
+        'loyalty' => 'Integrity certificate',
         'property' => 'Property return',
         'gaps' => 'Recorded gaps',
         'joined_service' => 'Joined service',

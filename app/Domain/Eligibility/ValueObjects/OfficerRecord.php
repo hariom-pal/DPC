@@ -83,6 +83,8 @@ final class OfficerRecord
         public readonly bool $phSeat = false,
         /** year => citation: a mandatory Property Return justified as missing (2026-11-05) */
         public readonly array $justifiedPropertyGapYears = [],
+        /** @var list<string> Why the employee details make the officer Unfit (2026-11-14). */
+        public readonly array $unfitReasons = [],
     ) {}
 
     /**
@@ -207,6 +209,7 @@ final class OfficerRecord
             unsanctionedDeputation: $row->unsanctioned_deputation === true,
             refusedPromotionLastYear: $row->refusedPromotionLastYear(),
             phSeat: $row->holdsVerifiedPhClaim(),
+            unfitReasons: $row->unfitReasons('en'),
         );
     }
 

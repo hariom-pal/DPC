@@ -149,6 +149,13 @@ class CandidateGateService
             $ruleFailures[] = 'Refused promotion to this post last year, so unfit for it (Coder Instructions rule 4.4).';
         }
 
+        // The employee details' Unfit grounds (2026-11-14): an Unfit Integrity answer, a
+        // CR year with no record ever (appointed in this year), a case ongoing or a
+        // punishment in effect in the DPC's period.
+        foreach ($officer->unfitReasons as $reason) {
+            $ruleFailures[] = $reason;
+        }
+
         if ($ruleFailures !== []) {
             return CandidateGateVerdict::ruleNotSatisfied($ruleFailures, $ruleFailureStatus)->with($advisories);
         }
@@ -380,7 +387,7 @@ class CandidateGateService
                 $citations[] = $citation;
             } else {
                 $unjustified[] = sprintf(
-                    'The Loyalty Certificate for %d is not recorded and carries no reason or supporting document.',
+                    'The Integrity Certificate for %d is not recorded and carries no reason or supporting document.',
                     $year,
                 );
             }
@@ -388,7 +395,7 @@ class CandidateGateService
 
         if ($missingLoyalty !== [] && $unjustified === []) {
             $reasons[] = sprintf(
-                'The Loyalty Certificate is unavailable for %s and has been justified, so the promotion is held '
+                'The Integrity Certificate is unavailable for %s and has been justified, so the promotion is held '
                 .'rather than refused.',
                 implode(', ', $missingLoyalty),
             );

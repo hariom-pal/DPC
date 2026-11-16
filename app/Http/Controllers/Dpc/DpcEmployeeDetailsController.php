@@ -20,6 +20,7 @@ use App\Domain\Dpc\Requests\VerifyPhClaimRequest;
 use App\Domain\Dpc\Services\EmployeeDetailsService;
 use App\Domain\Dpc\Services\PromotionRuleCheck;
 use App\Domain\Dpc\Services\RecordGapService;
+use App\Domain\Master\Models\IntegrityOption;
 use App\Domain\Master\Models\RecordReason;
 use App\Domain\Master\Models\ReservationCategory;
 use App\Domain\Master\Models\SealedCoverReason;
@@ -83,7 +84,7 @@ class DpcEmployeeDetailsController extends Controller
         $this->assertRowBelongsToProposal($dpcProposal, $evaluationRow);
 
         $evaluationRow->load([
-            'crGrades', 'propertyFlags', 'recordGaps.reason', 'reservationCategory',
+            'crGrades.integrityOption', 'propertyFlags', 'recordGaps.reason', 'reservationCategory',
             'documents.uploader', 'currentDocuments',
         ]);
 
@@ -115,6 +116,11 @@ class DpcEmployeeDetailsController extends Controller
             // The years a missing Property Return needs its reason and document (2026-11-05).
             'propertyRuleYears' => $this->details->rulePropertyYears($evaluationRow),
             'sealedCoverReasons' => SealedCoverReason::query()->selectable()->get(),
+            // 2026-11-14: Integrity beside the grade; the CR and Property Return year windows; the enquiry period.
+            'integrityOptions' => IntegrityOption::query()->selectable()->get(),
+            'crYearWindow' => $this->details->crYearWindow($evaluationRow),
+            'propertyYearWindow' => $this->details->propertyYearWindow($evaluationRow),
+            'enquiryPeriod' => $this->details->enquiryPeriod($dpcProposal),
             'requiredCrCount' => (int) config('dpc.merit.required_cr_count', 5),
             'propertyYearsRequired' => (int) config('dpc.merit.property_return_years', 5),
             'phApplies' => $this->details->phApplies($dpcProposal),
@@ -135,6 +141,12 @@ class DpcEmployeeDetailsController extends Controller
         return $this->write($request, $dpcProposal, $evaluationRow, 'cr', function () use ($request, $evaluationRow): void {
             DB::transaction(function () use ($request, $evaluationRow): void {
                 $this->details->saveCrYear($evaluationRow, $request->integer('year'), $request->validated(), $request->user(), $request->file('nrc'));
+                if ($request->hasFile('cr_document')) {
+                    $this->details->uploadCrWithYear($evaluationRow, $request->integer('year'), $request->file('cr_document'), $request->boolean('cr_undertaking'), $request->boolean('cr_verified'), $request->user());
+                }
+                if ($request->hasFile('nrc')) {
+                    $this->details->assertNrcHasItsCr($evaluationRow, $request->integer('year'));
+                }
                 $this->recordMissing($request, $evaluationRow, DpcEvaluationRecordGap::KIND_CR);
             });
         });
@@ -152,6 +164,14 @@ class DpcEmployeeDetailsController extends Controller
         return $this->write($request, $dpcProposal, $evaluationRow, 'property', function () use ($request, $evaluationRow): void {
             DB::transaction(function () use ($request, $evaluationRow): void {
                 $this->details->savePropertyYear($evaluationRow, $request->integer('year'), $request->validated(), $request->user());
+                if ($request->hasFile('property_document') && $request->boolean('submitted')) {
+                    $this->details->upload($evaluationRow, EvaluationDocumentKind::PropertyReturn, $request->integer('year'), $request->file('property_document'), false, null, $request->user(), $request->boolean('property_verified'));
+                }
+                // The department's decision on a late return, with the year (2026-11-14).
+                $saved = $evaluationRow->propertyFlags()->where('year', $request->integer('year'))->first();
+                if ($request->hasFile('late_document') && $saved?->isLate() === true) {
+                    $this->details->upload($evaluationRow, EvaluationDocumentKind::PropertyLateDecision, $request->integer('year'), $request->file('late_document'), false, null, $request->user(), $request->boolean('property_verified'));
+                }
                 $this->recordMissing($request, $evaluationRow, DpcEvaluationRecordGap::KIND_PROPERTY);
             });
         });
@@ -174,7 +194,15 @@ class DpcEmployeeDetailsController extends Controller
     public function saveVigilance(SaveEmployeeVigilanceRequest $request, DpcProposal $dpcProposal, DpcEvaluationRow $evaluationRow): RedirectResponse
     {
         return $this->write($request, $dpcProposal, $evaluationRow, 'vigilance', function () use ($request, $evaluationRow): void {
-            $this->details->saveVigilance($evaluationRow, $request->validated(), $request->user());
+            DB::transaction(function () use ($request, $evaluationRow): void {
+                $this->details->saveVigilance($evaluationRow, $request->validated(), $request->user());
+                // Each answer's document, uploaded with it (2026-11-14).
+                foreach (['enquiry_document' => EvaluationDocumentKind::EnquiryDocument, 'punishment_document' => EvaluationDocumentKind::PunishmentDocument] as $field => $kind) {
+                    if ($request->hasFile($field)) {
+                        $this->details->upload($evaluationRow, $kind, null, $request->file($field), false, null, $request->user(), $request->boolean('vigilance_verified'));
+                    }
+                }
+            });
         });
     }
 
@@ -193,7 +221,8 @@ class DpcEmployeeDetailsController extends Controller
             EvaluationDocumentKind::CrNrc, EvaluationDocumentKind::CrChannel => 'cr',
             EvaluationDocumentKind::PropertyReturn, EvaluationDocumentKind::PropertyLateDecision => 'property',
             EvaluationDocumentKind::PhUndertaking => 'ph',
-            EvaluationDocumentKind::VigilanceOrder => 'vigilance',
+            EvaluationDocumentKind::VigilanceOrder, EvaluationDocumentKind::EnquiryDocument,
+            EvaluationDocumentKind::PunishmentDocument => 'vigilance',
             EvaluationDocumentKind::DeputationOrder, EvaluationDocumentKind::RefusalLetter,
             EvaluationDocumentKind::RefusalDpcOrder => 'declarations',
             EvaluationDocumentKind::Other => 'documents',
@@ -286,6 +315,12 @@ class DpcEmployeeDetailsController extends Controller
             return $back->withInput()->withErrors([$section => $e->getMessage()]);
         }
 
+        // "Save & Next" (2026-11-14): saved, the officer lands on the next section.
+        $next = (string) $request->input('_next', '');
+        if (in_array($next, ['basic', 'cr', 'property', 'ph', 'vigilance', 'declarations', 'documents'], true)) {
+            $back = redirect()->to(route('dpc-proposals.employees.show', [$proposal, $row]).'#section-'.$next);
+        }
+
         return $back->with('status', __('dpc.employee_details.saved'));
     }
 
@@ -298,7 +333,8 @@ class DpcEmployeeDetailsController extends Controller
         $reason = RecordReason::query()->find($request->input('missing_reason_id'));
         $document = $request->file('missing_document');
 
-        if ($reason === null || ! $document instanceof UploadedFile) {
+        // A reason that makes the officer Unfit (appointed in this year) needs no document (2026-11-14).
+        if ($reason === null || (! $document instanceof UploadedFile && ! $reason->makes_unfit)) {
             return;
         }
 
@@ -307,7 +343,7 @@ class DpcEmployeeDetailsController extends Controller
         app(RecordGapService::class)->record(
             $row, $kind, $request->integer('year'), $reason,
             $request->filled('missing_remarks') ? (string) $request->input('missing_remarks') : null,
-            $document, $request->user(), $second instanceof UploadedFile ? $second : null,
+            $document instanceof UploadedFile ? $document : null, $request->user(), $second instanceof UploadedFile ? $second : null,
         );
     }
 

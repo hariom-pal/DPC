@@ -102,9 +102,9 @@ class SelfInspectionAccessGuard
     private function constrainProposal(Builder $query): Builder
     {
         /** @var list<string> $statuses */
-        $statuses = (array) config('dpc.self_inspection.visible_proposal_statuses', ['submitted', 'approved']);
+        $statuses = (array) config('dpc.self_inspection.visible_proposal_statuses', ['submitted', 'pending_secretary', 'approved']);
 
-        $query->whereIn('status', $statuses === [] ? ['submitted', 'approved'] : $statuses);
+        $query->whereIn('status', $statuses === [] ? ['submitted', 'pending_secretary', 'approved'] : $statuses);
 
         if ((bool) config('dpc.self_inspection.close_after_result', true)) {
             // A subquery rather than `whereDoesntHave('proceedings')`, because

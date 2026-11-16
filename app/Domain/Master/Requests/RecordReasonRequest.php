@@ -39,7 +39,7 @@ class RecordReasonRequest extends FormRequest
      */
     protected function prepareForValidation(): void
     {
-        $this->merge(['requires_remarks' => $this->boolean('requires_remarks')]);
+        $this->merge(['requires_remarks' => $this->boolean('requires_remarks'), 'makes_unfit' => $this->boolean('makes_unfit')]);
     }
 
     /**
@@ -54,6 +54,8 @@ class RecordReasonRequest extends FormRequest
             'name_en' => ['required', 'string', 'max:255'],
             'name_hi' => ['required', 'string', 'max:255'],
             'requires_remarks' => ['required', 'boolean'],
+            // 2026-11-14: a reason that leaves no record ever (appointed in this year) makes the officer Unfit.
+            'makes_unfit' => ['required', 'boolean'],
             'sort_order' => ['required', 'integer', 'min:0', 'max:9999'],
             // Rule 3.2: the document(s) a gap with this reason is justified with.
             'document_label_en' => ['nullable', 'string', 'max:255'],

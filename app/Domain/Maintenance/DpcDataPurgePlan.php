@@ -59,7 +59,7 @@ final class DpcDataPurgePlan
         // Evaluation chart.
         'dpc_evaluation_rows' => 'Employee rows',
         'dpc_evaluation_cr_grades' => 'CR grades per year',
-        'dpc_evaluation_loyalty_flags' => 'Loyalty per year',
+        'dpc_evaluation_loyalty_flags' => 'Integrity per year',
         'dpc_evaluation_property_flags' => 'Property returns per year',
         'dpc_evaluation_record_gaps' => 'Missing-record justifications',
         'dpc_evaluation_documents' => 'Employee-wise documents',

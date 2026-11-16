@@ -286,7 +286,8 @@ class MeritGateTest extends TestCase
         ]])[1];
 
         foreach ([2013, 2014, 2015] as $year) {
-            $this->recordGap($row, DpcEvaluationRecordGap::KIND_CR, $year, reasonCode: 'newly_appointed');
+            // Not "appointed in this year": that reason makes the officer Unfit (2026-11-14).
+            $this->recordGap($row, DpcEvaluationRecordGap::KIND_CR, $year, reasonCode: 'record_not_available');
         }
 
         $result = $this->calculate()->results()->where('sn', 1)->firstOrFail();

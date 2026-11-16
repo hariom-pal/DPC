@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Review;
 
+use App\Domain\Authentication\Models\User;
 use App\Domain\Cgpsc\Services\AllotmentService;
 use App\Domain\Cgpsc\Services\SchedulingService;
 use App\Domain\Dpc\Enums\DpcProposalStatus;
@@ -21,6 +22,7 @@ use App\Domain\Review\Models\DpcReviewLink;
 use App\Domain\Review\Services\ReviewAwareCalculationService;
 use App\Domain\Review\Services\ReviewDpcService;
 use App\Domain\Shared\Models\ActivityTimeline;
+use App\Enums\Role;
 use Illuminate\Support\Carbon;
 use Tests\Concerns\CompletesDpcProposals;
 use Tests\Concerns\SeatsDpcCommittees;
@@ -103,6 +105,10 @@ class ReviewCalculationTest extends TestCase
 
         $service->submit($review->fresh(), $this->authorizedOfficer, request());
         $service->approve($review->fresh(), $this->administrativeHead, request());
+        // The Secretary, CGPSC forwards it to the Chairman (2026-11-14).
+        $secretary = User::factory()->create();
+        $secretary->assignRole(Role::Secretary->value);
+        $service->secretaryApprove($review->fresh(), $secretary, request());
 
         // The DPC code is minted by `approve()`, not asserted into place here.
         $review = $review->fresh();

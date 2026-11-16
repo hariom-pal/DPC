@@ -9,6 +9,7 @@ use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\Designation;
 use App\Domain\Master\Models\District;
 use App\Domain\Master\Models\DpcType;
+use App\Domain\Master\Models\IntegrityOption;
 use App\Domain\Master\Models\PayScale;
 use App\Domain\Master\Models\PhType;
 use App\Domain\Master\Models\Qualification;
@@ -174,6 +175,22 @@ final class MasterRegistry
                 unique: ['code'],
                 sample: [
                     ['code' => 'de_chargesheet', 'name_en' => 'Departmental enquiry instituted and charge-sheet issued', 'name_hi' => 'विभागीय जाँच प्रारंभ एवं आरोप-पत्र जारी', 'effect' => 'sealed_cover', 'requires_document' => '1', 'sort_order' => '10', 'status' => 'active'],
+                ],
+            ),
+
+            new MasterDefinition(
+                key: 'integrity-options',
+                label: 'Integrity Options',
+                model: IntegrityOption::class,
+                columns: [
+                    'code' => 'code', 'name_en' => 'name_en', 'name_hi' => 'name_hi', 'fit' => 'fit',
+                    'sort_order' => 'sort_order', 'status' => 'status',
+                ],
+                required: ['code', 'name_en'],
+                searchable: ['name_en', 'name_hi', 'code'],
+                unique: ['code'],
+                sample: [
+                    ['code' => 'certified_good', 'name_en' => 'Certified + No Adverse Remarks and/or Good Grade', 'name_hi' => 'प्रमाणित + कोई प्रतिकूल टिप्पणी नहीं और/या अच्छा ग्रेड', 'fit' => '1', 'sort_order' => '10', 'status' => 'active'],
                 ],
             ),
 

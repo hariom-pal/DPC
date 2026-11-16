@@ -4,6 +4,24 @@
     <h1 class="h4 mb-1">{{ __('admin.notification_gateways.smtp.title') }}</h1>
     <p class="text-muted small">{{ __('admin.notification_gateways.smtp.intro') }}</p>
 
+    {{-- Gmail (2026-11-15): Google refuses the account password over SMTP; it takes an App Password. --}}
+    <div class="card border-0 shadow-sm mb-3" data-gmail-help>
+        <div class="card-body">
+            <h2 class="h6 mb-1">{{ __('admin.notification_gateways.smtp.gmail.heading') }}</h2>
+            <p class="small text-muted mb-2">{{ __('admin.notification_gateways.smtp.gmail.intro') }}</p>
+            <ol class="small mb-3">
+                @foreach ([1, 2, 3, 4] as $step)
+                    <li>{{ __('admin.notification_gateways.smtp.gmail.step_'.$step) }}</li>
+                @endforeach
+            </ol>
+            <div class="d-flex flex-wrap gap-2">
+                <a class="btn btn-primary btn-sm" href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer" data-gmail-app-password>{{ __('admin.notification_gateways.smtp.gmail.generate') }} ↗</a>
+                <a class="btn btn-outline-secondary btn-sm" href="https://myaccount.google.com/signinoptions/twosv" target="_blank" rel="noopener noreferrer">{{ __('admin.notification_gateways.smtp.gmail.two_step') }} ↗</a>
+                <button type="button" class="btn btn-outline-primary btn-sm" data-gmail-preset>{{ __('admin.notification_gateways.smtp.gmail.fill') }}</button>
+            </div>
+        </div>
+    </div>
+
     <div class="card border-0 shadow-sm mb-3">
         <div class="card-body">
             <form method="POST" action="{{ route('admin.notification-gateways.update', 'smtp') }}" id="smtp-settings" autocomplete="off">
@@ -44,6 +62,7 @@
                                placeholder="{{ $gateway?->secret ? __('admin.notification_gateways.secret_kept') : '' }}">
                         @error('secret')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         <div class="form-text">{{ __('admin.notification_gateways.secret_help') }}</div>
+                        <div class="form-text" data-gmail-only hidden>{{ __('admin.notification_gateways.smtp.gmail.password_help') }}</div>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label" for="from_address">{{ __('admin.notification_gateways.smtp.from_address') }}</label>
@@ -62,4 +81,8 @@
     </div>
 
     @include('admin.notification-gateways._test', ['channel' => 'smtp'])
+
+    @push('scripts')
+        <script src="@versioned('js/forms/smtp-gmail.js')" defer></script>
+    @endpush
 @endsection

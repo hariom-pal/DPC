@@ -294,7 +294,7 @@ class EsignVerificationTest extends TestCase
 
         $this->esign->mode = FakeSignatureProvider::OK;
         app(DpcProposalService::class)->approve($dpc->fresh(), $this->ah, request());
-        $this->assertSame(DpcProposalStatus::Approved, $dpc->fresh()->status);
+        $this->assertSame(DpcProposalStatus::PendingSecretary, $dpc->fresh()->status);
     }
 
     // ----------------------------------------------------------------- integrity

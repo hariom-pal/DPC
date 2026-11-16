@@ -78,7 +78,7 @@ class SaveEvaluationChartRequest extends FormRequest
             $this->assertOfficersMatchTheSeniorityList($validator, $rows);
 
             foreach ($rows as $index => $row) {
-                foreach (['cr_grades' => 'CR', 'loyalty_flags' => 'Loyalty', 'property_flags' => 'Immovable Property'] as $key => $label) {
+                foreach (['cr_grades' => 'CR', 'loyalty_flags' => 'Integrity', 'property_flags' => 'Immovable Property'] as $key => $label) {
                     /** @var array<int, array<string, mixed>> $yearRows */
                     $yearRows = $row[$key] ?? [];
                     $years = array_column($yearRows, 'year');

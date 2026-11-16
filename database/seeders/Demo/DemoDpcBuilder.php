@@ -19,14 +19,17 @@ use App\Domain\Dpc\Models\VacancyPosition;
 use App\Domain\Dpc\Models\VacancyPositionSanctionedStrength;
 use App\Domain\Dpc\Services\DpcCommitteeService;
 use App\Domain\Dpc\Services\DpcProposalService;
+use App\Domain\Dpc\Services\EmployeeDetailsService;
 use App\Domain\Dpc\Services\ProposalVerificationService;
 use App\Domain\Dpc\Services\SanctionedStrengthSource;
 use App\Domain\Dpc\Services\VacancyCalculationService;
 use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\DpcType;
+use App\Domain\Master\Models\IntegrityOption;
 use App\Domain\Master\Models\RecordReason;
 use App\Domain\Master\Services\PromotionCrRules;
 use App\Domain\PreDpc\Models\PreDpcProposal;
+use App\Enums\Role;
 use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 
@@ -230,8 +233,21 @@ final class DemoDpcBuilder
             ]);
         };
 
+        $fit = IntegrityOption::query()->where('fit', true)->orderBy('sort_order')->value('id');
+
         foreach ($proposal->evaluationRows()->with(['crGrades', 'propertyFlags'])->get() as $row) {
+            // The five years before the DPC year are each mandatory (2026-11-14).
+            foreach (array_diff(app(EmployeeDetailsService::class)->propertyYearWindow($row), $row->propertyFlags->pluck('year')->all()) as $year) {
+                $row->propertyFlags()->create(['year' => $year, 'flag' => true]);
+            }
+            $row->load('propertyFlags');
+
             foreach ($row->crGrades as $cr) {
+                // Integrity of every CR put up: a Fit answer (2026-11-14).
+                if ($cr->grade !== null && $cr->integrity_option_id === null) {
+                    $cr->forceFill(['integrity_option_id' => $fit])->save();
+                }
+
                 if ($cr->grade === null || $cr->put_up !== null) {
                     continue;
                 }
@@ -283,9 +299,10 @@ final class DemoDpcBuilder
                     continue;
                 }
 
+                // On time: by 31 January of its own year (2026-11-14).
                 $property->forceFill([
-                    'submitted_on' => sprintf('%d-01-15', $property->year + 1),
-                    'next_increment_date' => sprintf('%d-07-01', $property->year + 1),
+                    'submitted_on' => sprintf('%d-01-15', $property->year),
+                    'next_increment_date' => sprintf('%d-07-01', $property->year),
                 ])->save();
 
                 $document($row, EvaluationDocumentKind::PropertyReturn, $property->year);
@@ -296,8 +313,10 @@ final class DemoDpcBuilder
                 'ph_final_decision' => 'no_benefit',
                 'ph_recorded_by' => $ao->id,
                 'ph_recorded_at' => now(),
-                // Rule 2.2: no departmental matter pending.
+                // Rule 2.2: no departmental matter pending; no case ongoing, no punishment (2026-11-14).
                 'vigilance_pending' => false,
+                'enquiry_ongoing' => false,
+                'punishment_effective' => false,
                 // Rule 4.4: the service-record orders and the undertaking; rules 2.3 and
                 // 4.4: not on unsanctioned deputation, no promotion refused.
                 'dob_order_number' => 'SR/DOB/'.$row->sn,
@@ -313,6 +332,9 @@ final class DemoDpcBuilder
                 'vigilance_recorded_by' => $ao->id,
                 'vigilance_recorded_at' => now(),
             ])->save();
+
+            $document($row, EvaluationDocumentKind::EnquiryDocument, null);
+            $document($row, EvaluationDocumentKind::PunishmentDocument, null);
         }
     }
 
@@ -372,6 +394,17 @@ final class DemoDpcBuilder
             $at,
             fn () => $this->proposals->approve($proposal, $ah, DemoActor::request()),
         ));
+
+        // Then the Secretary, CGPSC, who forwards it to the Chairman (2026-11-14).
+        $secretary = User::query()->where('email', DemoAccountSeeder::SECRETARY['email'])->first()
+            ?? User::query()->whereHas('roles', fn ($query) => $query->where('name', Role::Secretary->value))->first();
+
+        if ($secretary !== null) {
+            DemoActor::as($secretary, fn () => DemoClock::at(
+                $at,
+                fn () => $this->proposals->secretaryApprove($proposal->refresh(), $secretary, DemoActor::request()),
+            ));
+        }
 
         return $proposal->refresh();
     }

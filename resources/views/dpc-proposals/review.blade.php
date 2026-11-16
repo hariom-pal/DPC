@@ -5,6 +5,8 @@
 {{-- The allotted AH of this proposal (2026-10-26). --}}
 @php($isAH = app(\App\Domain\Allotment\Services\ProposalAllotmentService::class)->isAllotted(auth()->user(), $proposal, \App\Enums\Role::AdministrativeHead))
 @php($current = $steps[$step - 1])
+{{-- The Secretary, CGPSC reviews on the same screens (2026-11-14). --}}
+@php($isSecretary = auth()->user()->can('secretaryApprove', $proposal))
 
 @section('content')
     <div class="row justify-content-center">
@@ -16,7 +18,7 @@
                  at a time, and approves ONCE at the end — the single-approval model
                  (architect decision): one signature, one transition, one timeline
                  entry, one audit event covering every section. --}}
-            <h1 class="h5 mb-1">{{ __('dpc.review.approval_by_administrative_head') }}</h1>
+            <h1 class="h5 mb-1">{{ $isSecretary ? __('dpc.secretary.review_heading') : __('dpc.review.approval_by_administrative_head') }}</h1>
             <p class="text-muted small mb-3">
 {{ __('dpc.review.subheading', [
                     'from' => $proposal->promotionFromPost->name,
@@ -89,6 +91,8 @@
                                 </div>
                                 <div class="col-md-3"><button class="btn btn-outline-warning btn-sm w-100">{{ __('ui.return_for_correction') }}</button></div>
                             </form>
+                        @elseif ($isSecretary)
+                            @include('secretary.partials.decision', ['proposal' => $proposal])
                         @else
                             <p class="text-muted small mb-0">
 {{ __('dpc.review.no_action', ['status' => $proposal->status->label()]) }}

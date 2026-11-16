@@ -13,7 +13,7 @@ use Illuminate\Support\Carbon;
  * The other columns are the rule 4.1 details the Authorized Officer records on the
  * employee's details screen — the submission date, the date of next increment printed
  * on the return (page 4: the field that tells two uploads of the same IPR apart), and
- * the department's decision on a return submitted after 31 January of the following
+ * the department's decision on a return submitted after 31 January of its own
  * year.
  *
  * @property int $id
@@ -54,12 +54,13 @@ class DpcEvaluationPropertyFlag extends DpcEvaluationYearFlag
     }
 
     /**
-     * Rule 4.1: an IPR must be submitted by 31 January of the year after the one it
-     * covers. Anything later needs the department's decision.
+     * Rule 4.1: an IPR is due by 31 January of its own year — the 2025 return by
+     * 31 January 2025 (business decision, 2026-11-14; it was 31 January of the next
+     * year until then). Anything later needs the department's decision.
      */
     public static function dueDateFor(int $year): Carbon
     {
-        return Carbon::create($year + 1, 1, 31)->startOfDay();
+        return Carbon::create($year, 1, 31)->startOfDay();
     }
 
     public function isLate(): bool

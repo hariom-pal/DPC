@@ -73,6 +73,21 @@ class DashboardSummaryService
             $groups[] = $this->administrationGroup();
         }
 
+        // The Secretary, CGPSC (2026-11-14): every department's DPC the AH approved.
+        if ($user->hasRole(Role::Secretary->value)) {
+            $groups[] = [
+                'title' => (string) __('dpc.secretary.title'),
+                'subtitle' => (string) __('dpc.secretary.lead'),
+                'cards' => [[
+                    'label' => (string) __('dpc.secretary.pending'),
+                    'value' => DpcProposal::query()->where('status', DpcProposalStatus::PendingSecretary->value)->count(),
+                    'hint' => (string) __('dpc.secretary.nav'),
+                    'href' => route('secretary.index'),
+                    'tone' => 'action',
+                ]],
+            ];
+        }
+
         // Rule 1.1: the Commission's staff enter DPCs held offline.
         if ($user->hasRole(Role::CgpscStaff->value)) {
             $groups[] = [

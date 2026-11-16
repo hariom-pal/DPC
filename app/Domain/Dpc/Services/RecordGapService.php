@@ -74,7 +74,8 @@ class RecordGapService
          | screen as accounted for and reach the engine as unaccounted for, and the
          | officer would have no way to tell which reading the Commission acted on.
          */
-        if ($file === null) {
+        // A reason that leaves no record ever (appointed in this year) needs none (2026-11-14).
+        if ($file === null && ! $reason->makes_unfit) {
             throw new RuntimeException(
                 'A missing record must be justified with both a reason and a supporting document.',
             );
@@ -89,11 +90,18 @@ class RecordGapService
             throw new RuntimeException("The reason [{$reason->code}] requires remarks.");
         }
 
-        return DB::transaction(function () use ($row, $kind, $year, $reason, $remarks, $file, $actor, $secondFile): DpcEvaluationRecordGap {
-            $disk = (string) config('dpc.documents.disk', 'local');
-            $contents = (string) file_get_contents($file->getRealPath());
+        // Sanitised, and only ever displayed. A filename from a browser is user input
+        // and never used to build the stored path. None for a reason that needs no document.
+        $evidence = $file === null ? null : [
+            'original_name' => mb_substr((string) $file->getClientOriginalName(), 0, 255),
+            'size_bytes' => $file->getSize() ?: 0,
+            'sha256' => hash('sha256', (string) file_get_contents($file->getRealPath())),
+        ];
 
-            $path = Storage::disk($disk)->putFile(
+        return DB::transaction(function () use ($row, $kind, $year, $reason, $remarks, $file, $evidence, $actor, $secondFile): DpcEvaluationRecordGap {
+            $disk = (string) config('dpc.documents.disk', 'local');
+
+            $path = $file === null ? null : Storage::disk($disk)->putFile(
                 sprintf('private/record-gaps/%d', $row->dpc_proposal_id),
                 $file,
             );
@@ -129,15 +137,11 @@ class RecordGapService
                 [
                     'record_reason_id' => $reason->id,
                     'remarks' => $remarks === null || trim($remarks) === '' ? null : trim($remarks),
-                    'disk' => $disk,
+                    'disk' => $path === null ? null : $disk,
                     'path' => $path,
-
-                    // Sanitised, and only ever displayed. A filename from a browser is
-                    // user input and never used to build the stored path.
-                    'original_name' => mb_substr((string) $file->getClientOriginalName(), 0, 255),
-
-                    'size_bytes' => $file->getSize() ?: 0,
-                    'sha256' => hash('sha256', $contents),
+                    'original_name' => $evidence['original_name'] ?? null,
+                    'size_bytes' => $evidence['size_bytes'] ?? null,
+                    'sha256' => $evidence['sha256'] ?? null,
                     'recorded_by' => $actor->id,
                     ...$second,
                 ],
@@ -154,13 +158,13 @@ class RecordGapService
                 'dpc_proposal.record_gap_recorded',
                 $row->proposal,
                 sprintf(
-                    '%s for %d recorded as unavailable for officer %d (%s) — %s. Candidate continues in the DPC '
-                    .'with status CIR.',
+                    '%s for %d recorded as unavailable for officer %d (%s) — %s. %s',
                     DpcEvaluationRecordGap::recordName($kind),
                     $year,
                     $row->sn,
                     $row->name,
                     $reason->name_en,
+                    $reason->makes_unfit ? 'No record exists to produce, so the candidate is Unfit.' : 'Candidate continues in the DPC with status CIR.',
                 ),
                 [
                     'kind' => $kind,

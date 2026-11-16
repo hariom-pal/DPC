@@ -60,6 +60,14 @@ enum Role: string
      */
     case DepartmentAdmin = 'department_admin';
 
+    /**
+     * The Secretary, CGPSC (business decision, 2026-11-14): approves every
+     * department's DPC after its Administrative Head and before it reaches the
+     * Chairman, or returns it to the Authorized Officer with a reason and a
+     * supporting document. A Commission role: no department, every department.
+     */
+    case Secretary = 'secretary';
+
     public function label(): string
     {
         return match ($this) {
@@ -72,6 +80,7 @@ enum Role: string
             self::PromotionCandidate => 'Promotion Candidate',
             self::CgpscStaff => 'CGPSC Staff',
             self::DepartmentAdmin => 'Department Admin',
+            self::Secretary => 'Secretary, CGPSC',
         };
     }
 
@@ -127,7 +136,7 @@ enum Role: string
      */
     public static function provisionable(): array
     {
-        return [self::Admin, self::Chairman, self::Member, self::CgpscStaff, self::DepartmentAdmin, self::AuthorizedOfficer, self::AdministrativeHead];
+        return [self::Admin, self::Chairman, self::Secretary, self::Member, self::CgpscStaff, self::DepartmentAdmin, self::AuthorizedOfficer, self::AdministrativeHead];
     }
 
     /**
@@ -157,7 +166,7 @@ enum Role: string
      */
     public static function commission(): array
     {
-        return [self::Admin, self::Chairman, self::Member, self::CgpscStaff];
+        return [self::Admin, self::Chairman, self::Secretary, self::Member, self::CgpscStaff];
     }
 
     /**

@@ -37,6 +37,9 @@
                                 @else
                                     <span class="text-muted small">{{ __('admin.record_reasons.remarks_optional') }}</span>
                                 @endif
+                                @if ($reason->makes_unfit)
+                                    <span class="badge text-bg-danger" data-reason-unfit>{{ __('admin.record_reasons.unfit_badge') }}</span>
+                                @endif
                             </td>
                             <td class="text-end">{{ $reason->sort_order }}</td>
                             <td><x-status-badge :status="$reason->status" /></td>

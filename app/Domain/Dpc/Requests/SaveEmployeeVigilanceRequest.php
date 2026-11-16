@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace App\Domain\Dpc\Requests;
 
+use App\Domain\Dpc\Enums\EvaluationDocumentKind;
+use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Enums\MasterStatus;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 /**
  * Coder Instructions rule 2.2: whether a departmental enquiry, charge-sheet,
@@ -30,6 +33,13 @@ class SaveEmployeeVigilanceRequest extends FormRequest
     public function rules(): array
     {
         return [
+            // 2026-11-14: a case ongoing and a punishment in effect in the DPC's period,
+            // each answered with its document, Yes or No.
+            'enquiry_ongoing' => ['required', 'boolean'],
+            'punishment_effective' => ['required', 'boolean'],
+            'enquiry_document' => ['nullable', 'file', 'mimes:pdf', 'max:'.(int) config('dpc.documents.max_kb', 10240)],
+            'punishment_document' => ['nullable', 'file', 'mimes:pdf', 'max:'.(int) config('dpc.documents.max_kb', 10240)],
+            'vigilance_verified' => ['nullable', 'boolean'],
             'vigilance_pending' => ['required', 'boolean'],
             'sealed_cover_reason_id' => [
                 'required_if:vigilance_pending,1', 'nullable', 'integer',
@@ -46,10 +56,31 @@ class SaveEmployeeVigilanceRequest extends FormRequest
     public function attributes(): array
     {
         return [
+            'enquiry_ongoing' => (string) __('dpc.employee_details.vigilance.enquiry_question_short'),
+            'punishment_effective' => (string) __('dpc.employee_details.vigilance.punishment_question_short'),
             'sealed_cover_reason_id' => (string) __('dpc.employee_details.vigilance.reason'),
             'vigilance_date' => (string) __('dpc.employee_details.vigilance.date'),
             'vigilance_remarks' => (string) __('ui.remarks'),
         ];
+    }
+
+    /** Each answer's document is on file already or comes now, verified against its original (rule 4.4). */
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            $row = $this->route('evaluationRow');
+            $onFile = $row instanceof DpcEvaluationRow ? $row->currentDocuments()->pluck('kind')->map(fn ($kind) => $kind instanceof EvaluationDocumentKind ? $kind->value : (string) $kind)->all() : [];
+
+            foreach (['enquiry_document' => EvaluationDocumentKind::EnquiryDocument, 'punishment_document' => EvaluationDocumentKind::PunishmentDocument] as $field => $kind) {
+                if (! $this->hasFile($field) && ! in_array($kind->value, $onFile, true)) {
+                    $validator->errors()->add($field, (string) __('dpc.employee_details.vigilance.document_required'));
+                }
+            }
+
+            if (($this->hasFile('enquiry_document') || $this->hasFile('punishment_document')) && ! $this->boolean('vigilance_verified')) {
+                $validator->errors()->add('vigilance_verified', (string) __('dpc.employee_details.verification.ao_required'));
+            }
+        });
     }
 
     protected function prepareForValidation(): void

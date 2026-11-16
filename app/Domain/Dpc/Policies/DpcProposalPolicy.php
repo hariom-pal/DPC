@@ -33,7 +33,29 @@ class DpcProposalPolicy
 
     public function view(User $user, DpcProposal $proposal): bool
     {
+        // The Secretary, CGPSC reads every department's DPC once it has left the
+        // department's draft (2026-11-14).
+        if ($this->isSecretary($user) && $proposal->status !== DpcProposalStatus::Draft) {
+            return true;
+        }
+
         return $this->allotments->isAllottedInAnyRole($user, $proposal);
+    }
+
+    /** The Secretary, CGPSC decides a DPC the AH approved (2026-11-14). */
+    public function secretaryApprove(User $user, DpcProposal $proposal): bool
+    {
+        return $this->isSecretary($user) && $proposal->status === DpcProposalStatus::PendingSecretary;
+    }
+
+    public function secretaryReturn(User $user, DpcProposal $proposal): bool
+    {
+        return $this->secretaryApprove($user, $proposal);
+    }
+
+    private function isSecretary(User $user): bool
+    {
+        return $user->hasRole(Role::Secretary->value);
     }
 
     /**

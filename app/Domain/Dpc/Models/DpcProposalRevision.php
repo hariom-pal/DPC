@@ -38,6 +38,9 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property int|null $returned_by
  * @property string|null $return_reason
  * @property string|null $remarks
+ * @property string|null $returned_stage
+ * @property string|null $return_document_path
+ * @property string|null $return_document_name
  * @property DpcProposalStatus $status
  */
 class DpcProposalRevision extends Model implements Auditable
@@ -59,6 +62,9 @@ class DpcProposalRevision extends Model implements Auditable
         'returned_at',
         'returned_by',
         'return_reason',
+        'returned_stage',
+        'return_document_path',
+        'return_document_name',
         'remarks',
         'status',
         'updated_at',
@@ -75,6 +81,9 @@ class DpcProposalRevision extends Model implements Auditable
         'returned_at',
         'returned_by',
         'return_reason',
+        'returned_stage',
+        'return_document_path',
+        'return_document_name',
         'remarks',
         'status',
     ];
@@ -156,5 +165,11 @@ class DpcProposalRevision extends Model implements Auditable
     public function returner(): BelongsTo
     {
         return $this->belongsTo(User::class, 'returned_by');
+    }
+
+    /** Returned by the Secretary, CGPSC, with a supporting document (2026-11-14). */
+    public function returnedBySecretary(): bool
+    {
+        return $this->returned_stage === 'secretary';
     }
 }

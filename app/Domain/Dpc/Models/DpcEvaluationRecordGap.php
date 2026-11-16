@@ -180,6 +180,12 @@ class DpcEvaluationRecordGap extends Model implements Auditable
      */
     public function isJustified(): bool
     {
+        // A reason that leaves no record to produce (appointed in this year) needs no
+        // document: the year is accounted for, and the officer is Unfit (2026-11-14).
+        if ($this->reason?->makes_unfit === true) {
+            return true;
+        }
+
         return $this->hasDocument() && ($this->reason?->requiresSecondDocument() !== true || $this->hasSecondDocument());
     }
 
@@ -214,7 +220,7 @@ class DpcEvaluationRecordGap extends Model implements Auditable
             match ($this->kind) {
                 self::KIND_CR => 'CR',
                 self::KIND_PROPERTY => 'Property Return',
-                default => 'Loyalty',
+                default => 'Integrity',
             },
             $this->year,
             $this->reason?->label() ?? '—',
@@ -228,7 +234,7 @@ class DpcEvaluationRecordGap extends Model implements Auditable
         return match ($kind) {
             self::KIND_CR => 'CR',
             self::KIND_PROPERTY => 'Property Return',
-            default => 'Loyalty Certificate',
+            default => 'Integrity Certificate',
         };
     }
 }

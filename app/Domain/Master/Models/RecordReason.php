@@ -34,6 +34,7 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property string $name_en
  * @property string $name_hi
  * @property bool $requires_remarks
+ * @property bool $makes_unfit
  * @property int $sort_order
  * @property MasterStatus $status
  */
@@ -63,6 +64,8 @@ class RecordReason extends Model implements Auditable
         'name_en',
         'name_hi',
         'requires_remarks',
+        // 2026-11-14: no record exists to produce (appointed in this year) — the officer is Unfit.
+        'makes_unfit',
         'sort_order',
         // Rule 3.2: the document this reason is justified with, and a second where it needs two.
         'document_label_en',
@@ -78,6 +81,7 @@ class RecordReason extends Model implements Auditable
     {
         return [
             'requires_remarks' => 'boolean',
+            'makes_unfit' => 'boolean',
             'sort_order' => 'integer',
         ];
     }

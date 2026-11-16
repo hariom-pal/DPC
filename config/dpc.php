@@ -669,7 +669,12 @@ return [
         'dpc_proposal' => [
             'transitions' => [
                 'submit' => ['from' => ['draft', 'returned'], 'to' => 'submitted', 'role' => 'authorized_officer', 'signature' => true, 'notify' => ['administrative_head']],
-                'approve' => ['from' => ['submitted'], 'to' => 'approved', 'role' => 'administrative_head', 'signature' => true, 'notify' => ['authorized_officer']],
+                // The AH's approval goes to the Secretary, CGPSC, whose approval sends the
+                // DPC to the Chairman; the Secretary's return goes back to the AO with a
+                // reason and a supporting document (2026-11-14).
+                'approve' => ['from' => ['submitted'], 'to' => 'pending_secretary', 'role' => 'administrative_head', 'signature' => true, 'notify' => ['authorized_officer']],
+                'secretary_approve' => ['from' => ['pending_secretary'], 'to' => 'approved', 'role' => 'secretary', 'signature' => true, 'notify' => ['authorized_officer', 'administrative_head']],
+                'secretary_return' => ['from' => ['pending_secretary'], 'to' => 'returned', 'role' => 'secretary', 'signature' => false, 'notify' => ['authorized_officer', 'administrative_head']],
                 'return' => ['from' => ['submitted'], 'to' => 'returned', 'role' => 'administrative_head', 'signature' => false, 'notify' => ['authorized_officer']],
                 'cancel' => ['from' => ['draft', 'returned'], 'to' => 'cancelled', 'role' => 'authorized_officer', 'signature' => false, 'notify' => ['administrative_head']],
                 // The AO takes the DPC back to correct it, until CGPSC approves the result
@@ -1486,7 +1491,7 @@ return [
         */
         'visible_proposal_statuses' => array_values(array_filter(array_map(
             'trim',
-            explode(',', (string) env('DPC_SELF_INSPECTION_STATUSES', 'submitted,approved')),
+            explode(',', (string) env('DPC_SELF_INSPECTION_STATUSES', 'submitted,pending_secretary,approved')),
         ))),
 
         /*

@@ -70,6 +70,7 @@ class DpcReportService
         return [
             ['stage' => 'Drafted by the department', 'reference' => 'S12–S18', 'count' => $proposals()->where('status', DpcProposalStatus::Draft->value)->count()],
             ['stage' => 'Awaiting departmental approval', 'reference' => 'S19–S25', 'count' => $proposals()->where('status', DpcProposalStatus::Submitted->value)->count()],
+            ['stage' => 'Awaiting the Secretary, CGPSC', 'reference' => '2026-11-14', 'count' => $proposals()->where('status', DpcProposalStatus::PendingSecretary->value)->count()],
             ['stage' => 'Returned for correction', 'reference' => 'S25', 'count' => $proposals()->where('status', DpcProposalStatus::Returned->value)->count()],
             ['stage' => 'Forwarded to the Commission', 'reference' => 'S25', 'count' => $proposals()->where('status', DpcProposalStatus::Approved->value)->count()],
             ['stage' => 'Allotted to a Member', 'reference' => 'S28', 'count' => $this->withCurrentAllotment($departmentId)],

@@ -400,7 +400,7 @@ final class CandidateGateServiceTest extends TestCase
         $verdict = $this->assess($this->officer(loyaltyYears: [2013, 2014, 2015, 2017]));
 
         $this->assertSame(RemarkCode::NotEligible, $verdict->status);
-        $this->assertStringContainsString('Loyalty Certificate for 2016', implode(' ', $verdict->reasons));
+        $this->assertStringContainsString('Integrity Certificate for 2016', implode(' ', $verdict->reasons));
     }
 
     /**

@@ -8,6 +8,9 @@ enum DpcProposalStatus: string
 {
     case Draft = 'draft';
     case Submitted = 'submitted';
+
+    /** Approved by the AH, awaiting the Secretary, CGPSC (2026-11-14). */
+    case PendingSecretary = 'pending_secretary';
     case Returned = 'returned';
     case Approved = 'approved';
     case Cancelled = 'cancelled';
@@ -55,6 +58,7 @@ enum DpcProposalStatus: string
         return match ($this) {
             self::Draft => 'text-bg-secondary',
             self::Submitted => 'text-bg-info',
+            self::PendingSecretary => 'text-bg-primary',
             self::Returned => 'text-bg-warning',
             self::Approved => 'text-bg-success',
             self::Cancelled => 'text-bg-dark',

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Dpc\Models;
 
+use App\Domain\Master\Models\IntegrityOption;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -23,6 +24,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property bool|null $put_up
  * @property bool|null $has_grading
  * @property list<array<string, string|null>>|null $reports
+ * @property int|null $integrity_option_id
+ * @property-read IntegrityOption|null $integrityOption
  */
 class DpcEvaluationCrGrade extends Model
 {
@@ -54,6 +57,8 @@ class DpcEvaluationCrGrade extends Model
         'put_up',
         'has_grading',
         'reports',
+        // Integrity (सत्यनिष्ठा) of the year, from the Administrator's master (2026-11-14).
+        'integrity_option_id',
     ];
 
     /**
@@ -152,6 +157,14 @@ class DpcEvaluationCrGrade extends Model
         $grade = array_key_first($below);
 
         return $grade === null ? null : (string) $grade;
+    }
+
+    /**
+     * @return BelongsTo<IntegrityOption, $this>
+     */
+    public function integrityOption(): BelongsTo
+    {
+        return $this->belongsTo(IntegrityOption::class)->withTrashed();
     }
 
     /**

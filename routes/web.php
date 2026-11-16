@@ -17,6 +17,7 @@ use App\Http\Controllers\Admin\DistrictController;
 use App\Http\Controllers\Admin\DpcDataPurgeController;
 use App\Http\Controllers\Admin\DpcTypeController;
 use App\Http\Controllers\Admin\IntegrationStatusController;
+use App\Http\Controllers\Admin\IntegrityOptionController;
 use App\Http\Controllers\Admin\MasterDataController;
 use App\Http\Controllers\Admin\MessageTemplateController;
 use App\Http\Controllers\Admin\NotificationGatewayController;
@@ -60,6 +61,7 @@ use App\Http\Controllers\Cgpsc\ProceedingHoldController;
 use App\Http\Controllers\Cgpsc\ProceedingResultController;
 use App\Http\Controllers\Cgpsc\SchedulingController;
 use App\Http\Controllers\Cgpsc\SealedCoverController;
+use App\Http\Controllers\Cgpsc\SecretaryController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Department\DepartmentOfficerController;
 use App\Http\Controllers\Department\DepartmentUserController;
@@ -478,7 +480,9 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
             });
 
         // DPC Proposal workflow (M4 Phase 1: post selection + submit/approve/return/cancel).
-        Route::middleware('role:'.Role::AuthorizedOfficer->value.'|'.Role::AdministrativeHead->value)
+        // The Secretary, CGPSC reads every department's DPC here too (2026-11-14); what
+        // each may do is the proposal policy's, not the group's.
+        Route::middleware('role:'.Role::AuthorizedOfficer->value.'|'.Role::AdministrativeHead->value.'|'.Role::Secretary->value)
             ->prefix('dpc-proposals')
             ->name('dpc-proposals.')
             ->group(function (): void {
@@ -652,6 +656,8 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
                 Route::post('/{dpcProposal}/recall', [DpcProposalController::class, 'recall'])->name('recall');
                 Route::post('/{dpcProposal}/approve', [DpcProposalController::class, 'approve'])->name('approve');
                 Route::post('/{dpcProposal}/return', [DpcProposalController::class, 'return'])->name('return');
+                // The Secretary, CGPSC's supporting document of a return (2026-11-14).
+                Route::get('/{dpcProposal}/revisions/{revision}/return-document', [SecretaryController::class, 'returnDocument'])->name('revisions.return-document');
                 Route::post('/{dpcProposal}/cancel', [DpcProposalController::class, 'cancel'])->name('cancel');
             });
 
@@ -741,6 +747,16 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
                 Route::post('/proceedings/{proceeding}/holds/detect', [ProceedingHoldController::class, 'detect'])->name('proceedings.holds.detect');
                 Route::post('/proceedings/{proceeding}/holds', [ProceedingHoldController::class, 'store'])->name('proceedings.holds.store');
                 Route::delete('/proceedings/{proceeding}/holds/{hold}', [ProceedingHoldController::class, 'destroy'])->name('proceedings.holds.destroy');
+            });
+
+        // The Secretary, CGPSC (2026-11-14): every department's DPC the AH approved,
+        // approved with an eSign (EsignController) or returned to the AO here.
+        Route::middleware('role:'.Role::Secretary->value)
+            ->prefix('secretary')
+            ->name('secretary.')
+            ->group(function (): void {
+                Route::get('/dpc-proposals', [SecretaryController::class, 'index'])->name('index');
+                Route::post('/dpc-proposals/{dpcProposal}/return', [SecretaryController::class, 'return'])->name('return');
             });
 
         Route::middleware('role:'.Role::Chairman->value.'|'.Role::Member->value)
@@ -913,6 +929,10 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
                 // Departmental enquiry and the sealed cover (Coder Instructions rule 2.2).
                 Route::resource('sealed-cover-reasons', SealedCoverReasonController::class)
                     ->parameters(['sealed-cover-reasons' => 'sealedCoverReason'])
+                    ->except(['show']);
+                // Integrity (सत्यनिष्ठा) per CR year, Fit or Unfit (2026-11-14).
+                Route::resource('integrity-options', IntegrityOptionController::class)
+                    ->parameters(['integrity-options' => 'integrityOption'])
                     ->except(['show']);
                 /*
                  | The Vacancy Type master has no screen (2026-10-17). The vacancy

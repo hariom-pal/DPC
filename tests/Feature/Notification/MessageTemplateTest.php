@@ -188,6 +188,24 @@ class MessageTemplateTest extends TestCase
             ->assertSee(route('admin.notification-gateways.edit', 'smtp'), false);
     }
 
+    /** Gmail (2026-11-15): the page links to App Passwords, and a pasted "abcd efgh ijkl mnop" loses its spaces. */
+    public function test_the_smtp_page_helps_with_a_gmail_app_password(): void
+    {
+        $this->actingAs($this->admin())->get(route('admin.notification-gateways.edit', 'smtp'))->assertOk()
+            ->assertSee('https://myaccount.google.com/apppasswords', false)
+            ->assertSee('data-gmail-preset', false)
+            ->assertSee(__('admin.notification_gateways.smtp.gmail.generate'));
+
+        $form = ['is_enabled' => '1', 'port' => '587', 'encryption' => 'tls', 'username' => 'odpc@gmail.com', 'from_address' => 'odpc@gmail.com'];
+
+        $this->put(route('admin.notification-gateways.update', 'smtp'), [...$form, 'host' => 'smtp.gmail.com', 'secret' => 'abcd efgh ijkl mnop'])->assertSessionHasNoErrors();
+        $this->assertSame('abcdefghijklmnop', NotificationGateway::query()->where('channel', 'smtp')->sole()->secret);
+
+        // Any other server keeps the password exactly as typed.
+        $this->put(route('admin.notification-gateways.update', 'smtp'), [...$form, 'host' => 'smtp.cgpsc.test', 'secret' => 'pass with space'])->assertSessionHasNoErrors();
+        $this->assertSame('pass with space', NotificationGateway::query()->where('channel', 'smtp')->sole()->secret);
+    }
+
     /** SMTP settings (2026-11-13): saved with the password encrypted and never shown, and used once enabled. */
     public function test_smtp_settings_are_saved_encrypted_and_used_once_enabled(): void
     {

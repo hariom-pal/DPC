@@ -228,9 +228,10 @@ class DpcProposalClosureTest extends TestCase
         $this->actingAs($this->ah)->post(route('dpc-proposals.approve', $this->proposal))->assertSessionHasNoErrors();
 
         $this->proposal->refresh();
-        $this->assertSame('approved', $this->proposal->status->value);
+        // To the Secretary, CGPSC, who forwards it to the Chairman (2026-11-14).
+        $this->assertSame('pending_secretary', $this->proposal->status->value);
         $this->assertNotNull($this->proposal->dpc_code);
-        $this->assertNotNull($this->proposal->forwarded_at);
+        $this->assertNull($this->proposal->forwarded_at);
         $this->assertSame($this->ah->id, $this->proposal->approved_by);
 
         // Exactly one signature, one approve transition — the single-approval model.
@@ -436,8 +437,16 @@ class DpcProposalClosureTest extends TestCase
         $this->actingAs($this->ao)->post(route('dpc-proposals.submit', $this->proposal))->assertSessionHasNoErrors();
         $this->actingAs($this->ah)->get(route('dpc-proposals.review', [$this->proposal, 5]))->assertOk();
         $this->actingAs($this->ah)->post(route('dpc-proposals.approve', $this->proposal))->assertSessionHasNoErrors();
+        $this->assertSame('pending_secretary', $this->proposal->refresh()->status->value);
+
+        // The Secretary, CGPSC approves it and it reaches the Chairman (2026-11-14).
+        $secretary = User::factory()->create();
+        $secretary->assignRole(Role::Secretary->value);
+        $this->actingAs($secretary)->get(route('dpc-proposals.review', [$this->proposal, 5]))->assertOk();
+        app(DpcProposalService::class)->secretaryApprove($this->proposal->refresh(), $secretary, request());
 
         $this->assertSame('approved', $this->proposal->refresh()->status->value);
+        $this->assertNotNull($this->proposal->forwarded_at);
         $this->assertNotNull($this->proposal->dpc_code);
     }
 

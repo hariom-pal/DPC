@@ -18,7 +18,7 @@ use Illuminate\Validation\Validator;
  * Section D — one Immovable Property Return year (rule 4.1).
  *
  * A submitted return needs its submission date and the date of next increment
- * printed on it (page 4). One submitted after 31 January of the following year needs
+ * printed on it (page 4). One submitted after 31 January of its own year needs
  * the department's decision; an accepted late return needs the reason too.
  */
 class SaveEmployeePropertyYearRequest extends FormRequest
@@ -48,6 +48,11 @@ class SaveEmployeePropertyYearRequest extends FormRequest
             'next_increment_date' => ['required_if:submitted,1', 'nullable', 'date'],
             'late_decision' => ['nullable', Rule::in([DpcEvaluationPropertyFlag::LATE_ACCEPTED, DpcEvaluationPropertyFlag::LATE_REJECTED])],
             'late_decision_remarks' => ['nullable', 'string', 'max:2000'],
+            // The return itself, uploaded with its year and verified against its original (2026-11-14).
+            'property_document' => ['nullable', 'file', 'mimes:pdf', 'max:'.(int) config('dpc.documents.max_kb', 10240)],
+            'property_verified' => ['nullable', 'boolean'],
+            // The department's decision on a late return, uploaded with it (2026-11-14).
+            'late_document' => ['nullable', 'file', 'mimes:pdf', 'max:'.(int) config('dpc.documents.max_kb', 10240)],
             ...$this->missingRecordRules(),
         ];
     }
@@ -58,6 +63,10 @@ class SaveEmployeePropertyYearRequest extends FormRequest
             // Not submitted in a year the promotion rule makes it mandatory: Missing,
             // with its reason and document (2026-11-05). An optional year asks nothing.
             $this->assertMissingJustification($validator, DpcEvaluationRecordGap::KIND_PROPERTY, $this->declaredMissing());
+
+            if (($this->hasFile('property_document') || $this->hasFile('late_document')) && $this->boolean('submitted') && ! $this->boolean('property_verified')) {
+                $validator->errors()->add('property_verified', (string) __('dpc.employee_details.verification.ao_required'));
+            }
 
             if (! $this->boolean('submitted') || ! $this->filled('submitted_on') || $validator->errors()->isNotEmpty()) {
                 return;

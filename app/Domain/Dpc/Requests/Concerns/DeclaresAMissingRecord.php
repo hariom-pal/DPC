@@ -60,6 +60,11 @@ trait DeclaresAMissingRecord
             $validator->errors()->add('missing_remarks', __('dpc.record_gaps.remarks_required', ['reason' => $reason->label()]));
         }
 
+        // A reason that leaves no record ever (appointed in this year) asks for no document (2026-11-14).
+        if ($reason?->makes_unfit === true) {
+            return;
+        }
+
         if (! $this->hasFile('missing_document')) {
             $validator->errors()->add('missing_document', __('dpc.employee_details.missing_record.document_required'));
         }

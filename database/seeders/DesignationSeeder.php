@@ -19,7 +19,7 @@ class DesignationSeeder extends Seeder
 
             // The Commission's own, and the School Education ladder the baseline
             // data uses (2026-10-17: the seeded data is the development baseline).
-            'Chairman, CGPSC', 'Member, CGPSC', 'System Administrator',
+            'Chairman, CGPSC', 'Member, CGPSC', 'Secretary, CGPSC', 'System Administrator',
             'Chairman, Chhattisgarh Public Service Commission',
             'Director, Public Instruction', 'Additional Director, Education',
             'Joint Director, Education', 'District Education Officer',

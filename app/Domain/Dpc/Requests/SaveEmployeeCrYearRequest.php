@@ -53,7 +53,25 @@ class SaveEmployeeCrYearRequest extends FormRequest
             'reports.*.authorities.*' => ['string', Rule::in(EmployeeDetailsService::CR_AUTHORITIES)],
             'reports.*.grade' => ['nullable', 'string', Rule::in((array) config('dpc.evaluation.cr_grades'))],
             'nrc' => ['nullable', 'file', 'mimes:pdf', 'max:'.(int) config('dpc.documents.max_kb', 10240)],
+            // The CR itself, uploaded with its grading (2026-11-14): verified against its
+            // original (rule 4.4) and with the no-duplicate undertaking, as the separate upload asks.
+            'cr_document' => ['nullable', 'file', 'mimes:pdf', 'max:'.(int) config('dpc.documents.max_kb', 10240)],
+            'cr_verified' => ['nullable', 'boolean'],
+            'cr_undertaking' => ['nullable', 'boolean'],
+            // Integrity (सत्यनिष्ठा) of the year, beside the grade (2026-11-14).
+            'integrity_option_id' => ['nullable', 'integer', Rule::exists('integrity_options', 'id')->where('status', 'active')->whereNull('deleted_at')],
             ...$this->missingRecordRules(),
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'cr_document.mimes' => __('dpc.employee_details.documents.pdf_only'),
+            'cr_document.max' => __('dpc.employee_details.documents.too_large', ['kb' => (int) config('dpc.documents.max_kb', 10240)]),
         ];
     }
 
@@ -62,6 +80,16 @@ class SaveEmployeeCrYearRequest extends FormRequest
     {
         $validator->after(function (Validator $validator): void {
             $this->assertMissingJustification($validator, DpcEvaluationRecordGap::KIND_CR, $this->has('put_up') && ! $this->boolean('put_up'));
+
+            if ($this->hasFile('cr_document') && $this->boolean('put_up')) {
+                if (! $this->boolean('cr_verified')) {
+                    $validator->errors()->add('cr_verified', (string) __('dpc.employee_details.verification.ao_required'));
+                }
+
+                if (! $this->boolean('cr_undertaking')) {
+                    $validator->errors()->add('cr_undertaking', (string) __('dpc.employee_details.documents.undertaking_required'));
+                }
+            }
         });
     }
 }

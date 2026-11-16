@@ -35,6 +35,11 @@ class DpcNextStep
         $isAo = $this->allotments->isAllotted($user, $proposal, Role::AuthorizedOfficer);
         $isAh = $this->allotments->isAllotted($user, $proposal, Role::AdministrativeHead);
 
+        // The Secretary, CGPSC's own step (2026-11-14).
+        if ($proposal->status === DpcProposalStatus::PendingSecretary && $user?->can('secretaryApprove', $proposal)) {
+            return ['text' => (string) __('dpc.next_step.secretary_approve'), 'target' => 'secretary-decision'];
+        }
+
         if (! $isAo && ! $isAh) {
             return null;
         }
@@ -59,6 +64,10 @@ class DpcNextStep
 
         if ($proposal->status === DpcProposalStatus::Submitted) {
             return $isAh ? $step('approve', 'dpc-approve') : $step('with_ah');
+        }
+
+        if ($proposal->status === DpcProposalStatus::PendingSecretary) {
+            return $step('with_secretary');
         }
 
         $proceeding = DpcProceeding::query()->where('dpc_proposal_id', $proposal->id)->latest('id')->first();

@@ -66,9 +66,14 @@ class SealedCoverDetailsTest extends TestCase
         return SealedCoverReason::query()->where('code', $code)->firstOrFail();
     }
 
+    /** With the two questions of 2026-11-14 answered No, each with its document. */
     private function answer(array $data): TestResponse
     {
-        return $this->actingAs($this->ao)->put(route('dpc-proposals.employees.vigilance', [$this->proposal, $this->row]), $data);
+        return $this->actingAs($this->ao)->put(route('dpc-proposals.employees.vigilance', [$this->proposal, $this->row]), $data + [
+            'enquiry_ongoing' => '0', 'punishment_effective' => '0', 'vigilance_verified' => '1',
+            'enquiry_document' => UploadedFile::fake()->create('enquiry.pdf', 20, 'application/pdf'),
+            'punishment_document' => UploadedFile::fake()->create('punishment.pdf', 20, 'application/pdf'),
+        ]);
     }
 
     /**
@@ -125,7 +130,11 @@ class SealedCoverDetailsTest extends TestCase
 
     public function test_every_officer_must_be_answered(): void
     {
-        $this->assertSame([__('dpc.employee_details.missing.vigilance_unanswered')], $this->missing());
+        $this->assertSame([
+            __('dpc.employee_details.missing.enquiry_ongoing'),
+            __('dpc.employee_details.missing.punishment_effective'),
+            __('dpc.employee_details.missing.vigilance_unanswered'),
+        ], $this->missing());
 
         $this->actingAs($this->ao)->get(route('dpc-proposals.employees.show', [$this->proposal, $this->row]))
             ->assertOk()

@@ -64,6 +64,12 @@
                             </label>
                         </div>
                         <div class="form-text">{{ __('admin.record_reasons.remarks_help') }}</div>
+                        <div class="form-check mt-2">
+                            <input type="checkbox" class="form-check-input" id="makes_unfit" name="makes_unfit" value="1"
+                                   @checked(old('makes_unfit', $reason->makes_unfit ?? false))>
+                            <label class="form-check-label" for="makes_unfit">{{ __('admin.record_reasons.unfit_label') }}</label>
+                        </div>
+                        <div class="form-text">{{ __('admin.record_reasons.unfit_help') }}</div>
                     </div>
                 </div>
 
