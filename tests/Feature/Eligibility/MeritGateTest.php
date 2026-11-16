@@ -121,7 +121,7 @@ class MeritGateTest extends TestCase
         $this->assertNotSame(RemarkCode::Rejected->value, $result(1)->remark);
 
         $this->assertSame(RemarkCode::NotEligible->value, $result(2)->remark);
-        $this->assertStringContainsString('Property Return for 2015 is mandatory', implode(' ', $result(2)->verdict['failure_reasons']));
+        $this->assertStringContainsString('Property File for 2015 is mandatory', implode(' ', $result(2)->verdict['failure_reasons']));
 
         $this->assertTrue((bool) $result(3)->is_eligible, 'A year the rule does not make mandatory refuses nobody.');
     }

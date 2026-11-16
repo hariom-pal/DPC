@@ -43,7 +43,7 @@ final class PromotionRuleCheck
      * @return array{
      *     rule: PromotionCrRule|null,
      *     status: 'meets'|'cir'|'does_not_meet'|'no_rule',
-     *     years: list<array{year: int, points: int|null, min: int|null, cr_required: bool, cr_ok: bool, cr_skipped: bool, property_required: bool, property_ok: bool, loyalty_required: bool, loyalty_ok: bool}>,
+     *     years: list<array{year: int, points: int|null, min: int|null, cr_required: bool, cr_ok: bool, cr_skipped: bool, cr_outside: bool, property_required: bool, property_ok: bool, loyalty_required: bool, loyalty_ok: bool}>,
      *     total: int|null,
      *     required_total: int|null,
      *     findings: list<string>,
@@ -88,7 +88,10 @@ final class PromotionRuleCheck
         $officer = OfficerRecord::fromEvaluationRow($row, null, $points);
         $window = $ruleSet->crWindowFor($officer);
         $calendarYears = range($year - 1, $year - $rule->span());
-        $rows = array_values(array_unique([...($window->years ?? []), ...$calendarYears]));
+        // Every CR year recorded below is listed too (2026-11-16); a year outside the
+        // window is shown, not judged.
+        $recordedYears = $row->crGrades->pluck('year')->map(fn ($recorded): int => (int) $recorded)->all();
+        $rows = array_values(array_unique([...($window->years ?? []), ...$calendarYears, ...$recordedYears]));
         rsort($rows);
 
         foreach ($rows as $calendar) {
@@ -145,11 +148,13 @@ final class PromotionRuleCheck
 
             $years[] = [
                 'year' => $calendar,
-                'points' => $crInWindow ? $yearPoints : null,
+                'points' => $yearPoints,
                 'min' => $min,
                 'cr_required' => $crRequired,
                 'cr_ok' => $crOk,
                 'cr_skipped' => $skipped,
+                // Recorded, but outside the officer's CR years: shown, not counted (2026-11-16).
+                'cr_outside' => ! $crInWindow && $cr instanceof DpcEvaluationCrGrade,
                 'property_required' => $propertyRequired,
                 'property_ok' => $propertyOk,
                 'loyalty_required' => $loyaltyRequired,

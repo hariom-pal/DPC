@@ -28,6 +28,9 @@ enum EvaluationDocumentKind: string
     /** Rule 4.1: the department's decision to accept an IPR submitted after 31 January. */
     case PropertyLateDecision = 'property_late_decision';
 
+    /** 2026-11-16: the document behind the Final Departmental View Regarding Integrity of a CR year. */
+    case IntegrityDecision = 'integrity_decision';
+
     /** The employee's signed PH undertaking, uploaded by the Authorized Officer. */
     case PhUndertaking = 'ph_undertaking';
 
@@ -63,7 +66,7 @@ enum EvaluationDocumentKind: string
     public function isYearly(): bool
     {
         return in_array($this, [
-            self::CrReport, self::CrWithoutGrading, self::CrNrc,
+            self::CrReport, self::CrWithoutGrading, self::CrNrc, self::IntegrityDecision,
             self::PropertyReturn, self::PropertyLateDecision,
         ], true);
     }
@@ -87,6 +90,6 @@ enum EvaluationDocumentKind: string
      */
     public static function yearlyCrKinds(): array
     {
-        return [self::CrReport, self::CrWithoutGrading, self::CrNrc];
+        return [self::CrReport, self::CrWithoutGrading, self::CrNrc, self::IntegrityDecision];
     }
 }

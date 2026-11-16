@@ -52,7 +52,7 @@ return [
         'note' => 'Anything the committee should see about this officer. Optional.',
         'cr_year' => 'CR grade for that year: क+, क, ख, ग or घ. Leave blank if there is no CR for the year.',
         'loyalty_year' => 'Integrity certificate given for that year? Y or N.',
-        'property_year' => 'Property return filed for that year? Y or N.',
+        'property_year' => 'Property file submitted for that year? Y or N.',
         'tribal_year' => 'Served in a tribal area that year? Y or N.',
         'seniority_no' => 'Seniority number of the officer in the final seniority list. 1 is the most senior. Each number once only. Lines starting with # are help text and are ignored.',
         'employee_id' => 'Employee ID / employee code, as your department records it. Required, and each officer once only — it is how the officer is recognised when the list is uploaded again.',

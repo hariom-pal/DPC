@@ -11,7 +11,7 @@ namespace App\Domain\Eligibility;
  * Counting back from the year before the DPC year, the window keeps going until it
  * has as many counted years as the rule asks for (five):
  *
- *  - a year whose CR was not put up (a CR is always graded, 2026-11-16) is **skipped**
+ *  - a year whose CR was not put up, or was put up without a grading, is **skipped**
  *    when it is a middle year — it does not count, and one older year joins the
  *    window in its place;
  *  - the **last** year (the year before the DPC year) is never skipped: missing or
@@ -43,7 +43,7 @@ final class CrWindow
     /**
      * @param  int  $lastYear  the year before the DPC year
      * @param  int  $slots  how many counted years the rule asks for
-     * @param  list<int>  $notCountedYears  years recorded as not put up
+     * @param  list<int>  $notCountedYears  years recorded as not put up, or put up without a grading
      * @param  int  $floorYear  the earliest year the window may reach
      */
     public static function of(int $lastYear, int $slots, array $notCountedYears, int $floorYear): self

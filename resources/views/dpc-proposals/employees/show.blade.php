@@ -205,7 +205,8 @@
                             <tbody>
                                 @foreach ($ruleCheck['years'] as $line)
                                     <tr data-rule-year="{{ $line['year'] }}">
-                                        <td>{{ $line['year'] }}@if ($line['cr_skipped'] ?? false)<div class="text-muted" data-rule-skipped>{{ __('dpc.employee_details.rule.skipped') }}</div>@endif</td>
+                                        <td>{{ $line['year'] }}@if ($line['cr_skipped'] ?? false)<div class="text-muted" data-rule-skipped>{{ __('dpc.employee_details.rule.skipped') }}</div>@endif
+                                            @if ($line['cr_outside'] ?? false)<div class="text-muted" data-rule-outside>{{ __('dpc.employee_details.rule.outside') }}</div>@endif</td>
                                         <td>{{ $line['points'] ?? '—' }}</td>
                                         <td>{{ $line['min'] ?? '—' }}</td>
                                         <td>{!! $line['cr_ok'] ? ($line['cr_required'] ? '✓' : '—') : '<span class="text-danger">✗</span>' !!}</td>
@@ -279,13 +280,18 @@
                                 <td class="small" data-cr-integrity="{{ $cr->year }}">
                                     @if ($cr->integrityOption)
                                         {{ $cr->integrityOption->label() }}
-                                        <span class="badge {{ $cr->integrityOption->fit ? 'text-bg-success' : 'text-bg-danger' }}">{{ $cr->integrityOption->fit ? __('dpc.employee_details.rule.status.meets') : __('dpc.employee_details.rule.status.does_not_meet') }}</span>
+                                        @if ($cr->integrity_departmental_view)
+                                            <div class="text-muted" data-cr-integrity-view="{{ $cr->year }}">{{ __('dpc.employee_details.cr.integrity_view') }}: {{ __('dpc.employee_details.cr.integrity_views.'.$cr->integrity_departmental_view) }}</div>
+                                        @endif
+                                        @if (($fit = $cr->integrityFit()) !== null)
+                                            <span class="badge {{ $fit ? 'text-bg-success' : 'text-bg-danger' }}">{{ $fit ? __('dpc.employee_details.rule.status.meets') : __('dpc.employee_details.rule.status.does_not_meet') }}</span>
+                                        @endif
                                     @else
                                         —
                                     @endif
                                 </td>
                                 <td class="small">
-                                    @foreach (['cr_report', 'cr_without_grading', 'cr_nrc'] as $kind)
+                                    @foreach (['cr_report', 'cr_without_grading', 'cr_nrc', 'integrity_decision'] as $kind)
                                         @if ($document = $docFor($kind, $cr->year))
                                             @include('dpc-proposals.employees.partials.uploaded-document')
                                         @endif
@@ -360,11 +366,22 @@
                                 </label>
                             @endforeach
                         </div>
-                        {{-- A CR is never without its grading (2026-11-16): put up means graded. --}}
-                        <input type="hidden" name="has_grading" value="1">
+                        {{-- With a grading the CR counts; without one it is uploaded and does not
+                             count, and one older year joins the window (2026-11-16). --}}
+                        <div class="col-md-5" data-show-when="put_up=1">
+                            <span class="form-label small d-block">{{ __('dpc.employee_details.cr.q_grading') }}</span>
+                            @foreach ([1 => __('ui.yes'), 0 => __('ui.no')] as $value => $label)
+                                <label class="form-check form-check-inline small">
+                                    <input class="form-check-input" type="radio" name="has_grading" value="{{ $value }}"
+                                           @checked((string) old('has_grading', $editCr?->has_grading === null ? '' : (int) $editCr->has_grading) === (string) $value)>
+                                    {{ $label }}
+                                </label>
+                            @endforeach
+                        </div>
                     </div>
                     <p class="small text-muted mt-2 mb-1" data-show-when="put_up=0">{{ __('dpc.employee_details.cr.not_put_up_help') }}</p>
                     @include('dpc-proposals.employees.partials.missing-record', ['when' => 'put_up=0', 'years' => null, 'justified' => $crGapYears, 'prefix' => 'cr', 'reasons' => $reasons->filter(fn ($reason) => $reason->appliesTo('cr'))])
+                    <p class="small text-muted mt-2 mb-1" data-show-when="has_grading=0">{{ __('dpc.employee_details.cr.no_grading_help') }}</p>
                     {{-- Up to four CRs a year, each with its authorities and grade (MoM of 12 November
                          2026); the year's NRC, where a CR lacks an authority's remarks, uploaded here. --}}
                     @php
@@ -372,7 +389,7 @@
                         $oldReports = (array) old('reports', []);
                         $crCount = (int) old('cr_count', max(1, count($existingReports)));
                     @endphp
-                    <div data-show-when="put_up=1" class="mt-1" data-cr-reports>
+                    <div data-show-when="has_grading=1" class="mt-1" data-cr-reports>
                         <div class="row g-2 mb-2">
                             <div class="col-md-4">
                                 <label class="form-label small" for="cr-count">{{ __('dpc.employee_details.cr.cr_count') }}</label>
@@ -432,10 +449,28 @@
                             <select class="form-select form-select-sm @error('integrity_option_id') is-invalid @enderror" id="cr-integrity" name="integrity_option_id" data-required-when-shown>
                                 <option value="">{{ __('ui.select') }}</option>
                                 @foreach ($integrityOptions as $integrity)
-                                    <option value="{{ $integrity->id }}" @selected((string) old('integrity_option_id', $editCr?->integrity_option_id) === (string) $integrity->id)>{{ $integrity->label() }}</option>
+                                    <option value="{{ $integrity->id }}" @if ($integrity->needs_departmental_view) data-needs-view @endif @selected((string) old('integrity_option_id', $editCr?->integrity_option_id) === (string) $integrity->id)>{{ $integrity->label() }}</option>
                                 @endforeach
                             </select>
                             @error('integrity_option_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                        {{-- The Final Departmental View Regarding Integrity, with its document, where
+                             the answer asks for it (2026-11-16); the view decides Fit or Unfit. --}}
+                        <div class="col-md-8" data-integrity-view hidden>
+                            <label class="form-label small fw-semibold" for="cr-integrity-view">{{ __('dpc.employee_details.cr.integrity_view') }}</label>
+                            <select class="form-select form-select-sm @error('integrity_departmental_view') is-invalid @enderror" id="cr-integrity-view" name="integrity_departmental_view">
+                                <option value="">{{ __('ui.select') }}</option>
+                                @foreach (['certified', 'not_certified'] as $view)
+                                    <option value="{{ $view }}" @selected(old('integrity_departmental_view', $editCr?->integrity_departmental_view) === $view)>{{ __('dpc.employee_details.cr.integrity_views.'.$view) }}</option>
+                                @endforeach
+                            </select>
+                            @error('integrity_departmental_view')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            <label class="form-label small fw-semibold mt-2" for="cr-integrity-document">{{ __('dpc.employee_details.cr.integrity_document') }}</label>
+                            @if ($editCr && ($document = $docFor('integrity_decision', $editCr->year)))
+                                @include('dpc-proposals.employees.partials.uploaded-document')
+                            @endif
+                            <input type="file" accept="application/pdf,.pdf" class="form-control form-control-sm @error('integrity_document') is-invalid @enderror" id="cr-integrity-document" name="integrity_document">
+                            @error('integrity_document')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
                     </div>
                     {{-- The CR itself, uploaded with its grading (2026-11-14): a graded CR as the CR,
@@ -612,7 +647,8 @@
                         </div>
                         <div class="col-md-3" data-show-when="submitted=1">
                             <label class="form-label small" for="submitted_on">{{ __('dpc.employee_details.property.submitted_on') }}</label>
-                            <input type="date" class="form-control form-control-sm" id="submitted_on" name="submitted_on" value="{{ old('submitted_on', $editProperty?->submitted_on?->format('Y-m-d')) }}">
+                            <input type="date" class="form-control form-control-sm @error('submitted_on') is-invalid @enderror" id="submitted_on" name="submitted_on" value="{{ old('submitted_on', $editProperty?->submitted_on?->format('Y-m-d')) }}" @if ($editProperty) min="{{ $editProperty->year }}-01-01" @endif data-min-from-year>
+                            @error('submitted_on')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
                         <div class="col-md-4" data-show-when="submitted=1">
                             <label class="form-label small" for="next_increment_date">{{ __('dpc.employee_details.property.next_increment') }}</label>

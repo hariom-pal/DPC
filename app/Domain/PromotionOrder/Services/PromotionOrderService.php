@@ -106,7 +106,7 @@ final class PromotionOrderService
         foreach ($grounds as $citation) {
             $needs = match (true) {
                 str_starts_with((string) $citation, 'CR ') => HoldReason::CrYearsMissing->value,
-                str_starts_with((string) $citation, 'Property Return ') => HoldReason::PropertyMissing->value,
+                str_starts_with((string) $citation, 'Property File ') || str_starts_with((string) $citation, 'Property Return ') => HoldReason::PropertyMissing->value,
                 default => null,
             };
 

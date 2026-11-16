@@ -53,7 +53,7 @@ final class CandidateGateServiceTest extends TestCase
 
         $this->assertSame(RemarkCode::Rejected, $verdict->status);
         $this->assertStringContainsString(
-            'Property Return not available for mandatory 5 continuous years',
+            'Property File not available for mandatory 5 continuous years',
             implode(' ', $verdict->reasons),
         );
         $this->assertStringContainsString('2015', implode(' ', $verdict->reasons));

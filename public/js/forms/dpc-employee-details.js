@@ -42,19 +42,15 @@
                 return false;
             }
 
-            // A year already justified is not asked again.
-            var except = element.getAttribute('data-except-years');
-
-            if (except && year !== null && except.split(',').indexOf(year.value) !== -1) {
-                return false;
-            }
+            // A year already justified is shown, but not asked again (2026-11-16): its
+            // reason and document can be replaced, and need not be (see alreadyJustified).
 
             // The late-return questions only for a return submitted after 31 January
-            // of its own year — the 2025 return after 31 January 2025 (2026-11-14).
+            // of the next year — the 2025 return after 31 January 2026 (2026-11-16).
             if (element.hasAttribute('data-show-if-late')) {
                 var on = form.querySelector('[name="submitted_on"]');
 
-                if (year === null || year.value === '' || on === null || on.value === '' || on.value <= parseInt(year.value, 10) + '-01-31') {
+                if (year === null || year.value === '' || on === null || on.value === '' || on.value <= (parseInt(year.value, 10) + 1) + '-01-31') {
                     return false;
                 }
             }
@@ -66,14 +62,49 @@
             return parent === null || visible(parent);
         }
 
+        function alreadyJustified(element) {
+            var except = element.getAttribute('data-except-years');
+            var year = form.querySelector('[name="year"]');
+
+            return !!(except && year !== null && except.split(',').indexOf(year.value) !== -1);
+        }
+
         function sync() {
             dependants.forEach(function (element) {
                 var shown = visible(element);
+                var justified = alreadyJustified(element);
 
                 element.classList.toggle('d-none', !shown);
-                // Required only while shown (2026-11-05).
+                // Required only while shown (2026-11-05), and not for a year whose reason
+                // and document are already recorded.
                 element.querySelectorAll('[data-required-when-shown]').forEach(function (input) {
-                    input.required = shown;
+                    input.required = shown && !justified;
+                });
+                element.querySelectorAll('[data-justified-note]').forEach(function (note) {
+                    note.hidden = !justified;
+                });
+            });
+
+            // No submission date before 1 January of the Property File's year (2026-11-16).
+            form.querySelectorAll('[data-min-from-year]').forEach(function (input) {
+                var yearField = form.querySelector('[name="year"]');
+                if (yearField && /^\d{4}$/.test(yearField.value)) {
+                    input.min = yearField.value + '-01-01';
+                } else {
+                    input.removeAttribute('min');
+                }
+            });
+
+            // The Final Departmental View Regarding Integrity, for an answer that asks for it (2026-11-16).
+            form.querySelectorAll('select[name="integrity_option_id"]').forEach(function (select) {
+                var option = select.options[select.selectedIndex];
+                var needsView = !!(option && option.hasAttribute('data-needs-view'));
+                var shown = needsView && !select.closest('.d-none');
+
+                form.querySelectorAll('[data-integrity-view]').forEach(function (box) {
+                    box.hidden = !shown;
+                    var view = box.querySelector('select[name="integrity_departmental_view"]');
+                    if (view) { view.required = shown; }
                 });
             });
 

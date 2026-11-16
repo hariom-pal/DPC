@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace App\Domain\Dpc\Requests;
 
+use App\Domain\Dpc\Enums\EvaluationDocumentKind;
+use App\Domain\Dpc\Models\DpcEvaluationCrGrade;
 use App\Domain\Dpc\Models\DpcEvaluationRecordGap;
+use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Requests\Concerns\DeclaresAMissingRecord;
 use App\Domain\Dpc\Services\EmployeeDetailsService;
+use App\Domain\Master\Models\IntegrityOption;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -43,8 +47,9 @@ class SaveEmployeeCrYearRequest extends FormRequest
         return [
             'year' => ['required', 'integer', 'min:'.(int) config('dpc.evaluation.min_year', 1950), 'max:2200'],
             'put_up' => ['required', 'boolean'],
-            // A CR is never without its grading (2026-11-16): put up means graded.
-            'has_grading' => ['nullable', 'boolean', 'accepted_if:put_up,1'],
+            // A CR put up with a grading counts; one without a grading is uploaded and
+            // does not count (2026-11-16, restored).
+            'has_grading' => ['required_if:put_up,1', 'nullable', 'boolean'],
             'authorities' => ['nullable', 'array'],
             'authorities.*' => ['string', Rule::in(EmployeeDetailsService::CR_AUTHORITIES)],
             'grade' => ['nullable', 'string', Rule::in((array) config('dpc.evaluation.cr_grades'))],
@@ -61,6 +66,9 @@ class SaveEmployeeCrYearRequest extends FormRequest
             'cr_undertaking' => ['nullable', 'boolean'],
             // Integrity (सत्यनिष्ठा) of the year, beside the grade (2026-11-14).
             'integrity_option_id' => ['nullable', 'integer', Rule::exists('integrity_options', 'id')->where('status', 'active')->whereNull('deleted_at')],
+            // 2026-11-16: the Final Departmental View Regarding Integrity, and its document.
+            'integrity_departmental_view' => ['nullable', Rule::in([DpcEvaluationCrGrade::VIEW_CERTIFIED, DpcEvaluationCrGrade::VIEW_NOT_CERTIFIED])],
+            'integrity_document' => ['nullable', 'file', 'mimes:pdf', 'max:'.(int) config('dpc.documents.max_kb', 10240)],
             ...$this->missingRecordRules(),
         ];
     }
@@ -71,18 +79,9 @@ class SaveEmployeeCrYearRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'has_grading.accepted_if' => __('dpc.employee_details.cr.grading_required'),
             'cr_document.mimes' => __('dpc.employee_details.documents.pdf_only'),
             'cr_document.max' => __('dpc.employee_details.documents.too_large', ['kb' => (int) config('dpc.documents.max_kb', 10240)]),
         ];
-    }
-
-    protected function prepareForValidation(): void
-    {
-        // The form no longer asks: a CR put up carries its grading (2026-11-16).
-        if ($this->input('put_up') === '1' && ! $this->has('has_grading')) {
-            $this->merge(['has_grading' => '1']);
-        }
     }
 
     /** A CR not put up is Missing: its reason and document, here (2026-11-05). */
@@ -90,6 +89,8 @@ class SaveEmployeeCrYearRequest extends FormRequest
     {
         $validator->after(function (Validator $validator): void {
             $this->assertMissingJustification($validator, DpcEvaluationRecordGap::KIND_CR, $this->has('put_up') && ! $this->boolean('put_up'));
+
+            $this->assertDepartmentalView($validator);
 
             if ($this->hasFile('cr_document') && $this->boolean('put_up')) {
                 if (! $this->boolean('cr_verified')) {
@@ -101,5 +102,36 @@ class SaveEmployeeCrYearRequest extends FormRequest
                 }
             }
         });
+    }
+
+    /**
+     * An Integrity answer that asks for the Final Departmental View needs the view
+     * and its document (2026-11-16) — the document unless the year already has one.
+     */
+    private function assertDepartmentalView(Validator $validator): void
+    {
+        if (! $this->boolean('put_up') || ! $this->filled('integrity_option_id')) {
+            return;
+        }
+
+        $option = IntegrityOption::query()->find($this->input('integrity_option_id'));
+
+        if ($option === null || ! $option->needs_departmental_view) {
+            return;
+        }
+
+        if (! $this->filled('integrity_departmental_view')) {
+            $validator->errors()->add('integrity_departmental_view', (string) __('dpc.employee_details.cr.integrity_view_required'));
+        }
+
+        $row = $this->route('evaluationRow');
+        $onFile = $row instanceof DpcEvaluationRow && $row->currentDocuments()
+            ->where('kind', EvaluationDocumentKind::IntegrityDecision->value)
+            ->where('year', $this->integer('year'))
+            ->exists();
+
+        if (! $this->hasFile('integrity_document') && ! $onFile) {
+            $validator->errors()->add('integrity_document', (string) __('dpc.employee_details.cr.integrity_document_required'));
+        }
     }
 }

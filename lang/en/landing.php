@@ -311,7 +311,7 @@ return [
         ],
         'reserved' => [
             'q' => 'Why is a promotion sometimes reserved?',
-            'a' => 'If an officer\'s confidential reports are missing for two or more years, or the immovable-property return is not recorded, the officer takes part in the DPC but the promotion action is reserved. When the missing record is supplied, a Circulation note obtains the Commission\'s consent for the promotion to proceed.',
+            'a' => 'If an officer\'s confidential reports are missing for two or more years, or the immovable-property file is not recorded, the officer takes part in the DPC but the promotion action is reserved. When the missing record is supplied, a Circulation note obtains the Commission\'s consent for the promotion to proceed.',
         ],
         'documents' => [
             'q' => 'Are the documents legally reliable?',

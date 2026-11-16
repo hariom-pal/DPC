@@ -42,7 +42,7 @@ enum CorrectableField: string
             self::TribalAreaServiceYears => 'Service in Tribal Area (years)',
             self::CrGrade => 'CR Grade',
             self::LoyaltyFlag => 'Integrity (Loyalty)',
-            self::PropertyFlag => 'Immovable Property Return',
+            self::PropertyFlag => 'Immovable Property File',
         };
     }
 

@@ -40,7 +40,7 @@ return [
         'chart' => 'Evaluation Chart',
         'chart_empty' => 'No evaluation data has been entered for this officer yet.',
         'loyalty' => 'Integrity certificate',
-        'property' => 'Property return',
+        'property' => 'Property file',
         'gaps' => 'Recorded gaps',
         'joined_service' => 'Joined service',
         'posted_on_feeder' => 'Posted on present post',

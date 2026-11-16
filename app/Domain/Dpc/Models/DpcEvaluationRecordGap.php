@@ -215,7 +215,7 @@ class DpcEvaluationRecordGap extends Model implements Auditable
             '%s %d — %s%s',
             match ($this->kind) {
                 self::KIND_CR => 'CR',
-                self::KIND_PROPERTY => 'Property Return',
+                self::KIND_PROPERTY => 'Property File',
                 default => 'Integrity',
             },
             $this->year,
@@ -229,7 +229,7 @@ class DpcEvaluationRecordGap extends Model implements Auditable
     {
         return match ($kind) {
             self::KIND_CR => 'CR',
-            self::KIND_PROPERTY => 'Property Return',
+            self::KIND_PROPERTY => 'Property File',
             default => 'Integrity Certificate',
         };
     }

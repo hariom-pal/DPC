@@ -18,7 +18,7 @@ use Illuminate\Validation\Validator;
  * Section D — one Immovable Property Return year (rule 4.1).
  *
  * A submitted return needs its submission date and the date of next increment
- * printed on it (page 4). One submitted after 31 January of its own year needs
+ * printed on it (page 4). One submitted after 31 January of the next year needs
  * the department's decision; an accepted late return needs the reason too.
  */
 class SaveEmployeePropertyYearRequest extends FormRequest
@@ -73,6 +73,13 @@ class SaveEmployeePropertyYearRequest extends FormRequest
             }
 
             $year = $this->integer('year');
+
+            // Never before 1 January of the year the file is for (2026-11-16).
+            if ((string) $this->input('submitted_on') < sprintf('%04d-01-01', $year)) {
+                $validator->errors()->add('submitted_on', __('dpc.employee_details.property.submitted_before_year', ['date' => '01-01-'.$year]));
+
+                return;
+            }
 
             if (strtotime((string) $this->input('submitted_on')) <= DpcEvaluationPropertyFlag::dueDateFor($year)->getTimestamp()) {
                 return;

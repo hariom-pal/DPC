@@ -229,8 +229,13 @@ class DpcEvaluationRow extends Model
         $grounds = [];
 
         foreach ($this->crGrades as $cr) {
-            if ($cr->integrityOption !== null && ! $cr->integrityOption->fit) {
-                $grounds[] = ['key' => 'dpc.employee_details.unfit.integrity', 'params' => ['year' => $cr->year, 'option' => $cr->integrityOption->name_en]];
+            // The Final Departmental View decides where the answer asks for one (2026-11-16).
+            if ($cr->integrityFit() === false) {
+                $option = (string) $cr->integrityOption?->name_en;
+                if ($cr->integrity_departmental_view !== null) {
+                    $option .= ' — Final Departmental View: Integrity Not Certified';
+                }
+                $grounds[] = ['key' => 'dpc.employee_details.unfit.integrity', 'params' => ['year' => $cr->year, 'option' => $option]];
             }
         }
 

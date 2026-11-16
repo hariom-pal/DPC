@@ -165,7 +165,7 @@ class HoldService
         }
 
         if ($property !== []) {
-            $found[HoldReason::PropertyMissing->value] = 'Mandatory Property Return not available for '.implode(', ', $property).' (justified)';
+            $found[HoldReason::PropertyMissing->value] = 'Mandatory Property File not available for '.implode(', ', $property).' (justified)';
         }
 
         return $found;

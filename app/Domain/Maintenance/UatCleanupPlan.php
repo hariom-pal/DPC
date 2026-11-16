@@ -33,7 +33,7 @@ final class UatCleanupPlan
         'dpc_evaluation_loyalty_flags' => 'Employee loyalty flags per year',
         'dpc_evaluation_property_flags' => 'Employee property-return flags per year',
         'dpc_evaluation_record_gaps' => 'Missing-record justifications and their PDFs',
-        'dpc_evaluation_documents' => 'Employee-wise documents: CR, IPR, PH undertaking (and their PDFs)',
+        'dpc_evaluation_documents' => 'Employee-wise documents: CR, Property File, PH undertaking (and their PDFs)',
         'dpc_evaluation_rows' => 'Employee rows of the evaluation chart',
 
         // The rest of a DPC proposal.

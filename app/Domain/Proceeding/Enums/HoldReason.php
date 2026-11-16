@@ -34,7 +34,7 @@ enum HoldReason: string
     {
         return match ($this) {
             self::CrYearsMissing => 'CR not available for the required years',
-            self::PropertyMissing => 'Immovable property return not recorded',
+            self::PropertyMissing => 'Immovable property file not recorded',
             self::Manual => 'Held by the Commission',
         };
     }

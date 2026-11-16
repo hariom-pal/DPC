@@ -22,7 +22,7 @@ class IntegrityOptionRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
-        $this->merge(['fit' => $this->boolean('fit')]);
+        $this->merge(['fit' => $this->boolean('fit'), 'needs_departmental_view' => $this->boolean('needs_departmental_view')]);
     }
 
     /**
@@ -37,6 +37,7 @@ class IntegrityOptionRequest extends FormRequest
             'name_en' => ['required', 'string', 'max:255'],
             'name_hi' => ['required', 'string', 'max:255'],
             'fit' => ['required', 'boolean'],
+            'needs_departmental_view' => ['required', 'boolean'],
             'sort_order' => ['required', 'integer', 'min:0', 'max:9999'],
             'status' => ['required', new Enum(MasterStatus::class)],
         ];

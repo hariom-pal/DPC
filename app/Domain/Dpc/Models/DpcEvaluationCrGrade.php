@@ -25,6 +25,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property bool|null $has_grading
  * @property list<array<string, string|null>>|null $reports
  * @property int|null $integrity_option_id
+ * @property string|null $integrity_departmental_view
  * @property-read IntegrityOption|null $integrityOption
  */
 class DpcEvaluationCrGrade extends Model
@@ -59,6 +60,8 @@ class DpcEvaluationCrGrade extends Model
         'reports',
         // Integrity (सत्यनिष्ठा) of the year, from the Administrator's master (2026-11-14).
         'integrity_option_id',
+        // 2026-11-16: 'certified' or 'not_certified', where the answer asks for it.
+        'integrity_departmental_view',
     ];
 
     /**
@@ -173,5 +176,33 @@ class DpcEvaluationCrGrade extends Model
     public function row(): BelongsTo
     {
         return $this->belongsTo(DpcEvaluationRow::class, 'dpc_evaluation_row_id');
+    }
+
+    public const VIEW_CERTIFIED = 'certified';
+
+    public const VIEW_NOT_CERTIFIED = 'not_certified';
+
+    /**
+     * Whether the year's Integrity makes the officer Fit (2026-11-16): the Final
+     * Departmental View where the answer asks for one, the answer's own result
+     * otherwise. Null: no answer, or the view not yet recorded.
+     */
+    public function integrityFit(): ?bool
+    {
+        $option = $this->integrityOption;
+
+        if ($option === null) {
+            return null;
+        }
+
+        if ($option->needs_departmental_view) {
+            return match ($this->integrity_departmental_view) {
+                self::VIEW_CERTIFIED => true,
+                self::VIEW_NOT_CERTIFIED => false,
+                default => null,
+            };
+        }
+
+        return (bool) $option->fit;
     }
 }

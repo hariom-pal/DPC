@@ -22,6 +22,7 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property string $name_en
  * @property string $name_hi
  * @property bool $fit
+ * @property bool $needs_departmental_view
  * @property int $sort_order
  */
 class IntegrityOption extends Model implements Auditable
@@ -50,6 +51,8 @@ class IntegrityOption extends Model implements Auditable
         'name_en',
         'name_hi',
         'fit',
+        // 2026-11-16: the answer asks for the Final Departmental View, which decides.
+        'needs_departmental_view',
         'sort_order',
     ];
 
@@ -60,6 +63,7 @@ class IntegrityOption extends Model implements Auditable
     {
         return [
             'fit' => 'boolean',
+            'needs_departmental_view' => 'boolean',
             'sort_order' => 'integer',
         ];
     }

@@ -18,6 +18,7 @@ use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Eligibility\CrWindow;
 use App\Domain\Eligibility\RuleSet;
 use App\Domain\Eligibility\ValueObjects\OfficerRecord;
+use App\Domain\Master\Models\IntegrityOption;
 use App\Domain\Master\Services\PhReservationPolicy;
 use App\Domain\Master\Services\PromotionCrRules;
 use App\Domain\Master\Support\ReservationMode;
@@ -127,6 +128,10 @@ class EmployeeDetailsService
         $reports = null;
         // Integrity (सत्यनिष्ठा) of a CR put up, chosen beside the grade (2026-11-14).
         $integrityId = $putUp && ! empty($data['integrity_option_id']) ? (int) $data['integrity_option_id'] : null;
+        // The Final Departmental View, only where the answer asks for it (2026-11-16).
+        $view = $integrityId !== null && IntegrityOption::query()->whereKey($integrityId)->value('needs_departmental_view')
+            ? ($data['integrity_departmental_view'] ?? null)
+            : null;
 
         if ($putUp && $hasGrading) {
             $reports = $this->reportsFrom($data);
@@ -155,6 +160,7 @@ class EmployeeDetailsService
             'reports' => $reports,
             'grade' => $grade,
             'integrity_option_id' => $integrityId,
+            'integrity_departmental_view' => $view,
         ])->save();
 
         // The engine reads the year's Integrity Certificate as held once an answer is
@@ -173,6 +179,7 @@ class EmployeeDetailsService
             'authority' => $reports[0]['authority'] ?? null,
             'cr_count' => $reports === null ? null : count($reports),
             'integrity_option_id' => $integrityId,
+            'integrity_departmental_view' => $view,
         ], $actor);
 
         return $record;
@@ -235,7 +242,7 @@ class EmployeeDetailsService
     /**
      * The CR years asked for (business decisions of 2026-11-14): the required number
      * (five), counted back from the year before the DPC year. A year recorded as
-     * missing (a CR is always graded, 2026-11-16) does not count, so the window stretches
+     * missing, or put up without a grading, does not count, so the window stretches
      * one year further back for each — except the year just before the DPC year,
      * which stays in the window (four CRs then suffice). Never before the officer
      * joined service.
@@ -248,7 +255,7 @@ class EmployeeDetailsService
         $last = (int) ($proposal->dpc_year ?: $proposal->proposal_date->year) - 1;
         $from = max((int) config('dpc.evaluation.min_year', 1950), $row->date_of_joining_service->year ?? ($last - 20));
         $notCounted = $row->crGrades()->get()
-            ->filter(fn ($record): bool => $record->put_up === false)
+            ->filter(fn ($record): bool => $record->put_up === false || ($record->put_up === true && $record->has_grading === false))
             ->pluck('year')->map(fn ($year): int => (int) $year)->values()->all();
         // Five, or the rule's CR count where it asks for more (2026-11-16): the screen
         // never offers fewer years than the rule check and the calculation look at.
@@ -421,7 +428,7 @@ class EmployeeDetailsService
             'late_decision_remarks' => $late ? $this->blankToNull($data['late_decision_remarks'] ?? null) : null,
         ])->save();
 
-        $this->log($row, 'property_year_saved', sprintf('Property Return %d recorded: %s', $year, $submitted ? 'submitted' : 'not submitted'), [
+        $this->log($row, 'property_year_saved', sprintf('Property File %d recorded: %s', $year, $submitted ? 'submitted' : 'not submitted'), [
             'year' => $year,
             'submitted' => $submitted,
             'submitted_on' => $submittedOn?->toDateString(),
@@ -437,7 +444,7 @@ class EmployeeDetailsService
 
         $row->propertyFlags()->where('year', $year)->delete();
 
-        $this->log($row, 'property_year_removed', "Property Return {$year} removed", ['year' => $year], $actor);
+        $this->log($row, 'property_year_removed', "Property File {$year} removed", ['year' => $year], $actor);
     }
 
     // ------------------------------------------------------------------
@@ -896,7 +903,7 @@ class EmployeeDetailsService
             name: (string) $row->name,
             crGrades: [],
             crNotCountedYears: $row->crGrades
-                ->filter(fn ($record): bool => $record->put_up === false)
+                ->filter(fn ($record): bool => $record->put_up === false || ($record->put_up === true && $record->has_grading === false))
                 ->map(fn ($record): int => (int) $record->year)->values()->all(),
             firstServiceYear: $row->date_of_joining_service?->year,
         );
@@ -965,11 +972,21 @@ class EmployeeDetailsService
             // Integrity, beside the grade (2026-11-14).
             if ($cr->integrity_option_id === null) {
                 $missing[] = (string) __('dpc.employee_details.missing.cr_integrity', ['year' => $year]);
+            } elseif ($cr->integrityOption?->needs_departmental_view) {
+                // The Final Departmental View and its document (2026-11-16).
+                if ($cr->integrity_departmental_view === null) {
+                    $missing[] = (string) __('dpc.employee_details.missing.cr_integrity_view', ['year' => $year]);
+                }
+                if (! $this->hasDocument($row, EvaluationDocumentKind::IntegrityDecision, $year)) {
+                    $missing[] = (string) __('dpc.employee_details.missing.cr_integrity_document', ['year' => $year]);
+                }
             }
 
-            // Saved before a grading became mandatory (2026-11-16): to be edited and graded.
+            // A CR without grading: uploaded, not counted (2026-11-16).
             if ($cr->has_grading === false) {
-                $missing[] = (string) __('dpc.employee_details.missing.cr_grading_required', ['year' => $year]);
+                if (! $this->hasDocument($row, EvaluationDocumentKind::CrWithoutGrading, $year)) {
+                    $missing[] = (string) __('dpc.employee_details.missing.cr_without_grading_document', ['year' => $year]);
+                }
 
                 continue;
             }
@@ -1210,18 +1227,8 @@ class EmployeeDetailsService
         // Hashed from the bytes that arrived, not re-read from the stored copy.
         $sha256 = (string) hash_file('sha256', (string) $file->getRealPath());
 
-        // Page 4: the same IPR is sometimes uploaded for two years.
-        if ($kind === EvaluationDocumentKind::PropertyReturn) {
-            $sameFile = $row->currentDocuments()
-                ->where('kind', $kind->value)
-                ->where('year', '!=', $year)
-                ->where('sha256', $sha256)
-                ->value('year');
-
-            if ($sameFile !== null) {
-                throw new WorkflowException(__('dpc.employee_details.property.duplicate_file', ['year' => $sameFile]));
-            }
-        }
+        // The same file may be uploaded for more than one year (2026-11-16): the
+        // check that refused it is gone.
 
         return DB::transaction(function () use ($row, $kind, $year, $file, $undertaking, $remarks, $actor, $sha256): DpcEvaluationDocument {
             $disk = (string) config('dpc.documents.disk', 'local');

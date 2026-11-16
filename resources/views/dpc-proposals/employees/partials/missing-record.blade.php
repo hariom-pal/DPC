@@ -7,6 +7,7 @@
 <div class="border rounded bg-light p-2 mt-2" data-show-when="{{ $when }}" @if ($years !== null) data-only-years="{{ implode(',', $years) }}" @endif data-except-years="{{ implode(',', $justified ?? []) }}" data-missing-record>
     <div class="small fw-semibold mb-1">{{ __('dpc.employee_details.missing_record.heading') }}</div>
     <div class="small text-muted mb-2" data-missing-help>{{ __('dpc.employee_details.missing_record.help') }}</div>
+    <div class="small text-success mb-2" data-justified-note hidden>{{ __('dpc.employee_details.missing_record.already_recorded') }}</div>
     <div class="row g-2">
         <div class="col-md-4">
             <label class="form-label small" for="{{ $prefix }}-missing-reason">{{ __('dpc.employee_details.missing_record.reason') }}</label>

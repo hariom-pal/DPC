@@ -127,7 +127,7 @@ class CandidateGateService
 
         if ($propertyGap !== []) {
             $rejections[] = sprintf(
-                'Property Return not available for mandatory %d continuous years — missing %s.',
+                'Property File not available for mandatory %d continuous years — missing %s.',
                 $propertyYearsRequired,
                 implode(', ', $propertyGap),
             );
@@ -364,10 +364,10 @@ class CandidateGateService
             $citation = $officer->justifiedPropertyGapYears[$year] ?? null;
 
             if ($citation !== null) {
-                $reasons[] = sprintf('The Property Return for %d, mandatory under the promotion rule, is unavailable and has been justified with a reason and a supporting document, so the promotion is held rather than refused.', $year);
+                $reasons[] = sprintf('The Property File for %d, mandatory under the promotion rule, is unavailable and has been justified with a reason and a supporting document, so the promotion is held rather than refused.', $year);
                 $citations[] = $citation;
             } else {
-                $unjustified[] = sprintf('The Property Return for %d is mandatory under the promotion rule and is not recorded, with no reason or supporting document.', $year);
+                $unjustified[] = sprintf('The Property File for %d is mandatory under the promotion rule and is not recorded, with no reason or supporting document.', $year);
             }
         }
 

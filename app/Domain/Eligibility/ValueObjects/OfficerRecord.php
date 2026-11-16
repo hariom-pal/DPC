@@ -133,8 +133,9 @@ final class OfficerRecord
                 $tribalByYear[$crGrade->year] = (bool) $crGrade->tribal_area;
             }
 
-            // Only a CR not put up opens the window further: a CR is always graded (2026-11-16).
-            if ($crGrade->put_up === false) {
+            // A CR not put up, or put up without a grading, does not count and opens the
+            // window one year further (2026-11-16).
+            if ($crGrade->put_up === false || ($crGrade->put_up === true && $crGrade->has_grading === false)) {
                 $notCounted[] = (int) $crGrade->year;
             }
         }

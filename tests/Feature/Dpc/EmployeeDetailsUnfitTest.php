@@ -99,12 +99,55 @@ class EmployeeDetailsUnfitTest extends TestCase
 
     // ================================================================ Integrity
 
-    public function test_the_four_integrity_options_are_seeded_with_their_result(): void
+    public function test_the_five_integrity_options_are_seeded_with_their_result(): void
     {
         $this->assertSame(
-            ['certified_good' => true, 'not_certified_adverse' => false, 'not_mentioned_good' => true, 'not_mentioned_adverse' => false],
+            ['certified_good' => true, 'not_certified_adverse' => false, 'not_certified_good' => false, 'not_mentioned_good' => true, 'not_mentioned_adverse' => false],
             IntegrityOption::query()->selectable()->pluck('fit', 'code')->all(),
         );
+        // 2026-11-16: these three are decided by the Final Departmental View.
+        $this->assertSame(
+            ['not_certified_good', 'not_mentioned_good', 'not_mentioned_adverse'],
+            IntegrityOption::query()->selectable()->where('needs_departmental_view', true)->pluck('code')->all(),
+        );
+    }
+
+    /** 2026-11-16: the Final Departmental View Regarding Integrity, with its document, decides. */
+    public function test_the_final_departmental_view_decides_fit_or_unfit(): void
+    {
+        $year = $this->dpcYear - 1;
+        $option = ['integrity_option_id' => $this->integrity('not_mentioned_good')];
+
+        $page = $this->actingAs($this->ao)->get(route('dpc-proposals.employees.show', [$this->proposal, $this->row]))
+            ->assertSee(__('dpc.employee_details.cr.integrity_view'))
+            ->assertSee(__('dpc.employee_details.cr.integrity_document'));
+        $this->assertMatchesRegularExpression('/value="'.$this->integrity('not_mentioned_good').'"\s+data-needs-view/', (string) $page->getContent());
+
+        // The view and its document are mandatory.
+        $this->saveCr($year, $option)->assertSessionHasErrors(['integrity_departmental_view', 'integrity_document']);
+        $this->assertSame(0, $this->row->crGrades()->count());
+
+        // Integrity Not Certified: Unfit, whatever the answer.
+        $this->saveCr($year, $option + ['integrity_departmental_view' => 'not_certified', 'integrity_document' => $this->pdf('view.pdf'), 'cr_verified' => '1'])
+            ->assertSessionHasNoErrors();
+        $this->assertSame('not_certified', $this->row->crGrades()->sole()->integrity_departmental_view);
+        $this->assertSame(1, $this->row->currentDocuments()->where('kind', 'integrity_decision')->where('year', $year)->count());
+        $this->assertCount(1, $this->unfit());
+        $this->assertStringContainsString('Integrity Not Certified', $this->row->fresh()->unfitReasons('en')[0]);
+
+        // Integrity Certified: Fit — the document already on file is not asked again.
+        $this->saveCr($year, $option + ['integrity_departmental_view' => 'certified'])->assertSessionHasNoErrors();
+        $this->assertSame([], $this->unfit());
+        $this->assertNotContains(__('dpc.employee_details.missing.cr_integrity_document', ['year' => $year]), app(EmployeeDetailsService::class)->status($this->row->fresh())['sections']['cr']);
+
+        // Uploaded on its own, the Integrity decision belongs to the CR section.
+        $this->post($this->route('documents.store'), ['verified' => '1', 'kind' => 'integrity_decision', 'year' => $year, 'document' => $this->pdf('view2.pdf')])
+            ->assertRedirect(route('dpc-proposals.employees.show', [$this->proposal, $this->row]).'#section-cr');
+        $this->assertSame(1, $this->row->currentDocuments()->where('kind', 'integrity_decision')->where('year', $year)->count(), 'The new document replaces the old.');
+
+        // An answer that settles it by itself keeps no view.
+        $this->saveCr($year, ['integrity_departmental_view' => 'not_certified'])->assertSessionHasNoErrors();
+        $this->assertNull($this->row->crGrades()->sole()->integrity_departmental_view);
     }
 
     public function test_integrity_is_chosen_beside_the_grade_and_an_unfit_answer_makes_the_officer_unfit(): void
@@ -121,7 +164,7 @@ class EmployeeDetailsUnfitTest extends TestCase
         $this->assertSame([], $this->unfit());
         $this->assertTrue((bool) $this->row->loyaltyFlags()->where('year', $this->dpcYear - 1)->value('flag'), 'The engine reads the Integrity Certificate as held.');
 
-        $this->saveCr($this->dpcYear - 2, ['integrity_option_id' => $this->integrity('not_mentioned_adverse')])->assertSessionHasNoErrors();
+        $this->saveCr($this->dpcYear - 2, ['integrity_option_id' => $this->integrity('not_certified_adverse')])->assertSessionHasNoErrors();
         $this->assertCount(1, $this->unfit());
 
         $check = app(PromotionRuleCheck::class)->check($this->row->fresh(), $this->proposal);
@@ -274,14 +317,12 @@ class EmployeeDetailsUnfitTest extends TestCase
         ])->assertSessionHasNoErrors();
         $this->assertSame(range($last, $last - 4), $service->crYearWindow($this->row->fresh()));
 
-        // A year in the middle missing: one more year back for each (a CR is always graded, 2026-11-16).
+        // A year in the middle missing, or without grading: one more year back for each.
         $this->post($this->route('cr.save'), [
             'year' => $last - 2, 'put_up' => '0', 'missing_reason_id' => RecordReason::query()->where('code', 'long_leave')->value('id'), 'missing_document' => $this->pdf(),
         ])->assertSessionHasNoErrors();
         $this->assertSame(range($last, $last - 5), $service->crYearWindow($this->row->fresh()));
-        $this->post($this->route('cr.save'), [
-            'year' => $last - 3, 'put_up' => '0', 'missing_reason_id' => RecordReason::query()->where('code', 'long_leave')->value('id'), 'missing_document' => $this->pdf(),
-        ])->assertSessionHasNoErrors();
+        $this->post($this->route('cr.save'), ['year' => $last - 3, 'put_up' => '1', 'has_grading' => '0'])->assertSessionHasNoErrors();
         $this->assertSame(range($last, $last - 6), $service->crYearWindow($this->row->fresh()));
 
         // A year outside the window is refused.
@@ -305,23 +346,44 @@ class EmployeeDetailsUnfitTest extends TestCase
         $this->assertSame(0, $this->row->propertyFlags()->count());
     }
 
-    /** 2026-11-14: the 2025 return is due by 31 January 2025, not 2026. */
-    public function test_a_return_is_late_after_31_january_of_its_own_year(): void
+    /** 2026-11-16: the 2025 return is due by 31 January 2026, the 2024 return by 31 January 2025. */
+    public function test_a_return_is_late_after_31_january_of_the_next_year(): void
     {
         $year = $this->dpcYear - 2;
         $form = ['year' => $year, 'submitted' => '1', 'next_increment_date' => $year.'-07-01'];
 
-        $this->actingAs($this->ao)->post($this->route('property.save'), [...$form, 'submitted_on' => $year.'-01-31'])->assertSessionHasNoErrors();
+        // Never before 1 January of the file's own year.
+        $this->actingAs($this->ao)->post($this->route('property.save'), [...$form, 'submitted_on' => ($year - 1).'-12-31'])
+            ->assertSessionHasErrors(['submitted_on' => __('dpc.employee_details.property.submitted_before_year', ['date' => '01-01-'.$year])]);
+        $this->assertSame(0, $this->row->propertyFlags()->count());
+        $this->get(route('dpc-proposals.employees.show', [$this->proposal, $this->row]))->assertSee('data-min-from-year', false);
+
+        $this->post($this->route('property.save'), [...$form, 'submitted_on' => ($year + 1).'-01-31'])->assertSessionHasNoErrors();
         $this->assertFalse($this->row->propertyFlags()->sole()->isLate());
 
-        $this->post($this->route('property.save'), [...$form, 'submitted_on' => $year.'-02-01'])->assertSessionHasErrors('late_decision');
+        $this->post($this->route('property.save'), [...$form, 'submitted_on' => ($year + 1).'-02-01'])->assertSessionHasErrors('late_decision');
 
         // The decision's document goes with the year.
         $this->post($this->route('property.save'), [
-            ...$form, 'submitted_on' => $year.'-02-01', 'late_decision' => 'accepted', 'late_decision_remarks' => 'Election duty.',
+            ...$form, 'submitted_on' => ($year + 1).'-02-01', 'late_decision' => 'accepted', 'late_decision_remarks' => 'Election duty.',
             'late_document' => $this->pdf('decision.pdf'), 'property_verified' => '1',
         ])->assertSessionHasNoErrors();
         $this->assertSame(1, $this->row->currentDocuments()->where('kind', EvaluationDocumentKind::PropertyLateDecision->value)->where('year', $year)->count());
+    }
+
+    /** 2026-11-16: the same file may be uploaded as the Property Return of two years. */
+    public function test_the_same_file_may_be_the_property_return_of_two_years(): void
+    {
+        $bytes = "%PDF-1.4\nthe same return\n%%EOF\n";
+        foreach ([$this->dpcYear - 1, $this->dpcYear - 2] as $year) {
+            $file = UploadedFile::fake()->createWithContent('return.pdf', $bytes);
+            $this->actingAs($this->ao)->post($this->route('property.save'), [
+                'year' => $year, 'submitted' => '1', 'submitted_on' => $year.'-01-10', 'next_increment_date' => $year.'-07-0'.($this->dpcYear - $year),
+                'property_document' => $file, 'property_verified' => '1',
+            ])->assertSessionHasNoErrors();
+        }
+
+        $this->assertSame(2, $this->row->currentDocuments()->where('kind', EvaluationDocumentKind::PropertyReturn->value)->count());
     }
 
     // ============================================================ Save & Next

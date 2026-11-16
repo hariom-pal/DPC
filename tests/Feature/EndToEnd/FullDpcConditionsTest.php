@@ -369,6 +369,14 @@ class FullDpcConditionsTest extends TestCase
         });
         $reviewed = $this->results($this->conclude(['proposal' => $review] + $c))[4];
         $this->assertSame(7, (int) $reviewed->score_breakdown['marks_by_year'][2023], 'Marks from the CR actually recorded.');
+
+        // 2023 found: the window is 2021–2025 again, and 2020 is still listed — shown, not counted.
+        $reviewRow = $review->evaluationRows()->where('sn', 4)->sole();
+        $lines = collect(app(PromotionRuleCheck::class)->check($reviewRow, $review->fresh())['years'])->keyBy('year');
+        $this->assertTrue($lines[2020]['cr_outside']);
+        $this->assertFalse($lines[2020]['cr_required']);
+        $this->assertSame(7, $lines[2020]['points']);
+        $this->assertFalse($lines[2021]['cr_outside']);
         $this->assertNotSame('CIR', $reviewed->status()->value);
         $this->assertContains(4, $this->order(['proposal' => $review] + $c));
 

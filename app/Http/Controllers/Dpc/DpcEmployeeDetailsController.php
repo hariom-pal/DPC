@@ -147,6 +147,11 @@ class DpcEmployeeDetailsController extends Controller
                 if ($request->hasFile('nrc')) {
                     $this->details->assertNrcHasItsCr($evaluationRow, $request->integer('year'));
                 }
+                // The document behind the Final Departmental View Regarding Integrity (2026-11-16).
+                $saved = $evaluationRow->crGrades()->where('year', $request->integer('year'))->first();
+                if ($request->hasFile('integrity_document') && $saved?->integrity_departmental_view !== null) {
+                    $this->details->upload($evaluationRow, EvaluationDocumentKind::IntegrityDecision, $request->integer('year'), $request->file('integrity_document'), false, null, $request->user(), $request->boolean('cr_verified'));
+                }
                 $this->recordMissing($request, $evaluationRow, DpcEvaluationRecordGap::KIND_CR);
             });
         });
@@ -218,7 +223,8 @@ class DpcEmployeeDetailsController extends Controller
         $kind = EvaluationDocumentKind::from((string) $request->validated('kind'));
         $section = match ($kind) {
             EvaluationDocumentKind::CrReport, EvaluationDocumentKind::CrWithoutGrading,
-            EvaluationDocumentKind::CrNrc, EvaluationDocumentKind::CrChannel => 'cr',
+            EvaluationDocumentKind::CrNrc, EvaluationDocumentKind::CrChannel,
+            EvaluationDocumentKind::IntegrityDecision => 'cr',
             EvaluationDocumentKind::PropertyReturn, EvaluationDocumentKind::PropertyLateDecision => 'property',
             EvaluationDocumentKind::PhUndertaking => 'ph',
             EvaluationDocumentKind::VigilanceOrder, EvaluationDocumentKind::EnquiryDocument,

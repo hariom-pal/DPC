@@ -61,6 +61,13 @@
                             <label class="form-check-label" for="fit">{{ __('admin.integrity_options.fit_label') }}</label>
                         </div>
                         <div class="form-text">{{ __('admin.integrity_options.fit_help') }}</div>
+                        {{-- 2026-11-16: the Final Departmental View Regarding Integrity. --}}
+                        <div class="form-check mt-2">
+                            <input type="checkbox" class="form-check-input" id="needs_departmental_view" name="needs_departmental_view" value="1"
+                                   @checked(old('needs_departmental_view', $reason->needs_departmental_view ?? false))>
+                            <label class="form-check-label" for="needs_departmental_view">{{ __('admin.integrity_options.view_label') }}</label>
+                        </div>
+                        <div class="form-text">{{ __('admin.integrity_options.view_help') }}</div>
                     </div>
                 </div>
 

@@ -190,7 +190,7 @@ class CirculationDocumentTest extends TestCase
         $this->assertStringContainsString('परिभ्रमण टीप', $html);
         $this->assertStringContainsString('DPC-2026-HE-0001', $html);
         $this->assertStringContainsString('US8', $html);
-        $this->assertStringContainsString('Immovable property return not recorded', $html);
+        $this->assertStringContainsString('Immovable property file not recorded', $html);
         // AD-23, stated on the face of the document.
         $this->assertStringContainsString('It does not', $html);
         $this->assertStringContainsString('re-run the DPC', $html);
