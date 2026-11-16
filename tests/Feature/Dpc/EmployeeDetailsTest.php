@@ -489,7 +489,7 @@ class EmployeeDetailsTest extends TestCase
 
         foreach (range($dpcYear - 4, $dpcYear - 1) as $i => $year) {
             $this->post($this->route('property.save'), [
-                'year' => $year, 'submitted' => '1', 'submitted_on' => $year.'-01-10', 'next_increment_date' => ($year + 1).'-07-0'.($i + 2),
+                'year' => $year, 'submitted' => '1', 'submitted_on' => $year.'-01-10', 'next_increment_date' => ($year + 1).'-01-01',
             ])->assertSessionHasNoErrors();
         }
 
@@ -618,7 +618,7 @@ class EmployeeDetailsTest extends TestCase
         // On time: by 31 January of the next year (2026-11-16).
         $onTime = $dpcYear - 2;
         $this->actingAs($this->ao)->post($this->route('property.save'), [
-            'year' => $onTime, 'submitted' => '1', 'submitted_on' => $onTime.'-01-15', 'next_increment_date' => ($onTime + 1).'-07-02',
+            'year' => $onTime, 'submitted' => '1', 'submitted_on' => $onTime.'-01-15', 'next_increment_date' => ($onTime + 1).'-01-01',
         ])->assertSessionHasNoErrors();
 
         $page = $this->actingAs($this->ao)->get(route('dpc-proposals.employees.show', [$this->proposal, $this->row]))->assertOk();
@@ -640,17 +640,27 @@ class EmployeeDetailsTest extends TestCase
             ->assertSee('<option value="'.($dpcYear - 5).'" selected', false);
     }
 
-    public function test_the_same_next_increment_date_for_two_years_is_refused(): void
+    /** 2026-11-16: 1 January or 1 July of the next year, offered as a dropdown. */
+    public function test_the_next_increment_date_is_1_january_or_1_july_of_the_next_year(): void
     {
-        $this->actingAs($this->ao)->post($this->route('property.save'), [
-            'year' => 2022, 'submitted' => '1', 'submitted_on' => '2022-01-20', 'next_increment_date' => '2023-07-01',
-        ])->assertSessionHasNoErrors();
+        foreach (['2023-07-01', '2024-03-01', '2024-07-02'] as $date) {
+            $this->actingAs($this->ao)->post($this->route('property.save'), [
+                'year' => 2023, 'submitted' => '1', 'submitted_on' => '2023-01-20', 'next_increment_date' => $date,
+            ])->assertSessionHasErrors(['next_increment_date' => __('dpc.employee_details.property.next_increment_invalid', ['dates' => '01-01-2024 / 01-07-2024'])]);
+        }
+        $this->assertSame(0, $this->row->propertyFlags()->count());
 
-        $this->actingAs($this->ao)->post($this->route('property.save'), [
-            'year' => 2023, 'submitted' => '1', 'submitted_on' => '2023-01-20', 'next_increment_date' => '2023-07-01',
-        ])->assertSessionHasErrors('property');
+        foreach (['2024-01-01', '2024-07-01'] as $date) {
+            $this->post($this->route('property.save'), [
+                'year' => 2023, 'submitted' => '1', 'submitted_on' => '2023-01-20', 'next_increment_date' => $date,
+            ])->assertSessionHasNoErrors();
+            $this->assertSame($date, $this->row->propertyFlags()->sole()->next_increment_date?->toDateString());
+        }
 
-        $this->assertSame(1, $this->row->propertyFlags()->count());
+        $this->get(route('dpc-proposals.employees.show', [$this->proposal, $this->row]).'?property_year=2023')
+            ->assertSee('<option value="2024-01-01"', false)
+            ->assertSee('<option value="2024-07-01" selected', false)
+            ->assertDontSee('type="date" class="form-control form-control-sm" id="next_increment_date"', false);
     }
 
     // ===================================================================== PH
@@ -947,6 +957,30 @@ class EmployeeDetailsTest extends TestCase
             ->assertRedirect(route('dpc-proposals.show', $this->proposal));
 
         $this->assertSame(DpcProposalStatus::PendingSecretary, $this->proposal->refresh()->status, 'The Administrative Head\'s stage is unchanged.');
+    }
+
+    /** 2026-11-16: Submit & Next only for a complete officer; Complete & Submit on the last once all are. */
+    public function test_submit_and_next_waits_for_the_officer_and_complete_and_submit_for_all(): void
+    {
+        $rows = $this->proposal->evaluationRows()->orderBy('sn')->get();
+        $last = $rows->last();
+
+        $page = $this->actingAs($this->ao)->get(route('dpc-proposals.employees.show', [$this->proposal, $rows->first()]))->assertOk();
+        if ($rows->count() > 1) {
+            $page->assertSee('disabled data-employee-flow="next"', false);
+        }
+        $this->get(route('dpc-proposals.employees.show', [$this->proposal, $last]))
+            ->assertSee('disabled data-employee-flow="complete"', false);
+
+        $this->makeProposalSubmittable($this->proposal, $this->ao);
+
+        if ($rows->count() > 1) {
+            $this->get(route('dpc-proposals.employees.show', [$this->proposal, $rows->first()]))
+                ->assertSee('href="'.route('dpc-proposals.employees.show', [$this->proposal, $rows[1]]).'" class="btn btn-success ms-auto" data-employee-flow="next"', false);
+        }
+        $this->get(route('dpc-proposals.employees.show', [$this->proposal, $last]))
+            ->assertSee('href="'.route('dpc-proposals.show', $this->proposal).'#dpc-submit" class="btn btn-success ms-auto" data-employee-flow="complete"', false)
+            ->assertSee(__('dpc.employee_details.flow.complete_submit'));
     }
 
     public function test_the_ao_verifies_each_document_on_upload(): void

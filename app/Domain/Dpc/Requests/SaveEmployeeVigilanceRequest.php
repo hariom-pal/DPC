@@ -64,20 +64,20 @@ class SaveEmployeeVigilanceRequest extends FormRequest
         ];
     }
 
-    /** Each answer's document is on file already or comes now, verified against its original (rule 4.4). */
+    /** A Yes answer's document is on file already or comes now, verified against its original (rule 4.4); a No asks none (2026-11-16). */
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator): void {
             $row = $this->route('evaluationRow');
             $onFile = $row instanceof DpcEvaluationRow ? $row->currentDocuments()->pluck('kind')->map(fn ($kind) => $kind instanceof EvaluationDocumentKind ? $kind->value : (string) $kind)->all() : [];
 
-            foreach (['enquiry_document' => EvaluationDocumentKind::EnquiryDocument, 'punishment_document' => EvaluationDocumentKind::PunishmentDocument] as $field => $kind) {
-                if (! $this->hasFile($field) && ! in_array($kind->value, $onFile, true)) {
+            foreach (['enquiry_ongoing' => ['enquiry_document', EvaluationDocumentKind::EnquiryDocument], 'punishment_effective' => ['punishment_document', EvaluationDocumentKind::PunishmentDocument]] as $answer => [$field, $kind]) {
+                if ($this->boolean($answer) && ! $this->hasFile($field) && ! in_array($kind->value, $onFile, true)) {
                     $validator->errors()->add($field, (string) __('dpc.employee_details.vigilance.document_required'));
                 }
             }
 
-            if (($this->hasFile('enquiry_document') || $this->hasFile('punishment_document')) && ! $this->boolean('vigilance_verified')) {
+            if ((($this->boolean('enquiry_ongoing') && $this->hasFile('enquiry_document')) || ($this->boolean('punishment_effective') && $this->hasFile('punishment_document'))) && ! $this->boolean('vigilance_verified')) {
                 $validator->errors()->add('vigilance_verified', (string) __('dpc.employee_details.verification.ao_required'));
             }
         });

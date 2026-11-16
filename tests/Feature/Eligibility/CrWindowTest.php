@@ -39,7 +39,7 @@ class CrWindowTest extends TestCase
         $this->assertSame([2022, 2021, 2020], CrWindow::of(2022, 5, [2021], 2020)->years, 'Never before the first year of service.');
     }
 
-    public function test_the_rule_follows_the_counted_years_by_position_and_keeps_the_skipped_year(): void
+    public function test_the_rule_follows_the_counted_years_by_position_and_not_the_skipped_year(): void
     {
         $rules = $this->ruleSet();
         $officer = new OfficerRecord(name: 'A', crGrades: [], crNotCountedYears: [2021]);
@@ -49,8 +49,8 @@ class CrWindowTest extends TestCase
         $this->assertSame(20, $rules->minimumFor(2020, $officer));
         $this->assertSame(50, $rules->minimumFor(2017, $officer));
         $this->assertNull($rules->minimumFor(2021, $officer));
-        // The skipped year is still mandatory: missing with its reason it is CIR.
-        $this->assertSame([2022, 2021, 2020, 2019, 2018, 2017], $rules->mandatoryCrYearsFor($officer));
+        // The skipped year is not mandatory and not CIR (2026-11-16): the counted years decide.
+        $this->assertSame([2022, 2020, 2019, 2018, 2017], $rules->mandatoryCrYearsFor($officer));
 
         // Without the officer, or for a run stored before the window, the calendar years.
         $this->assertSame(20, $rules->minimumFor(2021));

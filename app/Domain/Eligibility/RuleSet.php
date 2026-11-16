@@ -193,9 +193,10 @@ final class RuleSet
 
     /**
      * The CR years this officer must have recorded or justified (2026-11-16): the
-     * counted years at the positions the rule makes mandatory, and every skipped
-     * middle year — missing with its reason and document it still holds the
-     * promotion (CIR).
+     * counted years at the positions the rule makes mandatory. A skipped middle year
+     * is not among them: missing with its reason and document, an older year is
+     * counted in its place and the grading of the counted years decides Fit or
+     * Unfit — it does not hold the promotion (CIR), 2026-11-16.
      *
      * @return list<int>
      */
@@ -207,7 +208,7 @@ final class RuleSet
             return $this->mandatoryCrYears();
         }
 
-        $years = $window->skipped;
+        $years = [];
 
         foreach ((array) ($this->classRule['mandatory_positions'] ?? []) as $position) {
             if (isset($window->counted[$position - 1])) {

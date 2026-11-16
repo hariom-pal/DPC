@@ -62,6 +62,9 @@ class SaveEmployeeCrYearRequest extends FormRequest
             // The CR itself, uploaded with its grading (2026-11-14): verified against its
             // original (rule 4.4) and with the no-duplicate undertaking, as the separate upload asks.
             'cr_document' => ['nullable', 'file', 'mimes:pdf', 'max:'.(int) config('dpc.documents.max_kb', 10240)],
+            // One upload for each CR of a graded year (2026-11-16), keyed by its position.
+            'cr_documents' => ['nullable', 'array', 'max:'.(int) config('dpc.employee_details.max_crs_per_year', 4)],
+            'cr_documents.*' => ['nullable', 'file', 'mimes:pdf', 'max:'.(int) config('dpc.documents.max_kb', 10240)],
             'cr_verified' => ['nullable', 'boolean'],
             'cr_undertaking' => ['nullable', 'boolean'],
             // Integrity (सत्यनिष्ठा) of the year, beside the grade (2026-11-14).
@@ -81,6 +84,8 @@ class SaveEmployeeCrYearRequest extends FormRequest
         return [
             'cr_document.mimes' => __('dpc.employee_details.documents.pdf_only'),
             'cr_document.max' => __('dpc.employee_details.documents.too_large', ['kb' => (int) config('dpc.documents.max_kb', 10240)]),
+            'cr_documents.*.mimes' => __('dpc.employee_details.documents.pdf_only'),
+            'cr_documents.*.max' => __('dpc.employee_details.documents.too_large', ['kb' => (int) config('dpc.documents.max_kb', 10240)]),
         ];
     }
 
@@ -92,7 +97,7 @@ class SaveEmployeeCrYearRequest extends FormRequest
 
             $this->assertDepartmentalView($validator);
 
-            if ($this->hasFile('cr_document') && $this->boolean('put_up')) {
+            if (($this->hasFile('cr_document') || array_filter((array) $this->file('cr_documents', [])) !== []) && $this->boolean('put_up')) {
                 if (! $this->boolean('cr_verified')) {
                     $validator->errors()->add('cr_verified', (string) __('dpc.employee_details.verification.ao_required'));
                 }

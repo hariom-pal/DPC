@@ -6,7 +6,10 @@
 --}}
 <div id="working-list-reconciliation" data-reconciled="{{ $reconciliation['matches'] ? 'yes' : 'no' }}">
     <h3 class="h6">{{ __('vacancymaster.proposal.working_list.heading') }}</h3>
-    @if ($reconciliation['uploaded'] === null)
+    @if ($reconciliation['not_needed'] ?? false)
+        {{-- Working strength zero: no officer to list, so no list is asked for (2026-11-16). --}}
+        <div class="alert alert-info py-2 small mb-0" id="working-list-not-needed">{{ __('vacancymaster.proposal.working_list.not_needed') }}</div>
+    @elseif ($reconciliation['uploaded'] === null)
         <div class="alert alert-warning py-2 small mb-0" id="working-list-missing">{{ __('vacancymaster.proposal.working_list.missing') }}</div>
     @elseif ($reconciliation['record'] !== null)
         <div class="table-responsive">

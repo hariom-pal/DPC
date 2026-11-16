@@ -95,6 +95,30 @@
                 }
             });
 
+            // Date of next increment: 1 January or 1 July of the year after the Property
+            // File's year, nothing else (2026-11-16).
+            form.querySelectorAll('select[data-increment-from-year]').forEach(function (select) {
+                var yearField = form.querySelector('[name="year"]');
+                var year = yearField && /^\d{4}$/.test(yearField.value) ? parseInt(yearField.value, 10) + 1 : null;
+
+                if (select.getAttribute('data-for-year') === String(year)) {
+                    return;
+                }
+
+                select.setAttribute('data-for-year', String(year));
+                var chosen = select.value;
+                while (select.options.length > 1) { select.remove(1); }
+
+                if (year !== null) {
+                    [['01-01', '01'], ['07-01', '07']].forEach(function (pair) {
+                        var value = year + '-' + pair[0];
+                        var option = new Option('01-' + pair[1] + '-' + year, value);
+                        option.selected = value === chosen;
+                        select.add(option);
+                    });
+                }
+            });
+
             // The Final Departmental View Regarding Integrity, for an answer that asks for it (2026-11-16).
             form.querySelectorAll('select[name="integrity_option_id"]').forEach(function (select) {
                 var option = select.options[select.selectedIndex];

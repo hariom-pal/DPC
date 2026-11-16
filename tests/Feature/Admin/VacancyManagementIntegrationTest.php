@@ -14,6 +14,7 @@ use App\Domain\Dpc\Models\DpcWorkingOfficer;
 use App\Domain\Dpc\Models\VacancyPosition;
 use App\Domain\Dpc\Services\DpcProposalCompletenessService;
 use App\Domain\Dpc\Services\DpcProposalService;
+use App\Domain\Dpc\Services\ProposalVacancyPosition;
 use App\Domain\Dpc\Services\VacancyCalculationService;
 use App\Domain\Dpc\Services\VacancyMasterService;
 use App\Domain\Master\Models\DepartmentPost;
@@ -367,6 +368,26 @@ class VacancyManagementIntegrationTest extends TestCase
         ])->assertForbidden();
 
         $this->assertSame(0, $proposal->workingOfficers()->count());
+    }
+
+    /** 2026-11-16: a working strength of zero has no officer to list, so no list is asked for. */
+    public function test_a_working_strength_of_zero_asks_for_no_working_officers_list(): void
+    {
+        $proposal = $this->raise();
+        $this->share($proposal, '75.00');
+        $this->finalize(4, 0, 0);
+
+        $reconciliation = app(ProposalVacancyPosition::class)->reconcile($proposal->fresh());
+        $this->assertTrue($reconciliation['not_needed']);
+        $this->assertTrue($reconciliation['matches'], 'The Seniority List is not held back for a list that cannot exist.');
+
+        $this->actingAs($this->ao)->get(route('dpc-proposals.working-officers', $proposal))
+            ->assertOk()
+            ->assertSee('id="working-list-not-needed"', false)
+            ->assertDontSee('id="working-list-missing"', false);
+
+        $section = collect(app(DpcProposalCompletenessService::class)->checklist($proposal->fresh()))->firstWhere('key', 'vacancy_master');
+        $this->assertNotSame((string) __('vacancymaster.proposal.working_list.section_missing'), $section['detail']);
     }
 
     public function test_without_a_finalized_record_the_proposal_says_so_and_cannot_be_submitted(): void

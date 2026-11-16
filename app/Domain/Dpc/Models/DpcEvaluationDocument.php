@@ -29,6 +29,7 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property string|null $employee_number
  * @property EvaluationDocumentKind $kind
  * @property int|null $year
+ * @property int|null $part
  * @property Carbon|null $undertaking_confirmed_at
  * @property string|null $remarks
  * @property string $disk
@@ -54,6 +55,8 @@ class DpcEvaluationDocument extends Model implements Auditable
         'employee_number',
         'kind',
         'year',
+        // The CR's number within its year, 1 to 4 (2026-11-16); null on older uploads, read as 1.
+        'part',
         'undertaking_confirmed_at',
         'remarks',
         'disk',
@@ -90,6 +93,7 @@ class DpcEvaluationDocument extends Model implements Auditable
         return [
             'kind' => EvaluationDocumentKind::class,
             'year' => 'integer',
+            'part' => 'integer',
             'size_bytes' => 'integer',
             'undertaking_confirmed_at' => 'datetime',
             'uploaded_at' => 'datetime',
@@ -97,6 +101,12 @@ class DpcEvaluationDocument extends Model implements Auditable
             'ao_verified_at' => 'datetime',
             'ah_verified_at' => 'datetime',
         ];
+    }
+
+    /** Which CR of its year this is (2026-11-16): an older upload without one is the first. */
+    public function crNumber(): int
+    {
+        return $this->part ?? 1;
     }
 
     /**

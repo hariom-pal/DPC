@@ -237,6 +237,7 @@ final class ProposalVacancyPosition
      *     record: array<string, int>|null,
      *     differences: array<string, array{uploaded: int, record: int}>,
      *     matches: bool,
+     *     not_needed: bool,
      *     figures: list<string>,
      *     unmatched: list<array{sn: int, name: string|null, message: string}>,
      *     missing: list<array{kind: string, name: string}>,
@@ -307,11 +308,16 @@ final class ProposalVacancyPosition
             }
         }
 
+        // A working strength of zero has no officer to list (2026-11-16): the list is
+        // not asked for. One uploaded all the same is still compared.
+        $notNeeded = $uploaded === null && $record !== null && $record['total'] === 0 && $record['deputation_out'] === 0;
+
         return [
             'uploaded' => $uploaded,
             'record' => $record,
             'differences' => $differences,
-            'matches' => $uploaded !== null && $record !== null && $differences === [] && $unmatched === [] && $missing === [],
+            'matches' => $notNeeded || ($uploaded !== null && $record !== null && $differences === [] && $unmatched === [] && $missing === []),
+            'not_needed' => $notNeeded,
             'figures' => $figures,
             'unmatched' => $unmatched,
             'missing' => $missing,

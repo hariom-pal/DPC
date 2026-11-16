@@ -54,6 +54,17 @@ class DpcEvaluationPropertyFlag extends DpcEvaluationYearFlag
     }
 
     /**
+     * The only dates of next increment a year's Property File can carry (2026-11-16):
+     * 1 January and 1 July of the next year — the 2025 file, 01-01-2026 or 01-07-2026.
+     *
+     * @return list<Carbon>
+     */
+    public static function incrementDatesFor(int $year): array
+    {
+        return [Carbon::create($year + 1, 1, 1)->startOfDay(), Carbon::create($year + 1, 7, 1)->startOfDay()];
+    }
+
+    /**
      * Rule 4.1: an IPR is due by 31 January of the next year — the 2025 return by
      * 31 January 2026, the 2024 return by 31 January 2025 (business decision,
      * 2026-11-16). Anything later needs the department's decision.

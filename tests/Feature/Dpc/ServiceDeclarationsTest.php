@@ -96,9 +96,12 @@ class ServiceDeclarationsTest extends TestCase
             'dob_order_number' => 'SR/12/1995', 'dob_order_date' => '1995-07-01',
             'joining_order_number' => 'APPT/45/1995', 'joining_order_date' => '1995-07-01',
         ];
+        // All four and the undertaking are mandatory on the form (2026-11-16).
         $this->actingAs($this->ao)->put(route('dpc-proposals.employees.basic', [$this->proposal, $this->row]), [...$basic, 'service_record_undertaking' => '0'])
-            ->assertSessionHasNoErrors();
-        $this->assertSame([__('dpc.employee_details.missing.service_record_undertaking')], $this->sections()['basic']);
+            ->assertSessionHasErrors('service_record_undertaking');
+        $this->actingAs($this->ao)->put(route('dpc-proposals.employees.basic', [$this->proposal, $this->row]), ['service_record_undertaking' => '1'])
+            ->assertSessionHasErrors(['dob_order_number', 'dob_order_date', 'joining_order_number', 'joining_order_date']);
+        $this->assertCount(3, $this->sections()['basic']);
 
         $this->actingAs($this->ao)->put(route('dpc-proposals.employees.basic', [$this->proposal, $this->row]), [...$basic, 'service_record_undertaking' => '1'])
             ->assertSessionHasNoErrors();
@@ -122,7 +125,7 @@ class ServiceDeclarationsTest extends TestCase
         ], $this->ao, $this->proposal->seniorityReferenceDate());
         $this->assertSame('9425012345', $this->row->refresh()->mobile);
 
-        $this->actingAs($this->ao)->put(route('dpc-proposals.employees.basic', [$this->proposal, $this->row]), ['mobile' => '9999999999', 'service_record_undertaking' => '0'])
+        $this->actingAs($this->ao)->put(route('dpc-proposals.employees.basic', [$this->proposal, $this->row]), ['mobile' => '9999999999', 'dob_order_number' => 'SR/12/1995', 'dob_order_date' => '1995-07-01', 'joining_order_number' => 'APPT/45/1995', 'joining_order_date' => '1995-07-01', 'service_record_undertaking' => '1'])
             ->assertSessionHasNoErrors();
         $this->assertSame('9425012345', $this->row->refresh()->mobile);
 
@@ -142,7 +145,7 @@ class ServiceDeclarationsTest extends TestCase
         ], $this->ao, $this->proposal->seniorityReferenceDate());
         $this->assertSame(['9425011111', 'M.Sc., B.Ed.'], [$this->row->refresh()->mobile, $this->row->qualification]);
 
-        $this->actingAs($this->ao)->put(route('dpc-proposals.employees.basic', [$this->proposal, $this->row]), ['qualification' => 'Typed', 'mobile' => '9999999999', 'service_record_undertaking' => '0'])
+        $this->actingAs($this->ao)->put(route('dpc-proposals.employees.basic', [$this->proposal, $this->row]), ['qualification' => 'Typed', 'mobile' => '9999999999', 'dob_order_number' => 'SR/12/1995', 'dob_order_date' => '1995-07-01', 'joining_order_number' => 'APPT/45/1995', 'joining_order_date' => '1995-07-01', 'service_record_undertaking' => '1'])
             ->assertSessionHasNoErrors();
         $this->assertSame(['9425011111', 'M.Sc., B.Ed.'], [$this->row->refresh()->mobile, $this->row->qualification]);
 

@@ -32,12 +32,13 @@ class SaveEmployeeBasicRequest extends FormRequest
     {
         return [
             'reservation_category_id' => ['nullable', 'integer', Rule::exists('reservation_categories', 'id')],
-            // Rule 4.4: the orders behind the date of birth and of joining, and the undertaking.
-            'dob_order_number' => ['nullable', 'string', 'max:120'],
-            'dob_order_date' => ['nullable', 'date', 'before_or_equal:today'],
-            'joining_order_number' => ['nullable', 'string', 'max:120'],
-            'joining_order_date' => ['nullable', 'date', 'before_or_equal:today'],
-            'service_record_undertaking' => ['nullable', 'boolean'],
+            // Rule 4.4: the orders behind the date of birth and of joining, and the
+            // undertaking — mandatory on the form, as the completion check asks (2026-11-16).
+            'dob_order_number' => ['required', 'string', 'max:120'],
+            'dob_order_date' => ['required', 'date', 'before_or_equal:today'],
+            'joining_order_number' => ['required', 'string', 'max:120'],
+            'joining_order_date' => ['required', 'date', 'before_or_equal:today'],
+            'service_record_undertaking' => ['accepted'],
         ];
     }
 }

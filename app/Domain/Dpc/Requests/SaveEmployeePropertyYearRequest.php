@@ -11,6 +11,7 @@ use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Requests\Concerns\DeclaresAMissingRecord;
 use App\Domain\Dpc\Services\EmployeeDetailsService;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
@@ -66,6 +67,20 @@ class SaveEmployeePropertyYearRequest extends FormRequest
 
             if (($this->hasFile('property_document') || $this->hasFile('late_document')) && $this->boolean('submitted') && ! $this->boolean('property_verified')) {
                 $validator->errors()->add('property_verified', (string) __('dpc.employee_details.verification.ao_required'));
+            }
+
+            // Date of next increment: 1 January or 1 July of the next year only (2026-11-16).
+            if ($this->boolean('submitted') && $this->filled('next_increment_date') && ! $validator->errors()->has('next_increment_date')) {
+                $allowed = array_map(
+                    static fn (Carbon $date): string => $date->toDateString(),
+                    DpcEvaluationPropertyFlag::incrementDatesFor($this->integer('year')),
+                );
+
+                if (! in_array(Carbon::parse((string) $this->input('next_increment_date'))->toDateString(), $allowed, true)) {
+                    $validator->errors()->add('next_increment_date', (string) __('dpc.employee_details.property.next_increment_invalid', [
+                        'dates' => implode(' / ', array_map(static fn (string $date): string => Carbon::parse($date)->format('d-m-Y'), $allowed)),
+                    ]));
+                }
             }
 
             if (! $this->boolean('submitted') || ! $this->filled('submitted_on') || $validator->errors()->isNotEmpty()) {

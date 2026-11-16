@@ -270,7 +270,7 @@ class EmployeeDetailsUnfitTest extends TestCase
 
     // ========================================== Department Enquiry / Court Case
 
-    public function test_both_enquiry_questions_are_answered_with_a_document_and_a_yes_is_unfit(): void
+    public function test_a_yes_to_an_enquiry_question_needs_its_document_and_is_unfit_and_a_no_needs_none(): void
     {
         $page = $this->actingAs($this->ao)->get(route('dpc-proposals.employees.show', [$this->proposal, $this->row]))->assertOk()
             ->assertSee(__('dpc.employee_details.sections.vigilance'))
@@ -281,26 +281,31 @@ class EmployeeDetailsUnfitTest extends TestCase
 
         $form = ['enquiry_ongoing' => '0', 'punishment_effective' => '1', 'vigilance_pending' => '0', 'vigilance_verified' => '1'];
 
-        // The document is mandatory for Yes and for No.
-        $this->put($this->route('vigilance'), $form)->assertSessionHasErrors(['enquiry_document', 'punishment_document']);
+        // The document is mandatory for Yes only (2026-11-16).
+        $this->put($this->route('vigilance'), $form)->assertSessionHasErrors('punishment_document')->assertSessionDoesntHaveErrors('enquiry_document');
+        $page = $this->get(route('dpc-proposals.employees.show', [$this->proposal, $this->row]));
+        $page->assertSee('data-show-when="enquiry_ongoing=1" data-vigilance-document="enquiry_ongoing"', false)
+            ->assertSee('data-show-when="punishment_effective=1" data-vigilance-document="punishment_effective"', false);
         $this->put($this->route('vigilance'), ['vigilance_pending' => '0'])->assertSessionHasErrors(['enquiry_ongoing', 'punishment_effective']);
         // Verified against its original (rule 4.4).
-        $this->put($this->route('vigilance'), [...$form, 'vigilance_verified' => '0', 'enquiry_document' => $this->pdf(), 'punishment_document' => $this->pdf()])
+        $this->put($this->route('vigilance'), [...$form, 'vigilance_verified' => '0', 'punishment_document' => $this->pdf()])
             ->assertSessionHasErrors('vigilance_verified');
 
+        // A file sent with a No is not kept.
         $this->put($this->route('vigilance'), [...$form, 'enquiry_document' => $this->pdf('e.pdf'), 'punishment_document' => $this->pdf('p.pdf')])
             ->assertSessionHasNoErrors();
 
         $row = $this->row->fresh();
         $this->assertFalse($row->enquiry_ongoing);
         $this->assertTrue($row->punishment_effective);
-        $this->assertSame(2, $row->currentDocuments()->whereIn('kind', [EvaluationDocumentKind::EnquiryDocument->value, EvaluationDocumentKind::PunishmentDocument->value])->count());
+        $this->assertSame([EvaluationDocumentKind::PunishmentDocument->value], $row->currentDocuments()->whereIn('kind', [EvaluationDocumentKind::EnquiryDocument->value, EvaluationDocumentKind::PunishmentDocument->value])->pluck('kind')->map(fn ($kind) => $kind->value)->all());
         $this->assertSame([__('dpc.employee_details.unfit.punishment_effective')], $this->unfit());
         $this->assertSame([], app(EmployeeDetailsService::class)->status($row)['sections']['vigilance']);
 
-        // Saved again, the documents on file stand.
-        $this->put($this->route('vigilance'), [...$form, 'punishment_effective' => '0'])->assertSessionHasNoErrors();
+        // Both No: nothing asked, nothing missing.
+        $this->put($this->route('vigilance'), [...$form, 'punishment_effective' => '0', 'vigilance_verified' => '0'])->assertSessionHasNoErrors();
         $this->assertSame([], $this->unfit());
+        $this->assertSame([], app(EmployeeDetailsService::class)->status($this->row->fresh())['sections']['vigilance']);
     }
 
     // ============================================================ The windows
@@ -330,6 +335,69 @@ class EmployeeDetailsUnfitTest extends TestCase
         $this->saveCr($last - 6)->assertSessionHasNoErrors();
     }
 
+    /** 2026-11-16: a 2026 DPC — 2024 missing counts 2023 in its place and is not Unfit; 2025 missing is Unfit. */
+    public function test_only_the_last_years_cr_missing_makes_the_officer_unfit(): void
+    {
+        $last = $this->dpcYear - 1;
+        $reason = RecordReason::query()->where('code', 'long_leave')->value('id');
+
+        $this->actingAs($this->ao)->post($this->route('cr.save'), [
+            'year' => $last - 1, 'put_up' => '0', 'missing_reason_id' => $reason, 'missing_document' => $this->pdf(),
+        ])->assertSessionHasNoErrors();
+        $this->assertSame([], $this->unfit(), 'A middle year missing is not Unfit.');
+        $this->assertSame(range($last, $last - 5), app(EmployeeDetailsService::class)->crYearWindow($this->row->fresh()), 'The next older year is counted in its place.');
+
+        $this->post($this->route('cr.save'), [
+            'year' => $last, 'put_up' => '0', 'missing_reason_id' => $reason, 'missing_document' => $this->pdf(),
+        ])->assertSessionHasNoErrors();
+        $this->assertSame([__('dpc.employee_details.unfit.last_year_cr_missing', ['year' => $last])], $this->unfit());
+
+        // Answered Yes again: Fit again.
+        $this->saveCr($last)->assertSessionHasNoErrors();
+        $this->assertSame([], $this->unfit());
+    }
+
+    /** 2026-11-16: a year with several CRs uploads each one on its own. */
+    public function test_each_cr_of_a_year_is_uploaded_on_its_own(): void
+    {
+        $year = $this->dpcYear - 1;
+        $form = [
+            'year' => $year, 'put_up' => '1', 'has_grading' => '1', 'cr_count' => '2',
+            'reports' => [
+                ['authorities' => ['reporter', 'reviewer', 'accepting'], 'grade' => 'क'],
+                ['authorities' => ['reporter', 'reviewer', 'accepting'], 'grade' => 'ख'],
+            ],
+            'integrity_option_id' => $this->integrity('certified_good'),
+        ];
+
+        $this->actingAs($this->ao)->post($this->route('cr.save'), [...$form, 'cr_documents' => [0 => $this->pdf('cr-1.pdf')], 'cr_verified' => '1', 'cr_undertaking' => '1'])
+            ->assertSessionHasNoErrors();
+        $missing = app(EmployeeDetailsService::class)->status($this->row->fresh())['sections']['cr'];
+        $this->assertContains(__('dpc.employee_details.missing.cr_document_numbered', ['year' => $year, 'number' => 2]), $missing);
+        $this->assertNotContains(__('dpc.employee_details.missing.cr_document_numbered', ['year' => $year, 'number' => 1]), $missing);
+
+        $this->post($this->route('cr.save'), [...$form, 'cr_documents' => [1 => $this->pdf('cr-2.pdf')], 'cr_verified' => '1', 'cr_undertaking' => '1'])
+            ->assertSessionHasNoErrors();
+        $documents = $this->row->currentDocuments()->where('kind', EvaluationDocumentKind::CrReport->value)->where('year', $year)->orderBy('part')->get();
+        $this->assertSame([1, 2], $documents->pluck('part')->all());
+        $this->assertSame(['cr-1.pdf', 'cr-2.pdf'], $documents->pluck('original_name')->all());
+        $missing = app(EmployeeDetailsService::class)->status($this->row->fresh())['sections']['cr'];
+        $this->assertNotContains(__('dpc.employee_details.missing.cr_document_numbered', ['year' => $year, 'number' => 2]), $missing);
+
+        // Replacing CR 2 leaves CR 1 alone.
+        $this->post($this->route('cr.save'), [...$form, 'cr_documents' => [1 => $this->pdf('cr-2-new.pdf')], 'cr_verified' => '1', 'cr_undertaking' => '1'])
+            ->assertSessionHasNoErrors();
+        $this->assertSame(['cr-1.pdf', 'cr-2-new.pdf'], $this->row->currentDocuments()->where('kind', EvaluationDocumentKind::CrReport->value)->where('year', $year)->orderBy('part')->pluck('original_name')->all());
+
+        // A file without the confirmations is refused.
+        $this->post($this->route('cr.save'), [...$form, 'cr_documents' => [0 => $this->pdf()]])->assertSessionHasErrors(['cr_verified', 'cr_undertaking']);
+
+        $this->get(route('dpc-proposals.employees.show', [$this->proposal, $this->row]).'?cr_year='.$year)
+            ->assertSee('name="cr_documents[0]"', false)
+            ->assertSee('name="cr_documents[1]"', false)
+            ->assertSee('data-cr-document-number="'.$year.'-2"', false);
+    }
+
     public function test_the_property_return_is_exactly_the_five_years_before_the_dpc_year(): void
     {
         $service = app(EmployeeDetailsService::class);
@@ -341,7 +409,7 @@ class EmployeeDetailsUnfitTest extends TestCase
         }
 
         $this->actingAs($this->ao)->post($this->route('property.save'), [
-            'year' => $this->dpcYear - 6, 'submitted' => '1', 'submitted_on' => ($this->dpcYear - 6).'-01-10', 'next_increment_date' => ($this->dpcYear - 6).'-07-01',
+            'year' => $this->dpcYear - 6, 'submitted' => '1', 'submitted_on' => ($this->dpcYear - 6).'-01-10', 'next_increment_date' => ($this->dpcYear - 5).'-07-01',
         ])->assertSessionHasErrors('property');
         $this->assertSame(0, $this->row->propertyFlags()->count());
     }
@@ -350,7 +418,7 @@ class EmployeeDetailsUnfitTest extends TestCase
     public function test_a_return_is_late_after_31_january_of_the_next_year(): void
     {
         $year = $this->dpcYear - 2;
-        $form = ['year' => $year, 'submitted' => '1', 'next_increment_date' => $year.'-07-01'];
+        $form = ['year' => $year, 'submitted' => '1', 'next_increment_date' => ($year + 1).'-07-01'];
 
         // Never before 1 January of the file's own year.
         $this->actingAs($this->ao)->post($this->route('property.save'), [...$form, 'submitted_on' => ($year - 1).'-12-31'])
@@ -378,7 +446,7 @@ class EmployeeDetailsUnfitTest extends TestCase
         foreach ([$this->dpcYear - 1, $this->dpcYear - 2] as $year) {
             $file = UploadedFile::fake()->createWithContent('return.pdf', $bytes);
             $this->actingAs($this->ao)->post($this->route('property.save'), [
-                'year' => $year, 'submitted' => '1', 'submitted_on' => $year.'-01-10', 'next_increment_date' => $year.'-07-0'.($this->dpcYear - $year),
+                'year' => $year, 'submitted' => '1', 'submitted_on' => $year.'-01-10', 'next_increment_date' => ($year + 1).'-01-01',
                 'property_document' => $file, 'property_verified' => '1',
             ])->assertSessionHasNoErrors();
         }
@@ -401,7 +469,10 @@ class EmployeeDetailsUnfitTest extends TestCase
         ])->assertRedirect(route('dpc-proposals.employees.show', [$this->proposal, $this->row]).'#section-cr');
 
         // Anything but a section is ignored.
-        $this->put($this->route('basic'), ['service_record_undertaking' => '1', '_next' => 'https://example.com'])
+        $this->put($this->route('basic'), [
+            'dob_order_number' => 'B/1', 'dob_order_date' => '1970-03-25', 'joining_order_number' => 'J/1', 'joining_order_date' => '1995-07-01',
+            'service_record_undertaking' => '1', '_next' => 'https://example.com',
+        ])
             ->assertRedirect(route('dpc-proposals.employees.show', [$this->proposal, $this->row]).'#section-basic');
     }
 }

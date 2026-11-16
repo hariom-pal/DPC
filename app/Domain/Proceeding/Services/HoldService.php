@@ -7,6 +7,7 @@ namespace App\Domain\Proceeding\Services;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Dpc\Models\DpcEvaluationRecordGap;
 use App\Domain\Dpc\Models\DpcEvaluationRow;
+use App\Domain\Dpc\Services\EmployeeDetailsService;
 use App\Domain\Master\Services\PromotionCrRules;
 use App\Domain\Proceeding\Enums\HoldReason;
 use App\Domain\Proceeding\Models\DpcProceeding;
@@ -144,11 +145,19 @@ class HoldService
         $justified = fn (string $kind, int $year): bool => $row->recordGaps
             ->contains(fn (DpcEvaluationRecordGap $gap): bool => $gap->kind === $kind && $gap->year === $year && $gap->isJustified());
 
-        $graded = count(array_filter($crCells, fn (array $cell): bool => $this->present($cell['effective'] === null ? null : (string) $cell['effective'])));
-        $justifiedCr = $row->recordGaps->filter(fn (DpcEvaluationRecordGap $gap): bool => $gap->kind === DpcEvaluationRecordGap::KIND_CR && $gap->isJustified())->pluck('year')->all();
+        // The officer's own CR window, as the rule check and the calculation take it
+        // (2026-11-16): a skipped middle year is replaced by an older one and holds
+        // nothing, and the year just before the DPC year missing is Unfit, not held.
+        $details = app(EmployeeDetailsService::class);
+        $window = $details->crYearWindow($row);
+        $lastYear = $window === [] ? null : max($window);
+        $counted = $row->crGrades->filter(fn ($cr): bool => in_array((int) $cr->year, $window, true) && $cr->put_up === true && $cr->has_grading !== false)->count();
+        $graded = max($counted, count(array_filter($crCells, fn (array $cell): bool => $this->present($cell['effective'] === null ? null : (string) $cell['effective']))));
+        $justifiedCr = $row->recordGaps->filter(fn (DpcEvaluationRecordGap $gap): bool => $gap->kind === DpcEvaluationRecordGap::KIND_CR && $gap->isJustified() && (int) $gap->year !== $lastYear)->pluck('year')->all();
         $shortfall = $ruleYears['cr_count'] - $graded;
 
-        $cr = array_values(array_filter($ruleYears['cr'], fn (int $year): bool => ! $this->present(isset($crCells[$year]['effective']) ? (string) $crCells[$year]['effective'] : null)
+        $cr = array_values(array_filter($details->ruleCrYears($row), fn (int $year): bool => $year !== $lastYear
+            && ! $row->crGrades->contains(fn ($grade): bool => (int) $grade->year === $year && $grade->put_up === true)
             && $justified(DpcEvaluationRecordGap::KIND_CR, $year)));
 
         if ($shortfall > 0 && count($justifiedCr) >= $shortfall) {

@@ -103,6 +103,8 @@ class DpcEmployeeDetailsController extends Controller
             'previousRow' => $position > 0 ? $statuses->get($position - 1)['row'] : null,
             'nextRow' => $statuses->get((int) $position + 1)['row'] ?? null,
             'nextPending' => $next['row'] ?? null,
+            // Submit & Next, then Complete & Submit on the last officer (2026-11-16).
+            'pendingCount' => $statuses->reject(fn (array $entry): bool => $entry['status']['complete'])->count(),
             'canEdit' => request()->user()?->can('update', $dpcProposal) ?? false,
             // Rule 4.4: the Administrative Head verifies the documents of a submitted proposal.
             'canVerify' => request()->user()?->can('approve', $dpcProposal) ?? false,
@@ -143,6 +145,12 @@ class DpcEmployeeDetailsController extends Controller
                 $this->details->saveCrYear($evaluationRow, $request->integer('year'), $request->validated(), $request->user(), $request->file('nrc'));
                 if ($request->hasFile('cr_document')) {
                     $this->details->uploadCrWithYear($evaluationRow, $request->integer('year'), $request->file('cr_document'), $request->boolean('cr_undertaking'), $request->boolean('cr_verified'), $request->user());
+                }
+                // Each CR of a graded year, uploaded on its own (2026-11-16).
+                foreach ((array) $request->file('cr_documents', []) as $index => $file) {
+                    if ($file instanceof UploadedFile && $request->boolean('has_grading') && (int) $index < max(1, $request->integer('cr_count'))) {
+                        $this->details->uploadCrWithYear($evaluationRow, $request->integer('year'), $file, $request->boolean('cr_undertaking'), $request->boolean('cr_verified'), $request->user(), (int) $index + 1);
+                    }
                 }
                 if ($request->hasFile('nrc')) {
                     $this->details->assertNrcHasItsCr($evaluationRow, $request->integer('year'));
@@ -201,9 +209,9 @@ class DpcEmployeeDetailsController extends Controller
         return $this->write($request, $dpcProposal, $evaluationRow, 'vigilance', function () use ($request, $evaluationRow): void {
             DB::transaction(function () use ($request, $evaluationRow): void {
                 $this->details->saveVigilance($evaluationRow, $request->validated(), $request->user());
-                // Each answer's document, uploaded with it (2026-11-14).
-                foreach (['enquiry_document' => EvaluationDocumentKind::EnquiryDocument, 'punishment_document' => EvaluationDocumentKind::PunishmentDocument] as $field => $kind) {
-                    if ($request->hasFile($field)) {
+                // A Yes answer's document, uploaded with it; a No asks none (2026-11-16).
+                foreach (['enquiry_ongoing' => ['enquiry_document', EvaluationDocumentKind::EnquiryDocument], 'punishment_effective' => ['punishment_document', EvaluationDocumentKind::PunishmentDocument]] as $answer => [$field, $kind]) {
+                    if ($request->boolean($answer) && $request->hasFile($field)) {
                         $this->details->upload($evaluationRow, $kind, null, $request->file($field), false, null, $request->user(), $request->boolean('vigilance_verified'));
                     }
                 }

@@ -101,19 +101,22 @@ final class PromotionRuleCheck
             $crRequirement = $position === null ? null : $byYear->get($position);
 
             $crInWindow = $skipped || ($position !== null && $position <= $rule->cr_years);
-            $crRequired = $skipped || ($crInWindow && (bool) $crRequirement?->cr_mandatory);
+            // A skipped middle year is not required (2026-11-16): an older year is counted
+            // in its place, so it is neither CIR nor a finding.
+            $crRequired = ! $skipped && $crInWindow && (bool) $crRequirement?->cr_mandatory;
             $min = $position !== null && $position <= $rule->cr_years ? $crRequirement?->cr_min_marks : null;
 
             $cr = $row->crGrades->firstWhere('year', $calendar);
             $yearPoints = $cr instanceof DpcEvaluationCrGrade ? $this->pointsOf($cr, $points, $findings) : null;
 
-            $crOk = true;
+            $crOk = ! $skipped;
 
             if ($crRequired && $yearPoints === null) {
                 $crOk = false;
                 // Missing and justified: CIR, as the calculation holds it (2026-11-05).
                 // A reason that makes the officer Unfit is already among the findings: not CIR (2026-11-15).
-                if ($this->unfitGap($row, DpcEvaluationRecordGap::KIND_CR, $calendar)) {
+                // The year just before the DPC year missing is Unfit, among the findings already (2026-11-16).
+                if ($this->unfitGap($row, DpcEvaluationRecordGap::KIND_CR, $calendar) || $calendar === $year - 1) {
                     // nothing held
                 } elseif ($this->justified($row, DpcEvaluationRecordGap::KIND_CR, $calendar)) {
                     $holds[] = (string) __('dpc.employee_details.rule.cr_cir', ['year' => $calendar]);

@@ -479,7 +479,7 @@ class DpcProposalCompletenessService
                 'record' => (string) $recordShare,
                 'proposal' => (string) $proposalShare,
             ]),
-            $reconciliation['uploaded'] === null => __('vacancymaster.proposal.working_list.section_missing'),
+            $reconciliation['uploaded'] === null && ! $reconciliation['not_needed'] => __('vacancymaster.proposal.working_list.section_missing'),
             ! $reconciliation['matches'] => __('vacancymaster.proposal.working_list.section_differs', ['items' => $differences]),
             ($sums['promotion_vacancy'] ?? 0) < 1 => __('vacancymaster.proposal.no_promotion_vacancy'),
             default => null,

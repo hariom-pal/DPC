@@ -321,67 +321,29 @@ class FullDpcConditionsTest extends TestCase
      * off the promotion order; a circulation cannot clear a CR hold (BD-15), so the
      * officer stays off it — no marks are fabricated.
      */
-    public function test_7_mandatory_cr_missing_is_cir_and_no_marks_are_invented(): void
+    public function test_7_a_middle_cr_missing_is_not_cir_and_the_counted_years_decide(): void
     {
         $c = $this->dpc(['missing_cr' => [4 => 2023]]);
         $row = $c['proposal']->evaluationRows()->where('sn', 4)->sole();
         $this->assertNull($row->crGrades()->where('year', 2023)->value('grade'), 'No grade is invented.');
         $this->assertTrue($row->recordGaps()->where('kind', 'cr')->where('year', 2023)->sole()->isJustified());
 
-        // The rule check takes the same window (2026-11-16): 2023 skipped and held (CIR),
-        // 2020 counted in its place with the rule's year-5 requirement.
+        // 2026-11-16: a middle year missing is not CIR — 2023 is skipped, 2020 is counted
+        // in its place, and the grading of the counted years decides.
         $check = app(PromotionRuleCheck::class)->check($row->fresh(), $c['proposal']->fresh());
         $lines = collect($check['years'])->keyBy('year');
         $this->assertTrue($lines[2023]['cr_skipped']);
         $this->assertTrue($lines[2020]['cr_required'] && $lines[2020]['cr_ok']);
         $this->assertSame(7, $lines[2020]['points']);
-        $this->assertSame('cir', $check['status']);
-        $this->assertContains(__('dpc.employee_details.rule.cr_cir', ['year' => 2023]), $check['holds']);
+        $this->assertNotSame('cir', $check['status']);
+        $this->assertNotContains(__('dpc.employee_details.rule.cr_cir', ['year' => 2023]), $check['holds']);
+        $this->assertSame([], $row->fresh()->unfitReasons(), 'A middle year missing is not Unfit.');
 
         $proceeding = $this->conclude($c);
         $result = $this->results($proceeding)[4];
-        $this->assertSame('CIR', $result->status()->value, 'CIR, not RJ.');
+        $this->assertNotSame('CIR', $result->status()->value);
         $this->assertArrayNotHasKey(2023, (array) ($result->score_breakdown['marks_by_year'] ?? []), 'The missing year carries no marks.');
-        $hold = DpcProceedingHold::query()->where('dpc_proceeding_id', $proceeding->id)->where('sn', 4)->sole();
-        $this->assertSame('cr_years_missing', $hold->reason_code->value);
-
-        // The seat merit gives is reserved (2026-11-05): off the order, and nobody takes it.
-        $this->assertSame(['main', true], [$result->list_type->value, (bool) $result->is_eligible]);
-        $this->assertSame([1, 2, 3, 5, 6], $this->order($c));
-
-        // The CR hold cannot be circulated (BD-15): no marks are invented by a clearance.
-        $this->actingAs($c['ao'])->post(route('dpc-circulations.store'), [
-            'origin_dpc_proposal_uuid' => $c['proposal']->uuid, 'proposal_date' => now()->toDateString(),
-            'items' => [['hold_uuid' => $hold->uuid, 'resolution_detail' => 'CR still unavailable.', 'resolution_reference' => 'CR/1', 'resolution_received_on' => now()->subDay()->toDateString()]],
-        ]);
-        $this->assertSame(0, DpcCirculation::query()->count());
-        $this->assertNull($hold->fresh()->released_at);
-        $this->assertNotContains(4, $this->order($c));
-        $originalResult = $result->fresh()->getAttributes();
-
-        // The actual CR arrives: the officer is reassessed through a Review DPC, where
-        // the AO records it and the DPC is calculated again.
-        $review = $this->approvedReview($c, function (DpcProposal $review) use ($c): void {
-            $row = $review->evaluationRows()->where('sn', 4)->sole();
-            $route = fn (string $n): string => route('dpc-proposals.employees.'.$n, [$review, $row]);
-            $this->ok($this->actingAs($c['ao'])->post($route('cr.save'), ['year' => 2023, 'put_up' => '1', 'has_grading' => '1', 'integrity_option_id' => $this->fitIntegrity(), 'authorities' => ['reporter', 'reviewer', 'accepting'], 'grade' => 'क']));
-            $this->ok($this->actingAs($c['ao'])->post($route('documents.store'), ['verified' => '1', 'kind' => 'cr_report', 'year' => 2023, 'undertaking' => '1', 'document' => $this->pdf('cr4-2023.pdf')]));
-        });
-        $reviewed = $this->results($this->conclude(['proposal' => $review] + $c))[4];
-        $this->assertSame(7, (int) $reviewed->score_breakdown['marks_by_year'][2023], 'Marks from the CR actually recorded.');
-
-        // 2023 found: the window is 2021–2025 again, and 2020 is still listed — shown, not counted.
-        $reviewRow = $review->evaluationRows()->where('sn', 4)->sole();
-        $lines = collect(app(PromotionRuleCheck::class)->check($reviewRow, $review->fresh())['years'])->keyBy('year');
-        $this->assertTrue($lines[2020]['cr_outside']);
-        $this->assertFalse($lines[2020]['cr_required']);
-        $this->assertSame(7, $lines[2020]['points']);
-        $this->assertFalse($lines[2021]['cr_outside']);
-        $this->assertNotSame('CIR', $reviewed->status()->value);
-        $this->assertContains(4, $this->order(['proposal' => $review] + $c));
-
-        // The original DPC's approved result is history, unchanged.
-        $this->assertSame($originalResult, $result->fresh()->getAttributes());
+        $this->assertSame(0, DpcProceedingHold::query()->where('dpc_proceeding_id', $proceeding->id)->where('sn', 4)->count());
     }
 
     /**

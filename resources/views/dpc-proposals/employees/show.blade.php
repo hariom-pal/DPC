@@ -129,28 +129,33 @@
                 @endif
                 {{-- Rule 4.4: the orders behind the date of birth and of joining. --}}
                 <div class="col-md-3">
-                    <label class="form-label small" for="dob_order_number">{{ __('dpc.employee_details.service_record.dob_order_number') }}</label>
-                    <input class="form-control form-control-sm" id="dob_order_number" name="dob_order_number" maxlength="120" value="{{ old('dob_order_number', $row->dob_order_number) }}" @disabled(! $canEdit)>
+                    <label class="form-label small" for="dob_order_number">{{ __('dpc.employee_details.service_record.dob_order_number') }} <span class="text-danger">*</span></label>
+                    <input class="form-control form-control-sm @error('dob_order_number') is-invalid @enderror" required id="dob_order_number" name="dob_order_number" maxlength="120" value="{{ old('dob_order_number', $row->dob_order_number) }}" @disabled(! $canEdit)>
+                    @error('dob_order_number')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label small" for="dob_order_date">{{ __('dpc.employee_details.service_record.dob_order_date') }}</label>
-                    <input type="date" class="form-control form-control-sm" id="dob_order_date" name="dob_order_date" value="{{ old('dob_order_date', $row->dob_order_date?->format('Y-m-d')) }}" @disabled(! $canEdit)>
+                    <label class="form-label small" for="dob_order_date">{{ __('dpc.employee_details.service_record.dob_order_date') }} <span class="text-danger">*</span></label>
+                    <input type="date" class="form-control form-control-sm @error('dob_order_date') is-invalid @enderror" required id="dob_order_date" name="dob_order_date" value="{{ old('dob_order_date', $row->dob_order_date?->format('Y-m-d')) }}" @disabled(! $canEdit)>
+                    @error('dob_order_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label small" for="joining_order_number">{{ __('dpc.employee_details.service_record.joining_order_number') }}</label>
-                    <input class="form-control form-control-sm" id="joining_order_number" name="joining_order_number" maxlength="120" value="{{ old('joining_order_number', $row->joining_order_number) }}" @disabled(! $canEdit)>
+                    <label class="form-label small" for="joining_order_number">{{ __('dpc.employee_details.service_record.joining_order_number') }} <span class="text-danger">*</span></label>
+                    <input class="form-control form-control-sm @error('joining_order_number') is-invalid @enderror" required id="joining_order_number" name="joining_order_number" maxlength="120" value="{{ old('joining_order_number', $row->joining_order_number) }}" @disabled(! $canEdit)>
+                    @error('joining_order_number')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label small" for="joining_order_date">{{ __('dpc.employee_details.service_record.joining_order_date') }}</label>
-                    <input type="date" class="form-control form-control-sm" id="joining_order_date" name="joining_order_date" value="{{ old('joining_order_date', $row->joining_order_date?->format('Y-m-d')) }}" @disabled(! $canEdit)>
+                    <label class="form-label small" for="joining_order_date">{{ __('dpc.employee_details.service_record.joining_order_date') }} <span class="text-danger">*</span></label>
+                    <input type="date" class="form-control form-control-sm @error('joining_order_date') is-invalid @enderror" required id="joining_order_date" name="joining_order_date" value="{{ old('joining_order_date', $row->joining_order_date?->format('Y-m-d')) }}" @disabled(! $canEdit)>
+                    @error('joining_order_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-12">
                     <input type="hidden" name="service_record_undertaking" value="0">
                     <label class="form-check small">
-                        <input class="form-check-input" type="checkbox" name="service_record_undertaking" value="1" id="service_record_undertaking"
+                        <input class="form-check-input" type="checkbox" name="service_record_undertaking" value="1" id="service_record_undertaking" required
                                @checked(old('service_record_undertaking', $row->service_record_undertaking_at !== null)) @disabled(! $canEdit)>
                         {{ __('dpc.employee_details.service_record.undertaking') }}
                     </label>
+                    @error('service_record_undertaking')<div class="text-danger small">{{ $message }}</div>@enderror
                 </div>
                 @if ($canEdit)
                     <div class="col-12">@include('dpc-proposals.employees.partials.save-buttons', ['next' => $nextSection('basic')])</div>
@@ -291,7 +296,17 @@
                                     @endif
                                 </td>
                                 <td class="small">
-                                    @foreach (['cr_report', 'cr_without_grading', 'cr_nrc', 'integrity_decision'] as $kind)
+                                    {{-- Every CR of the year, each with its number when there are several (2026-11-16). --}}
+                                    @php
+                                        $yearCrs = $docs->filter(fn ($d) => $d->kind->value === 'cr_report' && $d->year === $cr->year)->sortBy(fn ($d) => $d->crNumber());
+                                    @endphp
+                                    @foreach ($yearCrs as $document)
+                                        <div data-cr-document-number="{{ $cr->year }}-{{ $document->crNumber() }}">
+                                            @if (count((array) $cr->reports) > 1)<span class="text-muted">{{ __('dpc.employee_details.cr.cr_number', ['number' => $document->crNumber()]) }}:</span>@endif
+                                            @include('dpc-proposals.employees.partials.uploaded-document')
+                                        </div>
+                                    @endforeach
+                                    @foreach (['cr_without_grading', 'cr_nrc', 'integrity_decision'] as $kind)
                                         @if ($document = $docFor($kind, $cr->year))
                                             @include('dpc-proposals.employees.partials.uploaded-document')
                                         @endif
@@ -431,6 +446,18 @@
                                         @endforeach
                                     </select>
                                 </div>
+                                {{-- Each CR uploaded on its own (2026-11-16). --}}
+                                @php
+                                    $partDocument = $editCr ? $docs->first(fn ($d) => $d->kind->value === 'cr_report' && $d->year === $editCr->year && $d->crNumber() === $i + 1) : null;
+                                @endphp
+                                <div class="col-md-7" data-cr-part-document="{{ $i + 1 }}">
+                                    <label class="form-label small" for="cr-document-{{ $i }}">{{ __('dpc.employee_details.cr.document_upload_numbered', ['number' => $i + 1]) }}</label>
+                                    @if ($partDocument)
+                                        <div class="small mb-1">@include('dpc-proposals.employees.partials.uploaded-document', ['document' => $partDocument])</div>
+                                    @endif
+                                    <input type="file" accept="application/pdf" class="form-control form-control-sm @error('cr_documents.'.$i) is-invalid @enderror" id="cr-document-{{ $i }}" name="cr_documents[{{ $i }}]" @unless ($partDocument) data-required-when-shown @endunless>
+                                    @error('cr_documents.'.$i)<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                </div>
                             </div>
                         @endforeach
                         <div class="form-text mb-2">{{ __('dpc.employee_details.cr.authorities_help') }}</div>
@@ -477,23 +504,28 @@
                          one without grading as the CR without grading; there is no separate upload.
                          Both confirmations are mandatory with the file. --}}
                     @php
-                        $currentCrDocument = $editCr ? ($docFor('cr_report', $editCr->year) ?? $docFor('cr_without_grading', $editCr->year)) : null;
+                        $currentCrDocument = $editCr ? $docFor('cr_without_grading', $editCr->year) : null;
+                        $anyCrDocument = $editCr ? ($docFor('cr_report', $editCr->year) ?? $currentCrDocument) : null;
                     @endphp
                     <div class="border rounded p-2 mt-2 bg-body-tertiary" data-show-when="put_up=1" data-cr-document>
-                        <label class="form-label small fw-semibold" for="cr-document">{{ __('dpc.employee_details.cr.document_upload') }}</label>
-                        @if ($currentCrDocument)
-                            <div class="small mb-1">@include('dpc-proposals.employees.partials.uploaded-document', ['document' => $currentCrDocument])</div>
-                        @endif
-                        <input type="file" accept="application/pdf" class="form-control form-control-sm @error('cr_document') is-invalid @enderror" id="cr-document" name="cr_document" @unless ($currentCrDocument) data-required-when-shown @endunless>
-                        @error('cr_document')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                        <div class="form-text">{{ __('dpc.employee_details.cr.document_help') }}</div>
+                        {{-- A graded year's CRs are uploaded one by one above (2026-11-16); this
+                             file is the CR without grading. --}}
+                        <div data-show-when="has_grading=0">
+                            <label class="form-label small fw-semibold" for="cr-document">{{ __('dpc.employee_details.cr.document_upload') }}</label>
+                            @if ($currentCrDocument)
+                                <div class="small mb-1">@include('dpc-proposals.employees.partials.uploaded-document', ['document' => $currentCrDocument])</div>
+                            @endif
+                            <input type="file" accept="application/pdf" class="form-control form-control-sm @error('cr_document') is-invalid @enderror" id="cr-document" name="cr_document" @unless ($currentCrDocument) data-required-when-shown @endunless>
+                            @error('cr_document')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            <div class="form-text">{{ __('dpc.employee_details.cr.document_help') }}</div>
+                        </div>
                         <label class="form-check small mt-1">
-                            <input class="form-check-input @error('cr_verified') is-invalid @enderror" type="checkbox" name="cr_verified" value="1" @checked(old('cr_verified')) @unless ($currentCrDocument) data-required-when-shown @endunless>
+                            <input class="form-check-input @error('cr_verified') is-invalid @enderror" type="checkbox" name="cr_verified" value="1" @checked(old('cr_verified')) @unless ($anyCrDocument) data-required-when-shown @endunless>
                             {{ __('dpc.employee_details.verification.ao_confirm') }}
                         </label>
                         @error('cr_verified')<div class="text-danger small">{{ $message }}</div>@enderror
                         <label class="form-check small">
-                            <input class="form-check-input @error('cr_undertaking') is-invalid @enderror" type="checkbox" name="cr_undertaking" value="1" @checked(old('cr_undertaking')) @unless ($currentCrDocument) data-required-when-shown @endunless>
+                            <input class="form-check-input @error('cr_undertaking') is-invalid @enderror" type="checkbox" name="cr_undertaking" value="1" @checked(old('cr_undertaking')) @unless ($anyCrDocument) data-required-when-shown @endunless>
                             {{ __('dpc.employee_details.cr.duplicate_undertaking') }}
                         </label>
                         @error('cr_undertaking')<div class="text-danger small">{{ $message }}</div>@enderror
@@ -652,7 +684,21 @@
                         </div>
                         <div class="col-md-4" data-show-when="submitted=1">
                             <label class="form-label small" for="next_increment_date">{{ __('dpc.employee_details.property.next_increment') }}</label>
-                            <input type="date" class="form-control form-control-sm" id="next_increment_date" name="next_increment_date" value="{{ old('next_increment_date', $editProperty?->next_increment_date?->format('Y-m-d')) }}">
+                            {{-- Always 1 January or 1 July of the next year: a 2025 file offers
+                                 01-01-2026 and 01-07-2026 only (2026-11-16). --}}
+                            @php
+                                $incrementYear = (int) old('year', $editProperty?->year ?? $addPropertyYear);
+                                $incrementValue = (string) old('next_increment_date', $editProperty?->next_increment_date?->format('Y-m-d'));
+                            @endphp
+                            <select class="form-select form-select-sm @error('next_increment_date') is-invalid @enderror" id="next_increment_date" name="next_increment_date" data-increment-from-year data-required-when-shown>
+                                <option value="">{{ __('ui.select') }}</option>
+                                @if ($incrementYear > 0)
+                                    @foreach (\App\Domain\Dpc\Models\DpcEvaluationPropertyFlag::incrementDatesFor($incrementYear) as $date)
+                                        <option value="{{ $date->format('Y-m-d') }}" @selected($incrementValue === $date->format('Y-m-d'))>{{ $date->format('d-m-Y') }}</option>
+                                    @endforeach
+                                @endif
+                            </select>
+                            @error('next_increment_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
                             <div class="form-text">{{ __('dpc.employee_details.property.next_increment_help') }}</div>
                         </div>
                         {{-- Asked only for a return submitted after 31 January of its own year — the 2025
@@ -901,8 +947,8 @@
                 <form method="POST" action="{{ route('dpc-proposals.employees.vigilance', [$proposal, $row]) }}" class="border rounded p-2 mb-3" enctype="multipart/form-data" data-ajax-section id="vigilance-form"
                       @if (! $errors->any() && $row->vigilance_pending !== null && $row->enquiry_ongoing !== null) data-saved-lock data-label-edit="{{ __('ui.edit') }}" data-label-cancel="{{ __('ui.cancel') }}" data-label-saved="{{ __('ui.saved_entry') }}" @endif>
                     @csrf @method('PUT')
-                    {{-- The two questions of 2026-11-14, for the DPC's period; each answered with its
-                         document, Yes or No. A Yes makes the officer Unfit. --}}
+                    {{-- The two questions of 2026-11-14, for the DPC's period. A Yes makes the officer
+                         Unfit and asks for its document; a No asks for none (2026-11-16). --}}
                     @php
                         $period = ['from' => $enquiryPeriod['from']->format('d-m-Y'), 'to' => $enquiryPeriod['to']->format('d-m-Y')];
                     @endphp
@@ -918,18 +964,19 @@
                             @endforeach
                             @error($field)<div class="text-danger small">{{ $message }}</div>@enderror
                             <div class="form-text">{{ __('dpc.employee_details.vigilance.unfit_help') }}</div>
-                            <div class="mt-1">
+                            <div class="mt-1" data-show-when="{{ $field }}=1" data-vigilance-document="{{ $field }}">
                                 <label class="form-label small" for="{{ $documentKind }}">{{ __('dpc.employee_details.documents.kinds.'.$documentKind) }}</label>
                                 @if ($existingDocument = $docFor($documentKind))
                                     <div class="small mb-1">@include('dpc-proposals.employees.partials.uploaded-document', ['document' => $existingDocument])</div>
                                 @endif
-                                <input type="file" accept="application/pdf" class="form-control form-control-sm @error($documentKind) is-invalid @enderror" id="{{ $documentKind }}" name="{{ $documentKind }}" @unless ($existingDocument) required @endunless>
+                                <input type="file" accept="application/pdf" class="form-control form-control-sm @error($documentKind) is-invalid @enderror" id="{{ $documentKind }}" name="{{ $documentKind }}" @unless ($existingDocument) data-required-when-shown @endunless>
                                 @error($documentKind)<div class="invalid-feedback">{{ $message }}</div>@enderror
                             </div>
                         </div>
                     @endforeach
+                    {{-- Asked with a document only: the server refuses a file without it. --}}
                     <label class="form-check small mb-2">
-                        <input class="form-check-input @error('vigilance_verified') is-invalid @enderror" type="checkbox" name="vigilance_verified" value="1" @checked(old('vigilance_verified')) @unless ($docFor('enquiry_document') && $docFor('punishment_document')) required @endunless>
+                        <input class="form-check-input @error('vigilance_verified') is-invalid @enderror" type="checkbox" name="vigilance_verified" value="1" @checked(old('vigilance_verified'))>
                         {{ __('dpc.employee_details.verification.ao_confirm') }}
                     </label>
                     @error('vigilance_verified')<div class="text-danger small">{{ $message }}</div>@enderror
@@ -1151,7 +1198,29 @@
         </div>
     </div>
 
-    <a href="{{ route('dpc-proposals.employees.index', $proposal) }}" class="btn btn-outline-secondary">{{ __('dpc.employee_details.back_to_list') }}</a>
+    {{-- One officer after another (2026-11-16): Submit & Next only once this officer is
+         complete; on the last officer, Complete & Submit once every officer is, which
+         opens the proposal's submission (signed with eSign there). --}}
+    <div class="d-flex flex-wrap align-items-center gap-2" id="employee-flow">
+        <a href="{{ route('dpc-proposals.employees.index', $proposal) }}" class="btn btn-outline-secondary">{{ __('dpc.employee_details.back_to_list') }}</a>
+        @if ($canEdit)
+            @if ($nextRow)
+                @if ($status['complete'])
+                    <a href="{{ route('dpc-proposals.employees.show', [$proposal, $nextRow]) }}" class="btn btn-success ms-auto" data-employee-flow="next">{{ __('dpc.employee_details.flow.submit_next') }}</a>
+                @else
+                    <button type="button" class="btn btn-success ms-auto" disabled data-employee-flow="next">{{ __('dpc.employee_details.flow.submit_next') }}</button>
+                    <div class="w-100 text-end small text-danger">{{ __('dpc.employee_details.flow.finish_this_first', ['pending' => $status['summary']]) }}</div>
+                @endif
+            @elseif ($status['complete'] && $pendingCount === 0)
+                <a href="{{ route('dpc-proposals.show', $proposal) }}#dpc-submit" class="btn btn-success ms-auto" data-employee-flow="complete">{{ __('dpc.employee_details.flow.complete_submit') }}</a>
+            @else
+                <button type="button" class="btn btn-success ms-auto" disabled data-employee-flow="complete">{{ __('dpc.employee_details.flow.complete_submit') }}</button>
+                <div class="w-100 text-end small text-danger">{{ $status['complete']
+                    ? __('dpc.employee_details.flow.finish_all_first', ['count' => $pendingCount])
+                    : __('dpc.employee_details.flow.finish_this_first', ['pending' => $status['summary']]) }}</div>
+            @endif
+        @endif
+    </div>
     </div>
 @endsection
 

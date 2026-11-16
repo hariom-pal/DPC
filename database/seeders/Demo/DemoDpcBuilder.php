@@ -302,7 +302,7 @@ final class DemoDpcBuilder
                 // On time: by 31 January of its own year (2026-11-14).
                 $property->forceFill([
                     'submitted_on' => sprintf('%d-01-15', $property->year),
-                    'next_increment_date' => sprintf('%d-07-01', $property->year),
+                    'next_increment_date' => sprintf('%d-07-01', $property->year + 1),
                 ])->save();
 
                 $document($row, EvaluationDocumentKind::PropertyReturn, $property->year);

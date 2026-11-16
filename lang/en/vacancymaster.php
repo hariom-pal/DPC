@@ -416,6 +416,7 @@ return [
             'heading' => 'Working Officers List — reconciliation with Vacancy Management',
             'lead' => 'Step 1: upload the Working Officers List (one row per sanctioned post). Its working officers by quota must match the finalized Vacancy Management record; the vacancy is still calculated from the record.',
             'missing' => 'The Working Officers List has not been uploaded. Upload it to reconcile it with the Vacancy Management record.',
+            'not_needed' => 'The working strength is zero, so there is no officer to list: the Working Officers List is not required.',
             'figure' => 'Working officers',
             'uploaded' => 'Uploaded list',
             'record' => 'Vacancy Management',

@@ -228,7 +228,7 @@ class EmployeeDetailsService
      * document always matches its answer. A year whose CR was not put up has no CR to
      * upload; the file is ignored. The same checks as the separate upload apply.
      */
-    public function uploadCrWithYear(DpcEvaluationRow $row, int $year, UploadedFile $file, bool $undertaking, bool $verified, User $actor): ?DpcEvaluationDocument
+    public function uploadCrWithYear(DpcEvaluationRow $row, int $year, UploadedFile $file, bool $undertaking, bool $verified, User $actor, ?int $part = null): ?DpcEvaluationDocument
     {
         $record = $row->crGrades()->where('year', $year)->first();
 
@@ -236,7 +236,7 @@ class EmployeeDetailsService
             return null;
         }
 
-        return $this->upload($row, EvaluationDocumentKind::CrReport, $year, $file, $undertaking, null, $actor, $verified);
+        return $this->upload($row, EvaluationDocumentKind::CrReport, $year, $file, $undertaking, null, $actor, $verified, $part);
     }
 
     /**
@@ -400,19 +400,9 @@ class EmployeeDetailsService
         $late = $submittedOn !== null && $submittedOn->gt(DpcEvaluationPropertyFlag::dueDateFor($year));
         $decision = $late ? ($data['late_decision'] ?? null) : null;
 
-        if ($nextIncrement !== null) {
-            $clash = $row->propertyFlags()
-                ->where('year', '!=', $year)
-                ->whereDate('next_increment_date', $nextIncrement->toDateString())
-                ->value('year');
-
-            if ($clash !== null) {
-                throw new WorkflowException(__('dpc.employee_details.property.duplicate_increment', [
-                    'date' => $nextIncrement->format('d-m-Y'),
-                    'year' => $clash,
-                ]));
-            }
-        }
+        // The date of next increment is 1 January or 1 July of the next year
+        // (2026-11-16, SaveEmployeePropertyYearRequest), so two years can no longer
+        // share one: the check that refused a shared date is gone.
 
         /** @var DpcEvaluationPropertyFlag $record */
         $record = DpcEvaluationPropertyFlag::query()->firstOrNew([
@@ -598,6 +588,7 @@ class EmployeeDetailsService
         ?string $remarks,
         User $actor,
         bool $verified = false,
+        ?int $part = null,
     ): DpcEvaluationDocument {
         $this->assertEditable($row);
 
@@ -629,7 +620,7 @@ class EmployeeDetailsService
             }
         }
 
-        return $this->storeDocument($row, $kind, $year, $file, $undertaking, $remarks, $actor);
+        return $this->storeDocument($row, $kind, $year, $file, $undertaking, $remarks, $actor, $part);
     }
 
     /**
@@ -991,8 +982,17 @@ class EmployeeDetailsService
                 continue;
             }
 
-            if ($requireDocuments && ! $this->hasDocument($row, EvaluationDocumentKind::CrReport, $year)) {
-                $missing[] = (string) __('dpc.employee_details.missing.cr_document', ['year' => $year]);
+            // Each CR of the year uploaded on its own (2026-11-16).
+            if ($requireDocuments) {
+                $crs = max(1, count((array) $cr->reports));
+
+                foreach (range(1, $crs) as $number) {
+                    if (! $this->hasCrDocument($row, $year, $number)) {
+                        $missing[] = $crs === 1
+                            ? (string) __('dpc.employee_details.missing.cr_document', ['year' => $year])
+                            : (string) __('dpc.employee_details.missing.cr_document_numbered', ['year' => $year, 'number' => $number]);
+                    }
+                }
             }
 
             foreach ((array) $cr->reports as $report) {
@@ -1110,12 +1110,12 @@ class EmployeeDetailsService
      */
     private function vigilanceMissing(DpcEvaluationRow $row): array
     {
-        // The two questions of 2026-11-14, each with its document whatever the answer.
+        // The two questions of 2026-11-14; a Yes with its document, a No with none (2026-11-16).
         $missing = [];
         foreach (['enquiry_ongoing' => EvaluationDocumentKind::EnquiryDocument, 'punishment_effective' => EvaluationDocumentKind::PunishmentDocument] as $field => $kind) {
             if ($row->{$field} === null) {
                 $missing[] = (string) __("dpc.employee_details.missing.{$field}");
-            } elseif (! $this->hasDocument($row, $kind, null)) {
+            } elseif ($row->{$field} === true && ! $this->hasDocument($row, $kind, null)) {
                 $missing[] = (string) __("dpc.employee_details.missing.{$field}_document");
             }
         }
@@ -1174,6 +1174,15 @@ class EmployeeDetailsService
         );
     }
 
+    private function hasCrDocument(DpcEvaluationRow $row, int $year, int $number): bool
+    {
+        return $row->currentDocuments->contains(
+            fn (DpcEvaluationDocument $document): bool => $document->kind === EvaluationDocumentKind::CrReport
+                && $document->year === $year
+                && $document->crNumber() === $number,
+        );
+    }
+
     private function hasJustifiedGap(DpcEvaluationRow $row, int $year, string $kind = DpcEvaluationRecordGap::KIND_CR): bool
     {
         return $row->recordGaps->contains(
@@ -1191,7 +1200,11 @@ class EmployeeDetailsService
         bool $undertaking,
         ?string $remarks,
         User $actor,
+        ?int $part = null,
     ): DpcEvaluationDocument {
+        // Only a graded CR is numbered within its year (2026-11-16).
+        $part = $kind === EvaluationDocumentKind::CrReport ? max(1, (int) ($part ?? 1)) : null;
+
         if ($kind->isYearly() && $year === null) {
             throw new WorkflowException(__('dpc.employee_details.documents.year_required'));
         }
@@ -1230,7 +1243,7 @@ class EmployeeDetailsService
         // The same file may be uploaded for more than one year (2026-11-16): the
         // check that refused it is gone.
 
-        return DB::transaction(function () use ($row, $kind, $year, $file, $undertaking, $remarks, $actor, $sha256): DpcEvaluationDocument {
+        return DB::transaction(function () use ($row, $kind, $year, $file, $undertaking, $remarks, $actor, $sha256, $part): DpcEvaluationDocument {
             $disk = (string) config('dpc.documents.disk', 'local');
             $path = Storage::disk($disk)->putFile(sprintf('private/employee-documents/%d', $row->dpc_proposal_id), $file);
 
@@ -1244,6 +1257,7 @@ class EmployeeDetailsService
                 'employee_number' => $row->employee_number,
                 'kind' => $kind->value,
                 'year' => $year,
+                'part' => $part,
                 'undertaking_confirmed_at' => $undertaking ? now() : null,
                 'remarks' => $this->blankToNull($remarks),
                 'disk' => $disk,
@@ -1264,6 +1278,10 @@ class EmployeeDetailsService
                     ->where('dpc_evaluation_row_id', $row->id)
                     ->where('kind', $kind->value)
                     ->where(fn ($query) => $year === null ? $query->whereNull('year') : $query->where('year', $year))
+                    // A CR replaces only the same CR of the year; an older upload is the first.
+                    ->when($part !== null, fn ($query) => $query->where(fn ($inner) => $part === 1
+                        ? $inner->whereNull('part')->orWhere('part', 1)
+                        : $inner->where('part', $part)))
                     ->whereNull('superseded_at')
                     ->whereKeyNot($document->id)
                     ->get()
