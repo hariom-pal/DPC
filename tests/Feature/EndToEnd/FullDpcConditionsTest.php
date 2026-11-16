@@ -14,6 +14,7 @@ use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Models\VacancyPosition;
 use App\Domain\Dpc\Services\DpcProposalCompletenessService;
 use App\Domain\Dpc\Services\EmployeeDetailsService;
+use App\Domain\Dpc\Services\PromotionRuleCheck;
 use App\Domain\Dpc\Services\ProposalVacancyPosition;
 use App\Domain\Eligibility\Models\DpcCalculationResult;
 use App\Domain\Eligibility\Models\DpcCalculationRun;
@@ -326,6 +327,16 @@ class FullDpcConditionsTest extends TestCase
         $row = $c['proposal']->evaluationRows()->where('sn', 4)->sole();
         $this->assertNull($row->crGrades()->where('year', 2023)->value('grade'), 'No grade is invented.');
         $this->assertTrue($row->recordGaps()->where('kind', 'cr')->where('year', 2023)->sole()->isJustified());
+
+        // The rule check takes the same window (2026-11-16): 2023 skipped and held (CIR),
+        // 2020 counted in its place with the rule's year-5 requirement.
+        $check = app(PromotionRuleCheck::class)->check($row->fresh(), $c['proposal']->fresh());
+        $lines = collect($check['years'])->keyBy('year');
+        $this->assertTrue($lines[2023]['cr_skipped']);
+        $this->assertTrue($lines[2020]['cr_required'] && $lines[2020]['cr_ok']);
+        $this->assertSame(7, $lines[2020]['points']);
+        $this->assertSame('cir', $check['status']);
+        $this->assertContains(__('dpc.employee_details.rule.cr_cir', ['year' => 2023]), $check['holds']);
 
         $proceeding = $this->conclude($c);
         $result = $this->results($proceeding)[4];
@@ -878,7 +889,10 @@ class FullDpcConditionsTest extends TestCase
             $route = fn (string $n, DpcEvaluationRow $r): string => route('dpc-proposals.employees.'.$n, [$proposal, $r]);
             foreach ($proposal->evaluationRows()->orderBy('sn')->get() as $row) {
                 $this->ok($this->actingAs($ao)->put($route('basic', $row), ['dob_order_number' => 'SR/'.$row->sn, 'dob_order_date' => '1997-03-03', 'joining_order_number' => 'J/'.$row->sn, 'joining_order_date' => '1997-03-03', 'service_record_undertaking' => '1']));
-                foreach ([2021, 2022, 2023, 2024, 2025] as $year) {
+                // A middle year missing takes one older CR year into the window (2026-11-16),
+                // recorded once the missing year has opened it.
+                $crYears = isset($o['missing_cr'][$row->sn]) && $o['missing_cr'][$row->sn] !== 2025 ? [2021, 2022, 2023, 2024, 2025, 2020] : [2021, 2022, 2023, 2024, 2025];
+                foreach ($crYears as $year) {
                     $missing = fn (string $name): array => ['missing_reason_id' => RecordReason::query()->where('code', 'record_not_available')->value('id') ?? RecordReason::query()->whereNull('second_document_label_en')->where('requires_remarks', false)->value('id'), 'missing_document' => $this->pdf($name)];
                     if (($o['missing_cr'][$row->sn] ?? null) === $year) {
                         // Missing: the reason and its supporting document, no grade (2026-11-05).
@@ -886,6 +900,9 @@ class FullDpcConditionsTest extends TestCase
                     } else {
                         $this->ok($this->actingAs($ao)->post($route('cr.save', $row), ['year' => $year, 'put_up' => '1', 'has_grading' => '1', 'integrity_option_id' => $this->fitIntegrity(), 'authorities' => ['reporter', 'reviewer', 'accepting'], 'grade' => $o['grades'][$row->sn][$year - 2021] ?? 'क']));
                         $this->ok($this->actingAs($ao)->post($route('documents.store', $row), ['verified' => '1', 'kind' => 'cr_report', 'year' => $year, 'undertaking' => '1', 'document' => $this->pdf("cr{$row->sn}{$year}.pdf")]));
+                    }
+                    if ($year < 2021) {
+                        continue; // the Property Return keeps its own five years
                     }
                     if (($o['no_property'][$row->sn] ?? null) === $year) {
                         // Not submitted: Missing with its reason and document in a year the
@@ -914,7 +931,8 @@ class FullDpcConditionsTest extends TestCase
                 $rows[] = ['sn' => $row->sn,
                     'cr_grades' => $row->crGrades->map(fn ($c): array => ['year' => $c->year, 'grade' => $c->grade])->values()->all(),
                     'property_flags' => $row->propertyFlags->map(fn ($p): array => ['year' => $p->year, 'flag' => $p->flag ? '1' : '0'])->values()->all(),
-                    'loyalty_flags' => array_map(fn (int $y): array => ['year' => $y, 'flag' => '1'], [2021, 2022, 2023, 2024, 2025])];
+                    // Integrity is given with each CR year, the older year a gap brings in too.
+                    'loyalty_flags' => array_map(fn (int $y): array => ['year' => $y, 'flag' => '1'], array_values(array_unique([2021, 2022, 2023, 2024, 2025, ...$row->crGrades->pluck('year')->map(fn ($y): int => (int) $y)->all()])))];
             }
             $this->ok($this->actingAs($ao)->put(route('dpc-proposals.evaluation-chart.update', $proposal), ['rows' => $rows]));
 

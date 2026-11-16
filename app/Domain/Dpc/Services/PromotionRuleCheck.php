@@ -43,7 +43,7 @@ final class PromotionRuleCheck
      * @return array{
      *     rule: PromotionCrRule|null,
      *     status: 'meets'|'cir'|'does_not_meet'|'no_rule',
-     *     years: list<array{year: int, points: int|null, min: int|null, cr_required: bool, cr_ok: bool, property_required: bool, property_ok: bool, loyalty_required: bool, loyalty_ok: bool}>,
+     *     years: list<array{year: int, points: int|null, min: int|null, cr_required: bool, cr_ok: bool, cr_skipped: bool, property_required: bool, property_ok: bool, loyalty_required: bool, loyalty_ok: bool}>,
      *     total: int|null,
      *     required_total: int|null,
      *     findings: list<string>,
@@ -75,13 +75,31 @@ final class PromotionRuleCheck
         $holds = [];
         $years = [];
 
-        for ($before = 1; $before <= $rule->span(); $before++) {
-            $calendar = $year - $before;
-            $requirement = $byYear->get($before);
+        /*
+         | The officer's own CR window (2026-11-16), as the calculation takes it: a
+         | middle year without a counted CR is skipped and one older year joins; the
+         | rule's per-year requirements follow the counted years by position (year 1
+         | = the latest counted). A skipped year is still answered for (CIR when
+         | justified). The Property Return keeps its calendar years; Integrity is
+         | given with each CR, so it follows the counted CR years.
+         */
+        $base = RuleSet::fromConfig();
+        $ruleSet = RuleSet::forPromotionRule($base, $rule, $points, $year, $from.'-'.$to);
+        $officer = OfficerRecord::fromEvaluationRow($row, null, $points);
+        $window = $ruleSet->crWindowFor($officer);
+        $calendarYears = range($year - 1, $year - $rule->span());
+        $rows = array_values(array_unique([...($window->years ?? []), ...$calendarYears]));
+        rsort($rows);
 
-            $crInWindow = $before <= $rule->cr_years;
-            $crRequired = $crInWindow && (bool) $requirement?->cr_mandatory;
-            $min = $crInWindow ? $requirement?->cr_min_marks : null;
+        foreach ($rows as $calendar) {
+            $before = $year - $calendar;
+            $position = $window?->positionOf($calendar);
+            $skipped = in_array($calendar, $window->skipped ?? [], true);
+            $crRequirement = $position === null ? null : $byYear->get($position);
+
+            $crInWindow = $skipped || ($position !== null && $position <= $rule->cr_years);
+            $crRequired = $skipped || ($crInWindow && (bool) $crRequirement?->cr_mandatory);
+            $min = $position !== null && $position <= $rule->cr_years ? $crRequirement?->cr_min_marks : null;
 
             $cr = $row->crGrades->firstWhere('year', $calendar);
             $yearPoints = $cr instanceof DpcEvaluationCrGrade ? $this->pointsOf($cr, $points, $findings) : null;
@@ -104,7 +122,8 @@ final class PromotionRuleCheck
                 $findings[] = (string) __('dpc.employee_details.rule.cr_below_min', ['year' => $calendar, 'points' => $yearPoints, 'min' => $min]);
             }
 
-            $propertyRequired = $before <= $rule->property_years && (bool) $requirement?->property_mandatory;
+            $propertyRequirement = $byYear->get($before);
+            $propertyRequired = $before <= $rule->property_years && (bool) $propertyRequirement?->property_mandatory;
             $propertyOk = ! $propertyRequired || $row->propertyFlags->firstWhere('year', $calendar)?->flag === true;
 
             if (! $propertyOk) {
@@ -117,7 +136,7 @@ final class PromotionRuleCheck
                 }
             }
 
-            $loyaltyRequired = $before <= $rule->loyalty_years && (bool) $requirement?->loyalty_mandatory;
+            $loyaltyRequired = $position !== null && $position <= $rule->loyalty_years && (bool) $crRequirement?->loyalty_mandatory;
             $loyaltyOk = ! $loyaltyRequired || $row->loyaltyFlags->firstWhere('year', $calendar)?->flag === true;
 
             if (! $loyaltyOk) {
@@ -130,6 +149,7 @@ final class PromotionRuleCheck
                 'min' => $min,
                 'cr_required' => $crRequired,
                 'cr_ok' => $crOk,
+                'cr_skipped' => $skipped,
                 'property_required' => $propertyRequired,
                 'property_ok' => $propertyOk,
                 'loyalty_required' => $loyaltyRequired,
@@ -139,11 +159,7 @@ final class PromotionRuleCheck
 
         // The total exactly as the DPC calculation scores it: the rule's CR years (the
         // most recent graded), plus the tribal bonus.
-        $base = RuleSet::fromConfig();
-        $score = $this->scoring->score(
-            OfficerRecord::fromEvaluationRow($row, null, $points),
-            RuleSet::forPromotionRule($base, $rule, $points, $year, $from.'-'.$to),
-        );
+        $score = $this->scoring->score($officer, $ruleSet);
         $required = (int) ($rule->qualifying_total ?? round((float) $rule->qualifying_average * $rule->cr_years));
 
         if ($score->yearsUsed !== [] && $score->total < $required) {

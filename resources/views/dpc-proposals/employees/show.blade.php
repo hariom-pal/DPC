@@ -205,7 +205,7 @@
                             <tbody>
                                 @foreach ($ruleCheck['years'] as $line)
                                     <tr data-rule-year="{{ $line['year'] }}">
-                                        <td>{{ $line['year'] }}</td>
+                                        <td>{{ $line['year'] }}@if ($line['cr_skipped'] ?? false)<div class="text-muted" data-rule-skipped>{{ __('dpc.employee_details.rule.skipped') }}</div>@endif</td>
                                         <td>{{ $line['points'] ?? '—' }}</td>
                                         <td>{{ $line['min'] ?? '—' }}</td>
                                         <td>{!! $line['cr_ok'] ? ($line['cr_required'] ? '✓' : '—') : '<span class="text-danger">✗</span>' !!}</td>
@@ -290,6 +290,16 @@
                                             @include('dpc-proposals.employees.partials.uploaded-document')
                                         @endif
                                     @endforeach
+                                    {{-- The missing year's supporting document, beside the CRs' (2026-11-16). --}}
+                                    @if ($cr->put_up === false && ($gap = $crGaps->get($cr->year)))
+                                        @foreach (array_filter([null => $gap->hasDocument() ? [$gap->reason?->documentLabel() ?: __('dpc.employee_details.missing_record.document'), $gap->original_name] : null, 'second' => $gap->hasSecondDocument() ? [$gap->reason?->secondDocumentLabel(), $gap->second_original_name] : null]) as $part => [$label, $name])
+                                            <div data-cr-gap-document="{{ $cr->year }}">
+                                                <span class="badge text-bg-success">{{ __('dpc.employee_details.documents.uploaded') }}</span>
+                                                <span class="text-muted">{{ $label }}:</span>
+                                                <a href="{{ route('dpc-proposals.record-gaps.download', array_filter([$proposal, $row, $gap, 'part' => $part ?: null])) }}" target="_blank" rel="noopener">{{ $name }}</a>
+                                            </div>
+                                        @endforeach
+                                    @endif
                                     @if ($cr->put_up === false && ! in_array($cr->year, $crGapYears, true))
                                         <div><a href="{{ route('dpc-proposals.record-gaps.index', [$proposal, $row]) }}">{{ __('dpc.employee_details.cr.record_reason') }}</a></div>
                                     @endif
@@ -350,20 +360,11 @@
                                 </label>
                             @endforeach
                         </div>
-                        <div class="col-md-5" data-show-when="put_up=1">
-                            <span class="form-label small d-block">{{ __('dpc.employee_details.cr.q_grading') }}</span>
-                            @foreach ([1 => __('ui.yes'), 0 => __('ui.no')] as $value => $label)
-                                <label class="form-check form-check-inline small">
-                                    <input class="form-check-input" type="radio" name="has_grading" value="{{ $value }}"
-                                           @checked((string) old('has_grading', $editCr?->has_grading === null ? '' : (int) $editCr->has_grading) === (string) $value)>
-                                    {{ $label }}
-                                </label>
-                            @endforeach
-                        </div>
+                        {{-- A CR is never without its grading (2026-11-16): put up means graded. --}}
+                        <input type="hidden" name="has_grading" value="1">
                     </div>
                     <p class="small text-muted mt-2 mb-1" data-show-when="put_up=0">{{ __('dpc.employee_details.cr.not_put_up_help') }}</p>
-                    @include('dpc-proposals.employees.partials.missing-record', ['when' => 'put_up=0', 'years' => null, 'justified' => $crGapYears, 'prefix' => 'cr', 'reasons' => $reasons])
-                    <p class="small text-muted mt-2 mb-1" data-show-when="has_grading=0">{{ __('dpc.employee_details.cr.no_grading_help') }}</p>
+                    @include('dpc-proposals.employees.partials.missing-record', ['when' => 'put_up=0', 'years' => null, 'justified' => $crGapYears, 'prefix' => 'cr', 'reasons' => $reasons->filter(fn ($reason) => $reason->appliesTo('cr'))])
                     {{-- Up to four CRs a year, each with its authorities and grade (MoM of 12 November
                          2026); the year's NRC, where a CR lacks an authority's remarks, uploaded here. --}}
                     @php
@@ -371,7 +372,7 @@
                         $oldReports = (array) old('reports', []);
                         $crCount = (int) old('cr_count', max(1, count($existingReports)));
                     @endphp
-                    <div data-show-when="has_grading=1" class="mt-1" data-cr-reports>
+                    <div data-show-when="put_up=1" class="mt-1" data-cr-reports>
                         <div class="row g-2 mb-2">
                             <div class="col-md-4">
                                 <label class="form-label small" for="cr-count">{{ __('dpc.employee_details.cr.cr_count') }}</label>
@@ -431,7 +432,7 @@
                             <select class="form-select form-select-sm @error('integrity_option_id') is-invalid @enderror" id="cr-integrity" name="integrity_option_id" data-required-when-shown>
                                 <option value="">{{ __('ui.select') }}</option>
                                 @foreach ($integrityOptions as $integrity)
-                                    <option value="{{ $integrity->id }}" @selected((string) old('integrity_option_id', $editCr?->integrity_option_id) === (string) $integrity->id)>{{ $integrity->label() }} — {{ $integrity->fit ? __('dpc.employee_details.rule.status.meets') : __('dpc.employee_details.rule.status.does_not_meet') }}</option>
+                                    <option value="{{ $integrity->id }}" @selected((string) old('integrity_option_id', $editCr?->integrity_option_id) === (string) $integrity->id)>{{ $integrity->label() }}</option>
                                 @endforeach
                             </select>
                             @error('integrity_option_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
@@ -644,7 +645,7 @@
                             @error('late_document')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
                     </div>
-                    @include('dpc-proposals.employees.partials.missing-record', ['when' => 'submitted=0', 'years' => $propertyRuleYears, 'justified' => $propertyGapYears, 'prefix' => 'property', 'reasons' => $reasons])
+                    @include('dpc-proposals.employees.partials.missing-record', ['when' => 'submitted=0', 'years' => $propertyRuleYears, 'justified' => $propertyGapYears, 'prefix' => 'property', 'reasons' => $reasons->filter(fn ($reason) => $reason->appliesTo('property'))])
                     {{-- The return itself, uploaded with its year — no separate upload (2026-11-14). --}}
                     <div class="border rounded p-2 mt-2 bg-body-tertiary" data-show-when="submitted=1" data-property-document>
                         <label class="form-label small fw-semibold" for="property-document">{{ __('dpc.employee_details.property.document_upload') }}</label>

@@ -333,8 +333,8 @@ class DpcEmployeeDetailsController extends Controller
         $reason = RecordReason::query()->find($request->input('missing_reason_id'));
         $document = $request->file('missing_document');
 
-        // A reason that makes the officer Unfit (appointed in this year) needs no document (2026-11-14).
-        if ($reason === null || (! $document instanceof UploadedFile && ! $reason->makes_unfit)) {
+        // Every reason comes with its document, the appointment letter included (2026-11-16).
+        if ($reason === null || ! $reason->appliesTo($kind) || ! $document instanceof UploadedFile) {
             return;
         }
 
@@ -343,7 +343,7 @@ class DpcEmployeeDetailsController extends Controller
         app(RecordGapService::class)->record(
             $row, $kind, $request->integer('year'), $reason,
             $request->filled('missing_remarks') ? (string) $request->input('missing_remarks') : null,
-            $document instanceof UploadedFile ? $document : null, $request->user(), $second instanceof UploadedFile ? $second : null,
+            $document, $request->user(), $second instanceof UploadedFile ? $second : null,
         );
     }
 

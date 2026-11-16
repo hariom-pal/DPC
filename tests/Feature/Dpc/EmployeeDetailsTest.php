@@ -343,16 +343,19 @@ class EmployeeDetailsTest extends TestCase
         }
     }
 
-    public function test_a_cr_without_grading_needs_the_cr_uploaded(): void
+    /** 2026-11-16: a CR is never without its grading. */
+    public function test_a_cr_is_always_recorded_with_its_grading(): void
     {
-        $this->actingAs($this->ao)->post($this->route('cr.save'), ['year' => 2022, 'put_up' => '1', 'has_grading' => '0', 'integrity_option_id' => $this->fitIntegrity()])
-            ->assertSessionHasNoErrors();
+        $page = $this->actingAs($this->ao)->get(route('dpc-proposals.employees.show', [$this->proposal, $this->row]));
+        $page->assertDontSee('name="has_grading" value="0"', false)->assertDontSee(__('dpc.employee_details.cr.q_grading'));
 
-        $this->assertNull($this->row->crGrades()->where('year', 2022)->value('grade'));
-        $this->assertStringContainsString('CR 2022: upload the CR without grading.', implode(' ', $this->details()['sections']['cr']));
+        $this->post($this->route('cr.save'), ['year' => 2022, 'put_up' => '1', 'has_grading' => '0', 'integrity_option_id' => $this->fitIntegrity()])
+            ->assertSessionHasErrors(['has_grading' => __('dpc.employee_details.cr.grading_required')]);
+        $this->assertSame(0, $this->row->crGrades()->count());
 
-        $this->upload(EvaluationDocumentKind::CrWithoutGrading, 2022)->assertSessionHasNoErrors();
-        $this->assertStringNotContainsString('CR 2022', implode(' ', $this->details()['sections']['cr']));
+        // A year saved without a grading before the rule is to be edited and graded.
+        $this->row->crGrades()->create(['year' => 2022, 'put_up' => true, 'has_grading' => false]);
+        $this->assertContains(__('dpc.employee_details.missing.cr_grading_required', ['year' => 2022]), $this->details()['sections']['cr']);
     }
 
     public function test_a_cr_document_needs_the_no_duplicate_undertaking(): void
@@ -388,19 +391,14 @@ class EmployeeDetailsTest extends TestCase
         $this->assertSame(2023, $document->year);
         $this->assertNotNull($document->undertaking_confirmed_at);
         $this->assertStringNotContainsString('CR 2023', implode(' ', $this->details()['sections']['cr']));
-
-        // A year without grading takes the CR without grading; one not put up has no CR.
-        $this->post($this->route('cr.save'), [
-            'year' => 2022, 'put_up' => '1', 'has_grading' => '0', 'cr_document' => $this->pdf('cr.pdf'), 'cr_verified' => '1', 'cr_undertaking' => '1',
-        ])->assertSessionHasNoErrors();
-        $this->assertSame(EvaluationDocumentKind::CrWithoutGrading, DpcEvaluationDocument::query()->where('year', 2022)->sole()->kind);
     }
 
     /** 2026-11-14: no kind to choose — the year's answer says which CR it is. */
     public function test_the_cr_upload_takes_its_kind_from_the_year(): void
     {
         $this->saveCr(2023, 'क');
-        $this->actingAs($this->ao)->post($this->route('cr.save'), ['year' => 2022, 'put_up' => '1', 'has_grading' => '0'])->assertSessionHasNoErrors();
+        // A year saved without a grading before 2026-11-16.
+        $this->row->crGrades()->create(['year' => 2022, 'put_up' => true, 'has_grading' => false]);
 
         $page = $this->get(route('dpc-proposals.employees.show', [$this->proposal, $this->row]));
         $page->assertDontSee('id="cr-doc-kind"', false);
@@ -447,7 +445,11 @@ class EmployeeDetailsTest extends TestCase
             'missing_reason_id' => RecordReason::query()->where('code', 'long_leave')->value('id'),
             'missing_document' => $this->pdf('leave.pdf'),
         ])->assertSessionHasNoErrors();
-        $this->post($this->route('cr.save'), ['year' => $dpcYear - 2, 'put_up' => '1', 'has_grading' => '0'])->assertSessionHasNoErrors();
+        $this->post($this->route('cr.save'), [
+            'year' => $dpcYear - 2, 'put_up' => '0',
+            'missing_reason_id' => RecordReason::query()->where('code', 'long_leave')->value('id'),
+            'missing_document' => $this->pdf('leave2.pdf'),
+        ])->assertSessionHasNoErrors();
         foreach (range($dpcYear - 3, $dpcYear - 5) as $year) {
             $this->saveCr($year, 'क')->assertSessionHasNoErrors();
         }

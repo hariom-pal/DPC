@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Eligibility;
 
+use App\Domain\Eligibility\ValueObjects\OfficerRecord;
 use App\Domain\Master\Models\PromotionCrRule;
 use App\Enums\ServiceClass;
 use InvalidArgumentException;
@@ -34,7 +35,7 @@ final class RuleSet
      * @param  array<string, string>  $lastYearForbiddenGrades
      * @param  array<string, int>  $qualifyingScores
      * @param  array<string, array{single_vacancy_size: int, multiplier: int, addend: int}>  $zoneRules
-     * @param  array{rule_id: int, pair: string, effective_from_year: int, dpc_year: int, qualifying_total: int, super_seat_points: int|null, minimum_by_year: array<int, int>, mandatory_years: list<int>, property_mandatory_years?: list<int>, tribal_bonus_basis: string, tribal_bonus_skips_extremes: bool, tribal_bonus_grades: list<int>|null, highest_points: int|null, lowest_points: int|null}|null  $classRule  the Class Master promotion rule the run applies; null: the configured rules only
+     * @param  array{rule_id: int, pair: string, effective_from_year: int, dpc_year: int, qualifying_total: int, super_seat_points: int|null, minimum_by_year: array<int, int>, mandatory_years: list<int>, property_mandatory_years?: list<int>, tribal_bonus_basis: string, tribal_bonus_skips_extremes: bool, tribal_bonus_grades: list<int>|null, highest_points: int|null, lowest_points: int|null, cr_window?: bool, cr_years?: int, minimum_by_position?: array<int, int>, mandatory_positions?: list<int>}|null  $classRule  the Class Master promotion rule the run applies; null: the configured rules only
      */
     public function __construct(
         public readonly string $version,
@@ -77,6 +78,8 @@ final class RuleSet
         $minimums = [];
         $mandatory = [];
         $propertyMandatory = [];
+        $minimumByPosition = [];
+        $mandatoryPositions = [];
 
         foreach ($rule->years as $year) {
             // The years the rule makes the property return mandatory (2026-11-05).
@@ -90,10 +93,12 @@ final class RuleSet
 
             if ($year->cr_min_marks !== null) {
                 $minimums[$dpcYear - $year->years_before] = (int) $year->cr_min_marks;
+                $minimumByPosition[(int) $year->years_before] = (int) $year->cr_min_marks;
             }
 
             if ($year->cr_mandatory) {
                 $mandatory[] = $dpcYear - $year->years_before;
+                $mandatoryPositions[] = (int) $year->years_before;
             }
         }
 
@@ -130,13 +135,49 @@ final class RuleSet
                 'tribal_bonus_grades' => $rule->tribal_bonus_grades === null ? null : array_map('intval', $rule->tribal_bonus_grades),
                 'highest_points' => $points === [] ? null : max($points),
                 'lowest_points' => $points === [] ? null : min($points),
+                // The officer's own CR window (2026-11-16): the per-year requirements
+                // apply to the counted years by position, see CrWindow.
+                'cr_window' => true,
+                'cr_years' => (int) $rule->cr_years,
+                'minimum_by_position' => $minimumByPosition,
+                'mandatory_positions' => $mandatoryPositions,
             ],
         );
     }
 
-    /** The minimum points the Class Master rule sets for a calendar year, if any. */
-    public function minimumFor(int $year): ?int
+    /**
+     * The officer's CR window (2026-11-16), or null for a rule set stored before it,
+     * which keeps judging the rule's calendar years.
+     */
+    public function crWindowFor(OfficerRecord $officer): ?CrWindow
     {
+        if (! ($this->classRule['cr_window'] ?? false)) {
+            return null;
+        }
+
+        return CrWindow::of(
+            (int) $this->classRule['dpc_year'] - 1,
+            (int) $this->classRule['cr_years'],
+            $officer->crNotCountedYears,
+            max((int) config('dpc.evaluation.min_year', 1950), $officer->firstServiceYear ?? 0),
+        );
+    }
+
+    /**
+     * The minimum points the Class Master rule sets for a CR year, if any: by the
+     * year's position among the officer's counted years when the officer is known
+     * (2026-11-16), by calendar year otherwise.
+     */
+    public function minimumFor(int $year, ?OfficerRecord $officer = null): ?int
+    {
+        $window = $officer === null ? null : $this->crWindowFor($officer);
+
+        if ($window !== null) {
+            $position = $window->positionOf($year);
+
+            return $position === null ? null : ($this->classRule['minimum_by_position'][$position] ?? null);
+        }
+
         return $this->classRule['minimum_by_year'][$year] ?? null;
     }
 
@@ -148,6 +189,35 @@ final class RuleSet
     public function mandatoryCrYears(): array
     {
         return $this->classRule['mandatory_years'] ?? [];
+    }
+
+    /**
+     * The CR years this officer must have recorded or justified (2026-11-16): the
+     * counted years at the positions the rule makes mandatory, and every skipped
+     * middle year — missing with its reason and document it still holds the
+     * promotion (CIR).
+     *
+     * @return list<int>
+     */
+    public function mandatoryCrYearsFor(OfficerRecord $officer): array
+    {
+        $window = $this->crWindowFor($officer);
+
+        if ($window === null) {
+            return $this->mandatoryCrYears();
+        }
+
+        $years = $window->skipped;
+
+        foreach ((array) ($this->classRule['mandatory_positions'] ?? []) as $position) {
+            if (isset($window->counted[$position - 1])) {
+                $years[] = $window->counted[$position - 1];
+            }
+        }
+
+        rsort($years);
+
+        return array_values(array_unique($years));
     }
 
     /**
@@ -218,7 +288,7 @@ final class RuleSet
      * it was written in.
      *
      * @param  array<string, mixed>  $rule
-     * @return array{rule_id: int, pair: string, effective_from_year: int, dpc_year: int, qualifying_total: int, super_seat_points: int|null, minimum_by_year: array<int, int>, mandatory_years: list<int>, property_mandatory_years?: list<int>, tribal_bonus_basis: string, tribal_bonus_skips_extremes: bool, tribal_bonus_grades: list<int>|null, highest_points: int|null, lowest_points: int|null}
+     * @return array{rule_id: int, pair: string, effective_from_year: int, dpc_year: int, qualifying_total: int, super_seat_points: int|null, minimum_by_year: array<int, int>, mandatory_years: list<int>, property_mandatory_years?: list<int>, tribal_bonus_basis: string, tribal_bonus_skips_extremes: bool, tribal_bonus_grades: list<int>|null, highest_points: int|null, lowest_points: int|null, cr_window?: bool, cr_years?: int, minimum_by_position?: array<int, int>, mandatory_positions?: list<int>}
      */
     private static function classRuleFrom(array $rule): array
     {
@@ -247,6 +317,17 @@ final class RuleSet
             'tribal_bonus_grades' => isset($rule['tribal_bonus_grades']) ? array_values(array_map('intval', (array) $rule['tribal_bonus_grades'])) : null,
             'highest_points' => isset($rule['highest_points']) ? (int) $rule['highest_points'] : null,
             'lowest_points' => isset($rule['lowest_points']) ? (int) $rule['lowest_points'] : null,
+            // A run recorded before 2026-11-16 judged the rule's calendar years; it
+            // keeps doing so when re-read.
+            ...(($rule['cr_window'] ?? false) ? [
+                'cr_window' => true,
+                'cr_years' => (int) $rule['cr_years'],
+                'minimum_by_position' => array_combine(
+                    array_map('intval', array_keys((array) $rule['minimum_by_position'])),
+                    array_map('intval', array_values((array) $rule['minimum_by_position'])),
+                ),
+                'mandatory_positions' => array_values(array_map('intval', (array) $rule['mandatory_positions'])),
+            ] : []),
         ];
     }
 

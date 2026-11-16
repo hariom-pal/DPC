@@ -19,6 +19,7 @@
                         <th>{{ __('ui.code') }}</th>
                         <th>{{ __('ui.name_en') }}</th>
                         <th>{{ __('ui.hi') }}</th>
+                        <th>{{ __('admin.record_reasons.applies_column') }}</th>
                         <th>{{ __('admin.record_reasons.remarks_column') }}</th>
                         <th class="text-end">{{ __('admin.record_reasons.order_column') }}</th>
                         <th>{{ __('ui.status') }}</th>
@@ -31,6 +32,9 @@
                             <td><code>{{ $reason->code }}</code></td>
                             <td>{{ $reason->name_en }}</td>
                             <td>{{ $reason->name_hi }}</td>
+                            <td class="small" data-reason-applies="{{ $reason->code }}">
+                                {{ collect(['for_cr' => __('admin.record_reasons.applies_cr'), 'for_property' => __('admin.record_reasons.applies_property')])->filter(fn ($label, $field) => $reason->{$field})->implode(', ') ?: '—' }}
+                            </td>
                             <td>
                                 @if ($reason->requires_remarks)
                                     <span class="badge text-bg-warning">{{ __('admin.record_reasons.remarks_required') }}</span>

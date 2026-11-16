@@ -35,6 +35,8 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property string $name_hi
  * @property bool $requires_remarks
  * @property bool $makes_unfit
+ * @property bool $for_cr
+ * @property bool $for_property
  * @property int $sort_order
  * @property MasterStatus $status
  */
@@ -66,6 +68,9 @@ class RecordReason extends Model implements Auditable
         'requires_remarks',
         // 2026-11-14: no record exists to produce (appointed in this year) — the officer is Unfit.
         'makes_unfit',
+        // 2026-11-16: offered for a CR, for a Property Return, or both.
+        'for_cr',
+        'for_property',
         'sort_order',
         // Rule 3.2: the document this reason is justified with, and a second where it needs two.
         'document_label_en',
@@ -82,8 +87,28 @@ class RecordReason extends Model implements Auditable
         return [
             'requires_remarks' => 'boolean',
             'makes_unfit' => 'boolean',
+            'for_cr' => 'boolean',
+            'for_property' => 'boolean',
             'sort_order' => 'integer',
         ];
+    }
+
+    /**
+     * The reasons offered for one kind of record (2026-11-16): a CR's, or a Property
+     * Return's. An Integrity certificate is given with its CR, so it takes the CR's.
+     *
+     * @param  Builder<$this>  $query
+     * @return Builder<$this>
+     */
+    public function scopeForKind(Builder $query, string $kind): Builder
+    {
+        return $query->where($kind === 'property' ? 'for_property' : 'for_cr', true);
+    }
+
+    /** Whether this reason is offered for that kind of record. */
+    public function appliesTo(string $kind): bool
+    {
+        return $kind === 'property' ? (bool) $this->for_property : (bool) $this->for_cr;
     }
 
     /**

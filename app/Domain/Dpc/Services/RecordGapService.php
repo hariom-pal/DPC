@@ -74,8 +74,8 @@ class RecordGapService
          | screen as accounted for and reach the engine as unaccounted for, and the
          | officer would have no way to tell which reading the Commission acted on.
          */
-        // A reason that leaves no record ever (appointed in this year) needs none (2026-11-14).
-        if ($file === null && ! $reason->makes_unfit) {
+        // "Appointed in this year" too: its document is the appointment letter (2026-11-16).
+        if ($file === null) {
             throw new RuntimeException(
                 'A missing record must be justified with both a reason and a supporting document.',
             );
@@ -91,8 +91,8 @@ class RecordGapService
         }
 
         // Sanitised, and only ever displayed. A filename from a browser is user input
-        // and never used to build the stored path. None for a reason that needs no document.
-        $evidence = $file === null ? null : [
+        // and never used to build the stored path.
+        $evidence = [
             'original_name' => mb_substr((string) $file->getClientOriginalName(), 0, 255),
             'size_bytes' => $file->getSize() ?: 0,
             'sha256' => hash('sha256', (string) file_get_contents($file->getRealPath())),
@@ -101,7 +101,7 @@ class RecordGapService
         return DB::transaction(function () use ($row, $kind, $year, $reason, $remarks, $file, $evidence, $actor, $secondFile): DpcEvaluationRecordGap {
             $disk = (string) config('dpc.documents.disk', 'local');
 
-            $path = $file === null ? null : Storage::disk($disk)->putFile(
+            $path = Storage::disk($disk)->putFile(
                 sprintf('private/record-gaps/%d', $row->dpc_proposal_id),
                 $file,
             );
@@ -137,11 +137,11 @@ class RecordGapService
                 [
                     'record_reason_id' => $reason->id,
                     'remarks' => $remarks === null || trim($remarks) === '' ? null : trim($remarks),
-                    'disk' => $path === null ? null : $disk,
+                    'disk' => $disk,
                     'path' => $path,
-                    'original_name' => $evidence['original_name'] ?? null,
-                    'size_bytes' => $evidence['size_bytes'] ?? null,
-                    'sha256' => $evidence['sha256'] ?? null,
+                    'original_name' => $evidence['original_name'],
+                    'size_bytes' => $evidence['size_bytes'],
+                    'sha256' => $evidence['sha256'],
                     'recorded_by' => $actor->id,
                     ...$second,
                 ],

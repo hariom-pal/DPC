@@ -43,7 +43,8 @@ class SaveEmployeeCrYearRequest extends FormRequest
         return [
             'year' => ['required', 'integer', 'min:'.(int) config('dpc.evaluation.min_year', 1950), 'max:2200'],
             'put_up' => ['required', 'boolean'],
-            'has_grading' => ['required_if:put_up,1', 'nullable', 'boolean'],
+            // A CR is never without its grading (2026-11-16): put up means graded.
+            'has_grading' => ['nullable', 'boolean', 'accepted_if:put_up,1'],
             'authorities' => ['nullable', 'array'],
             'authorities.*' => ['string', Rule::in(EmployeeDetailsService::CR_AUTHORITIES)],
             'grade' => ['nullable', 'string', Rule::in((array) config('dpc.evaluation.cr_grades'))],
@@ -70,9 +71,18 @@ class SaveEmployeeCrYearRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'has_grading.accepted_if' => __('dpc.employee_details.cr.grading_required'),
             'cr_document.mimes' => __('dpc.employee_details.documents.pdf_only'),
             'cr_document.max' => __('dpc.employee_details.documents.too_large', ['kb' => (int) config('dpc.documents.max_kb', 10240)]),
         ];
+    }
+
+    protected function prepareForValidation(): void
+    {
+        // The form no longer asks: a CR put up carries its grading (2026-11-16).
+        if ($this->input('put_up') === '1' && ! $this->has('has_grading')) {
+            $this->merge(['has_grading' => '1']);
+        }
     }
 
     /** A CR not put up is Missing: its reason and document, here (2026-11-05). */

@@ -48,23 +48,29 @@ trait DeclaresAMissingRecord
 
     protected function assertMissingJustification(Validator $validator, string $kind, bool $declaredMissing): void
     {
+        // Whenever a reason is given, it must be one offered for this kind of record (2026-11-16).
+        $given = $declaredMissing && $this->filled('missing_reason_id') ? RecordReason::query()->find($this->input('missing_reason_id')) : null;
+        if ($given !== null && ! $given->appliesTo($kind)) {
+            $validator->errors()->add('missing_reason_id', __('dpc.employee_details.missing_record.reason_not_for_kind'));
+
+            return;
+        }
+
         if (! $this->needsMissingJustification($kind, $declaredMissing)) {
             return;
         }
 
         $reason = RecordReason::query()->find($this->input('missing_reason_id'));
 
-        if ($reason === null) {
+        // A reason the Administrator offers for the other kind of record only is refused (2026-11-16).
+        if ($reason === null || ! $reason->appliesTo($kind)) {
             $validator->errors()->add('missing_reason_id', __('dpc.employee_details.missing_record.reason_required'));
         } elseif ($reason->requires_remarks && trim((string) $this->input('missing_remarks')) === '') {
             $validator->errors()->add('missing_remarks', __('dpc.record_gaps.remarks_required', ['reason' => $reason->label()]));
         }
 
-        // A reason that leaves no record ever (appointed in this year) asks for no document (2026-11-14).
-        if ($reason?->makes_unfit === true) {
-            return;
-        }
-
+        // Every reason is justified with its document — "Appointed in this year" with
+        // the appointment letter (2026-11-16; it asked for none from 2026-11-14).
         if (! $this->hasFile('missing_document')) {
             $validator->errors()->add('missing_document', __('dpc.employee_details.missing_record.document_required'));
         }

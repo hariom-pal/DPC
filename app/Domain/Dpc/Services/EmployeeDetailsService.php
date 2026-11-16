@@ -15,6 +15,9 @@ use App\Domain\Dpc\Models\DpcEvaluationPropertyFlag;
 use App\Domain\Dpc\Models\DpcEvaluationRecordGap;
 use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\Dpc\Models\DpcProposal;
+use App\Domain\Eligibility\CrWindow;
+use App\Domain\Eligibility\RuleSet;
+use App\Domain\Eligibility\ValueObjects\OfficerRecord;
 use App\Domain\Master\Services\PhReservationPolicy;
 use App\Domain\Master\Services\PromotionCrRules;
 use App\Domain\Master\Support\ReservationMode;
@@ -232,7 +235,7 @@ class EmployeeDetailsService
     /**
      * The CR years asked for (business decisions of 2026-11-14): the required number
      * (five), counted back from the year before the DPC year. A year recorded as
-     * missing, or put up without a grading, does not count, so the window stretches
+     * missing (a CR is always graded, 2026-11-16) does not count, so the window stretches
      * one year further back for each — except the year just before the DPC year,
      * which stays in the window (four CRs then suffice). Never before the officer
      * joined service.
@@ -244,23 +247,14 @@ class EmployeeDetailsService
         $proposal = $row->proposal;
         $last = (int) ($proposal->dpc_year ?: $proposal->proposal_date->year) - 1;
         $from = max((int) config('dpc.evaluation.min_year', 1950), $row->date_of_joining_service->year ?? ($last - 20));
-        $records = $row->crGrades()->get()->keyBy('year');
-        $slots = max(1, (int) config('dpc.merit.required_cr_count', 5));
-        $years = [];
+        $notCounted = $row->crGrades()->get()
+            ->filter(fn ($record): bool => $record->put_up === false)
+            ->pluck('year')->map(fn ($year): int => (int) $year)->values()->all();
+        // Five, or the rule's CR count where it asks for more (2026-11-16): the screen
+        // never offers fewer years than the rule check and the calculation look at.
+        $slots = max((int) config('dpc.merit.required_cr_count', 5), (int) $this->promotionRules->ruleForProposal($proposal)?->cr_years);
 
-        for ($year = $last; $year >= $from && $slots > 0; $year--) {
-            $years[] = $year;
-            $record = $records->get($year);
-            $notCounted = $record !== null && ($record->put_up === false || ($record->put_up === true && $record->has_grading === false));
-
-            if ($notCounted && $year !== $last) {
-                continue;
-            }
-
-            $slots--;
-        }
-
-        return $years;
+        return CrWindow::of($last, $slots, $notCounted, $from)->years;
     }
 
     /**
@@ -567,9 +561,9 @@ class EmployeeDetailsService
     }
 
     /**
-     * The period the two enquiry questions ask about (2026-11-14): from 1 January of
-     * the year before the DPC year to the proposal's date — for a 2026 DPC, from
-     * 1 January 2025.
+     * The period the two enquiry questions ask about: from 1 January of the DPC year
+     * to the proposal's date — for a 2026 DPC, from 1 January 2026 (2026-11-16; it
+     * began a year earlier from 2026-11-14).
      *
      * @return array{from: Carbon, to: Carbon}
      */
@@ -577,7 +571,7 @@ class EmployeeDetailsService
     {
         $year = (int) ($proposal->dpc_year ?: $proposal->proposal_date->year);
 
-        return ['from' => Carbon::create($year - 1, 1, 1)->startOfDay(), 'to' => ($proposal->proposal_date ?? now())->copy()->startOfDay()];
+        return ['from' => Carbon::create($year, 1, 1)->startOfDay(), 'to' => ($proposal->proposal_date ?? now())->copy()->startOfDay()];
     }
 
     // ------------------------------------------------------------------
@@ -890,7 +884,24 @@ class EmployeeDetailsService
         $proposal = $row->proposal;
         $rule = $proposal === null ? null : $this->promotionRules->ruleForProposal($proposal);
 
-        return $rule === null ? [] : $this->promotionRules->mandatoryCrYears($rule, (int) ($proposal->dpc_year ?: $proposal->proposal_date->year));
+        if ($rule === null) {
+            return [];
+        }
+
+        // The officer's own CR window, as the rule check and the calculation take it (2026-11-16).
+        $dpcYear = (int) ($proposal->dpc_year ?: $proposal->proposal_date->year);
+
+        // Only what the window reads, from the CR years already loaded for the screen.
+        $officer = new OfficerRecord(
+            name: (string) $row->name,
+            crGrades: [],
+            crNotCountedYears: $row->crGrades
+                ->filter(fn ($record): bool => $record->put_up === false)
+                ->map(fn ($record): int => (int) $record->year)->values()->all(),
+            firstServiceYear: $row->date_of_joining_service?->year,
+        );
+
+        return RuleSet::forPromotionRule(RuleSet::fromConfig(), $rule, [], $dpcYear, '')->mandatoryCrYearsFor($officer);
     }
 
     /**
@@ -956,10 +967,9 @@ class EmployeeDetailsService
                 $missing[] = (string) __('dpc.employee_details.missing.cr_integrity', ['year' => $year]);
             }
 
+            // Saved before a grading became mandatory (2026-11-16): to be edited and graded.
             if ($cr->has_grading === false) {
-                if (! $this->hasDocument($row, EvaluationDocumentKind::CrWithoutGrading, $year)) {
-                    $missing[] = (string) __('dpc.employee_details.missing.cr_without_grading_document', ['year' => $year]);
-                }
+                $missing[] = (string) __('dpc.employee_details.missing.cr_grading_required', ['year' => $year]);
 
                 continue;
             }

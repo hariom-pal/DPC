@@ -122,9 +122,9 @@ class DpcCalculationService
         $source = $this->promotionSourceFor($proposal);
 
         $propertyYears = (int) config('dpc.merit.property_return_years', 5);
-        // The Class Master rule's CR count and the years it makes mandatory.
+        // The Class Master rule's CR count; the years it makes mandatory are each
+        // officer's own (RuleSet::mandatoryCrYearsFor).
         $requiredCrs = $rules->scoringYears;
-        $mandatoryCrYears = $rules->mandatoryCrYears();
         /*
          | Whether an unmatched qualification refuses a candidate or is merely
          | reported — BD-39, and `advise` by default.
@@ -153,7 +153,7 @@ class DpcCalculationService
 
         $assessed = $officers->map(function (array $entry) use (
             $rules, $fromClass, $toClass, $hierarchyFailures, $propertyYears, $requiredCrs,
-            $ruleFailureStatus, $enforceQualification, $mandatoryCrYears
+            $ruleFailureStatus, $enforceQualification
         ): array {
             $record = $entry['record'];
 
@@ -168,7 +168,9 @@ class DpcCalculationService
              */
             $gate = $this->gates->assess(
                 $record, $hierarchyFailures, $propertyYears, $requiredCrs, $ruleFailureStatus,
-                $enforceQualification, $mandatoryCrYears, $rules->propertyMandatoryYears(),
+                // The officer's own CR window (2026-11-16): a skipped middle year is
+                // still answered for, and the rule's positions follow the counted years.
+                $enforceQualification, $rules->mandatoryCrYearsFor($record), $rules->propertyMandatoryYears(),
             );
 
             $score = $this->scoring->score($record, $rules);

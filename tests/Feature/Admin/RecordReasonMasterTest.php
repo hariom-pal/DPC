@@ -71,6 +71,7 @@ class RecordReasonMasterTest extends TestCase
                 'name_en' => 'Awaiting Vigilance Clearance',
                 'name_hi' => 'सतर्कता अनापत्ति की प्रतीक्षा',
                 'requires_remarks' => '1',
+                'for_cr' => '1',
                 'sort_order' => 8,
                 'status' => MasterStatus::Active->value,
             ])
@@ -103,6 +104,7 @@ class RecordReasonMasterTest extends TestCase
                 'name_hi' => $other->name_hi,
                 'sort_order' => $other->sort_order,
                 'status' => MasterStatus::Active->value,
+                'for_cr' => '1', 'for_property' => '1',
                 // 'requires_remarks' deliberately absent — an unticked box.
             ])
             ->assertRedirect(route('admin.record-reasons.index'));

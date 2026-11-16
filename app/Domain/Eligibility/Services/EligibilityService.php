@@ -36,7 +36,7 @@ class EligibilityService
 
         $this->applyDisqualifyingGradeGate($officer, $score, $rules, $reasons);
         $this->applyLastYearGate($officer, $score, $fromClass, $toClass, $rules, $reasons);
-        $this->applyYearMinimumGate($score, $rules, $reasons);
+        $this->applyYearMinimumGate($officer, $score, $rules, $reasons);
 
         $failedOnScoreOnly = $reasons === [] && $score->total < $required;
 
@@ -107,10 +107,11 @@ class EligibilityService
      *
      * @param  list<string>  $reasons
      */
-    private function applyYearMinimumGate(ScoreBreakdown $score, RuleSet $rules, array &$reasons): void
+    private function applyYearMinimumGate(OfficerRecord $officer, ScoreBreakdown $score, RuleSet $rules, array &$reasons): void
     {
         foreach ($score->yearsUsed as $year) {
-            $minimum = $rules->minimumFor($year);
+            // By position among the officer's counted CR years (2026-11-16).
+            $minimum = $rules->minimumFor($year, $officer);
             $mark = $score->marksByYear[$year] ?? null;
 
             if ($minimum !== null && $mark !== null && $mark < $minimum) {

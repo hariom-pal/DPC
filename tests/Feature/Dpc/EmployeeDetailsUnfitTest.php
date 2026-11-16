@@ -154,30 +154,70 @@ class EmployeeDetailsUnfitTest extends TestCase
         $this->actingAs($this->ao)->get(route('admin.integrity-options.index'))->assertForbidden();
     }
 
+    /** 2026-11-16: the Administrator keeps the CR's reasons and the Property Return's apart. */
+    public function test_the_cr_and_property_return_reasons_are_kept_apart_by_the_administrator(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(Role::Admin->value);
+        $reason = RecordReason::query()->where('code', 'newly_appointed')->sole();
+        $form = ['code' => $reason->code, 'name_en' => $reason->name_en, 'name_hi' => $reason->name_hi, 'sort_order' => $reason->sort_order, 'status' => 'active', 'makes_unfit' => '1'];
+
+        // At least one of the two.
+        $this->actingAs($admin)->put(route('admin.record-reasons.update', $reason), $form)->assertSessionHasErrors('for_property');
+        $this->put(route('admin.record-reasons.update', $reason), $form + ['for_cr' => '1'])->assertRedirect(route('admin.record-reasons.index'));
+        $this->assertTrue($reason->fresh()->for_cr);
+        $this->assertFalse($reason->fresh()->for_property);
+        $this->get(route('admin.record-reasons.index'))->assertSee('data-reason-applies="newly_appointed"', false);
+
+        // Offered under the CR only.
+        $html = (string) $this->actingAs($this->ao)->get(route('dpc-proposals.employees.show', [$this->proposal, $this->row]))->getContent();
+        $cr = substr($html, (int) strpos($html, 'id="cr-missing-reason"'), 4000);
+        $property = substr($html, (int) strpos($html, 'id="property-missing-reason"'), 4000);
+        $this->assertStringContainsString('value="'.$reason->id.'"', substr($cr, 0, (int) strpos($cr, '</select>')));
+        $this->assertStringNotContainsString('value="'.$reason->id.'"', substr($property, 0, (int) strpos($property, '</select>')));
+
+        // A reason offered for the Property Return only is refused for a CR.
+        $this->actingAs($admin)->put(route('admin.record-reasons.update', $reason), $form + ['for_property' => '1'])->assertRedirect();
+        $this->actingAs($this->ao)->post($this->route('cr.save'), [
+            'year' => $this->dpcYear - 1, 'put_up' => '0', 'missing_reason_id' => $reason->id, 'missing_document' => $this->pdf(),
+        ])->assertSessionHasErrors(['missing_reason_id' => __('dpc.employee_details.missing_record.reason_not_for_kind')]);
+        $this->assertSame(0, DpcEvaluationRecordGap::query()->count());
+    }
+
     // =================================================== Appointed in this year
 
-    public function test_appointed_in_this_year_needs_no_document_and_makes_the_officer_unfit(): void
+    public function test_appointed_in_this_year_asks_for_the_appointment_letter_and_makes_the_officer_unfit(): void
     {
         $reason = RecordReason::query()->where('code', 'newly_appointed')->sole();
         $this->assertTrue($reason->makes_unfit);
         $this->assertSame('Appointed in this year', $reason->name_en);
+        $this->assertSame('Appointment letter', $reason->document_label_en);
 
         $html = (string) $this->actingAs($this->ao)->get(route('dpc-proposals.employees.show', [$this->proposal, $this->row]))->getContent();
-        $this->assertMatchesRegularExpression('/value="'.$reason->id.'"\s+data-makes-unfit/', $html, 'The form knows the reason asks for no document.');
+        $this->assertMatchesRegularExpression('/value="'.$reason->id.'"\s+data-makes-unfit\s+data-document-label="Appointment letter"/', $html, 'The form names the document it asks for.');
 
+        // The appointment letter is mandatory (2026-11-16).
         $this->actingAs($this->ao)->post($this->route('cr.save'), [
             'year' => $this->dpcYear - 1, 'put_up' => '0', 'missing_reason_id' => $reason->id,
+        ])->assertSessionHasErrors('missing_document');
+        $this->assertSame(0, DpcEvaluationRecordGap::query()->count());
+
+        $this->post($this->route('cr.save'), [
+            'year' => $this->dpcYear - 1, 'put_up' => '0', 'missing_reason_id' => $reason->id, 'missing_document' => $this->pdf(),
         ])->assertSessionHasNoErrors();
 
         $gap = DpcEvaluationRecordGap::query()->where('dpc_evaluation_row_id', $this->row->id)->sole();
-        $this->assertNull($gap->path, 'No document is asked.');
+        $this->assertNotNull($gap->path, 'The appointment letter is kept.');
         $this->assertTrue($gap->isJustified());
         $this->assertNotContains(__('dpc.employee_details.missing.cr_reason', ['year' => $this->dpcYear - 1]), app(EmployeeDetailsService::class)->status($this->row->fresh())['sections']['cr']);
         $this->assertCount(1, $this->unfit());
 
         // The reason is shown in the CR table.
         $this->actingAs($this->ao)->get(route('dpc-proposals.employees.show', [$this->proposal, $this->row]))
-            ->assertSee('data-cr-missing-reason="'.($this->dpcYear - 1).'"', false);
+            ->assertSee('data-cr-missing-reason="'.($this->dpcYear - 1).'"', false)
+            // …and the appointment letter in the Documents column (2026-11-16).
+            ->assertSee('data-cr-gap-document="'.($this->dpcYear - 1).'"', false)
+            ->assertSee(route('dpc-proposals.record-gaps.download', [$this->proposal, $this->row, $gap]), false);
 
         // Any other reason still needs its document.
         $this->post($this->route('cr.save'), [
@@ -193,7 +233,7 @@ class EmployeeDetailsUnfitTest extends TestCase
             ->assertSee(__('dpc.employee_details.sections.vigilance'))
             ->assertSee('Department Enquiry/Court Case (Sealed Cover)');
         $page->assertSee(__('dpc.employee_details.vigilance.enquiry_question', [
-            'from' => '01-01-'.($this->dpcYear - 1), 'to' => $this->proposal->proposal_date->format('d-m-Y'),
+            'from' => '01-01-'.$this->dpcYear, 'to' => $this->proposal->proposal_date->format('d-m-Y'),
         ]));
 
         $form = ['enquiry_ongoing' => '0', 'punishment_effective' => '1', 'vigilance_pending' => '0', 'vigilance_verified' => '1'];
@@ -234,12 +274,14 @@ class EmployeeDetailsUnfitTest extends TestCase
         ])->assertSessionHasNoErrors();
         $this->assertSame(range($last, $last - 4), $service->crYearWindow($this->row->fresh()));
 
-        // A year in the middle missing, or without grading: one more year back for each.
+        // A year in the middle missing: one more year back for each (a CR is always graded, 2026-11-16).
         $this->post($this->route('cr.save'), [
             'year' => $last - 2, 'put_up' => '0', 'missing_reason_id' => RecordReason::query()->where('code', 'long_leave')->value('id'), 'missing_document' => $this->pdf(),
         ])->assertSessionHasNoErrors();
         $this->assertSame(range($last, $last - 5), $service->crYearWindow($this->row->fresh()));
-        $this->post($this->route('cr.save'), ['year' => $last - 3, 'put_up' => '1', 'has_grading' => '0'])->assertSessionHasNoErrors();
+        $this->post($this->route('cr.save'), [
+            'year' => $last - 3, 'put_up' => '0', 'missing_reason_id' => RecordReason::query()->where('code', 'long_leave')->value('id'), 'missing_document' => $this->pdf(),
+        ])->assertSessionHasNoErrors();
         $this->assertSame(range($last, $last - 6), $service->crYearWindow($this->row->fresh()));
 
         // A year outside the window is refused.

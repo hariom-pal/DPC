@@ -70,6 +70,18 @@
                             <label class="form-check-label" for="makes_unfit">{{ __('admin.record_reasons.unfit_label') }}</label>
                         </div>
                         <div class="form-text">{{ __('admin.record_reasons.unfit_help') }}</div>
+                        {{-- 2026-11-16: the CR's reasons and the Property Return's kept apart. --}}
+                        <div class="mt-3">
+                            <span class="form-label d-block">{{ __('admin.record_reasons.applies_label') }}</span>
+                            @foreach (['for_cr' => 'applies_cr', 'for_property' => 'applies_property'] as $field => $label)
+                                <div class="form-check form-check-inline">
+                                    <input type="checkbox" class="form-check-input @error($field) is-invalid @enderror" id="{{ $field }}" name="{{ $field }}" value="1"
+                                           @checked(old($field, $reason->{$field} ?? true))>
+                                    <label class="form-check-label" for="{{ $field }}">{{ __('admin.record_reasons.'.$label) }}</label>
+                                </div>
+                            @endforeach
+                            @error('for_property')<div class="text-danger small">{{ $message }}</div>@enderror
+                        </div>
                     </div>
                 </div>
 

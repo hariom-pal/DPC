@@ -93,6 +93,12 @@ class RecordGapRequest extends FormRequest
         $validator->after(function (Validator $validator): void {
             $this->assertRemarksWhereTheReasonDemandsThem($validator);
             $this->assertTheYearIsOnTheChart($validator);
+
+            // 2026-11-16: a reason offered for the other kind of record only is refused.
+            $reason = RecordReason::query()->find($this->input('record_reason_id'));
+            if ($reason !== null && is_string($this->input('kind')) && ! $reason->appliesTo((string) $this->input('kind'))) {
+                $validator->errors()->add('record_reason_id', (string) __('dpc.employee_details.missing_record.reason_not_for_kind'));
+            }
         });
     }
 

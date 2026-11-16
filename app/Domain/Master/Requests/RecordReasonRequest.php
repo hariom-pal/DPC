@@ -39,7 +39,12 @@ class RecordReasonRequest extends FormRequest
      */
     protected function prepareForValidation(): void
     {
-        $this->merge(['requires_remarks' => $this->boolean('requires_remarks'), 'makes_unfit' => $this->boolean('makes_unfit')]);
+        $this->merge([
+            'requires_remarks' => $this->boolean('requires_remarks'),
+            'makes_unfit' => $this->boolean('makes_unfit'),
+            'for_cr' => $this->boolean('for_cr'),
+            'for_property' => $this->boolean('for_property'),
+        ]);
     }
 
     /**
@@ -56,6 +61,9 @@ class RecordReasonRequest extends FormRequest
             'requires_remarks' => ['required', 'boolean'],
             // 2026-11-14: a reason that leaves no record ever (appointed in this year) makes the officer Unfit.
             'makes_unfit' => ['required', 'boolean'],
+            // 2026-11-16: offered for a CR, for a Property Return, or both — at least one.
+            'for_cr' => ['required', 'boolean'],
+            'for_property' => ['required', 'boolean', Rule::when(! $this->boolean('for_cr'), ['accepted'])],
             'sort_order' => ['required', 'integer', 'min:0', 'max:9999'],
             // Rule 3.2: the document(s) a gap with this reason is justified with.
             'document_label_en' => ['nullable', 'string', 'max:255'],
@@ -64,5 +72,13 @@ class RecordReasonRequest extends FormRequest
             'second_document_label_hi' => ['nullable', 'string', 'max:255'],
             'status' => ['required', new Enum(MasterStatus::class)],
         ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return ['for_property.accepted' => (string) __('admin.record_reasons.applies_required')];
     }
 }

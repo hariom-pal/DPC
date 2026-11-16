@@ -85,6 +85,10 @@ final class OfficerRecord
         public readonly array $justifiedPropertyGapYears = [],
         /** @var list<string> Why the employee details make the officer Unfit (2026-11-14). */
         public readonly array $unfitReasons = [],
+        /** @var list<int> CR years recorded as not put up, or put up without a grading (CrWindow). */
+        public readonly array $crNotCountedYears = [],
+        /** The officer's first year of service, the earliest year the CR window may reach. */
+        public readonly ?int $firstServiceYear = null,
     ) {}
 
     /**
@@ -110,6 +114,7 @@ final class OfficerRecord
         $grades = [];
         $points = [];
         $tribalByYear = [];
+        $notCounted = [];
 
         foreach ($row->crGrades as $crGrade) {
             // Several CRs: the nearest grade at or below their average (MoM of 12
@@ -126,6 +131,11 @@ final class OfficerRecord
 
             if ($crGrade->tribal_area !== null) {
                 $tribalByYear[$crGrade->year] = (bool) $crGrade->tribal_area;
+            }
+
+            // Only a CR not put up opens the window further: a CR is always graded (2026-11-16).
+            if ($crGrade->put_up === false) {
+                $notCounted[] = (int) $crGrade->year;
             }
         }
 
@@ -210,6 +220,8 @@ final class OfficerRecord
             refusedPromotionLastYear: $row->refusedPromotionLastYear(),
             phSeat: $row->holdsVerifiedPhClaim(),
             unfitReasons: $row->unfitReasons('en'),
+            crNotCountedYears: $notCounted,
+            firstServiceYear: $row->date_of_joining_service?->year,
         );
     }
 

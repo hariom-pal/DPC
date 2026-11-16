@@ -84,11 +84,11 @@
                 var option = reason ? reason.options[reason.selectedIndex] : null;
                 var unfit = !!(option && option.hasAttribute('data-makes-unfit'));
 
-                box.querySelectorAll('[data-missing-documents]').forEach(function (cell) {
-                    cell.hidden = unfit;
-                    if (unfit) {
-                        cell.querySelectorAll('input').forEach(function (input) { input.required = false; });
-                    }
+                // The document is asked for every reason; a reason that names its document
+                // (the appointment letter) shows that name (2026-11-16).
+                var named = option ? option.getAttribute('data-document-label') : null;
+                box.querySelectorAll('label[data-document-label-default]').forEach(function (label) {
+                    label.textContent = named ? named + ' (PDF)' : label.getAttribute('data-document-label-default');
                 });
                 box.querySelectorAll('[data-missing-unfit]').forEach(function (note) { note.hidden = !unfit; });
                 // The CIR explanation does not apply to a year that makes the officer Unfit.

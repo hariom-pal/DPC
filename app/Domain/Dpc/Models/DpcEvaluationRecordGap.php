@@ -180,12 +180,8 @@ class DpcEvaluationRecordGap extends Model implements Auditable
      */
     public function isJustified(): bool
     {
-        // A reason that leaves no record to produce (appointed in this year) needs no
-        // document: the year is accounted for, and the officer is Unfit (2026-11-14).
-        if ($this->reason?->makes_unfit === true) {
-            return true;
-        }
-
+        // "Appointed in this year" included: it is justified with the appointment
+        // letter (2026-11-16), and the officer is Unfit whatever the document.
         return $this->hasDocument() && ($this->reason?->requiresSecondDocument() !== true || $this->hasSecondDocument());
     }
 
