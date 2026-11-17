@@ -77,6 +77,21 @@
                                    href="{{ route('dpc-proposals.employees.show', [$proposal, $entry['row']]) }}">
                                     {{ $canEdit ? __('dpc.employee_details.complete_details') : __('dpc.employee_details.view_details') }}
                                 </a>
+                                {{-- The Administrative Head's verification of this officer's documents
+                                     (rule 4.4, MoM of 16 November 2026), beside View Details. --}}
+                                @php
+                                    $docTotal = $entry['row']->currentDocuments->count();
+                                    $docVerified = $entry['row']->currentDocuments->whereNotNull('ah_verified_at')->count();
+                                @endphp
+                                @if ($docTotal > 0)
+                                    <div class="small mt-1" data-verification-progress="{{ $entry['row']->sn }}">
+                                        @if ($docVerified === $docTotal)
+                                            <span class="badge text-bg-success">{{ __('dpc.document_verification.completed') }}</span>
+                                        @else
+                                            <span class="badge text-bg-warning">{{ __('dpc.document_verification.progress', ['verified' => $docVerified, 'total' => $docTotal]) }}</span>
+                                        @endif
+                                    </div>
+                                @endif
                             </td>
                         </tr>
                     @empty

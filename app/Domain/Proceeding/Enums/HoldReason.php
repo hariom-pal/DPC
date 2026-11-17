@@ -24,6 +24,14 @@ enum HoldReason: string
      */
     case CrYearsMissing = 'cr_years_missing';
 
+    /**
+     * MoM of 16 November 2026, point 11: the CR of the year just before the DPC year
+     * missing, justified with its reason and document. Kept apart from
+     * CrYearsMissing because CGPSC decided this ground goes to a Circulation DPC,
+     * which BD-15 still withholds from the other CR grounds.
+     */
+    case LatestCrMissing = 'latest_cr_missing';
+
     /** C3: "immovable-property details not recorded" for one or more years. */
     case PropertyMissing = 'property_missing';
 
@@ -34,6 +42,7 @@ enum HoldReason: string
     {
         return match ($this) {
             self::CrYearsMissing => 'CR not available for the required years',
+            self::LatestCrMissing => 'Latest CR (year before the DPC year) not available — Circulation DPC',
             self::PropertyMissing => 'Immovable property file not recorded',
             self::Manual => 'Held by the Commission',
         };

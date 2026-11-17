@@ -103,7 +103,9 @@ final class PromotionRuleCheck
             $crInWindow = $skipped || ($position !== null && $position <= $rule->cr_years);
             // A skipped middle year is not required (2026-11-16): an older year is counted
             // in its place, so it is neither CIR nor a finding.
-            $crRequired = ! $skipped && $crInWindow && (bool) $crRequirement?->cr_mandatory;
+            // The year just before the DPC year recorded missing is required (MoM point 11).
+            $latestMissing = $calendar === $year - 1 && $row->crGrades->firstWhere('year', $calendar)?->put_up === false;
+            $crRequired = ! $skipped && $crInWindow && ((bool) $crRequirement?->cr_mandatory || $latestMissing);
             $min = $position !== null && $position <= $rule->cr_years ? $crRequirement?->cr_min_marks : null;
 
             $cr = $row->crGrades->firstWhere('year', $calendar);
@@ -115,9 +117,11 @@ final class PromotionRuleCheck
                 $crOk = false;
                 // Missing and justified: CIR, as the calculation holds it (2026-11-05).
                 // A reason that makes the officer Unfit is already among the findings: not CIR (2026-11-15).
-                // The year just before the DPC year missing is Unfit, among the findings already (2026-11-16).
-                if ($this->unfitGap($row, DpcEvaluationRecordGap::KIND_CR, $calendar) || $calendar === $year - 1) {
+                if ($this->unfitGap($row, DpcEvaluationRecordGap::KIND_CR, $calendar)) {
                     // nothing held
+                } elseif ($calendar === $year - 1 && $this->justified($row, DpcEvaluationRecordGap::KIND_CR, $calendar)) {
+                    // The latest CR missing goes to a Circulation DPC (MoM point 11).
+                    $holds[] = (string) __('dpc.employee_details.rule.cr_circulation', ['year' => $calendar]);
                 } elseif ($this->justified($row, DpcEvaluationRecordGap::KIND_CR, $calendar)) {
                     $holds[] = (string) __('dpc.employee_details.rule.cr_cir', ['year' => $calendar]);
                 } else {

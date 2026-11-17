@@ -143,11 +143,13 @@ class HoldService
     private function ruleHolds(DpcEvaluationRow $row, array $crCells, array $propertyCells, array $ruleYears): array
     {
         $justified = fn (string $kind, int $year): bool => $row->recordGaps
-            ->contains(fn (DpcEvaluationRecordGap $gap): bool => $gap->kind === $kind && $gap->year === $year && $gap->isJustified());
+            ->contains(fn (DpcEvaluationRecordGap $gap): bool => $gap->kind === $kind && $gap->year === $year && $gap->isJustified()
+                // A reason the Administrator marks Unfit holds nothing (MoM point 12).
+                && $gap->reason?->makes_unfit !== true);
 
         // The officer's own CR window, as the rule check and the calculation take it
         // (2026-11-16): a skipped middle year is replaced by an older one and holds
-        // nothing, and the year just before the DPC year missing is Unfit, not held.
+        // nothing; the year just before the DPC year has a ground of its own below.
         $details = app(EmployeeDetailsService::class);
         $window = $details->crYearWindow($row);
         $lastYear = $window === [] ? null : max($window);
@@ -171,6 +173,14 @@ class HoldService
 
         if ($cr !== []) {
             $found[HoldReason::CrYearsMissing->value] = $graded.' of '.$ruleYears['cr_count'].' required CR years recorded; missing and justified: '.implode(', ', $cr);
+        }
+
+        // The latest CR (the year before the DPC year) missing and justified: held for a
+        // Circulation DPC (MoM of 16 November 2026, point 11).
+        if ($lastYear !== null
+            && $row->crGrades->contains(fn ($grade): bool => (int) $grade->year === $lastYear && $grade->put_up === false)
+            && $justified(DpcEvaluationRecordGap::KIND_CR, $lastYear)) {
+            $found[HoldReason::LatestCrMissing->value] = 'CR '.$lastYear.' (the year before the DPC year) not available, justified: Circulation DPC';
         }
 
         if ($property !== []) {
@@ -291,7 +301,7 @@ class HoldService
     ): Collection {
         $recorded = collect();
 
-        foreach ([HoldReason::CrYearsMissing, HoldReason::PropertyMissing] as $reason) {
+        foreach ([HoldReason::CrYearsMissing, HoldReason::LatestCrMissing, HoldReason::PropertyMissing] as $reason) {
             $existing = $this->existing($proceeding, $sn, $reason);
             $applies = array_key_exists($reason->value, $found);
 

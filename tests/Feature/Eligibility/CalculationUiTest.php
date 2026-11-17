@@ -23,6 +23,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Concerns\CompletesDpcProposals;
 use Tests\Concerns\RaisesDpcProposals;
 use Tests\Concerns\SanctionsVacancies;
+use Tests\Concerns\SeatsDpcCommittees;
 use Tests\Concerns\SeedsEvaluationCharts;
 use Tests\Concerns\UsesPptPromotionRules;
 use Tests\TestCase;
@@ -37,6 +38,7 @@ class CalculationUiTest extends TestCase
     use RaisesDpcProposals;
     use RefreshDatabase;
     use SanctionsVacancies;
+    use SeatsDpcCommittees;
     use SeedsEvaluationCharts;
     use UsesPptPromotionRules;
 
@@ -71,6 +73,9 @@ class CalculationUiTest extends TestCase
             $this->dpcStorePayload($this->sanctioningPreDpc($postFrom->id, $postTo->id)),
         );
         $this->proposal = DpcProposal::query()->latest('id')->firstOrFail();
+        // The calculation is the DPC Committee's alone (2026-11-16): the account these
+        // tests calculate as is seated on the committee.
+        $this->seatAccountOnCommittee($this->proposal, $this->ao);
     }
 
     private function seedChart(): void
@@ -136,6 +141,29 @@ class CalculationUiTest extends TestCase
 
     // --------------------------------------------------------- calculate button
 
+    /** 2026-11-16: the calculation is the DPC Committee's alone; the department does not see it. */
+    public function test_only_the_dpc_committee_sees_and_runs_the_calculation(): void
+    {
+        $this->seedChart();
+        $this->actingAs($this->ao)->post(route('dpc-proposals.calculate', $this->proposal))->assertRedirect();
+        $run = DpcCalculationRun::query()->latest('id')->firstOrFail();
+
+        // The AH holds no seat: no card, no history, no result, no new run.
+        $this->actingAs($this->ah)->get(route('dpc-proposals.show', $this->proposal))->assertOk()
+            ->assertDontSee(route('dpc-proposals.calculations.index', $this->proposal), false);
+        $this->get(route('dpc-proposals.calculations.index', $this->proposal))->assertForbidden();
+        $this->get(route('dpc-proposals.calculations.show', [$this->proposal, $run->uuid]))->assertForbidden();
+        $this->post(route('dpc-proposals.calculate', $this->proposal))->assertForbidden();
+
+        // A committee member with no department role reaches it from the sitting.
+        $member = User::factory()->create();
+        $this->seatAccountOnCommittee($this->proposal, $member);
+        $this->actingAs($member)->get(route('sitting.show', $this->proposal))->assertOk()
+            ->assertSee('id="committee-calculation"', false);
+        $this->get(route('dpc-proposals.calculations.show', [$this->proposal, $run->uuid]))->assertOk()
+            ->assertSee(route('sitting.show', $this->proposal), false);
+    }
+
     public function test_the_calculate_button_appears_once_a_chart_exists(): void
     {
         $this->actingAs($this->ao)->get(route('dpc-proposals.show', $this->proposal))
@@ -198,6 +226,7 @@ class CalculationUiTest extends TestCase
                 'is_obc' => true, 'is_female' => true,
                 'is_bhar_sadhak_sachiv' => true, 'is_vibhag_sachiv' => true],
         ], $this->ao);
+        $this->seatAccountOnCommittee($this->proposal, $this->ao);
         // One vacancy sizes the zone at `single_vacancy_size` (5), and the
         // seniority list must match it exactly before the proposal will submit.
         app(DpcProposalService::class)->saveSeniorityEntries($this->proposal, array_map(
@@ -376,24 +405,24 @@ class CalculationUiTest extends TestCase
             $this->dpcStorePayload($this->sanctioningPreDpc($this->proposal->promotion_from_post_id, $this->proposal->promotion_to_post_id)),
         );
         $otherProposal = DpcProposal::query()->latest('id')->firstOrFail();
+        $this->seatAccountOnCommittee($otherProposal, $this->ao);
 
         $this->actingAs($this->ao)
             ->get(route('dpc-proposals.calculations.show', [$otherProposal, $run->uuid]))
             ->assertNotFound();
     }
 
-    public function test_the_administrative_head_can_view_and_run_a_calculation(): void
+    /** 2026-11-16: the calculation is the DPC Committee's alone — not the Administrative Head's. */
+    public function test_the_administrative_head_can_neither_view_nor_run_a_calculation(): void
     {
         $this->seedChart();
+        $run = $this->calculate();
 
-        $this->actingAs($this->ah)->post(route('dpc-proposals.calculate', $this->proposal))->assertSessionHasNoErrors();
-
-        $run = DpcCalculationRun::query()->latest('id')->firstOrFail();
-        $this->assertSame($this->ah->id, $run->executed_by);
-
+        $this->actingAs($this->ah)->post(route('dpc-proposals.calculate', $this->proposal))->assertForbidden();
+        $this->assertSame(1, DpcCalculationRun::query()->count());
         $this->actingAs($this->ah)
             ->get(route('dpc-proposals.calculations.show', [$this->proposal, $run->uuid]))
-            ->assertOk();
+            ->assertForbidden();
     }
 
     // ---------------------------------------------- provisional results warning
@@ -512,6 +541,7 @@ class CalculationUiTest extends TestCase
             $this->dpcStorePayload($this->sanctioningPreDpc($this->proposal->promotion_from_post_id, $this->proposal->promotion_to_post_id)),
         );
         $other = DpcProposal::query()->latest('id')->firstOrFail();
+        $this->seatAccountOnCommittee($other, $this->ao);
 
         // The second proposal has no chart, so the business error proves the
         // request reached the controller rather than the throttle.

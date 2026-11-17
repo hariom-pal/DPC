@@ -208,7 +208,10 @@ final class RuleSet
             return $this->mandatoryCrYears();
         }
 
-        $years = [];
+        // The year just before the DPC year recorded missing with its reason and
+        // document is held for a Circulation DPC (MoM of 16 November 2026, point 11).
+        $latest = $window->counted[0] ?? null;
+        $years = $latest !== null && isset($officer->justifiedCrGapYears[$latest]) ? [$latest] : [];
 
         foreach ((array) ($this->classRule['mandatory_positions'] ?? []) as $position) {
             if (isset($window->counted[$position - 1])) {

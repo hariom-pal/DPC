@@ -69,7 +69,8 @@ class DpcRecordGapController extends Controller
 
     public function store(RecordGapRequest $request, DpcProposal $dpcProposal, DpcEvaluationRow $evaluationRow): RedirectResponse
     {
-        $this->authorize('update', $dpcProposal);
+        // A Property File gap belongs to the Property section, every other to the CR's (MoM point 3).
+        $this->authorize('updateEmployeeSection', [$dpcProposal, $request->input('kind') === DpcEvaluationRecordGap::KIND_PROPERTY ? 'property' : 'cr']);
         $this->assertRowBelongsToProposal($dpcProposal, $evaluationRow);
 
         $reason = RecordReason::query()->findOrFail($request->integer('record_reason_id'));
@@ -96,7 +97,7 @@ class DpcRecordGapController extends Controller
         DpcEvaluationRow $evaluationRow,
         DpcEvaluationRecordGap $recordGap,
     ): RedirectResponse {
-        $this->authorize('update', $dpcProposal);
+        $this->authorize('updateEmployeeSection', [$dpcProposal, $recordGap->kind === DpcEvaluationRecordGap::KIND_PROPERTY ? 'property' : 'cr']);
         $this->assertRowBelongsToProposal($dpcProposal, $evaluationRow);
         abort_unless($recordGap->dpc_evaluation_row_id === $evaluationRow->id, 404);
 

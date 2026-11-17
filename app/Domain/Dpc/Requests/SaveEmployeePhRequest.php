@@ -24,7 +24,7 @@ class SaveEmployeePhRequest extends FormRequest
     {
         $proposal = $this->route('dpcProposal');
 
-        return $proposal instanceof DpcProposal && ($this->user()?->can('update', $proposal) ?? false);
+        return $proposal instanceof DpcProposal && ($this->user()?->can('updateEmployeeSection', [$proposal, 'ph']) ?? false);
     }
 
     /**

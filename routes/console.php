@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Console\Commands\DpcStageDeadlinesCommand;
 use App\Console\Commands\ProcessAssignmentRequestsCommand;
 use App\Console\Commands\ReturnExpiredAllotmentsCommand;
 use Illuminate\Foundation\Inspiring;
@@ -48,6 +49,14 @@ Schedule::command(ReturnExpiredAllotmentsCommand::class)
     ->withoutOverlapping()
     ->onOneServer()
     ->description('Return DPCs not concluded by their completion date to the CGPSC Chairman');
+
+// MoM of 16 November 2026, points 6 and 7: deadline reminders, and the Secretary's
+// overdue stage escalated to the Chairman. Idempotent within a day.
+Schedule::command(DpcStageDeadlinesCommand::class)
+    ->dailyAt('08:00')
+    ->withoutOverlapping()
+    ->onOneServer()
+    ->description('E-mail DPC stage deadline reminders; escalate an overdue Secretary stage to the Chairman');
 
 // Transfers and additional charges take effect on their date, and additional
 // charges end on theirs (Phases 7–8, 2026-10-27). Idempotent.

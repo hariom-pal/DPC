@@ -77,6 +77,9 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property int|null $signature_id
  * @property int|null $secretary_approved_by
  * @property Carbon|null $secretary_approved_at
+ * @property Carbon|null $committee_returned_at MoM point 3: a committee member's return to the AO, open
+ * @property array{sections: array<string, string>, by: int|null, member: string, decision: string}|null $committee_return
+ * @property Carbon|null $secretary_escalated_at MoM of 16 November 2026, point 7: sent on to the Chairman because the Secretary's deadline passed
  * @property int|null $secretary_signature_id
  * @property Carbon|null $returned_at
  * @property string|null $return_remarks
@@ -240,6 +243,10 @@ class DpcProposal extends Model implements Auditable
             'submitted_at' => 'datetime',
             'approved_at' => 'datetime',
             'secretary_approved_at' => 'datetime',
+            'secretary_escalated_at' => 'datetime',
+            // MoM of 16 November 2026, point 3: the committee's return now open.
+            'committee_returned_at' => 'datetime',
+            'committee_return' => 'array',
             'returned_at' => 'datetime',
             'cancelled_at' => 'datetime',
             'proceeding_completed_at' => 'datetime',
@@ -426,6 +433,21 @@ class DpcProposal extends Model implements Auditable
     public function citation(): string
     {
         return sprintf('%s (Revision %d)', $this->dpc_code ?? '—', $this->revision_number);
+    }
+
+    /**
+     * The sections a committee member returned the DPC for, while that return is
+     * open (MoM of 16 November 2026, point 3): only these may be changed.
+     *
+     * @return list<string>|null null: no committee return open
+     */
+    public function committeeReturnSections(): ?array
+    {
+        if ($this->committee_returned_at === null) {
+            return null;
+        }
+
+        return array_map('strval', array_keys((array) ($this->committee_return['sections'] ?? [])));
     }
 
     /**

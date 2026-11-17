@@ -36,7 +36,7 @@ class SaveEmployeeCrYearRequest extends FormRequest
     {
         $proposal = $this->route('dpcProposal');
 
-        return $proposal instanceof DpcProposal && ($this->user()?->can('update', $proposal) ?? false);
+        return $proposal instanceof DpcProposal && ($this->user()?->can('updateEmployeeSection', [$proposal, 'cr']) ?? false);
     }
 
     /**
@@ -68,6 +68,8 @@ class SaveEmployeeCrYearRequest extends FormRequest
             'cr_verified' => ['nullable', 'boolean'],
             'cr_undertaking' => ['nullable', 'boolean'],
             // Integrity (सत्यनिष्ठा) of the year, beside the grade (2026-11-14).
+            // Posted in a tribal area this year (2026-11-16).
+            'tribal_area' => ['nullable', 'boolean'],
             'integrity_option_id' => ['nullable', 'integer', Rule::exists('integrity_options', 'id')->where('status', 'active')->whereNull('deleted_at')],
             // 2026-11-16: the Final Departmental View Regarding Integrity, and its document.
             'integrity_departmental_view' => ['nullable', Rule::in([DpcEvaluationCrGrade::VIEW_CERTIFIED, DpcEvaluationCrGrade::VIEW_NOT_CERTIFIED])],

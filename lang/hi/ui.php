@@ -193,6 +193,7 @@ return [
                 'reservation_categories' => 'आरक्षण वर्ग',
                 'reservation_policies' => 'आरक्षण नीतियाँ',
                 'reservation_rosters' => 'आरक्षण रोस्टर',
+                'stage_timelines' => 'कार्यप्रवाह समय-सीमा',
                 'record_reasons' => 'अभिलेख कारण',
                 'ph_types' => 'दिव्यांगता प्रकार (PH)',
                 'message_templates' => 'एसएमएस एवं ई-मेल टेम्पलेट',

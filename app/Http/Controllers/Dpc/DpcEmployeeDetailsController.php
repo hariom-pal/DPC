@@ -34,6 +34,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
@@ -74,7 +75,8 @@ class DpcEmployeeDetailsController extends Controller
             'ruleChecks' => $statuses->mapWithKeys(fn (array $entry): array => [
                 $entry['row']->id => $ruleCheck->check($entry['row'], $dpcProposal),
             ])->all(),
-            'canEdit' => request()->user()?->can('update', $dpcProposal) ?? false,
+            // The AO, and while a committee return is open the AO for its sections (MoM point 3).
+            'canEdit' => (request()->user()?->can('update', $dpcProposal) ?? false) || (request()->user()?->can('committeeResubmit', $dpcProposal) ?? false),
         ]);
     }
 
@@ -105,7 +107,12 @@ class DpcEmployeeDetailsController extends Controller
             'nextPending' => $next['row'] ?? null,
             // Submit & Next, then Complete & Submit on the last officer (2026-11-16).
             'pendingCount' => $statuses->reject(fn (array $entry): bool => $entry['status']['complete'])->count(),
-            'canEdit' => request()->user()?->can('update', $dpcProposal) ?? false,
+            // Each section on its own: a committee return opens only the sections it names (MoM point 3).
+            'canEditSection' => $canEditSection = collect(['basic', 'cr', 'property', 'ph', 'vigilance', 'declarations', 'documents'])
+                ->mapWithKeys(fn (string $section): array => [$section => request()->user()?->can('updateEmployeeSection', [$dpcProposal, $section]) ?? false])
+                ->all(),
+            'canEdit' => in_array(true, $canEditSection, true),
+            'committeeReturn' => $dpcProposal->committee_returned_at === null ? null : $dpcProposal->committee_return,
             // Rule 4.4: the Administrative Head verifies the documents of a submitted proposal.
             'canVerify' => request()->user()?->can('approve', $dpcProposal) ?? false,
             'categories' => ReservationCategory::query()->where('status', MasterStatus::Active->value)->orderBy('code')->get(),
@@ -229,18 +236,7 @@ class DpcEmployeeDetailsController extends Controller
     public function uploadDocument(UploadEmployeeDocumentRequest $request, DpcProposal $dpcProposal, DpcEvaluationRow $evaluationRow): RedirectResponse
     {
         $kind = EvaluationDocumentKind::from((string) $request->validated('kind'));
-        $section = match ($kind) {
-            EvaluationDocumentKind::CrReport, EvaluationDocumentKind::CrWithoutGrading,
-            EvaluationDocumentKind::CrNrc, EvaluationDocumentKind::CrChannel,
-            EvaluationDocumentKind::IntegrityDecision => 'cr',
-            EvaluationDocumentKind::PropertyReturn, EvaluationDocumentKind::PropertyLateDecision => 'property',
-            EvaluationDocumentKind::PhUndertaking => 'ph',
-            EvaluationDocumentKind::VigilanceOrder, EvaluationDocumentKind::EnquiryDocument,
-            EvaluationDocumentKind::PunishmentDocument => 'vigilance',
-            EvaluationDocumentKind::DeputationOrder, EvaluationDocumentKind::RefusalLetter,
-            EvaluationDocumentKind::RefusalDpcOrder => 'declarations',
-            EvaluationDocumentKind::Other => 'documents',
-        };
+        $section = $kind->section();
 
         return $this->write($request, $dpcProposal, $evaluationRow, $section, function () use ($request, $evaluationRow, $kind): void {
             $this->details->upload(
@@ -296,6 +292,68 @@ class DpcEmployeeDetailsController extends Controller
     }
 
     /**
+     * Every officer's current documents, category by category (2026-11-16), for the
+     * Administrative Head's verification (rule 4.4) in one place.
+     */
+    public function documentVerification(DpcProposal $dpcProposal): View
+    {
+        $this->authorize('view', $dpcProposal);
+
+        $documents = DpcEvaluationDocument::query()
+            ->where('dpc_proposal_id', $dpcProposal->id)
+            ->current()
+            ->with(['row', 'uploader'])
+            ->get()
+            ->filter(fn (DpcEvaluationDocument $document): bool => $document->row !== null);
+
+        $categories = collect(EvaluationDocumentKind::cases())
+            ->mapWithKeys(fn (EvaluationDocumentKind $kind): array => [$kind->value => $documents
+                ->filter(fn (DpcEvaluationDocument $document): bool => $document->kind === $kind)
+                ->sortBy(fn (DpcEvaluationDocument $document): array => [(int) $document->row?->sn, (int) $document->year, (int) $document->part])
+                ->values()])
+            ->filter(fn ($items): bool => $items->isNotEmpty());
+
+        return view('dpc-proposals.document-verification', [
+            'proposal' => $dpcProposal,
+            'categories' => $categories,
+            'pending' => $documents->whereNull('ah_verified_at')->count(),
+            'total' => $documents->count(),
+            'canVerify' => request()->user()?->can('approve', $dpcProposal) ?? false,
+        ]);
+    }
+
+    /**
+     * The Administrative Head's verification (rule 4.4) from the category view
+     * (2026-11-16): every document, one category, or one document.
+     */
+    public function verifyDocuments(Request $request, DpcProposal $dpcProposal): RedirectResponse
+    {
+        $this->authorize('approve', $dpcProposal);
+
+        $data = $request->validate([
+            'kind' => ['nullable', 'string', Rule::in(array_map(fn (EvaluationDocumentKind $kind): string => $kind->value, EvaluationDocumentKind::cases()))],
+            'document' => ['nullable', 'string', 'uuid'],
+        ]);
+
+        $documents = DpcEvaluationDocument::query()
+            ->where('dpc_proposal_id', $dpcProposal->id)
+            ->current()
+            ->whereNull('ah_verified_at')
+            ->when($data['kind'] ?? null, fn ($query, $kind) => $query->where('kind', $kind))
+            ->when($data['document'] ?? null, fn ($query, $uuid) => $query->where('uuid', $uuid))
+            ->get();
+
+        foreach ($documents as $document) {
+            $this->details->verifyByHead($document, $request->user());
+        }
+
+        $anchor = isset($data['kind']) ? '#category-'.$data['kind'] : '';
+
+        return redirect()->to(route('dpc-proposals.document-verification', $dpcProposal).$anchor)
+            ->with('status', __('dpc.document_verification.verified', ['count' => $documents->count()]));
+    }
+
+    /**
      * Streamed from the private disk, to whoever may view the proposal — inline, so
      * the document's name opens it (MoM of 12 November 2026).
      */
@@ -318,7 +376,8 @@ class DpcEmployeeDetailsController extends Controller
      */
     private function write(Request $request, DpcProposal $proposal, DpcEvaluationRow $row, string $section, callable $action): RedirectResponse
     {
-        $this->authorize('update', $proposal);
+        // Only the sections a committee return names, while it is open (MoM point 3).
+        $this->authorize('updateEmployeeSection', [$proposal, $section]);
         $this->assertRowBelongsToProposal($proposal, $row);
 
         $back = redirect()->to(route('dpc-proposals.employees.show', [$proposal, $row]).'#section-'.$section);

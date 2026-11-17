@@ -87,6 +87,8 @@
                        href="{{ route('admin.integrity-options.index') }}">{{ __('ui.layouts.admin.nav.integrity_options') }}</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.ph-types.*') ? 'active' : '' }}"
                        href="{{ route('admin.ph-types.index') }}">{{ __('ui.layouts.admin.nav.ph_types') }}</a>
+                    <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.stage-timelines.*') ? 'active' : '' }}"
+                       href="{{ route('admin.stage-timelines.index') }}">{{ __('ui.layouts.admin.nav.stage_timelines') }}</a>
                     {{-- Notifications (2026-11-13): each channel's templates and its settings. --}}
                     <div class="list-group-item small text-uppercase text-muted fw-semibold bg-light py-1">{{ __('ui.layouts.admin.nav.notifications') }}</div>
                     <a class="list-group-item list-group-item-action ps-4 {{ request()->routeIs('admin.message-templates.*') && in_array(request()->route('channel'), ['sms'], true) ? 'active' : '' }}"

@@ -104,13 +104,15 @@ final class PromotionOrderService
         }
 
         foreach ($grounds as $citation) {
+            // A CR ground is released by either CR hold — the latest year's goes to a
+            // Circulation DPC (MoM of 16 November 2026, point 11).
             $needs = match (true) {
-                str_starts_with((string) $citation, 'CR ') => HoldReason::CrYearsMissing->value,
-                str_starts_with((string) $citation, 'Property File ') || str_starts_with((string) $citation, 'Property Return ') => HoldReason::PropertyMissing->value,
+                str_starts_with((string) $citation, 'CR ') => [HoldReason::CrYearsMissing->value, HoldReason::LatestCrMissing->value],
+                str_starts_with((string) $citation, 'Property File ') || str_starts_with((string) $citation, 'Property Return ') => [HoldReason::PropertyMissing->value],
                 default => null,
             };
 
-            if ($needs === null || ! in_array($needs, $released, true)) {
+            if ($needs === null || array_intersect($needs, $released) === []) {
                 return true;
             }
         }

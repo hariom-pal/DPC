@@ -17,6 +17,11 @@
         </div>
     </div>
 
+    {{-- MoM of 16 November 2026, point 8: what is with this user now, with its
+         deadline, and this user's DPCs waiting on somebody else. --}}
+    @include('partials.pending-dpcs', ['entries' => $pendingWith, 'id' => 'pending-with-you', 'title' => __('dpc.stage.pending_with_you'), 'lead' => __('dpc.stage.pending_with_you_lead'), 'mine' => true])
+    @include('partials.pending-dpcs', ['entries' => $pendingAt, 'id' => 'pending-at-me', 'title' => __('dpc.stage.pending_at_me'), 'lead' => __('dpc.stage.pending_at_me_lead'), 'mine' => false])
+
     {{-- What is waiting, by role. Counts only; every card links to the screen
          that governs the work. --}}
     @foreach ($summaries as $group)

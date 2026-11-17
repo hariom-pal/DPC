@@ -103,7 +103,19 @@
 {{ __('dpc.show.awaiting_your_approval') }}
                     <a href="{{ route('dpc-proposals.review', [$proposal, 1]) }}" class="alert-link">{{ __('dpc.show.start_the_section_by_section_review') }}</a>
                 </div>
+                {{-- Rule 4.4: every document verified before approving, category-wise (2026-11-16). --}}
+                <div class="alert {{ app(\App\Domain\Dpc\Services\EmployeeDetailsService::class)->documentsAwaitingHead($proposal) > 0 ? 'alert-warning' : 'alert-success' }} py-2" id="ah-document-verification">
+                    <a href="{{ route('dpc-proposals.document-verification', $proposal) }}" class="alert-link">{{ __('dpc.document_verification.open', ['pending' => app(\App\Domain\Dpc\Services\EmployeeDetailsService::class)->documentsAwaitingHead($proposal)]) }}</a>
+                </div>
             @endif
+
+            @include('dpc-proposals._next-process')
+            @include('dpc-proposals._committee-return')
+
+            {{-- MoM of 16 November 2026, point 9: the AH and every authority after. --}}
+            @can('viewRecords', $proposal)
+                <div class="mb-3" id="tabulation-link"><a href="{{ route('dpc-proposals.tabulation-chart', $proposal) }}" class="btn btn-outline-primary btn-sm">{{ __('dpc.tabulation.open') }}</a></div>
+            @endcan
 
             @include('dpc-proposals.sections.post-selection')
             @include('dpc-proposals.sections.committee')
@@ -128,6 +140,8 @@
                  writes separate immutable evidence and never touches the
                  proposal, so it stays available after submission, which is when
                  the Commission actually needs it. --}}
+            {{-- The DPC Committee's alone (2026-11-16): the department and the Secretary do not see it. --}}
+            @can('viewCalculation', $proposal)
             <div class="card border-0 shadow-sm mb-3">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -156,9 +170,11 @@
                     @endif
                 </div>
             </div>
+            @endcan
             <div class="card border-0 shadow-sm mb-3">
                 <div class="card-body d-flex flex-wrap gap-2">
-                    @if ($proposal->status->isEditable() && $isAO)
+                    {{-- Not while a committee return is open: that goes back to the committee (MoM point 3). --}}
+                    @if ($proposal->status->isEditable() && $isAO && $proposal->committee_returned_at === null)
                         <a href="{{ route('dpc-proposals.edit', $proposal) }}" class="btn btn-outline-primary btn-sm">{{ __('ui.edit') }}</a>
                         {{-- eSigned by the AO (MoM of 2026-10-29). --}}
                         <a href="{{ route('esign.show', ['kind' => 'dpc-submit', 'uuid' => $proposal->uuid]) }}" class="btn btn-success btn-sm" data-esign id="dpc-submit">{{ __('esign.button.submit') }}</a>

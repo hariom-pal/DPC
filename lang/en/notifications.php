@@ -38,9 +38,19 @@ return [
         'subject' => 'Promotion order :number issued',
         'message' => 'Promotion order :number dated :date for the post of :post has been issued. Open the order: :link',
     ],
+    'stage' => [
+        'reminder_subject' => 'ODPC Portal — :dpc: deadline :due',
+        'reminder_body' => ':dpc is with you (:stage): :action. The deadline is :due. Open it: :url',
+        'overdue_subject' => 'ODPC Portal — :dpc: deadline passed',
+        'overdue_body' => ':dpc is with you (:stage): :action. The deadline of :due has passed. Open it: :url',
+    ],
     'sitting' => [
         // Business clarification of 2026-09-05: the message the committee and the
         // candidates receive when the DPC Allottee fixes or moves the sitting.
+        'subject_candidate_scheduled' => 'ODPC Portal — the DPC for your promotion is fixed',
+        'subject_candidate_rescheduled' => 'ODPC Portal — the date of the DPC for your promotion has changed',
+        'sms_candidate_scheduled' => 'Dear :name, the DPC (:dpc) considering your promotion will meet on :date at :time. ODPC Portal.',
+        'sms_candidate_rescheduled' => 'Dear :name, the DPC (:dpc) considering your promotion has been moved to :date at :time. ODPC Portal.',
         'subject_scheduled' => 'ODPC Portal — :dpc has been scheduled',
         'subject_rescheduled' => 'ODPC Portal — :dpc has been re-scheduled',
         'sms_scheduled' => 'ODPC: :dpc is scheduled for :date at :time. :instructions',

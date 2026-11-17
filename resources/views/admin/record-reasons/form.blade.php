@@ -64,10 +64,16 @@
                             </label>
                         </div>
                         <div class="form-text">{{ __('admin.record_reasons.remarks_help') }}</div>
-                        <div class="form-check mt-2">
-                            <input type="checkbox" class="form-check-input" id="makes_unfit" name="makes_unfit" value="1"
-                                   @checked(old('makes_unfit', $reason->makes_unfit ?? false))>
-                            <label class="form-check-label" for="makes_unfit">{{ __('admin.record_reasons.unfit_label') }}</label>
+                        {{-- The result the reason gives, CIR or Unfit (MoM of 16 November 2026, point 12). --}}
+                        <div class="mt-2" data-reason-result>
+                            <span class="form-label d-block">{{ __('admin.record_reasons.result_label') }}</span>
+                            @foreach ([0 => 'result_cir', 1 => 'result_unfit'] as $value => $label)
+                                <label class="form-check form-check-inline">
+                                    <input type="radio" class="form-check-input" name="makes_unfit" value="{{ $value }}" required
+                                           @checked((int) old('makes_unfit', (int) ($reason->makes_unfit ?? false)) === $value)>
+                                    {{ __('admin.record_reasons.'.$label) }}
+                                </label>
+                            @endforeach
                         </div>
                         <div class="form-text">{{ __('admin.record_reasons.unfit_help') }}</div>
                         {{-- 2026-11-16: the CR's reasons and the Property Return's kept apart. --}}

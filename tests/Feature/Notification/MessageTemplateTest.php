@@ -67,7 +67,10 @@ class MessageTemplateTest extends TestCase
         $this->actingAs($admin)->get(route('admin.message-templates.index', 'sms'))->assertOk()->assertSee('otp.code')
             ->assertSee('When the AH issues a promotion order')->assertSee('Not sent at present');
         $this->get(route('admin.message-templates.edit', ['sitting.scheduled', 'email']))->assertOk()
-            ->assertSee('id="template-when"', false)->assertSee('Sent to the committee members and the officers under consideration.');
+            ->assertSee('id="template-when"', false)->assertSee('Sent to the DPC Committee members (the employees have their own message).');
+        // MoM of 16 November 2026, point 4: the employees' own template.
+        $this->get(route('admin.message-templates.edit', ['sitting.scheduled_candidate', 'sms']))->assertOk()
+            ->assertSee('{name}')->assertSee('Sent to each employee on the DPC');
         $this->get(route('admin.message-templates.edit', ['otp.code', 'sms']))->assertOk()
             ->assertSee('{code}')->assertSee('Your ODPC verification code is');
 

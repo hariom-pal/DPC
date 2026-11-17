@@ -9,6 +9,7 @@ use App\Domain\Authentication\Models\User;
 use App\Domain\Dpc\Enums\DpcProposalStatus;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\PreDpc\Models\PreDpcProposal;
+use App\Domain\Proceeding\Services\CommitteeSittingService;
 use App\Enums\Role;
 
 /**
@@ -40,6 +41,34 @@ class DpcProposalPolicy
         }
 
         return $this->allotments->isAllottedInAnyRole($user, $proposal);
+    }
+
+    /**
+     * The eligibility calculation — running it and every result of it — is the DPC
+     * Committee's alone (2026-11-16): a serving seat on this DPC's committee. The
+     * department's officers and the Secretary do not see it.
+     */
+    public function viewCalculation(User $user, DpcProposal $proposal): bool
+    {
+        return app(CommitteeSittingService::class)->isSeatedOn($proposal, $user);
+    }
+
+    /**
+     * The original Working Officers and Seniority List files and the Tabulation
+     * Chart (MoM of 16 November 2026, point 9): the Administrative Head and every
+     * authority after — the Secretary, the DPC Committee and the Chairman, CGPSC —
+     * once the department has submitted the DPC.
+     */
+    public function viewRecords(User $user, DpcProposal $proposal): bool
+    {
+        if ($proposal->status === DpcProposalStatus::Draft) {
+            return false;
+        }
+
+        return $this->isSecretary($user)
+            || $user->hasRole(Role::Chairman->value)
+            || $this->allotments->isAllotted($user, $proposal, Role::AdministrativeHead)
+            || app(CommitteeSittingService::class)->isSeatedOn($proposal, $user);
     }
 
     /** The Secretary, CGPSC decides a DPC the AH approved (2026-11-14). */
@@ -78,8 +107,46 @@ class DpcProposalPolicy
 
     public function update(User $user, DpcProposal $proposal): bool
     {
+        // A committee member's return locks everything but the sections it names
+        // (MoM of 16 November 2026, point 3) — see updateEmployeeSection().
         return $this->allotments->isAllotted($user, $proposal, Role::AuthorizedOfficer)
-            && $proposal->status->isEditable();
+            && $proposal->status->isEditable()
+            && $proposal->committee_returned_at === null;
+    }
+
+    /**
+     * One Employee Details section (MoM of 16 November 2026, point 3): as update(),
+     * and while a committee member's return is open, only the sections it names.
+     */
+    public function updateEmployeeSection(User $user, DpcProposal $proposal, string $section): bool
+    {
+        $sections = $proposal->committeeReturnSections();
+
+        if ($sections === null) {
+            return $this->update($user, $proposal);
+        }
+
+        return $this->allotments->isAllotted($user, $proposal, Role::AuthorizedOfficer)
+            && $proposal->status === DpcProposalStatus::Returned
+            && in_array($section, $sections, true);
+    }
+
+    /** The AO sends a committee return, corrected, straight back to the committee (point 3). */
+    public function committeeResubmit(User $user, DpcProposal $proposal): bool
+    {
+        return $this->allotments->isAllotted($user, $proposal, Role::AuthorizedOfficer)
+            && $proposal->status === DpcProposalStatus::Returned
+            && $proposal->committee_returned_at !== null;
+    }
+
+    /**
+     * A DPC Committee member records a decision on the DPC it is evaluating — agreed,
+     * or returned with the sections to correct (points 2 and 3).
+     */
+    public function committeeDecide(User $user, DpcProposal $proposal): bool
+    {
+        return $proposal->status === DpcProposalStatus::Approved
+            && app(CommitteeSittingService::class)->isSeatedOn($proposal, $user);
     }
 
     public function submit(User $user, DpcProposal $proposal): bool

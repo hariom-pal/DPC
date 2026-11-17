@@ -104,7 +104,14 @@ class AnnounceSittingToParticipants implements ShouldQueue
                 'time' => substr((string) $schedule->dpc_time, 0, 5),
                 'instructions' => (string) __('notifications.sitting.joining_instructions'),
             ];
-            $this->deliver($members->concat($candidates), $this->templates->sms($key, $values), $this->templates->email($key, $values));
+            $this->deliver($members, $this->templates->sms($key, $values), $this->templates->email($key, $values));
+
+            // Each employee by name, in the officers' own template (MoM of 16 November 2026, point 4).
+            $candidateKey = $key.'_candidate';
+            foreach ($candidates as $candidate) {
+                $personal = $values + ['name' => $candidate->name];
+                $this->deliver(new Collection([$candidate]), $this->templates->sms($candidateKey, $personal), $this->templates->email($candidateKey, $personal));
+            }
 
             $this->recordInApp($event, $subject, $message, $members, $candidates);
         } catch (Throwable $e) {
@@ -158,7 +165,7 @@ class AnnounceSittingToParticipants implements ShouldQueue
     {
         $entries = DpcSeniorityEntry::query()
             ->where('dpc_proposal_id', $proposalId)
-            ->get(['employee_number', 'name']);
+            ->get(['employee_number', 'name', 'mobile']);
 
         if ($entries->isEmpty()) {
             return new Collection;
@@ -175,7 +182,8 @@ class AnnounceSittingToParticipants implements ShouldQueue
             return new SittingRecipient(
                 name: $entry->name,
                 userId: $account?->id,
-                mobile: $account?->mobile,
+                // The list's own mobile where the officer holds no account (MoM point 4).
+                mobile: $account->mobile ?? $entry->mobile,
                 email: $account?->email,
             );
         });

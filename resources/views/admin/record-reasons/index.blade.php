@@ -43,6 +43,8 @@
                                 @endif
                                 @if ($reason->makes_unfit)
                                     <span class="badge text-bg-danger" data-reason-unfit>{{ __('admin.record_reasons.unfit_badge') }}</span>
+                                @else
+                                    <span class="badge text-bg-warning" data-reason-cir>{{ __('admin.record_reasons.cir_badge') }}</span>
                                 @endif
                             </td>
                             <td class="text-end">{{ $reason->sort_order }}</td>

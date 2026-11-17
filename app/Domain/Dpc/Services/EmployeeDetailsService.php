@@ -161,6 +161,11 @@ class EmployeeDetailsService
             'grade' => $grade,
             'integrity_option_id' => $integrityId,
             'integrity_departmental_view' => $view,
+            // Posted in a tribal area this year (2026-11-16): the per-year tribal bonus
+            // reads it; asked of a graded CR only, the one a bonus can attach to.
+            'tribal_area' => $putUp && $hasGrading && array_key_exists('tribal_area', $data) && $data['tribal_area'] !== null && $data['tribal_area'] !== ''
+                ? (bool) $data['tribal_area']
+                : ($putUp && $hasGrading ? $record->tribal_area : null),
         ])->save();
 
         // The engine reads the year's Integrity Certificate as held once an answer is

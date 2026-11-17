@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Domain\Dpc\Services\DpcStageService;
 use App\Domain\Shared\Services\DashboardSummaryService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
@@ -21,6 +22,9 @@ class DashboardController extends Controller
             // Read-only counts. The screens each card links to remain the
             // authority on what may actually be done there.
             'summaries' => $this->summary->for($user),
+            // MoM of 16 November 2026, point 8.
+            'pendingWith' => app(DpcStageService::class)->pendingWith($user),
+            'pendingAt' => app(DpcStageService::class)->pendingAt($user),
         ]);
     }
 }

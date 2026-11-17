@@ -239,24 +239,14 @@ class DpcEvaluationRow extends Model
             }
         }
 
-        // The CR of the year just before the DPC year missing makes the officer Unfit;
-        // an earlier year missing does not — the next older year is counted in its
-        // place (2026-11-16). A 2026 DPC: 2025 missing is Unfit, 2024 missing is not.
-        $proposal = $this->proposal;
-        $lastYear = $proposal === null ? null : (int) ($proposal->dpc_year ?: $proposal->proposal_date->year) - 1;
-        $lastMissing = $lastYear !== null && $this->crGrades->contains(fn ($cr): bool => $cr->year === $lastYear && $cr->put_up === false);
-        // A reason that makes the officer Unfit by itself is the ground given for that year.
-        $lastByReason = $lastMissing && $this->recordGaps->contains(
-            fn ($gap): bool => $gap->kind === DpcEvaluationRecordGap::KIND_CR && $gap->year === $lastYear && $gap->reason?->makes_unfit === true,
-        );
-
-        if ($lastMissing && ! $lastByReason) {
-            $grounds[] = ['key' => 'dpc.employee_details.unfit.last_year_cr_missing', 'params' => ['year' => $lastYear]];
-        }
+        // The CR of the year just before the DPC year missing is not Unfit: it is held
+        // for a Circulation DPC (MoM of 16 November 2026, point 11, superseding the
+        // Unfit rule of the same day).
 
         foreach ($this->recordGaps as $gap) {
             if ($gap->reason?->makes_unfit === true) {
-                $grounds[] = ['key' => 'dpc.employee_details.unfit.record_reason', 'params' => ['year' => $gap->year, 'reason' => $gap->reason->name_en]];
+                // A Property File reason the Administrator marks Unfit says so (MoM point 12).
+                $grounds[] = ['key' => $gap->kind === DpcEvaluationRecordGap::KIND_PROPERTY ? 'dpc.employee_details.unfit.record_reason_property' : 'dpc.employee_details.unfit.record_reason', 'params' => ['year' => $gap->year, 'reason' => $gap->reason->name_en]];
             }
         }
 

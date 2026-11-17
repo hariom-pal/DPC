@@ -167,7 +167,7 @@
 
             <div class="mt-2">
                 <a href="{{ route('dpc-proposals.calculations.index', $proposal) }}" class="btn btn-link">{{ __('dpc.calculations.show.calculation_history') }}</a>
-                <a href="{{ route('dpc-proposals.show', $proposal) }}" class="btn btn-link">{{ __('dpc.calculations.show.back_to_proposal') }}</a>
+                <a href="{{ (auth()->user()?->can('view', $proposal) ? route('dpc-proposals.show', $proposal) : route('sitting.show', $proposal)) }}" class="btn btn-link">{{ __('dpc.calculations.show.back_to_proposal') }}</a>
             </div>
         </div>
     </div>

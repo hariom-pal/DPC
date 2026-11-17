@@ -335,8 +335,11 @@ class EmployeeDetailsUnfitTest extends TestCase
         $this->saveCr($last - 6)->assertSessionHasNoErrors();
     }
 
-    /** 2026-11-16: a 2026 DPC — 2024 missing counts 2023 in its place and is not Unfit; 2025 missing is Unfit. */
-    public function test_only_the_last_years_cr_missing_makes_the_officer_unfit(): void
+    /**
+     * 2026-11-16, MoM point 11: a 2026 DPC — 2024 missing counts 2023 in its place and
+     * holds nothing; 2025 missing is not Unfit but held for a Circulation DPC.
+     */
+    public function test_the_latest_cr_missing_goes_to_circulation_and_a_middle_year_is_replaced(): void
     {
         $last = $this->dpcYear - 1;
         $reason = RecordReason::query()->where('code', 'long_leave')->value('id');
@@ -346,15 +349,37 @@ class EmployeeDetailsUnfitTest extends TestCase
         ])->assertSessionHasNoErrors();
         $this->assertSame([], $this->unfit(), 'A middle year missing is not Unfit.');
         $this->assertSame(range($last, $last - 5), app(EmployeeDetailsService::class)->crYearWindow($this->row->fresh()), 'The next older year is counted in its place.');
+        $this->assertNotContains(__('dpc.employee_details.rule.cr_cir', ['year' => $last - 1]), app(PromotionRuleCheck::class)->check($this->row->fresh(), $this->proposal->fresh())['holds']);
 
         $this->post($this->route('cr.save'), [
             'year' => $last, 'put_up' => '0', 'missing_reason_id' => $reason, 'missing_document' => $this->pdf(),
         ])->assertSessionHasNoErrors();
-        $this->assertSame([__('dpc.employee_details.unfit.last_year_cr_missing', ['year' => $last])], $this->unfit());
+        $this->assertSame([], $this->unfit(), 'The latest CR missing is not Unfit.');
+        $check = app(PromotionRuleCheck::class)->check($this->row->fresh(), $this->proposal->fresh());
+        if ($check['status'] !== 'no_rule') {
+            $this->assertSame('cir', $check['status']);
+            $this->assertContains(__('dpc.employee_details.rule.cr_circulation', ['year' => $last]), $check['holds']);
+        }
+    }
 
-        // Answered Yes again: Fit again.
-        $this->saveCr($last)->assertSessionHasNoErrors();
-        $this->assertSame([], $this->unfit());
+    /** 2026-11-16: tribal posting is asked with each graded CR year and feeds the per-year bonus. */
+    public function test_tribal_posting_is_asked_with_a_graded_cr_year(): void
+    {
+        $year = $this->dpcYear - 1;
+        $this->actingAs($this->ao)->get(route('dpc-proposals.employees.show', [$this->proposal, $this->row]))
+            ->assertSee('name="tribal_area"', false)->assertSee(__('dpc.employee_details.cr.q_tribal'));
+
+        $this->saveCr($year, ['tribal_area' => '1'])->assertSessionHasNoErrors();
+        $this->assertTrue($this->row->crGrades()->where('year', $year)->value('tribal_area'));
+        $this->assertSame([$year => true], OfficerRecord::fromEvaluationRow($this->row->fresh())->tribalAreaByYear);
+        $this->get(route('dpc-proposals.employees.show', [$this->proposal, $this->row]))->assertSee('data-cr-tribal="'.$year.'"', false);
+
+        $this->saveCr($year, ['tribal_area' => '0'])->assertSessionHasNoErrors();
+        $this->assertFalse($this->row->crGrades()->where('year', $year)->value('tribal_area'));
+
+        // Without grading there is nothing to score, so nothing is kept.
+        $this->post($this->route('cr.save'), ['year' => $year, 'put_up' => '1', 'has_grading' => '0', 'tribal_area' => '1', 'integrity_option_id' => $this->integrity('certified_good')])->assertSessionHasNoErrors();
+        $this->assertNull($this->row->crGrades()->where('year', $year)->value('tribal_area'));
     }
 
     /** 2026-11-16: a year with several CRs uploads each one on its own. */

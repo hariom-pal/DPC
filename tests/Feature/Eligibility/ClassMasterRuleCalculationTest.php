@@ -30,6 +30,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\Concerns\RaisesDpcProposals;
 use Tests\Concerns\SanctionsVacancies;
+use Tests\Concerns\SeatsDpcCommittees;
 use Tests\Concerns\SeedsEvaluationCharts;
 use Tests\TestCase;
 
@@ -46,6 +47,7 @@ class ClassMasterRuleCalculationTest extends TestCase
     use RaisesDpcProposals;
     use RefreshDatabase;
     use SanctionsVacancies;
+    use SeatsDpcCommittees;
     use SeedsEvaluationCharts;
 
     private const YEARS = [2021, 2022, 2023, 2024, 2025];
@@ -68,6 +70,9 @@ class ClassMasterRuleCalculationTest extends TestCase
 
         // DPC year 2026.
         $this->proposal = $this->raiseDpc($this->ao, $from, $to);
+        // The calculation is the DPC Committee's alone (2026-11-16): the account these
+        // tests calculate as is seated on the committee.
+        $this->seatAccountOnCommittee($this->proposal, $this->ao);
     }
 
     /**

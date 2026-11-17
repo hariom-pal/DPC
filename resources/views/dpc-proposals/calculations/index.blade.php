@@ -55,7 +55,7 @@
                 </div>
             </div>
 
-            <a href="{{ route('dpc-proposals.show', $proposal) }}" class="btn btn-link mt-2">{{ __('dpc.calculations.index.back_to_proposal') }}</a>
+            <a href="{{ (auth()->user()?->can('view', $proposal) ? route('dpc-proposals.show', $proposal) : route('sitting.show', $proposal)) }}" class="btn btn-link mt-2">{{ __('dpc.calculations.index.back_to_proposal') }}</a>
         </div>
     </div>
 @endsection

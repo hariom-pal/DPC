@@ -55,6 +55,19 @@ enum EvaluationDocumentKind: string
     /** Any other supporting document the Authorized Officer attaches. */
     case Other = 'other';
 
+    /** The Employee Details section the document belongs to. */
+    public function section(): string
+    {
+        return match ($this) {
+            self::CrReport, self::CrWithoutGrading, self::CrNrc, self::CrChannel, self::IntegrityDecision => 'cr',
+            self::PropertyReturn, self::PropertyLateDecision => 'property',
+            self::PhUndertaking => 'ph',
+            self::VigilanceOrder, self::EnquiryDocument, self::PunishmentDocument => 'vigilance',
+            self::DeputationOrder, self::RefusalLetter, self::RefusalDpcOrder => 'declarations',
+            self::Other => 'documents',
+        };
+    }
+
     public function label(): string
     {
         return __("dpc.employee_details.documents.kinds.{$this->value}");

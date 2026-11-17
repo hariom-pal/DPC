@@ -99,8 +99,8 @@ final class MessageTemplateCatalog
                 'default' => fn (array $p): array => self::lang('notifications.registration.replaced', $p),
             ],
             'sitting.scheduled' => [
-                'label' => 'DPC sitting scheduled',
-                'when' => 'When the CGPSC Member fixes the date of a DPC sitting. Sent to the committee members and the officers under consideration.',
+                'label' => 'DPC sitting scheduled — to the committee members',
+                'when' => 'When the CGPSC Member fixes the date of a DPC sitting. Sent to the DPC Committee members (the employees have their own message).',
                 'channels' => $both,
                 'placeholders' => ['dpc', 'date', 'time', 'instructions'],
                 'required' => ['date'],
@@ -111,8 +111,8 @@ final class MessageTemplateCatalog
                 ],
             ],
             'sitting.rescheduled' => [
-                'label' => 'DPC sitting re-scheduled',
-                'when' => 'When the date of a DPC sitting is changed. Sent to the committee members and the officers under consideration.',
+                'label' => 'DPC sitting re-scheduled — to the committee members',
+                'when' => 'When the date of a DPC sitting is changed. Sent to the DPC Committee members (the employees have their own message).',
                 'channels' => $both,
                 'placeholders' => ['dpc', 'date', 'time', 'instructions'],
                 'required' => ['date'],
@@ -120,6 +120,57 @@ final class MessageTemplateCatalog
                 'default' => fn (array $p): array => [
                     'subject' => (string) __('notifications.sitting.subject_rescheduled', $p),
                     'body' => (string) __('notifications.sitting.sms_rescheduled', $p),
+                ],
+            ],
+            // MoM of 16 November 2026, point 4: the officers' own wording, apart from
+            // the committee's.
+            'sitting.scheduled_candidate' => [
+                'label' => 'DPC meeting date — to the employees under consideration',
+                'when' => 'When the date of a DPC meeting is fixed. Sent to each employee on the DPC\'s Seniority List.',
+                'channels' => $both,
+                'placeholders' => ['name', 'dpc', 'date', 'time'],
+                'required' => ['date'],
+                'mandatory' => false,
+                'default' => fn (array $p): array => [
+                    'subject' => (string) __('notifications.sitting.subject_candidate_scheduled', $p),
+                    'body' => (string) __('notifications.sitting.sms_candidate_scheduled', $p),
+                ],
+            ],
+            'sitting.rescheduled_candidate' => [
+                'label' => 'DPC meeting date changed — to the employees under consideration',
+                'when' => 'When the date of a DPC meeting is changed. Sent to each employee on the DPC\'s Seniority List.',
+                'channels' => $both,
+                'placeholders' => ['name', 'dpc', 'date', 'time'],
+                'required' => ['date'],
+                'mandatory' => false,
+                'default' => fn (array $p): array => [
+                    'subject' => (string) __('notifications.sitting.subject_candidate_rescheduled', $p),
+                    'body' => (string) __('notifications.sitting.sms_candidate_rescheduled', $p),
+                ],
+            ],
+            // MoM of 16 November 2026, point 6: deadline reminders, e-mailed.
+            'stage.reminder' => [
+                'label' => 'DPC stage deadline near',
+                'when' => 'Once a day while a DPC\'s stage has a day or less left before the deadline set in Workflow Timelines. Sent to whoever is to act at the stage.',
+                'channels' => [MessageTemplate::EMAIL],
+                'placeholders' => ['dpc', 'stage', 'action', 'due', 'url'],
+                'required' => ['due'],
+                'mandatory' => false,
+                'default' => fn (array $p): array => [
+                    'subject' => (string) __('notifications.stage.reminder_subject', $p),
+                    'body' => (string) __('notifications.stage.reminder_body', $p),
+                ],
+            ],
+            'stage.overdue' => [
+                'label' => 'DPC stage deadline passed',
+                'when' => 'Once a day after a DPC\'s stage has passed its deadline. Sent to whoever is to act at the stage.',
+                'channels' => [MessageTemplate::EMAIL],
+                'placeholders' => ['dpc', 'stage', 'action', 'due', 'url'],
+                'required' => ['due'],
+                'mandatory' => false,
+                'default' => fn (array $p): array => [
+                    'subject' => (string) __('notifications.stage.overdue_subject', $p),
+                    'body' => (string) __('notifications.stage.overdue_body', $p),
                 ],
             ],
             'result.published' => [

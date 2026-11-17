@@ -9,6 +9,7 @@ use App\Domain\Department\Models\Department;
 use App\Domain\Dpc\Enums\DpcProposalStatus;
 use App\Domain\Dpc\Enums\EvaluationDocumentKind;
 use App\Domain\Dpc\Enums\PhReservationOutcome;
+use App\Domain\Dpc\Models\DpcCommitteeMember;
 use App\Domain\Dpc\Models\DpcEvaluationDocument;
 use App\Domain\Dpc\Models\DpcEvaluationRecordGap;
 use App\Domain\Dpc\Models\DpcEvaluationRow;
@@ -17,6 +18,9 @@ use App\Domain\Dpc\Services\DpcProposalCompletenessService;
 use App\Domain\Dpc\Services\DpcProposalService;
 use App\Domain\Dpc\Services\EmployeeDetailsService;
 use App\Domain\Dpc\Services\PromotionRuleCheck;
+use App\Domain\Import\Enums\ImportBatchStatus;
+use App\Domain\Import\Enums\ImportTemplate;
+use App\Domain\Import\Models\ImportBatch;
 use App\Domain\Master\Models\CrGradeValue;
 use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\IntegrityOption;
@@ -1023,6 +1027,85 @@ class EmployeeDetailsTest extends TestCase
 
         $this->actingAs($this->ah)->post(route('dpc-proposals.approve', $this->proposal))->assertSessionHasNoErrors();
         $this->assertSame(DpcProposalStatus::PendingSecretary, $this->proposal->refresh()->status);
+    }
+
+    /** 2026-11-16: the AH verifies category-wise, or everything at once, from one screen. */
+    public function test_the_administrative_head_verifies_documents_category_wise_and_all_at_once(): void
+    {
+        $this->makeProposalSubmittable($this->proposal, $this->ao);
+        $this->actingAs($this->ao)->post(route('dpc-proposals.submit', $this->proposal))->assertSessionHasNoErrors();
+        DpcEvaluationDocument::query()->where('dpc_proposal_id', $this->proposal->id)->update(['ah_verified_at' => null, 'ah_verified_by' => null]);
+        $total = DpcEvaluationDocument::query()->where('dpc_proposal_id', $this->proposal->id)->current()->count();
+        $this->assertGreaterThan(1, $total);
+        $kinds = DpcEvaluationDocument::query()->where('dpc_proposal_id', $this->proposal->id)->current()->pluck('kind')->map(fn ($kind) => $kind->value)->unique()->values();
+
+        $this->actingAs($this->ah)->get(route('dpc-proposals.show', $this->proposal))
+            ->assertSee(route('dpc-proposals.document-verification', $this->proposal), false);
+        $page = $this->get(route('dpc-proposals.document-verification', $this->proposal))->assertOk()
+            ->assertSee('id="verify-all-proposal-documents"', false);
+        foreach ($kinds as $kind) {
+            $page->assertSee('data-document-category="'.$kind.'"', false);
+        }
+
+        // The AO sees the page but cannot verify.
+        $this->actingAs($this->ao)->get(route('dpc-proposals.document-verification', $this->proposal))->assertOk()
+            ->assertDontSee('id="verify-all-proposal-documents"', false);
+        $this->post(route('dpc-proposals.document-verification.verify', $this->proposal))->assertForbidden();
+
+        // Beside View Details, each employee's progress (MoM of 16 November 2026).
+        $this->get(route('dpc-proposals.employees.index', $this->proposal))->assertSee('data-verification-progress=', false)
+            ->assertSee('0/', false);
+
+        // One category.
+        $first = $kinds->first();
+        $this->actingAs($this->ah)->post(route('dpc-proposals.document-verification.verify', $this->proposal), ['kind' => $first])->assertSessionHasNoErrors();
+        $this->assertSame(0, DpcEvaluationDocument::query()->where('dpc_proposal_id', $this->proposal->id)->current()->where('kind', $first)->whereNull('ah_verified_at')->count());
+        $this->assertGreaterThan(0, DpcEvaluationDocument::query()->where('dpc_proposal_id', $this->proposal->id)->current()->whereNull('ah_verified_at')->count());
+
+        // Everything else at once; then the proposal approves.
+        $this->post(route('dpc-proposals.document-verification.verify', $this->proposal))->assertSessionHasNoErrors();
+        $this->assertSame(0, app(EmployeeDetailsService::class)->documentsAwaitingHead($this->proposal));
+        $this->get(route('dpc-proposals.employees.index', $this->proposal))->assertSee(__('dpc.document_verification.completed'));
+        $this->post(route('dpc-proposals.approve', $this->proposal))->assertSessionHasNoErrors();
+        $this->assertSame(DpcProposalStatus::PendingSecretary, $this->proposal->refresh()->status);
+    }
+
+    /** MoM of 16 November 2026, point 9: the original lists and the Tabulation Chart, for the AH onward. */
+    public function test_the_ah_and_the_authorities_after_see_the_tabulation_chart_and_the_original_lists(): void
+    {
+        $disk = (string) config('dpc.imports.disk');
+        Storage::fake($disk);
+        Storage::disk($disk)->put('imports/seniority.csv', "sn,name\n1,Officer\n");
+        $batch = ImportBatch::query()->forceCreate([
+            'dpc_proposal_id' => $this->proposal->id, 'template' => ImportTemplate::FinalSeniorityListUs->value,
+            'status' => ImportBatchStatus::Committed->value, 'original_filename' => 'seniority-original.csv',
+            'stored_path' => 'imports/seniority.csv', 'uploaded_by' => $this->ao->id, 'committed_at' => now(),
+        ]);
+
+        // Not while the department is drafting.
+        $this->actingAs($this->ah)->get(route('dpc-proposals.tabulation-chart', $this->proposal))->assertForbidden();
+
+        $this->makeProposalSubmittable($this->proposal, $this->ao);
+        $this->actingAs($this->ao)->post(route('dpc-proposals.submit', $this->proposal))->assertSessionHasNoErrors();
+
+        $this->actingAs($this->ah)->get(route('dpc-proposals.show', $this->proposal))->assertSee('id="tabulation-link"', false);
+        $this->get(route('dpc-proposals.tabulation-chart', $this->proposal))->assertOk()
+            ->assertSee('id="tabulation-chart"', false)
+            ->assertSee(__('dpc.tabulation.group_csv'))->assertSee(__('dpc.tabulation.group_portal'))
+            ->assertSee('data-tabulation-sn="1"', false)
+            ->assertSee(route('dpc-proposals.originals.download', [$this->proposal, $batch]), false);
+        $download = $this->get(route('dpc-proposals.originals.download', [$this->proposal, $batch]))->assertOk();
+        $this->assertStringContainsString('seniority-original.csv', (string) $download->headers->get('content-disposition'));
+
+        // The Secretary and a committee member too; the AO does not.
+        $secretary = User::factory()->create();
+        $secretary->assignRole(Role::Secretary->value);
+        $this->actingAs($secretary)->get(route('dpc-proposals.tabulation-chart', $this->proposal))->assertOk();
+        $member = User::factory()->create();
+        DpcCommitteeMember::query()->where('dpc_proposal_id', $this->proposal->id)->serving()->whereNull('user_id')->orderByDesc('sort_order')->firstOrFail()
+            ->forceFill(['user_id' => $member->id])->save();
+        $this->actingAs($member)->get(route('dpc-proposals.tabulation-chart', $this->proposal))->assertOk();
+        $this->actingAs($this->ao)->get(route('dpc-proposals.tabulation-chart', $this->proposal))->assertForbidden();
     }
 
     public function test_the_administrative_head_decides_every_ph_claim_before_approving(): void

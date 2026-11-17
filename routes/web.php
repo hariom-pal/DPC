@@ -34,6 +34,7 @@ use App\Http\Controllers\Admin\ReservationRosterController;
 use App\Http\Controllers\Admin\ReservationRosterPointController;
 use App\Http\Controllers\Admin\ReviewReasonController;
 use App\Http\Controllers\Admin\SealedCoverReasonController;
+use App\Http\Controllers\Admin\StageTimelineController;
 use App\Http\Controllers\Admin\UserAssignmentController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\UserIdentityController;
@@ -67,6 +68,7 @@ use App\Http\Controllers\Department\DepartmentOfficerController;
 use App\Http\Controllers\Department\DepartmentUserController;
 use App\Http\Controllers\Department\ProposalAllotmentController;
 use App\Http\Controllers\Dpc\CirculationController;
+use App\Http\Controllers\Dpc\CommitteeDecisionController;
 use App\Http\Controllers\Dpc\DpcCalculationController;
 use App\Http\Controllers\Dpc\DpcCommitteeMemberController;
 use App\Http\Controllers\Dpc\DpcEmployeeDetailsController;
@@ -75,6 +77,7 @@ use App\Http\Controllers\Dpc\DpcPromotionOrderController;
 use App\Http\Controllers\Dpc\DpcProposalController;
 use App\Http\Controllers\Dpc\DpcProposalVerificationController;
 use App\Http\Controllers\Dpc\DpcRecordGapController;
+use App\Http\Controllers\Dpc\DpcTabulationController;
 use App\Http\Controllers\Dpc\ImportTemplateController;
 use App\Http\Controllers\Dpc\ReviewProposalController;
 use App\Http\Controllers\EsignController;
@@ -301,12 +304,38 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
         Route::post('/cgpsc/proceedings/{proceeding}/sealed-covers', [SealedCoverController::class, 'open'])->name('cgpsc.proceedings.sealed-covers.open');
         Route::get('/cgpsc/proceedings/{proceeding}/sealed-covers/{opening}/document', [SealedCoverController::class, 'document'])->name('cgpsc.proceedings.sealed-covers.document');
 
+        /*
+         | CALCULATE and calculation history (M5 Phase 4), the DPC Committee's alone
+         | (2026-11-16): no role guard, for the sitting's reason below — every action
+         | asks DpcProposalPolicy::viewCalculation(), a serving seat on this DPC's
+         | committee. The department (AO, AH) and the Secretary do not see it.
+         | Throttled: a calculation writes permanent evidence that no code path can
+         | delete, so the button must not be a way to flood the evidence tables.
+         */
+        Route::prefix('dpc-proposals')->name('dpc-proposals.')->group(function (): void {
+            Route::post('/{dpcProposal}/calculate', [DpcCalculationController::class, 'store'])
+                ->middleware('throttle:calculate')
+                ->name('calculate');
+            Route::get('/{dpcProposal}/calculations', [DpcCalculationController::class, 'index'])->name('calculations.index');
+            Route::get('/{dpcProposal}/calculations/{calculationRun}', [DpcCalculationController::class, 'show'])->name('calculations.show');
+            Route::get('/{dpcProposal}/calculations/{calculationRun}/officers/{sn}', [DpcCalculationController::class, 'explain'])
+                ->whereNumber('sn')
+                ->name('calculations.explain');
+
+            // MoM of 16 November 2026, point 9: the original lists and the Tabulation
+            // Chart, for the AH and every authority after — DpcProposalPolicy::viewRecords().
+            Route::get('/{dpcProposal}/tabulation-chart', [DpcTabulationController::class, 'show'])->name('tabulation-chart');
+            Route::get('/{dpcProposal}/originals/{importBatch}', [DpcTabulationController::class, 'original'])->name('originals.download');
+        });
+
         Route::prefix('sitting')->name('sitting.')->group(function (): void {
             Route::get('/', [CommitteeSittingController::class, 'index'])->name('index');
             Route::get('/{dpcProposal}', [CommitteeSittingController::class, 'show'])->name('show');
             Route::get('/{dpcProposal}/candidate/{row}', [CommitteeSittingController::class, 'candidate'])->name('candidate');
             Route::post('/{dpcProposal}/candidate/{row}/call', [CommitteeSittingController::class, 'call'])->name('call');
             Route::post('/{dpcProposal}/candidate/{row}/conclude', [CommitteeSittingController::class, 'conclude'])->name('conclude');
+            // MoM of 16 November 2026, points 2 and 3: a member's decision — agreed, or returned by section.
+            Route::post('/{dpcProposal}/decision', [CommitteeDecisionController::class, 'store'])->name('decision');
         });
 
         /*
@@ -581,6 +610,11 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
                  */
                 Route::get('/{dpcProposal}/employees', [DpcEmployeeDetailsController::class, 'index'])
                     ->name('employees.index');
+                // Rule 4.4: the Administrative Head verifies every document, category by category (2026-11-16).
+                Route::get('/{dpcProposal}/document-verification', [DpcEmployeeDetailsController::class, 'documentVerification'])
+                    ->name('document-verification');
+                Route::post('/{dpcProposal}/document-verification', [DpcEmployeeDetailsController::class, 'verifyDocuments'])
+                    ->name('document-verification.verify');
                 Route::scopeBindings()->prefix('/{dpcProposal}/employees/{evaluationRow:sn}')->name('employees.')->group(function (): void {
                     Route::get('/', [DpcEmployeeDetailsController::class, 'show'])->name('show');
                     Route::put('/basic', [DpcEmployeeDetailsController::class, 'updateBasic'])->name('basic');
@@ -640,16 +674,12 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
                 // Throttled: a calculation writes permanent evidence that no
                 // code path can delete, so the button must not be a way to
                 // flood the evidence tables.
-                Route::post('/{dpcProposal}/calculate', [DpcCalculationController::class, 'store'])
-                    ->middleware('throttle:calculate')
-                    ->name('calculate');
-                Route::get('/{dpcProposal}/calculations', [DpcCalculationController::class, 'index'])->name('calculations.index');
-                Route::get('/{dpcProposal}/calculations/{calculationRun}', [DpcCalculationController::class, 'show'])->name('calculations.show');
-                Route::get('/{dpcProposal}/calculations/{calculationRun}/officers/{sn}', [DpcCalculationController::class, 'explain'])
-                    ->whereNumber('sn')
-                    ->name('calculations.explain');
+                // CALCULATE and its history moved out of this group (2026-11-16): the
+                // calculation is the DPC Committee's alone — see the committee's group.
 
                 Route::post('/{dpcProposal}/submit', [DpcProposalController::class, 'submit'])->name('submit');
+                // A committee return, corrected, goes straight back to the committee (MoM point 3).
+                Route::post('/{dpcProposal}/committee-resubmit', [CommitteeDecisionController::class, 'resubmit'])->name('committee-resubmit');
                 // The AO marks the DPC Proceeding Complete (MoM of 12 November 2026).
                 Route::post('/{dpcProposal}/complete', [DpcProposalController::class, 'complete'])->name('complete');
                 // The AO takes the DPC back to correct it, until the result (MoM of 12 November 2026).
@@ -908,6 +938,9 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
                 Route::resource('record-reasons', RecordReasonController::class)
                     ->parameters(['record-reasons' => 'recordReason'])
                     ->except(['show']);
+                // The days each stage of a DPC is allowed (MoM of 16 November 2026, point 6).
+                Route::get('stage-timelines', [StageTimelineController::class, 'index'])->name('stage-timelines.index');
+                Route::put('stage-timelines', [StageTimelineController::class, 'update'])->name('stage-timelines.update');
                 // SMS and e-mail templates (2026-11-12), each channel on its own screen (2026-11-13).
                 Route::get('message-templates/{channel}', [MessageTemplateController::class, 'index'])
                     ->whereIn('channel', ['sms', 'email'])->name('message-templates.index');

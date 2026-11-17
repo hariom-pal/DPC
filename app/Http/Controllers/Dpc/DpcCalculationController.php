@@ -43,7 +43,7 @@ class DpcCalculationController extends Controller
      */
     public function index(Request $request, DpcProposal $dpcProposal): View
     {
-        $this->authorize('view', $dpcProposal);
+        $this->authorize('viewCalculation', $dpcProposal);
 
         return view('dpc-proposals.calculations.index', [
             'proposal' => $dpcProposal,
@@ -60,13 +60,15 @@ class DpcCalculationController extends Controller
 
     public function store(Request $request, DpcProposal $dpcProposal): RedirectResponse
     {
-        $this->authorize('view', $dpcProposal);
+        $this->authorize('viewCalculation', $dpcProposal);
 
         try {
             $run = $this->calculations->calculate($dpcProposal, $request->user());
         } catch (WorkflowException $e) {
+            // Back to where the committee member pressed Calculate (2026-11-16): the
+            // proposal for one who may view it, the sitting otherwise.
             return redirect()
-                ->route('dpc-proposals.show', $dpcProposal)
+                ->route($request->user()?->can('view', $dpcProposal) ? 'dpc-proposals.show' : 'sitting.show', $dpcProposal)
                 ->withErrors(['calculate' => $e->getMessage()]);
         }
 
@@ -77,7 +79,7 @@ class DpcCalculationController extends Controller
 
     public function show(Request $request, DpcProposal $dpcProposal, DpcCalculationRun $calculationRun): View
     {
-        $this->authorize('view', $dpcProposal);
+        $this->authorize('viewCalculation', $dpcProposal);
         $this->assertBelongsTo($dpcProposal, $calculationRun);
 
         $calculationRun->load('executedBy', 'results');
@@ -99,7 +101,7 @@ class DpcCalculationController extends Controller
      */
     public function explain(Request $request, DpcProposal $dpcProposal, DpcCalculationRun $calculationRun, int $sn): View
     {
-        $this->authorize('view', $dpcProposal);
+        $this->authorize('viewCalculation', $dpcProposal);
         $this->assertBelongsTo($dpcProposal, $calculationRun);
 
         $result = $calculationRun->results()->where('sn', $sn)->firstOrFail();

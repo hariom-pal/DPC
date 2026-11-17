@@ -205,6 +205,27 @@ class SittingAnnouncementTest extends TestCase
         );
     }
 
+    /** MoM of 16 November 2026, point 4: each employee, by name, in the employees' own template — reached on the list's mobile. */
+    public function test_each_employee_is_told_by_name_in_their_own_template(): void
+    {
+        DpcSeniorityEntry::query()->create([
+            'dpc_proposal_id' => $this->proposal->id, 'seniority_number' => 1, 'employee_number' => 'CG900009',
+            'name' => 'Shri Listed Officer', 'dob' => '1975-05-05', 'mobile' => '9425000888',
+            'reservation_category_id' => ReservationCategory::query()->firstOrFail()->id,
+        ]);
+
+        RecordingSmsSender::reset();
+        $this->app->bind(SmsSender::class, RecordingSmsSender::class);
+
+        $this->allotAndAccept();
+        $this->schedule('2026-07-12', '14:00')->assertSessionHasNoErrors();
+
+        $sent = collect(RecordingSmsSender::$sent)->firstWhere('mobile', '9425000888');
+        $this->assertNotNull($sent, 'An employee with no account is reached on the list\'s mobile.');
+        $this->assertStringContainsString('Shri Listed Officer', $sent['message']);
+        $this->assertStringContainsString('12-07-2026', $sent['message']);
+    }
+
     /**
      * A re-schedule says so in as many words. "Scheduled" three times is how
      * somebody attends on the wrong day.

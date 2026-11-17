@@ -28,6 +28,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Tests\Concerns\RaisesDpcProposals;
 use Tests\Concerns\SanctionsVacancies;
+use Tests\Concerns\SeatsDpcCommittees;
 use Tests\Concerns\SeedsEvaluationCharts;
 use Tests\Concerns\UsesPptPromotionRules;
 use Tests\TestCase;
@@ -41,6 +42,7 @@ class DpcCalculationTest extends TestCase
     use RaisesDpcProposals;
     use RefreshDatabase;
     use SanctionsVacancies;
+    use SeatsDpcCommittees;
     use SeedsEvaluationCharts;
     use UsesPptPromotionRules;
 
@@ -74,6 +76,9 @@ class DpcCalculationTest extends TestCase
             $this->dpcStorePayload($this->sanctioningPreDpc($postFrom->id, $postTo->id)),
         );
         $this->proposal = DpcProposal::query()->latest('id')->firstOrFail();
+        // The calculation is the DPC Committee's alone (2026-11-16): the account these
+        // tests calculate as is seated on the committee.
+        $this->seatAccountOnCommittee($this->proposal, $this->ao);
     }
 
     /**

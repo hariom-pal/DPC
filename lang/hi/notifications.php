@@ -35,9 +35,19 @@ return [
         'subject' => 'पदोन्नति आदेश :number जारी',
         'message' => ':post पद हेतु पदोन्नति आदेश :number दिनांक :date जारी किया गया है। आदेश देखें: :link',
     ],
+    'stage' => [
+        'reminder_subject' => 'ओ.डी.पी.सी. पोर्टल — :dpc: समय-सीमा :due',
+        'reminder_body' => ':dpc आपके पास (:stage) लंबित है: :action। समय-सीमा :due है। खोलें: :url',
+        'overdue_subject' => 'ओ.डी.पी.सी. पोर्टल — :dpc: समय-सीमा समाप्त',
+        'overdue_body' => ':dpc आपके पास (:stage) लंबित है: :action। :due की समय-सीमा समाप्त हो चुकी है। खोलें: :url',
+    ],
     'sitting' => [
         // Business clarification of 2026-09-05: the message the committee and the
         // candidates receive when the DPC Allottee fixes or moves the sitting.
+        'subject_candidate_scheduled' => 'ओ.डी.पी.सी. पोर्टल — आपकी पदोन्नति हेतु डी.पी.सी. की तिथि निर्धारित',
+        'subject_candidate_rescheduled' => 'ओ.डी.पी.सी. पोर्टल — आपकी पदोन्नति हेतु डी.पी.सी. की तिथि परिवर्तित',
+        'sms_candidate_scheduled' => 'प्रिय :name, आपकी पदोन्नति पर विचार हेतु डी.पी.सी. (:dpc) की बैठक :date को :time बजे होगी। ओ.डी.पी.सी. पोर्टल।',
+        'sms_candidate_rescheduled' => 'प्रिय :name, आपकी पदोन्नति पर विचार हेतु डी.पी.सी. (:dpc) की बैठक अब :date को :time बजे होगी। ओ.डी.पी.सी. पोर्टल।',
         'subject_scheduled' => 'ओ.डी.पी.सी. पोर्टल — :dpc की तिथि निर्धारित',
         'subject_rescheduled' => 'ओ.डी.पी.सी. पोर्टल — :dpc की तिथि परिवर्तित',
         'sms_scheduled' => 'ओ.डी.पी.सी.: :dpc :date को :time बजे निर्धारित है। :instructions',

@@ -22,6 +22,33 @@
                 @endif
             </div>
 
+            @include('dpc-proposals._next-process')
+
+            @can('viewRecords', $proposal)
+                <div class="mb-3"><a href="{{ route('dpc-proposals.tabulation-chart', $proposal) }}" class="btn btn-outline-primary btn-sm" id="sitting-tabulation-link">{{ __('dpc.tabulation.open') }}</a></div>
+            @endcan
+
+            @include('proceedings.sitting._decision')
+
+            {{-- The eligibility calculation, the committee's alone (2026-11-16). --}}
+            @can('viewCalculation', $proposal)
+                <div class="card border-0 shadow-sm mb-3" id="committee-calculation">
+                    <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-2">
+                        <div>
+                            <h2 class="h6 mb-0">{{ __('dpc.show.eligibility_calculation') }}</h2>
+                            <p class="text-muted small mb-0">{{ __('dpc.show.scores_the_evaluation_chart_and_produces_the_mai') }}</p>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <a href="{{ route('dpc-proposals.calculations.index', $proposal) }}" class="btn btn-outline-secondary btn-sm">{{ __('ui.history') }}</a>
+                            <form method="POST" action="{{ route('dpc-proposals.calculate', $proposal) }}">
+                                @csrf<button class="btn btn-primary btn-sm">{{ __('ui.calculate') }}</button>
+                            </form>
+                        </div>
+                    </div>
+                    @error('calculate')<div class="alert alert-danger py-2 mx-3">{{ $message }}</div>@enderror
+                </div>
+            @endcan
+
             <div class="card border-0 shadow-sm">
                 <div class="table-responsive">
                     <table class="table table-striped align-middle mb-0">

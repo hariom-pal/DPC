@@ -267,6 +267,21 @@ class FullDpcConditionsTest extends TestCase
         $this->assertNotContains(2, $this->order($c));
     }
 
+    /** MoM of 16 November 2026, point 12: a Property File reason the Administrator marks Unfit gives Unfit, not CIR. */
+    public function test_5d_a_property_reason_marked_unfit_makes_the_officer_unfit_not_cir(): void
+    {
+        $c = $this->dpc(['no_property' => [3 => 2023]]);
+        $row = $c['proposal']->evaluationRows()->where('sn', 3)->sole();
+        $gap = $row->recordGaps()->where('kind', 'property')->where('year', 2023)->sole();
+        $gap->reason->forceFill(['makes_unfit' => true])->save();
+
+        $this->assertSame([__('dpc.employee_details.unfit.record_reason_property', ['year' => 2023, 'reason' => $gap->reason->name_en])], $row->fresh()->unfitReasons());
+
+        $proceeding = $this->conclude($c);
+        $this->assertNotSame('CIR', $this->results($proceeding)[3]->status()->value);
+        $this->assertSame(0, DpcProceedingHold::query()->where('dpc_proceeding_id', $proceeding->id)->where('sn', 3)->count(), 'An Unfit reason holds nothing.');
+    }
+
     /**
      * 5. Mandatory Property Return Missing (2026-11-05): the AO marks 2023 Missing
      * with its reason and document; the AH sees the evidence; the officer is CIR, not
@@ -321,6 +336,28 @@ class FullDpcConditionsTest extends TestCase
      * off the promotion order; a circulation cannot clear a CR hold (BD-15), so the
      * officer stays off it — no marks are fabricated.
      */
+    /** MoM of 16 November 2026, point 11: a 2026 DPC with the 2025 CR missing goes to a Circulation DPC. */
+    public function test_7b_the_latest_cr_missing_is_held_for_a_circulation_dpc(): void
+    {
+        $c = $this->dpc(['missing_cr' => [4 => 2025]]);
+        $row = $c['proposal']->evaluationRows()->where('sn', 4)->sole();
+        $this->assertSame([], $row->fresh()->unfitReasons(), 'Not Unfit.');
+
+        $check = app(PromotionRuleCheck::class)->check($row->fresh(), $c['proposal']->fresh());
+        $this->assertSame('cir', $check['status']);
+        $this->assertContains(__('dpc.employee_details.rule.cr_circulation', ['year' => 2025]), $check['holds']);
+
+        $proceeding = $this->conclude($c);
+        $this->assertSame('CIR', $this->results($proceeding)[4]->status()->value);
+        $hold = DpcProceedingHold::query()->where('dpc_proceeding_id', $proceeding->id)->where('sn', 4)->sole();
+        $this->assertSame('latest_cr_missing', $hold->reason_code->value);
+        $this->assertNotContains(4, $this->order($c));
+
+        // Unlike the other CR grounds (BD-15), this one is circulated.
+        $this->circulate($c, $hold);
+        $this->assertContains(4, $this->order($c), 'Cleared by the circulation, the officer is promoted.');
+    }
+
     public function test_7_a_middle_cr_missing_is_not_cir_and_the_counted_years_decide(): void
     {
         $c = $this->dpc(['missing_cr' => [4 => 2023]]);

@@ -198,6 +198,7 @@ return [
                 'reservation_categories' => 'Reservation Categories',
                 'reservation_policies' => 'Reservation Policies',
                 'reservation_rosters' => 'Reservation Rosters',
+                'stage_timelines' => 'Workflow Timelines',
                 'record_reasons' => 'Record Reasons',
                 'ph_types' => 'PH Types',
                 'message_templates' => 'SMS & E-mail Templates',

@@ -7,6 +7,7 @@ namespace Tests\Feature\Auth;
 use App\Domain\Authentication\Models\OtpVerification;
 use App\Domain\Authentication\Models\SecurityEvent;
 use App\Domain\Authentication\Models\User;
+use App\Enums\Role;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Log\Events\MessageLogged;
@@ -79,6 +80,20 @@ class ForgotPasswordTest extends TestCase
 
         // Used once.
         $this->get(route('password.forgot.verify'))->assertRedirect(route('password.forgot'));
+    }
+
+    /** MoM of 16 November 2026, point 10: the Chairman and the Secretary, CGPSC reset their own password by OTP. */
+    public function test_the_chairman_and_the_secretary_reset_their_own_password(): void
+    {
+        foreach ([Role::Chairman, Role::Secretary] as $i => $role) {
+            $user = User::factory()->create(['email' => "cgpsc{$i}@cg.gov.in", 'mobile' => '900000002'.$i]);
+            $user->assignRole($role->value);
+
+            $this->post(route('password.forgot.send'), ['login' => "cgpsc{$i}@cg.gov.in"])->assertRedirect(route('password.forgot.verify'));
+            $this->assertSame(1, OtpVerification::query()->where('identifier', "cgpsc{$i}@cg.gov.in")->where('purpose', 'password_reset')->count(), $role->value);
+            $this->reset()->assertRedirect(route('login'))->assertSessionHas('status', __('authui.forgot.done'));
+            $this->assertTrue(Hash::check(self::NEW_PASSWORD, $user->fresh()->password), $role->value);
+        }
     }
 
     public function test_by_mobile_too(): void

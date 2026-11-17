@@ -69,6 +69,15 @@ class AuthorizationCoverageTest extends TestCase
         'sitting.index' => 'Lists only the DPCs the signed-in account holds a serving committee seat on; '
             .'an account on none sees an empty list rather than a 403.',
         'sitting.show' => 'Guarded by CommitteeSittingService::isSeatedOn() on this proposal.',
+        'sitting.decision' => 'Guarded by DpcProposalPolicy::committeeDecide(): a serving seat on this DPC\'s committee, the DPC with the committee.',
+        // The eligibility calculation, the DPC Committee's alone (2026-11-16).
+        'dpc-proposals.calculate' => 'Guarded by DpcProposalPolicy::viewCalculation(): a serving seat on this DPC\'s committee.',
+        'dpc-proposals.calculations.index' => 'As above.',
+        'dpc-proposals.calculations.show' => 'As above, and the run must belong to the proposal or it is a 404.',
+        'dpc-proposals.calculations.explain' => 'As above.',
+        // MoM of 16 November 2026, point 9.
+        'dpc-proposals.tabulation-chart' => 'Guarded by DpcProposalPolicy::viewRecords(): the AH, Secretary, DPC Committee and Chairman.',
+        'dpc-proposals.originals.download' => 'As above, and the batch must be a committed list of this proposal or it is a 404.',
         'sitting.candidate' => 'As above, and the row must belong to the proposal or it is a 404.',
         'sitting.call' => 'As above, and additionally refused outside the scheduled sitting window.',
         'sitting.conclude' => 'As above, and refused unless the candidate was called first.',
