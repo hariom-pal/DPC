@@ -96,6 +96,20 @@ class ForgotPasswordTest extends TestCase
         }
     }
 
+    /** 2026-11-17: the Administrator finds the account and resets its password. */
+    public function test_the_administrator_finds_and_resets_a_cgpsc_account(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(Role::Admin->value);
+        $chairman = User::factory()->create(['name' => 'Chairman CGPSC Test', 'email' => 'chairman.test@cg.gov.in']);
+        $chairman->assignRole(Role::Chairman->value);
+
+        $this->actingAs($admin)->get(route('admin.users.index', ['q' => 'chairman.test']))->assertOk()
+            ->assertSee('Chairman CGPSC Test')->assertSee(route('admin.users.reset-password', $chairman), false);
+        $this->post(route('admin.users.reset-password', $chairman))->assertOk();
+        $this->assertTrue($chairman->fresh()->must_change_password);
+    }
+
     public function test_by_mobile_too(): void
     {
         $this->post(route('password.forgot.send'), ['login' => '9000000011'])->assertRedirect(route('password.forgot.verify'));

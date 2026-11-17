@@ -50,6 +50,14 @@
                 <a href="{{ route('admin.cgpsc-chairman.edit', $serving) }}" class="btn btn-outline-secondary btn-sm mt-3">
                     {{ __('ui.edit') }}
                 </a>
+                {{-- The Chairman's login password, reset here by the Administrator (2026-11-17). --}}
+                @if ($serving->user)
+                    <form method="POST" action="{{ route('admin.users.reset-password', $serving->user) }}" class="d-inline"
+                          data-confirm="{{ __('admin.users.index.issue_a_new_temporary_password') }}">
+                        @csrf
+                        <button class="btn btn-outline-warning btn-sm mt-3" id="chairman-reset-password">{{ __('admin.users.index.reset_password') }}</button>
+                    </form>
+                @endif
             </div>
         </div>
     @endif

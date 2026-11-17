@@ -9,6 +9,11 @@
     <div class="alert {{ $deadline['overdue'] ? 'alert-danger' : 'alert-primary' }} py-2" id="next-process" data-stage="{{ $deadline['stage']->value }}">
         <div class="fw-semibold">{{ __('dpc.stage.next_heading') }}</div>
         <div class="small">{{ __('dpc.stage.now', ['stage' => $deadline['stage']->label(), 'action' => $deadline['stage']->action()]) }}</div>
+        <ul class="small mb-1" data-pending-items>
+            @foreach ($stageService->pendingItems($proposal, $deadline['stage']) as $item)
+                <li>{{ $item }}</li>
+            @endforeach
+        </ul>
         <div class="small" data-next-stage="{{ $deadline['stage']->next()?->value }}">
             {{ $deadline['stage']->next() ? __('dpc.stage.then', ['next' => $deadline['stage']->next()->label()]) : __('dpc.stage.last') }}
         </div>

@@ -91,6 +91,10 @@ class StageWorkflowTest extends TestCase
         $this->assertSame([], app(DpcStageService::class)->pendingWith($this->ah));
         $this->assertCount(1, app(DpcStageService::class)->pendingAt($this->ah));
         $this->actingAs($this->ah)->get(route('dpc-proposals.show', $this->proposal))->assertDontSee('id="next-process-task"', false);
+        // Only where there is something (2026-11-17): the AH has nothing with them, and the list says what is pending.
+        $this->get(route('dashboard'))->assertDontSee('id="pending-with-you"', false)
+            ->assertSee('id="pending-at-me"', false)
+            ->assertSee(__('dpc.stage.items.submit'));
 
         // Past the deadline: highlighted.
         $this->travel(6)->days();

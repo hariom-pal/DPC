@@ -1,13 +1,11 @@
 {{-- MoM of 16 November 2026, point 8: a list of pending DPCs with their stage and
      deadline. Expects: $entries (DpcStageService::pendingWith/pendingAt), $id, $title,
      $lead, $mine (true: the action is this user's). --}}
+@if ($entries !== [])
 <div class="card border-0 shadow-sm mb-3" id="{{ $id }}">
     <div class="card-body">
         <h2 class="h6 mb-0">{{ $title }} <span class="badge text-bg-secondary">{{ count($entries) }}</span></h2>
         <p class="small text-muted mb-2">{{ $lead }}</p>
-        @if ($entries === [])
-            <p class="small text-muted mb-0">{{ __('dpc.stage.none') }}</p>
-        @else
             <div class="table-responsive">
                 <table class="table table-sm align-middle small mb-0">
                     <thead><tr>
@@ -27,7 +25,11 @@
                             <tr class="{{ $deadline['overdue'] ? 'table-danger' : ($nearing ? 'table-warning' : '') }}" data-pending="{{ $proposal->uuid }}" data-overdue="{{ $deadline['overdue'] ? 'yes' : 'no' }}">
                                 <td>{{ $proposal->dpc_code ?? $proposal->citation() }}</td>
                                 <td>{{ $deadline['stage']->label() }}</td>
-                                <td>{{ $deadline['stage']->action() }}</td>
+                                <td data-pending-items>
+                                    @foreach (app(\App\Domain\Dpc\Services\DpcStageService::class)->pendingItems($proposal, $deadline['stage']) as $item)
+                                        <div>• {{ $item }}</div>
+                                    @endforeach
+                                </td>
                                 <td>
                                     @if ($deadline['due_at'] === null)
                                         <span class="text-muted">{{ __('dpc.stage.no_deadline') }}</span>
@@ -45,6 +47,6 @@
                     </tbody>
                 </table>
             </div>
-        @endif
     </div>
 </div>
+@endif

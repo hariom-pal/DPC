@@ -858,6 +858,7 @@ return [
             'issue_a_new_temporary_password' => 'नया अस्थायी पासवर्ड जारी करें?',
             'no_users_yet' => 'अभी कोई उपयोगकर्ता नहीं है।',
             'provision_account' => '+ खाता सृजित करें',
+            'search' => 'नाम, ई-मेल या मोबाइल',
             'reset_password' => 'पासवर्ड पुनर्निर्धारित करें',
             'since' => '<div class="text-muted small">:date से</div>',
             'user_management' => 'उपयोगकर्ता प्रबंधन',

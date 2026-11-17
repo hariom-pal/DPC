@@ -9,6 +9,7 @@ use App\Domain\Authentication\Models\User;
 use App\Domain\Cgpsc\Models\DpcAllotment;
 use App\Domain\Dpc\Enums\DpcProposalStatus;
 use App\Domain\Dpc\Enums\DpcStage;
+use App\Domain\Dpc\Models\DpcCommitteeDecision;
 use App\Domain\Dpc\Models\DpcCommitteeMember;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Models\WorkflowStageTimeline;
@@ -146,6 +147,56 @@ final class DpcStageService
         }
 
         return $entries;
+    }
+
+    /**
+     * What exactly is pending at this stage (2026-11-17): employee details still
+     * incomplete, the sections a committee member returned, documents and PH claims
+     * awaiting the AH, the approval, the allotment, the committee's decisions.
+     *
+     * @return list<string>
+     */
+    public function pendingItems(DpcProposal $proposal, DpcStage $stage): array
+    {
+        $details = app(EmployeeDetailsService::class);
+
+        return match ($stage) {
+            DpcStage::Ao => $this->aoItems($proposal, $details),
+            DpcStage::Ah => array_values(array_filter([
+                ($documents = $details->documentsAwaitingHead($proposal)) > 0 ? (string) __('dpc.stage.items.documents', ['count' => $documents]) : null,
+                ($claims = $details->phClaimsAwaitingHead($proposal)) > 0 ? (string) __('dpc.stage.items.ph_claims', ['count' => $claims]) : null,
+                (string) __('dpc.stage.items.ah_approval'),
+            ])),
+            DpcStage::Secretary => [(string) __('dpc.stage.items.secretary_approval')],
+            DpcStage::Chairman => [(string) __('dpc.stage.items.allotment')],
+            DpcStage::Committee => [(string) __('dpc.stage.items.decisions', [
+                'done' => DpcCommitteeDecision::query()->where('dpc_proposal_id', $proposal->id)->where('decided_at', '>=', $this->enteredAt($proposal, $stage))->distinct()->count('user_id'),
+                'total' => DpcCommitteeMember::query()->where('dpc_proposal_id', $proposal->id)->serving()->count(),
+            ])],
+        };
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function aoItems(DpcProposal $proposal, EmployeeDetailsService $details): array
+    {
+        $returned = $proposal->committeeReturnSections();
+
+        if ($returned !== null) {
+            return [(string) __('dpc.stage.items.committee_return', [
+                'sections' => implode(', ', array_map(fn (string $section): string => (string) __('dpc.committee_decision.sections.'.$section), $returned)),
+            ])];
+        }
+
+        $statuses = $details->statuses($proposal);
+        $incomplete = $statuses->reject(fn (array $entry): bool => $entry['status']['complete'])->count();
+
+        return array_values(array_filter([
+            $proposal->status === DpcProposalStatus::Returned ? (string) __('dpc.stage.items.returned', ['remarks' => (string) $proposal->return_remarks]) : null,
+            $incomplete > 0 ? (string) __('dpc.stage.items.employees', ['count' => $incomplete, 'total' => $statuses->count()]) : null,
+            (string) __('dpc.stage.items.submit'),
+        ]));
     }
 
     /**

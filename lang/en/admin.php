@@ -858,6 +858,7 @@ return [
             'issue_a_new_temporary_password' => 'Issue a new temporary password',
             'no_users_yet' => 'No users yet.',
             'provision_account' => '+ Provision Account',
+            'search' => 'Name, e-mail or mobile',
             'reset_password' => 'Reset Password',
             'since' => 'since :date',
             'user_management' => 'User Management',

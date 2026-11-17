@@ -26,17 +26,27 @@ class UserController extends Controller
 
     public function __construct(private readonly UserProvisioningService $provisioning) {}
 
-    public function index(): View
+    public function index(Request $request): View
     {
+        // Found by name, e-mail or mobile (2026-11-17): the Chairman's or the
+        // Secretary's account, to reset its password, without paging for it.
+        $search = trim((string) $request->query('q', ''));
+
         return view('admin.users.index', [
+            'search' => $search,
             // `activeAssignment.department` rather than `department`: since
             // change item 2 the department is read off the live assignment, so
             // eager-loading the old relation name would be eager-loading nothing
             // and every row would issue its own query.
             'users' => User::query()
                 ->with(['roles', 'activeAssignment.department'])
+                ->when($search !== '', fn ($query) => $query->where(fn ($inner) => $inner
+                    ->where('name', 'like', '%'.$search.'%')
+                    ->orWhere('email', 'like', '%'.$search.'%')
+                    ->orWhere('mobile', 'like', '%'.$search.'%')))
                 ->orderBy('name')
-                ->paginate(20),
+                ->paginate(20)
+                ->withQueryString(),
         ]);
     }
 

@@ -8,6 +8,11 @@
         <a href="{{ route('admin.users.create') }}" class="btn btn-success btn-sm">{{ __('admin.users.index.provision_account') }}</a>
     </div>
 
+    <form method="GET" action="{{ route('admin.users.index') }}" class="d-flex gap-2 mb-2" id="user-search">
+        <input type="search" name="q" value="{{ $search }}" class="form-control form-control-sm" style="max-width: 22rem" placeholder="{{ __('admin.users.index.search') }}" aria-label="{{ __('admin.users.index.search') }}">
+        <button class="btn btn-outline-primary btn-sm">{{ __('ui.search') }}</button>
+    </form>
+
     <div class="card border-0 shadow-sm">
         <div class="table-responsive">
             <table class="table table-striped mb-0 align-middle">
