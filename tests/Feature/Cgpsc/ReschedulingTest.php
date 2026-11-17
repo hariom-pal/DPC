@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Cgpsc;
 
 use App\Domain\Authentication\Models\User;
+use App\Domain\Cgpsc\Enums\AllotmentStatus;
 use App\Domain\Cgpsc\Models\DpcAllotment;
 use App\Domain\Cgpsc\Models\DpcSchedule;
 use App\Domain\Cgpsc\Services\AllotmentService;
@@ -233,9 +234,7 @@ class ReschedulingTest extends TestCase
 
         $this->assertSame([], $seated->roles->pluck('name')->all(), 'The point of this test is that they hold none.');
 
-        app(AllotmentService::class)->allot(
-            $this->proposal->fresh(), $seated, $this->chairman, request(), Carbon::parse('2026-07-10'),
-        );
+        $this->legacyAllotment($seated);
 
         $this->actingAs($seated)->get(route('cgpsc.schedules.index'))
             ->assertOk()
@@ -258,9 +257,7 @@ class ReschedulingTest extends TestCase
         $seated = User::factory()->create(['name' => 'Deputy Secretary, GAD']);
         $this->seatAccountOnCommittee($this->proposal, $seated);
 
-        app(AllotmentService::class)->allot(
-            $this->proposal->fresh(), $seated, $this->chairman, request(), Carbon::parse('2026-07-10'),
-        );
+        $this->legacyAllotment($seated);
 
         $this->actingAs($seated)->get(route('dashboard'))
             ->assertOk()
@@ -288,9 +285,7 @@ class ReschedulingTest extends TestCase
         $seated = User::factory()->create(['name' => 'Deputy Secretary, GAD']);
         $this->seatAccountOnCommittee($this->proposal, $seated);
 
-        app(AllotmentService::class)->allot(
-            $this->proposal->fresh(), $seated, $this->chairman, request(), Carbon::parse('2026-07-10'),
-        );
+        $this->legacyAllotment($seated);
 
         $other = DpcProposal::query()->create([
             'department_id' => $this->department->id,
@@ -517,5 +512,22 @@ class ReschedulingTest extends TestCase
         $this->assertCount(1, $allotmentEvents);
         $this->assertCount(3, $scheduleEvents);
         $this->assertSame(1, DpcAllotment::query()->count());
+    }
+
+    /**
+     * An allotment made before 2026-11-17 to a committee member holding no role.
+     * No longer possible through the form — a DPC now goes only to a Member,
+     * CGPSC or the Chairman — but such allotments stand and must still work.
+     */
+    private function legacyAllotment(User $allottee): void
+    {
+        DpcAllotment::query()->create([
+            'dpc_proposal_id' => $this->proposal->id,
+            'allotted_to' => $allottee->id,
+            'allotted_by' => $this->chairman->id,
+            'allotted_at' => now(),
+            'default_dpc_date' => '2026-07-10',
+            'status' => AllotmentStatus::Pending->value,
+        ]);
     }
 }

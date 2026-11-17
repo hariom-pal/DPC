@@ -43,54 +43,24 @@
                                                 @if ($isChairman)
                                                     <form method="POST" action="{{ route('cgpsc.allotments.store', $proposal) }}" class="row g-1">
                                                         @csrf
-                                                        {{-- **This DPC's own committee, not every Commission
-                                                             account** (business instruction, 2026-09-06).
-                                                             Only seats carrying a portal account are offered:
-                                                             the allottee has to sign in, accept and schedule.
-
-                                                             The "suggested DPC date" that used to sit beside
-                                                             this is gone — two dates on one row, one required
-                                                             and one not, with nothing on screen saying how
-                                                             they differed, and only the deadline governed
-                                                             anything. The allotment's own date is today, by
-                                                             construction. --}}
+                                                        {{-- One choice, not two (business instruction, 2026-11-17):
+                                                             the person a DPC is allotted to IS its DPC Chairman.
+                                                             Offered from the Commission's own accounts — Members,
+                                                             CGPSC and the Chairman, CGPSC, as created in User
+                                                             Management — never from the DPC committee. --}}
                                                         <div class="col-8">
                                                             <label class="form-label small mb-0">{{ __('cgpsc.allotments.index.allot_to') }}</label>
-                                                            <select name="allotted_to" class="form-select form-select-sm" required>
+                                                            <select name="allotted_to" class="form-select form-select-sm" required data-allot-to>
                                                                 <option value="">{{ __('cgpsc.allotments.index.allot_to') }}</option>
-                                                                @foreach ($allotteesByProposal[$proposal->id] ?? [] as $seat)
-                                                                    <option value="{{ $seat->user_id }}">{{ $seat->name }} — {{ $seat->capacity->label() }}</option>
+                                                                @foreach ($allottees as $allottee)
+                                                                    <option value="{{ $allottee->id }}">{{ $allottee->name }} — {{ $allottee->roles->contains("name", \App\Enums\Role::Chairman->value) ? \App\Enums\Role::Chairman->label() : \App\Enums\Role::Member->label() }}</option>
                                                                 @endforeach
                                                             </select>
-                                                            @if (($allotteesByProposal[$proposal->id] ?? collect())->isEmpty())
+                                                            @if ($allottees->isEmpty())
                                                                 <div class="form-text text-danger">{{ __('cgpsc.allotments.index.no_allottable_member') }}</div>
                                                             @endif
                                                         </div>
                                                         <div class="col-4 align-self-end"><button class="btn btn-primary btn-sm w-100">{{ __('cgpsc.allotments.index.allot') }}</button></div>
-                                                        {{-- Item 9 (2026-08-26): the date the DPC must be
-                                                             concluded by. Required, because the rule that an
-                                                             unconcluded DPC returns to the Chairman cannot
-                                                             operate on an allotment that has no deadline. --}}
-                                                        {{-- Business clarification of 2026-09-05: the CGPSC
-                                                             Chairman decides the allottee, the DPC Chairman
-                                                             and the deadline in one act. The list is this
-                                                             DPC's own committee, and it includes the CGPSC
-                                                             Chairman's own seat — so presiding personally is
-                                                             this control, not a separate one. --}}
-                                                        <div class="col-12">
-                                                            <label class="form-label small mb-0">{{ __('cgpsc.allotments.index.dpc_chairman') }}</label>
-                                                            <select name="dpc_chairman_member_id" class="form-select form-select-sm" required>
-                                                                <option value="">{{ __('cgpsc.allotments.index.dpc_chairman_choose') }}</option>
-                                                                @foreach ($committeeByProposal[$proposal->id] ?? [] as $seat)
-                                                                    <option value="{{ $seat->id }}" @selected($seat->isDpcChairman())>
-                                                                        {{ $seat->name }} — {{ $seat->capacity->label() }}
-                                                                    </option>
-                                                                @endforeach
-                                                            </select>
-                                                            @if (($committeeByProposal[$proposal->id] ?? collect())->isEmpty())
-                                                                <div class="form-text text-danger">{{ __('cgpsc.allotments.index.dpc_chairman_no_committee') }}</div>
-                                                            @endif
-                                                        </div>
                                                         <div class="col-12">
                                                             <label class="form-label small mb-0">{{ __('cgpsc.allotments.index.complete_by') }}</label>
                                                             <input type="date" name="complete_by" class="form-control form-control-sm"
@@ -112,14 +82,6 @@
                                                     'date' => $current->allotted_at->format('d/m/Y'),
                                                     'actor' => $current->allottedBy?->name ?? '—',
                                                 ]) }}
-                                                    {{-- Who presides, stated beside who executes: the two
-                                                         may be the same person or different people, and both
-                                                         are valid (business clarification, 2026-09-05). --}}
-                                                    @php($presiding = ($committeeByProposal[$proposal->id] ?? collect())->first(fn ($seat) => $seat->isDpcChairman()))
-                                                    <div>
-                                                        {{ __('cgpsc.allotments.index.dpc_chairman') }}:
-                                                        <strong>{{ $presiding?->name ?? __('cgpsc.allotments.index.dpc_chairman_none') }}</strong>
-                                                    </div>
                                                     @if ($current->complete_by)
                                                         <div>
                                                             {{ __('cgpsc.allotments.index.complete_by') }}:
@@ -142,25 +104,14 @@
                                                             <div class="col-8">
                                                                 <select name="allotted_to" class="form-select form-select-sm" required>
                                                                     <option value="">{{ __('cgpsc.allotments.index.re_allot_to') }}</option>
-                                                                    @foreach ($allotteesByProposal[$proposal->id] ?? [] as $seat)
-                                                                        @if ($seat->user_id !== $current->allotted_to)
-                                                                            <option value="{{ $seat->user_id }}">{{ $seat->name }} — {{ $seat->capacity->label() }}</option>
+                                                                    @foreach ($allottees as $allottee)
+                                                                        @if ($allottee->id !== $current->allotted_to)
+                                                                            <option value="{{ $allottee->id }}">{{ $allottee->name }} — {{ $allottee->roles->contains("name", \App\Enums\Role::Chairman->value) ? \App\Enums\Role::Chairman->label() : \App\Enums\Role::Member->label() }}</option>
                                                                         @endif
                                                                     @endforeach
                                                                 </select>
                                                             </div>
                                                             <div class="col-4"><button class="btn btn-outline-warning btn-sm w-100">{{ __('cgpsc.allotments.index.re_allot') }}</button></div>
-                                                            <div class="col-12">
-                                                                <label class="form-label small mb-0">{{ __('cgpsc.allotments.index.dpc_chairman') }}</label>
-                                                                <select name="dpc_chairman_member_id" class="form-select form-select-sm" required>
-                                                                    <option value="">{{ __('cgpsc.allotments.index.dpc_chairman_choose') }}</option>
-                                                                    @foreach ($committeeByProposal[$proposal->id] ?? [] as $seat)
-                                                                        <option value="{{ $seat->id }}" @selected($seat->isDpcChairman())>
-                                                                            {{ $seat->name }} — {{ $seat->capacity->label() }}
-                                                                        </option>
-                                                                    @endforeach
-                                                                </select>
-                                                            </div>
                                                             <div class="col-12">
                                                                 <label class="form-label small mb-0">{{ __('cgpsc.allotments.index.complete_by') }}</label>
                                                                 <input type="date" name="complete_by" class="form-control form-control-sm" required>

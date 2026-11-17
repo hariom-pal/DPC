@@ -9,13 +9,20 @@ use App\Domain\Committee\Models\CgpscChairman;
 use App\Domain\Committee\Requests\CgpscChairmanRequest;
 use App\Domain\Committee\Services\CgpscChairmanService;
 use App\Domain\Master\Models\Designation;
+use App\Domain\UserManagement\Services\UserProvisioningService;
 use App\Enums\MasterStatus;
 use App\Enums\Role;
+use App\Http\Controllers\Concerns\ShowsIssuedPassword;
 use App\Http\Controllers\Controller;
+use App\Support\OfficialEmail;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 use RuntimeException;
 
 /**
@@ -43,13 +50,18 @@ use RuntimeException;
  */
 class CgpscChairmanController extends Controller
 {
+    use ShowsIssuedPassword;
+
     /**
      * Authorisation is the route group's: every route below sits inside
      * `role:admin`, as every other master screen does. A policy here would be a
      * second gate saying the same thing, and two gates are how one of them comes
      * to say something different.
      */
-    public function __construct(private readonly CgpscChairmanService $chairmen) {}
+    public function __construct(
+        private readonly CgpscChairmanService $chairmen,
+        private readonly UserProvisioningService $provisioning,
+    ) {}
 
     public function index(): View
     {
@@ -111,6 +123,72 @@ class CgpscChairmanController extends Controller
         return redirect()
             ->route('admin.cgpsc-chairman.index')
             ->with('status', __('admin.cgpsc_chairman.amended'));
+    }
+
+    /**
+     * Create the serving Chairman's login from this record (2026-11-17).
+     *
+     * The record names the office-holder; the login is a separate account, and a
+     * record appointed without one left the Administrator nothing to reset. This
+     * provisions a `chairman` account from the record's own name, e-mail and
+     * mobile, links it, and shows the temporary password once — exactly as User
+     * Management does. Only for the serving record, and only while it names none:
+     * linking never replaces a person already on record.
+     */
+    public function createAccount(CgpscChairman $cgpscChairman): Response|RedirectResponse
+    {
+        $serving = $this->chairmen->serving();
+
+        if ($serving === null || $serving->id !== $cgpscChairman->id || $cgpscChairman->user_id !== null) {
+            return redirect()->route('admin.cgpsc-chairman.index')
+                ->withErrors(['account' => __('admin.cgpsc_chairman.account_not_allowed')]);
+        }
+
+        // A Chairman login made earlier in User Management with this record's
+        // e-mail or mobile is that same Chairman: link it rather than refuse.
+        $existing = User::role(Role::Chairman->value)->where('is_active', true)
+            ->where(fn ($query) => $query->where('email', (string) $cgpscChairman->email)->orWhere('mobile', (string) $cgpscChairman->mobile))
+            ->first();
+
+        if ($existing !== null && ($cgpscChairman->email || $cgpscChairman->mobile)) {
+            $this->chairmen->linkIfVacant($existing, request()->user());
+
+            return redirect()->route('admin.cgpsc-chairman.index')->with('status', __('admin.cgpsc_chairman.account_linked', ['name' => $existing->name]));
+        }
+
+        $validator = Validator::make(
+            ['email' => $cgpscChairman->email, 'mobile' => $cgpscChairman->mobile],
+            [
+                'email' => ['required', 'email', 'max:255', OfficialEmail::RULE, Rule::unique('users', 'email')->withoutTrashed()],
+                'mobile' => ['required', 'digits:10', Rule::unique('users', 'mobile')->withoutTrashed()],
+            ],
+            [
+                'email.required' => __('admin.cgpsc_chairman.account_needs_contact'),
+                'mobile.required' => __('admin.cgpsc_chairman.account_needs_contact'),
+                'email.unique' => __('admin.cgpsc_chairman.account_exists'),
+                'mobile.unique' => __('admin.cgpsc_chairman.account_exists'),
+            ],
+        );
+
+        if ($validator->fails()) {
+            return redirect()->route('admin.cgpsc-chairman.index')->withErrors(['account' => $validator->errors()->first()]);
+        }
+
+        $issued = DB::transaction(function () use ($cgpscChairman) {
+            $issued = $this->provisioning->provision([
+                'name' => $cgpscChairman->name,
+                'email' => (string) $cgpscChairman->email,
+                'mobile' => (string) $cgpscChairman->mobile,
+                'designation_id' => null,
+                'role' => Role::Chairman->value,
+            ], request()->user());
+
+            $this->chairmen->linkIfVacant($issued->user, request()->user());
+
+            return $issued;
+        });
+
+        return $this->showIssuedPassword($issued->user, $issued->temporaryPassword, 'created', 'layouts.admin', route('admin.cgpsc-chairman.index'));
     }
 
     /**

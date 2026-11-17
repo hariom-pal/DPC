@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\UserManagement\Requests;
 
+use App\Domain\Committee\Services\CgpscChairmanService;
 use App\Domain\Master\Models\Designation;
 use App\Enums\Role;
 use App\Support\OfficialEmail;
@@ -29,7 +30,15 @@ class StoreUserRequest extends FormRequest
             // From the Designation master only, and required for the department's
             // own officers: Department Admin, AO and AH (2026-11-04).
             'designation_id' => [Rule::requiredIf(fn (): bool => in_array($this->input('role'), self::officerRoles(), true)), 'nullable', 'integer', Designation::masterRule()],
-            'role' => ['required', Rule::in(Role::provisionableValues())],
+            'role' => ['required', Rule::in(Role::provisionableValues()), function (string $attribute, mixed $value, \Closure $fail): void {
+                // One Chairman (2026-11-17): a successor is appointed on the CGPSC
+                // Chairman screen, not created here beside the serving one.
+                $holder = $value === Role::Chairman->value ? app(CgpscChairmanService::class)->linkedAccountOtherThan(null) : null;
+
+                if ($holder !== null) {
+                    $fail((string) __('admin.cgpsc_chairman.one_chairman', ['name' => $holder->name]));
+                }
+            }],
 
             // Checked against DigiLocker at first sign-in, for the roles that must
             // verify their identity (2026-10-27).

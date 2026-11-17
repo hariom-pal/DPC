@@ -1515,7 +1515,8 @@ class VacancyMasterService
     /**
      * The department's posts on a higher pay scale than this one (UAT, 2026-11-02),
      * by entry pay. A post whose scale carries no entry pay cannot be compared, so
-     * then every other post is offered rather than none.
+     * then every other post is offered rather than none; and another post with no
+     * entry pay is offered too.
      *
      * @return Collection<int, DepartmentPost>
      */
@@ -1530,7 +1531,10 @@ class VacancyMasterService
             ->whereNotNull('active_flag')
             ->orderBy('name')
             ->get()
-            ->filter(fn (DepartmentPost $higher): bool => $own === null || ($higher->payScale->minimum_pay ?? 0) > $own)
+            // A post whose own entry pay is not recorded cannot be compared either, so
+            // it is offered rather than silently dropped (2026-11-17: the list came
+            // up empty for a department whose posts had no pay scale).
+            ->filter(fn (DepartmentPost $higher): bool => $own === null || $higher->payScale?->minimum_pay === null || $higher->payScale->minimum_pay > $own)
             ->values();
     }
 

@@ -22,6 +22,11 @@
 
     /** dd-mm-yyyy, or '' when the date of birth is not a whole date. */
     function retires(dob, age) {
+        // The shared date picker shows DD-MM-YYYY; the field it posts holds
+        // YYYY-MM-DD. Either is read (2026-11-17: the picker took the `c_dob` id,
+        // so this read 01-10-1985 as the year 1 and showed nothing).
+        var dmy = /^(\d{1,2})-(\d{1,2})-(\d{4})$/.exec(dob);
+        if (dmy) { dob = dmy[3] + '-' + dmy[2] + '-' + dmy[1]; }
         var parts = dob.split('-').map(Number);
         if (parts.length !== 3 || parts.some(isNaN) || parts[0] < 1000) { return ''; }
         // Day 0 of a month is the last day of the month before: the birth month's
@@ -35,7 +40,10 @@
         var form = out.form;
         var reason = form && form.querySelector('[name="reason"]');
         if (!reason) { return; }
+        // The visible box (which carries `required`) and the field that is posted:
+        // the date picker splits one into two and gives the box the id.
         var dob = form.querySelector('#c_dob');
+        var dobValue = form.querySelector('[name="date_of_birth"]') || dob;
         var date = form.querySelector('#c_date');
         var age = parseInt(out.getAttribute('data-retirement-age') || '', 10);
 
@@ -48,14 +56,16 @@
                 date.disabled = retirement;
             }
             if (dob) { dob.required = retirement && !isNaN(age); }
-            out.value = retirement && !isNaN(age) && dob && dob.value ? retires(dob.value, age) : '';
+            out.value = retirement && !isNaN(age) && dobValue && dobValue.value ? retires(dobValue.value, age) : '';
         };
 
         reason.addEventListener('change', sync);
-        if (dob) {
-            dob.addEventListener('change', sync);
-            dob.addEventListener('input', sync);
-        }
+        [dob, dobValue].forEach(function (el) {
+            if (el) {
+                el.addEventListener('change', sync);
+                el.addEventListener('input', sync);
+            }
+        });
         sync();
     });
 })();

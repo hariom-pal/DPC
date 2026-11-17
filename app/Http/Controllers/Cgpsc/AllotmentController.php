@@ -9,7 +9,6 @@ use App\Domain\Cgpsc\Models\DpcAllotment;
 use App\Domain\Cgpsc\Requests\AllotDpcRequest;
 use App\Domain\Cgpsc\Services\AllotmentService;
 use App\Domain\Dpc\Enums\DpcProposalStatus;
-use App\Domain\Dpc\Models\DpcCommitteeMember;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Shared\Workflow\WorkflowException;
 use App\Http\Controllers\Controller;
@@ -52,21 +51,6 @@ class AllotmentController extends Controller
             ->get()
             ->keyBy('dpc_proposal_id');
 
-        /*
-         | Each proposal's serving committee — read once and used twice below, for
-         | who may preside and who may be allotted to. One query grouped in memory
-         | rather than one per row, for the same reason the allotment lookups above
-         | are: this is a list, and an N+1 here would grow with the Commission's
-         | workload rather than with anything a test would notice.
-         */
-        $committee = DpcCommitteeMember::query()
-            ->whereIn('dpc_proposal_id', $forwarded->pluck('id'))
-            ->serving()
-            ->with('user')
-            ->orderBy('sort_order')
-            ->orderBy('id')
-            ->get();
-
         // The allotment each current one replaced, so S30's old-beside-new
         // display costs no extra query per row.
         $supersededByCurrent = DpcAllotment::query()
@@ -80,29 +64,14 @@ class AllotmentController extends Controller
             'currentByProposal' => $currentByProposal,
             'supersededByCurrent' => $supersededByCurrent,
 
-            // Who may preside, per proposal (business clarification, 2026-09-05).
-            'committeeByProposal' => $committee->groupBy('dpc_proposal_id'),
-
             /*
-             | Who each DPC may be allotted to: **its own committee**, not every
-             | Commission account (business instruction, 2026-09-06).
-             |
-             | > *When we already selected the members at DPC creation time, the
-             | > Chairman should allot the DPC to one of those members — showing
-             | > every member is wrong.*
-             |
-             | Filtered to seats that carry an account, because an allottee has to
-             | sign in and act: they accept the DPC, schedule the sitting and
-             | conduct it. A committee row describing somebody with no portal
-             | account is a real member of the committee and simply cannot be the
-             | one who executes it.
-             |
-             | Derived from the same collection the presiding list is, so the page
-             | still costs one committee query however many DPCs are listed.
+             | Who a DPC may be allotted to — and so who presides over it as its DPC
+             | Chairman, the two being one person (business instruction,
+             | 2026-11-17): the Commission's own active accounts holding Member,
+             | CGPSC or Chairman, CGPSC, as created in User Management. Not the
+             | DPC's committee.
              */
-            'allotteesByProposal' => $committee
-                ->filter(fn (DpcCommitteeMember $seat): bool => $seat->user_id !== null)
-                ->groupBy('dpc_proposal_id'),
+            'allottees' => $this->allotments->allottees(),
         ]);
     }
 
@@ -117,7 +86,6 @@ class AllotmentController extends Controller
             $request,
             $this->defaultDpcDate($request),
             $this->completeBy($request),
-            $this->dpcChairman($request, $dpcProposal),
         ), 'DPC allotted.');
     }
 
@@ -133,7 +101,6 @@ class AllotmentController extends Controller
             (string) $request->validated('reallotment_reason'),
             $this->defaultDpcDate($request),
             $this->completeBy($request),
-            $this->dpcChairman($request, $dpcProposal),
         ), 'DPC re-allotted. The previous allotment is retained in the history.');
     }
 
@@ -154,35 +121,6 @@ class AllotmentController extends Controller
     private function allottee(AllotDpcRequest $request): User
     {
         return User::query()->findOrFail($request->validated('allotted_to'));
-    }
-
-    /**
-     * The committee member the Chairman named to preside (business clarification,
-     * 2026-09-05).
-     *
-     * Re-fetched under the same two conditions the request validated — this
-     * proposal's committee, and still serving — rather than trusted from the
-     * payload. The request proved an id; this is the object, and looking it up
-     * with the same scope means there is no window in which a validated id
-     * becomes an unscoped lookup.
-     *
-     * Nullable in the return type although the field is required, for the same
-     * reason {@see completeBy()} is: the service must keep accepting null for the
-     * non-HTTP callers and for allotments made before this field existed.
-     */
-    private function dpcChairman(AllotDpcRequest $request, DpcProposal $proposal): ?DpcCommitteeMember
-    {
-        $id = $request->validated('dpc_chairman_member_id');
-
-        if (! is_numeric($id)) {
-            return null;
-        }
-
-        return DpcCommitteeMember::query()
-            ->where('dpc_proposal_id', $proposal->id)
-            ->serving()
-            ->whereKey((int) $id)
-            ->first();
     }
 
     private function defaultDpcDate(AllotDpcRequest $request): ?Carbon

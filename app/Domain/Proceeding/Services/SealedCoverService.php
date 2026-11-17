@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Proceeding\Services;
 
 use App\Domain\Authentication\Models\User;
+use App\Domain\Cgpsc\Models\DpcAllotment;
 use App\Domain\Dpc\Models\DpcCommitteeMember;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Eligibility\Enums\ListType;
@@ -79,6 +80,17 @@ class SealedCoverService
     {
         if ($user === null) {
             return false;
+        }
+
+        // The person the DPC is allotted to is its DPC Chairman (business
+        // instruction, 2026-11-17). Once a DPC has ever been allotted, only its
+        // current allottee presides — a returned or superseded allotment leaves
+        // nobody until the Chairman allots again. A committee seat's flag answers
+        // only for a DPC never allotted at all.
+        $allotments = DpcAllotment::query()->where('dpc_proposal_id', $proposal->id);
+
+        if ($allotments->clone()->exists()) {
+            return $allotments->current()->where('allotted_to', $user->id)->exists();
         }
 
         return DpcCommitteeMember::query()

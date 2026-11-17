@@ -57,6 +57,14 @@
                         @csrf
                         <button class="btn btn-outline-warning btn-sm mt-3" id="chairman-reset-password">{{ __('admin.users.index.reset_password') }}</button>
                     </form>
+                @else
+                    {{-- No login yet: create one from this record, so there is a password to reset. --}}
+                    <form method="POST" action="{{ route('admin.cgpsc-chairman.account', $serving) }}" class="d-inline"
+                          data-confirm="{{ __('admin.cgpsc_chairman.account_confirm') }}">
+                        @csrf
+                        <button class="btn btn-outline-primary btn-sm mt-3" id="chairman-create-account">{{ __('admin.cgpsc_chairman.account_create') }}</button>
+                    </form>
+                    <div class="form-text">{{ __('admin.cgpsc_chairman.account_hint') }}</div>
                 @endif
             </div>
         </div>

@@ -210,4 +210,40 @@ class CgpscChairmanService
             ->orderByDesc('id')
             ->get();
     }
+
+    /**
+     * The account already holding the serving Chairman's office, other than `$except`
+     * (2026-11-17: one Chairman). Used to refuse a second Chairman from User
+     * Management — succession is the CGPSC Chairman screen's.
+     */
+    public function linkedAccountOtherThan(?User $except = null): ?User
+    {
+        $user = $this->serving()?->user;
+
+        return $user !== null && $user->is_active && $user->id !== $except?->id ? $user : null;
+    }
+
+    /**
+     * Link a Chairman account to the serving record when it names none
+     * (2026-11-17), so the CGPSC Chairman screen and User Management describe one
+     * Chairman, not two. Never replaces an account already on the record.
+     */
+    public function linkIfVacant(User $user, ?User $actor = null): void
+    {
+        $serving = $this->serving();
+
+        if ($serving === null || $serving->user_id !== null) {
+            return;
+        }
+
+        $serving->forceFill(['user_id' => $user->id])->save();
+
+        $this->timeline->record(
+            'cgpsc_chairman.account_linked',
+            $serving,
+            sprintf('Login account %s linked to the serving CGPSC Chairman', $user->email ?? ('#'.$user->id)),
+            ['chairman_uuid' => $serving->uuid, 'user_id' => $user->id],
+            $actor,
+        );
+    }
 }

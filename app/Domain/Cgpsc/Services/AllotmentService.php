@@ -7,6 +7,7 @@ namespace App\Domain\Cgpsc\Services;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Cgpsc\Enums\AllotmentStatus;
 use App\Domain\Cgpsc\Models\DpcAllotment;
+use App\Domain\Cgpsc\Requests\AllotDpcRequest;
 use App\Domain\Dpc\Enums\DpcProposalStatus;
 use App\Domain\Dpc\Models\DpcCommitteeMember;
 use App\Domain\Dpc\Models\DpcProposal;
@@ -109,6 +110,23 @@ class AllotmentService
     ) {}
 
     /**
+     * Who a DPC may be allotted to, and so who presides over it as its DPC
+     * Chairman (business instruction, 2026-11-17): the Commission's own active
+     * accounts holding Member, CGPSC or Chairman, CGPSC — created in User
+     * Management, never drawn from a DPC's committee.
+     *
+     * @return Collection<int, User>
+     */
+    public function allottees(): Collection
+    {
+        return User::role(AllotDpcRequest::allottableRoles())
+            ->where('is_active', true)
+            ->with('roles')
+            ->orderBy('name')
+            ->get();
+    }
+
+    /**
      * The proposal's live allotment, or null if it has never been allotted.
      */
     public function current(DpcProposal $proposal): ?DpcAllotment
@@ -187,22 +205,20 @@ class AllotmentService
             return;
         }
 
-        $designated = DpcCommitteeMember::query()
-            ->where('dpc_proposal_id', $proposal->id)
-            ->serving()
-            ->whereNotNull('is_dpc_chairman')
-            ->first();
+        // The DPC Chairman is the current allottee (business instruction,
+        // 2026-11-17), and may still move the execution on.
+        $current = $this->current($proposal);
 
-        if ($designated === null) {
+        if ($current === null) {
             throw new WorkflowException(
-                'This DPC has no DPC Chairman yet. The CGPSC Chairman allots it, naming who will preside.'
+                'This DPC has no DPC Chairman yet. The CGPSC Chairman allots it.'
             );
         }
 
-        if ($designated->user_id !== $actor->id) {
+        if ($current->allotted_to !== $actor->id) {
             throw new WorkflowException(sprintf(
                 'Only the CGPSC Chairman or this DPC\'s Chairman may allot it, and that is %s.',
-                $designated->name,
+                $current->allottee->name ?? '—',
             ));
         }
     }
@@ -421,8 +437,8 @@ class AllotmentService
                      | to a designation event by timestamp and hoping.
                      */
                     'dpc_chairman_member_id' => $presiding?->id,
-                    'dpc_chairman_name' => $presiding?->name,
-                    'dpc_chairman_user_id' => $presiding?->user_id,
+                    'dpc_chairman_name' => $presiding->name ?? $allottee->name,
+                    'dpc_chairman_user_id' => $presiding->user_id ?? $allottee->id,
                 ],
                 // The allottee is a CGPSC user with no department, so no
                 // role-plus-department query can reach them (Decision 5).
@@ -493,17 +509,15 @@ class AllotmentService
          | the form; this is the authority behind it, because a service that trusted
          | its request is one route registration away from not being asked.
          */
-        $seated = DpcCommitteeMember::query()
-            ->where('dpc_proposal_id', $proposal->id)
-            ->serving()
-            ->where('user_id', $allottee->id)
-            ->exists();
-
-        if (! $seated) {
-            throw new WorkflowException(
-                'A DPC is allotted to a serving member of its own committee. '
-                .'Seat this person on the committee first, or choose somebody already on it.'
-            );
+        /*
+         | Superseded 2026-11-17: a DPC is allotted to a Commission account —
+         | Member, CGPSC or Chairman, CGPSC, created in User Management — and that
+         | person is its DPC Chairman. It is no longer drawn from the DPC's own
+         | committee (business instruction: "allot sirf CGPSC staff ko hi hoga,
+         | DPC member ko nahi").
+         */
+        if (! $allottee->hasAnyRole(AllotDpcRequest::allottableRoles())) {
+            throw new WorkflowException('A DPC is allotted to a Member, CGPSC or the Chairman, CGPSC.');
         }
 
         if (! $allottee->is_active) {

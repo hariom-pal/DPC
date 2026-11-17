@@ -1031,6 +1031,10 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
                 Route::resource('cgpsc-chairman', CgpscChairmanController::class)
                     ->parameters(['cgpsc-chairman' => 'cgpscChairman'])
                     ->only(['index', 'create', 'store', 'edit', 'update']);
+                // The serving Chairman's login, created here when the record names
+                // none (2026-11-17), so the Administrator can reset its password.
+                Route::post('cgpsc-chairman/{cgpscChairman}/account', [CgpscChairmanController::class, 'createAccount'])
+                    ->middleware('throttle:password-reset')->name('cgpsc-chairman.account');
 
                 /*
                  | Item 9e: the Administrator may substitute a committee member at

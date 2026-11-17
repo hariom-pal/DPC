@@ -9,6 +9,7 @@ use App\Domain\Authentication\Models\User;
 use App\Domain\Authentication\Services\AccountSessions;
 use App\Domain\Authentication\Services\MobileVerificationWaiver;
 use App\Domain\Authentication\Services\SecurityLog;
+use App\Domain\Committee\Services\CgpscChairmanService;
 use App\Domain\Department\Models\Department;
 use App\Domain\Shared\Services\ActivityTimelineService;
 use App\Domain\UserManagement\IssuedCredentials;
@@ -65,6 +66,11 @@ class UserProvisioningService
 
             $this->grant($user, Role::from($data['role']), self::departmentId($data), $actor);
 
+            // One Chairman (2026-11-17): the account becomes the serving record's.
+            if ($data['role'] === Role::Chairman->value) {
+                app(CgpscChairmanService::class)->linkIfVacant($user, $actor);
+            }
+
             // The mobile cannot be proved by OTP while the SMS gateway is down: the
             // exception is recorded against the administrator who created the account.
             $this->waiver->grant($user, $actor);
@@ -113,6 +119,10 @@ class UserProvisioningService
 
             if (isset($data['role'])) {
                 $this->grant($user, Role::from($data['role']), self::departmentId($data), $actor);
+
+                if ($data['role'] === Role::Chairman->value) {
+                    app(CgpscChairmanService::class)->linkIfVacant($user, $actor);
+                }
             }
 
             $this->timeline->record('user.updated', $user, 'Account details updated', causer: $actor);

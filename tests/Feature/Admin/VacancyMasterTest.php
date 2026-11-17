@@ -1031,6 +1031,8 @@ class VacancyMasterTest extends TestCase
         $higher->forceFill(['pay_scale_id' => $scale('L12', 78800)])->save();
         $lower = $this->makePost($this->department, 'Lecturer', 10);
         $lower->forceFill(['pay_scale_id' => $scale('L8', 47600)])->save();
+        // No pay scale recorded: cannot be compared, so offered rather than dropped (2026-11-17).
+        $unscaled = $this->makePost($this->department, 'Director', 10);
 
         $this->openDraft();
         $this->saveWorking()->assertSessionHasNoErrors();
@@ -1039,6 +1041,7 @@ class VacancyMasterTest extends TestCase
             ->assertOk()
             ->assertSee('<option value="'.$higher->id.'"', false)
             ->assertDontSee('<option value="'.$lower->id.'"', false)
+            ->assertSee('<option value="'.$unscaled->id.'"', false)
             ->assertSee(__('vacancymaster.pm.retirement_date_calculated'))
             ->assertSee(__('vacancymaster.pm.date_higher_dpc'));
 

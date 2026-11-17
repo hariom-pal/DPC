@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\UserManagement\Requests;
 
 use App\Domain\Authentication\Models\User;
+use App\Domain\Committee\Services\CgpscChairmanService;
 use App\Domain\Master\Models\Designation;
 use App\Enums\Role;
 use App\Support\OfficialEmail;
@@ -41,7 +42,15 @@ class UpdateUserRequest extends FormRequest
             'email' => ['required', 'email', 'max:255', ...($this->emailChanged($current) ? [OfficialEmail::RULE] : []), Rule::unique('users', 'email')->withoutTrashed()->ignore($id)],
             'mobile' => ['required', 'digits:10', Rule::unique('users', 'mobile')->withoutTrashed()->ignore($id)],
             'designation_id' => [Rule::requiredIf(fn (): bool => in_array($this->input('role'), StoreUserRequest::officerRoles(), true)), 'nullable', 'integer', Designation::masterRule($current instanceof User ? $current->designation_id : null)],
-            'role' => ['required', Rule::in(Role::provisionableValues())],
+            'role' => ['required', Rule::in(Role::provisionableValues()), function (string $attribute, mixed $value, \Closure $fail) use ($current): void {
+                // One Chairman (2026-11-17): a successor is appointed on the CGPSC
+                // Chairman screen, not created here beside the serving one.
+                $holder = $value === Role::Chairman->value ? app(CgpscChairmanService::class)->linkedAccountOtherThan($current instanceof User ? $current : null) : null;
+
+                if ($holder !== null) {
+                    $fail((string) __('admin.cgpsc_chairman.one_chairman', ['name' => $holder->name]));
+                }
+            }],
 
             /*
              | Department — required for a departmental role, refused for a

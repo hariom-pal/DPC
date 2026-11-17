@@ -10,12 +10,12 @@ use App\Domain\Cgpsc\Enums\AllotmentStatus;
 use App\Domain\Cgpsc\Models\DpcAllotment;
 use App\Domain\Cgpsc\Services\AllotmentService;
 use App\Domain\Department\Models\Department;
-use App\Domain\Dpc\Enums\CommitteeCapacity;
 use App\Domain\Dpc\Enums\DpcProposalStatus;
 use App\Domain\Dpc\Models\DpcCommitteeMember;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\DpcType;
+use App\Domain\Proceeding\Services\SealedCoverService;
 use App\Domain\Shared\Events\WorkflowTransitioned;
 use App\Domain\Shared\Models\ActivityTimeline;
 use App\Domain\Shared\Workflow\WorkflowException;
@@ -129,7 +129,6 @@ class AllotmentTest extends TestCase
     {
         return $this->actingAs($this->chairman)->post(route('cgpsc.allotments.store', $this->proposal), array_filter([
             'allotted_to' => ($to ?? $this->memberOne)->id,
-            'dpc_chairman_member_id' => $this->presidingSeatId($this->proposal),
             'default_dpc_date' => $date,
             'complete_by' => $completeBy,
         ]));
@@ -140,142 +139,39 @@ class AllotmentTest extends TestCase
     // ------------------------------------------------- who presides (2026-09-05)
 
     /**
-     * Business clarification of 2026-09-05: the Chairman's three decisions —
-     * allottee, DPC Chairman, completion deadline — are one act.
+     * Business instruction of 2026-11-17: "Allot to" and "DPC Chairman" are one
+     * choice — the person a DPC is allotted to presides over it.
      */
-    public function test_allotting_designates_who_will_preside(): void
+    public function test_the_allottee_is_the_dpc_chairman(): void
     {
-        $seats = DpcCommitteeMember::query()
-            ->where('dpc_proposal_id', $this->proposal->id)
-            ->orderBy('sort_order')
-            ->get();
-
-        $member = $seats->firstWhere('capacity', CommitteeCapacity::Member);
-
         $this->actingAs($this->chairman)->post(route('cgpsc.allotments.store', $this->proposal), [
             'allotted_to' => $this->memberOne->id,
-            'dpc_chairman_member_id' => $member->id,
             'complete_by' => '2026-09-30',
         ])->assertSessionHasNoErrors();
 
-        $this->assertTrue((bool) $member->refresh()->is_dpc_chairman);
+        $covers = app(SealedCoverService::class);
+        $this->assertTrue($covers->isDpcChairman($this->proposal, $this->memberOne));
+        $this->assertFalse($covers->isDpcChairman($this->proposal, $this->memberTwo));
 
-        // Exactly one, always.
-        $this->assertSame(1, DpcCommitteeMember::query()
-            ->where('dpc_proposal_id', $this->proposal->id)
-            ->whereNotNull('is_dpc_chairman')
-            ->count());
-    }
+        $entry = ActivityTimeline::query()->where('subject_id', $this->proposal->id)->where('event', 'dpc_cgpsc.allot')->sole();
+        $this->assertSame($this->memberOne->id, $entry->properties['dpc_chairman_user_id']);
 
-    /**
-     * Option A of the clarification — the CGPSC Chairman presides personally — is
-     * the same field with their own seat selected, not a separate control.
-     */
-    public function test_the_cgpsc_chairman_may_preside_personally(): void
-    {
-        $seat = DpcCommitteeMember::query()
-            ->where('dpc_proposal_id', $this->proposal->id)
-            ->where('capacity', CommitteeCapacity::CgpscChairman)
-            ->sole();
-
-        $this->actingAs($this->chairman)->post(route('cgpsc.allotments.store', $this->proposal), [
-            'allotted_to' => $this->memberOne->id,
-            'dpc_chairman_member_id' => $seat->id,
-            'complete_by' => '2026-09-30',
-        ])->assertSessionHasNoErrors();
-
-        $this->assertTrue((bool) $seat->refresh()->is_dpc_chairman);
-    }
-
-    /**
-     * *"The DPC Allottee and the DPC Chairman MAY be the same person OR MAY be
-     * different persons. Both situations are valid."*
-     */
-    public function test_the_allottee_and_the_presiding_member_may_be_different_people(): void
-    {
-        $member = DpcCommitteeMember::query()
-            ->where('dpc_proposal_id', $this->proposal->id)
-            ->where('capacity', CommitteeCapacity::Member)
-            ->orderBy('sort_order')
-            ->firstOrFail();
-
-        $this->actingAs($this->chairman)->post(route('cgpsc.allotments.store', $this->proposal), [
+        // Re-allotted: the new allottee presides, the old one no longer does.
+        $this->actingAs($this->chairman)->post(route('cgpsc.allotments.reallot', $this->proposal), [
             'allotted_to' => $this->memberTwo->id,
-            'dpc_chairman_member_id' => $member->id,
             'complete_by' => '2026-09-30',
+            'reallotment_reason' => 'On leave.',
         ])->assertSessionHasNoErrors();
+        $this->assertTrue($covers->isDpcChairman($this->proposal, $this->memberTwo));
+        $this->assertFalse($covers->isDpcChairman($this->proposal, $this->memberOne));
 
-        $allotment = DpcAllotment::query()->sole();
-
-        $this->assertSame($this->memberTwo->id, $allotment->allotted_to);
-        $this->assertNotSame($this->memberTwo->id, $member->refresh()->user_id);
-        $this->assertTrue((bool) $member->is_dpc_chairman);
-    }
-
-    public function test_naming_nobody_to_preside_is_refused(): void
-    {
-        $this->actingAs($this->chairman)->post(route('cgpsc.allotments.store', $this->proposal), [
-            'allotted_to' => $this->memberOne->id,
-            'complete_by' => '2026-09-30',
-        ])->assertSessionHasErrors('dpc_chairman_member_id');
-
-        $this->assertSame(0, DpcAllotment::query()->count());
-    }
-
-    /**
-     * The candidate set is *this* DPC's committee and nothing wider — a seat on
-     * another DPC's committee is a validation error, not a service exception.
-     */
-    public function test_a_seat_from_another_dpcs_committee_is_refused(): void
-    {
-        $other = DpcProposal::query()->create([
-            'department_id' => $this->department->id,
-            'dpc_type_id' => $this->proposal->dpc_type_id,
-            'promotion_to_post_id' => $this->proposal->promotion_to_post_id,
-            'promotion_from_post_id' => $this->proposal->promotion_from_post_id,
-            'proposal_date' => '2026-06-25',
-            'status' => DpcProposalStatus::Approved->value,
-            'dpc_code' => 'DPC-2026-HE-0002',
-            'forwarded_at' => now(),
-        ]);
-
-        $foreignSeat = $this->seatCommittee($other)[0];
-
-        $this->actingAs($this->chairman)->post(route('cgpsc.allotments.store', $this->proposal), [
-            'allotted_to' => $this->memberOne->id,
-            'dpc_chairman_member_id' => $foreignSeat->id,
-            'complete_by' => '2026-09-30',
-        ])->assertSessionHasErrors('dpc_chairman_member_id');
-
-        $this->assertSame(0, DpcAllotment::query()->count());
-    }
-
-    /**
-     * *"The reassignment must be completely auditable."* The allotment event
-     * carries who presides, so it is answerable without joining to a separate
-     * designation event by timestamp.
-     */
-    public function test_the_presiding_member_is_recorded_on_the_allotment_event(): void
-    {
-        $member = DpcCommitteeMember::query()
-            ->where('dpc_proposal_id', $this->proposal->id)
-            ->where('capacity', CommitteeCapacity::Member)
-            ->orderBy('sort_order')
-            ->firstOrFail();
-
-        $this->actingAs($this->chairman)->post(route('cgpsc.allotments.store', $this->proposal), [
-            'allotted_to' => $this->memberOne->id,
-            'dpc_chairman_member_id' => $member->id,
-            'complete_by' => '2026-09-30',
-        ])->assertSessionHasNoErrors();
-
-        $entry = ActivityTimeline::query()
-            ->where('subject_id', $this->proposal->id)
-            ->where('event', 'dpc_cgpsc.allot')
-            ->sole();
-
-        $this->assertSame($member->id, $entry->properties['dpc_chairman_member_id']);
-        $this->assertSame($member->name, $entry->properties['dpc_chairman_name']);
+        // A legacy presiding flag on a committee seat confers nothing once the DPC
+        // has been allotted — not even after the allotment is returned.
+        DpcCommitteeMember::query()->where('dpc_proposal_id', $this->proposal->id)->where('user_id', $this->memberOne->id)
+            ->update(['is_dpc_chairman' => 1]);
+        DpcAllotment::query()->current()->update(['returned_at' => now(), 'status' => AllotmentStatus::Returned->value]);
+        $this->assertFalse($covers->isDpcChairman($this->proposal, $this->memberOne));
+        $this->assertFalse($covers->isDpcChairman($this->proposal, $this->memberTwo));
     }
 
     public function test_the_chairman_can_allot_a_forwarded_proposal(): void
@@ -311,7 +207,6 @@ class AllotmentTest extends TestCase
     {
         $this->actingAs($this->chairman)->post(route('cgpsc.allotments.store', $this->proposal), [
             'allotted_to' => $this->memberOne->id,
-            'dpc_chairman_member_id' => $this->presidingSeatId($this->proposal),
             'complete_by' => '2026-09-30',
             'default_dpc_date' => '2026-07-10',
         ])->assertSessionHasNoErrors();
@@ -320,57 +215,34 @@ class AllotmentTest extends TestCase
     }
 
     /**
-     * A DPC is allotted to a serving member of **its own committee**, and only to
-     * one holding a portal account (business instruction, 2026-09-06).
-     *
-     * > *When we already selected the members at DPC creation time, the Chairman
-     * > should allot the DPC to one of those members — showing every member is
-     * > wrong.*
+     * Only the Commission's own accounts (business instruction, 2026-11-17: "allot
+     * sirf CGPSC staff ko hi hoga, DPC member ko nahi"). A DPC committee member who
+     * holds no Commission role is refused, even when seated on this committee.
      */
-    /**
-     * **Committee membership is the qualification, not a CGPSC role** (business
-     * correction, 2026-09-07).
-     *
-     * > *I am allotting the DPC to Mamta and making Hari Om Pal DPC Chairman, and I
-     * > get "A DPC may only be allotted to a CGPSC Member or the Chairman" — why?
-     * > It should allow it.*
-     *
-     * It should. The service asked for `Role::Member` or `Role::Chairman`, which was
-     * the old proxy for "a Commission actor" from before allotment was scoped to a
-     * committee — and item 7 forbids granting a Commission role for sitting on one.
-     * So the two rules refused exactly the people the committee rule elects.
-     */
-    public function test_a_committee_member_holding_no_commission_role_may_be_allotted(): void
+    public function test_a_committee_member_holding_no_commission_role_cannot_be_allotted(): void
     {
         $plain = User::factory()->create(['name' => 'Smt. Mamta']);
-
-        // Deliberately no role at all — this is what a person seated on one DPC's
-        // committee looks like.
-        $this->assertTrue($plain->roles->isEmpty());
-
         $this->seatAccountOnCommittee($this->proposal, $plain);
 
         $this->actingAs($this->chairman)->post(route('cgpsc.allotments.store', $this->proposal), [
             'allotted_to' => $plain->id,
-            'dpc_chairman_member_id' => $this->presidingSeatId($this->proposal),
-            'complete_by' => '2026-09-30',
-        ])->assertSessionHasNoErrors();
-
-        $this->assertSame($plain->id, DpcAllotment::query()->sole()->allotted_to);
-    }
-
-    public function test_a_dpc_cannot_be_allotted_to_someone_off_its_committee(): void
-    {
-        $stranger = User::factory()->create(['name' => 'Not On This Committee']);
-        $stranger->assignRole(Role::Member->value);
-
-        $this->actingAs($this->chairman)->post(route('cgpsc.allotments.store', $this->proposal), [
-            'allotted_to' => $stranger->id,
-            'dpc_chairman_member_id' => $this->presidingSeatId($this->proposal),
             'complete_by' => '2026-09-30',
         ])->assertSessionHasErrors('allotted_to');
 
         $this->assertSame(0, DpcAllotment::query()->count());
+    }
+
+    public function test_a_cgpsc_member_need_not_sit_on_the_committee(): void
+    {
+        $member = User::factory()->create(['name' => 'Not On This Committee']);
+        $member->assignRole(Role::Member->value);
+
+        $this->actingAs($this->chairman)->post(route('cgpsc.allotments.store', $this->proposal), [
+            'allotted_to' => $member->id,
+            'complete_by' => '2026-09-30',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame($member->id, DpcAllotment::query()->sole()->allotted_to);
     }
 
     public function test_a_proposal_not_yet_forwarded_cannot_be_allotted(): void
@@ -404,7 +276,6 @@ class AllotmentTest extends TestCase
     public function test_a_dpc_cannot_be_allotted_to_a_non_cgpsc_user(): void
     {
         $this->actingAs($this->chairman)->post(route('cgpsc.allotments.store', $this->proposal), [
-            'dpc_chairman_member_id' => $this->presidingSeatId($this->proposal),
             'complete_by' => '2026-09-30',
             'allotted_to' => $this->ao->id,
         ])->assertSessionHasErrors('allotted_to');
@@ -422,29 +293,23 @@ class AllotmentTest extends TestCase
     }
 
     /**
-     * The screen offers **this DPC's committee**, not the Commission's roll
-     * (business instruction, 2026-09-06).
-     *
-     * This test asserted the opposite until that date, under Architect Decision 1 —
-     * that the PPT's M1–M5 columns were a layout rather than a limit, so every
-     * Commission account should be offered. That reading is superseded: the limit is
-     * not five, it is this committee.
+     * One field, "Allot to DPC Chairman", offering the Commission's accounts — not
+     * the DPC committee (business instruction, 2026-11-17).
      */
-    public function test_the_screen_offers_only_this_dpcs_own_committee(): void
+    public function test_the_screen_offers_cgpsc_accounts_in_one_field(): void
     {
-        foreach (range(1, 7) as $n) {
-            User::factory()->create(['name' => "Extra Member {$n}"])
-                ->assignRole(Role::Member->value);
+        foreach (range(1, 3) as $n) {
+            User::factory()->create(['name' => "Extra Member {$n}"])->assignRole(Role::Member->value);
         }
 
-        $response = $this->actingAs($this->chairman)->get(route('cgpsc.allotments.index'))->assertOk();
+        $response = $this->actingAs($this->chairman)->get(route('cgpsc.allotments.index'))->assertOk()
+            ->assertSee('Allot to DPC Chairman')
+            ->assertDontSee('name="dpc_chairman_member_id"', false)
+            ->assertDontSee('Committee Member 1');
 
-        foreach (range(1, 7) as $n) {
-            $response->assertDontSee("Extra Member {$n}");
+        foreach (range(1, 3) as $n) {
+            $response->assertSee("Extra Member {$n}");
         }
-
-        // The seats that *are* offered are this proposal's own.
-        $response->assertSee('Committee Member 1');
     }
 
     // ------------------------------------------------ declining (2026-09-06)
@@ -552,7 +417,6 @@ class AllotmentTest extends TestCase
         $first = DpcAllotment::query()->firstOrFail();
 
         $this->actingAs($this->chairman)->post(route('cgpsc.allotments.reallot', $this->proposal), [
-            'dpc_chairman_member_id' => $this->presidingSeatId($this->proposal),
             'complete_by' => '2026-09-30',
             'allotted_to' => $this->memberTwo->id,
             'reallotment_reason' => 'Member One is on leave.',
@@ -577,7 +441,6 @@ class AllotmentTest extends TestCase
         $this->allot();
 
         $this->actingAs($this->chairman)->post(route('cgpsc.allotments.reallot', $this->proposal), [
-            'dpc_chairman_member_id' => $this->presidingSeatId($this->proposal),
             'complete_by' => '2026-09-30',
             'allotted_to' => $this->memberTwo->id,
         ])->assertSessionHasErrors('reallotment_reason');
@@ -590,7 +453,6 @@ class AllotmentTest extends TestCase
         $this->allot();
 
         $this->actingAs($this->chairman)->post(route('cgpsc.allotments.reallot', $this->proposal), [
-            'dpc_chairman_member_id' => $this->presidingSeatId($this->proposal),
             'complete_by' => '2026-09-30',
             'allotted_to' => $this->memberOne->id,
             'reallotment_reason' => 'No change.',
@@ -600,7 +462,6 @@ class AllotmentTest extends TestCase
     public function test_an_unallotted_dpc_cannot_be_re_allotted(): void
     {
         $this->actingAs($this->chairman)->post(route('cgpsc.allotments.reallot', $this->proposal), [
-            'dpc_chairman_member_id' => $this->presidingSeatId($this->proposal),
             'complete_by' => '2026-09-30',
             'allotted_to' => $this->memberTwo->id,
             'reallotment_reason' => 'Nothing to move.',
@@ -670,7 +531,6 @@ class AllotmentTest extends TestCase
         // state. This asserts the timeline carries enough on its own.
         $this->allot();
         $this->actingAs($this->chairman)->post(route('cgpsc.allotments.reallot', $this->proposal), [
-            'dpc_chairman_member_id' => $this->presidingSeatId($this->proposal),
             'complete_by' => '2026-09-30',
             'allotted_to' => $this->memberTwo->id,
             'reallotment_reason' => 'Member One is on leave.',
@@ -695,7 +555,6 @@ class AllotmentTest extends TestCase
     {
         $this->allot();
         $this->actingAs($this->chairman)->post(route('cgpsc.allotments.reallot', $this->proposal), [
-            'dpc_chairman_member_id' => $this->presidingSeatId($this->proposal),
             'complete_by' => '2026-09-30',
             'allotted_to' => $this->memberTwo->id,
             'reallotment_reason' => 'Member One is on leave.',
@@ -739,7 +598,6 @@ class AllotmentTest extends TestCase
         Event::fake([WorkflowTransitioned::class]);
 
         $this->actingAs($this->chairman)->post(route('cgpsc.allotments.reallot', $this->proposal), [
-            'dpc_chairman_member_id' => $this->presidingSeatId($this->proposal),
             'complete_by' => '2026-09-30',
             'allotted_to' => $this->memberTwo->id,
             'reallotment_reason' => 'Member One is on leave.',
@@ -765,7 +623,6 @@ class AllotmentTest extends TestCase
     public function test_a_member_who_is_not_this_dpcs_chairman_cannot_allot(): void
     {
         $this->actingAs($this->memberOne)->post(route('cgpsc.allotments.store', $this->proposal), [
-            'dpc_chairman_member_id' => $this->presidingSeatId($this->proposal),
             'complete_by' => '2026-09-30',
             'allotted_to' => $this->memberTwo->id,
         ])->assertSessionHasErrors('allotment');
@@ -777,7 +634,6 @@ class AllotmentTest extends TestCase
     {
         $this->actingAs($this->ao)->get(route('cgpsc.allotments.index'))->assertForbidden();
         $this->actingAs($this->ao)->post(route('cgpsc.allotments.store', $this->proposal), [
-            'dpc_chairman_member_id' => $this->presidingSeatId($this->proposal),
             'complete_by' => '2026-09-30',
             'allotted_to' => $this->memberOne->id,
         ])->assertForbidden();

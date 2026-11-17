@@ -528,25 +528,29 @@ class FullDpcConditionsTest extends TestCase
     }
 
     /**
-     * 9b. The DPC's Chairman may be a committee member with no Commission role and
-     * no allotment (2026-11-06): they reach the sealed covers from their sitting,
-     * open one, and read its evidence; the Member who is not the Chairman cannot.
+     * 9b. The DPC's Chairman is the person it is allotted to (business instruction,
+     * 2026-11-17, superseding the committee-seat designation of 2026-11-06): the
+     * allotted Member opens a sealed cover and reads its evidence; a committee
+     * member flagged as presiding under the old rule, not the allottee, cannot.
      */
-    public function test_9b_a_committee_member_presiding_opens_the_sealed_cover(): void
+    public function test_9b_the_allottee_presiding_opens_the_sealed_cover(): void
     {
         $c = $this->dpc(['sealed' => [2]]);
         $proceeding = $this->conclude($c);
 
         $seats = DpcCommitteeMember::query()->where('dpc_proposal_id', $c['proposal']->id);
-        $presiding = (clone $seats)->whereNotNull('user_id')->where('user_id', '!=', $c['member']->id)->whereNull('is_dpc_chairman')
+        $flagged = (clone $seats)->whereNotNull('user_id')->where('user_id', '!=', $c['member']->id)
             ->get()->first(fn (DpcCommitteeMember $seat): bool => $seat->user !== null && $seat->user->getRoleNames()->isEmpty());
-        $this->assertNotNull($presiding, 'A committee member without a Commission role.');
+        $this->assertNotNull($flagged, 'A committee member without a Commission role.');
         (clone $seats)->update(['is_dpc_chairman' => null]);
-        $presiding->forceFill(['is_dpc_chairman' => 1])->save();
-        $chair = $presiding->user;
-        // Past the first sign-in (its password already changed).
-        $chair->forceFill(['must_change_password' => false, 'email_verified_at' => now()])->save();
+        $flagged->forceFill(['is_dpc_chairman' => 1])->save();
+        $other = $flagged->user;
+        $other->forceFill(['must_change_password' => false, 'email_verified_at' => now()])->save();
 
+        // The committee member flagged under the old rule does not preside.
+        $this->actingAs($other)->get(route('cgpsc.proceedings.sealed-covers', $proceeding))->assertForbidden();
+
+        $chair = $c['member'];
         $this->actingAs($chair)->get(route('sitting.show', $c['proposal']))->assertOk()->assertSee('id="sealed-covers-link"', false);
         $this->ok($this->actingAs($chair)->post(route('cgpsc.proceedings.sealed-covers.open', $proceeding), [
             'sn' => 2, 'outcome' => 'cleared', 'opened_on' => now()->toDateString(),
@@ -555,10 +559,7 @@ class FullDpcConditionsTest extends TestCase
         ]));
         $opening = DpcSealedCoverOpening::query()->sole();
         $this->actingAs($chair)->get(route('cgpsc.proceedings.sealed-covers.document', [$proceeding, $opening]))->assertOk();
-
-        // The Member who no longer presides cannot open or read it.
-        $this->actingAs($c['member'])->get(route('cgpsc.proceedings.sealed-covers', $proceeding))->assertForbidden();
-        $this->actingAs($c['member'])->get(route('cgpsc.proceedings.sealed-covers.document', [$proceeding, $opening]))->assertForbidden();
+        $this->actingAs($other)->get(route('cgpsc.proceedings.sealed-covers.document', [$proceeding, $opening]))->assertForbidden();
     }
 
     /**
@@ -992,8 +993,7 @@ class FullDpcConditionsTest extends TestCase
     private function conclude(array $c, array $holds = []): DpcProceeding
     {
         return $this->step('9 CGPSC: allot, accept, schedule, open, calculate, approve', function () use ($c, $holds): DpcProceeding {
-            $seat = DpcCommitteeMember::query()->where('dpc_proposal_id', $c['proposal']->id)->where('user_id', $c['member']->id)->sole();
-            $this->ok($this->actingAs($c['chairman'])->post(route('cgpsc.allotments.store', $c['proposal']), ['allotted_to' => $c['member']->id, 'dpc_chairman_member_id' => $seat->id, 'complete_by' => now()->addDays(30)->toDateString()]));
+            $this->ok($this->actingAs($c['chairman'])->post(route('cgpsc.allotments.store', $c['proposal']), ['allotted_to' => $c['member']->id, 'complete_by' => now()->addDays(30)->toDateString()]));
             $this->ok($this->actingAs($c['member'])->post(route('cgpsc.schedules.accept', $c['proposal'])));
             $this->ok($this->actingAs($c['member'])->post(route('cgpsc.schedules.store', $c['proposal']), ['dpc_at' => now()->addDays(2)->format('Y-m-d\TH:i')]));
             $this->ok($this->actingAs($c['member'])->post(route('cgpsc.proceedings.open', $c['proposal'])));

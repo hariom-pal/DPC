@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Cgpsc\Requests;
 
+use App\Domain\Authentication\Models\User;
 use App\Enums\Role;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -25,10 +26,9 @@ use Illuminate\Validation\Rule;
  * Chairman on that date — cannot operate on an allotment that has none. An
  * optional deadline would be a deadline most allotments did not have.
  *
- * **`dpc_chairman_member_id` is required too** (business clarification,
- * 2026-09-05), which makes three required fields carrying the Chairman's three
- * decisions: who executes, who presides, and by when. They are collected together
- * because they are decided together.
+ * **The allottee is the DPC Chairman** (business instruction, 2026-11-17): the
+ * form used to ask for both separately, and they are one person. Who executes and
+ * presides, and by when, are the Chairman's two decisions.
  */
 class AllotDpcRequest extends FormRequest
 {
@@ -44,58 +44,25 @@ class AllotDpcRequest extends FormRequest
     {
         return [
             /*
-             | The member this DPC is allotted to, **from this DPC's own committee**
-             | (business instruction, 2026-09-06).
-             |
-             | > *When we already selected the members at DPC creation time, the
-             | > Chairman should allot the DPC to one of those members — showing
-             | > every member is wrong.*
-             |
-             | Scoped in the rule rather than checked afterwards, so an id from
-             | another DPC's committee fails as a validation error and never reaches
-             | the service. The subquery matches on the **account**, because
-             | `allotted_to` names a user who has to sign in and act, while a
-             | committee row may describe somebody with no account at all — those
-             | rows are simply not offered.
-             |
-             | `active_flag` excludes a member who has been replaced: a substitution
-             | is exactly when a stale form would allot to somebody who has stood
-             | down.
+             | The person this DPC is allotted to, who is also its DPC Chairman
+             | (business instruction, 2026-11-17: "Allot to" and "DPC Chairman" are
+             | one choice). An active Commission account holding Member, CGPSC or
+             | Chairman, CGPSC — not a DPC committee member. The service checks the
+             | same rule again, for callers that do not come through this form.
              */
             'allotted_to' => [
                 'required',
-                Rule::exists('users', 'id')->where('is_active', true),
-                Rule::exists('dpc_committee_members', 'user_id')
-                    ->where('dpc_proposal_id', $this->route('dpcProposal')?->id)
-                    ->whereNotNull('active_flag'),
-            ],
-
-            /*
-             | Who will preside over this DPC (business clarification, 2026-09-05).
-             |
-             | **Required, and drawn from this proposal's own committee.** The
-             | clarification gives the CGPSC Chairman three decisions in one act —
-             | the allottee, the DPC Chairman and the deadline — so a form that
-             | collected two of them would leave the third to a screen the Chairman
-             | might never open, and a DPC allotted with nobody presiding.
-             |
-             | Scoped to `dpc_proposal_id` in the rule itself rather than checked
-             | afterwards: this committee's own rows are the only valid values, and
-             | an id from another DPC's committee must fail as a validation error
-             | rather than reach the service. `active_flag` excludes a member who
-             | has been replaced — a substitution is exactly when a stale form
-             | would name somebody who has stood down.
-             |
-             | The CGPSC Chairman's own seat is on every committee, so **Option A**
-             | of the clarification — the Chairman presiding personally — is this
-             | same field with their seat selected, not a special case.
-             */
-            'dpc_chairman_member_id' => [
-                'required',
                 'integer',
-                Rule::exists('dpc_committee_members', 'id')
-                    ->where('dpc_proposal_id', $this->route('dpcProposal')?->id)
-                    ->whereNotNull('active_flag'),
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    $ok = is_numeric($value) && User::role(self::allottableRoles())
+                        ->whereKey((int) $value)
+                        ->where('is_active', true)
+                        ->exists();
+
+                    if (! $ok) {
+                        $fail('A DPC is allotted to an active Member, CGPSC or the Chairman, CGPSC.');
+                    }
+                },
             ],
 
             /*
@@ -133,10 +100,7 @@ class AllotDpcRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'allotted_to.required' => 'Choose the committee member this DPC is allotted to.',
-            'allotted_to.exists' => 'A DPC is allotted to a serving member of its own committee who holds a portal account.',
-            'dpc_chairman_member_id.required' => 'Choose who will preside over this DPC as its DPC Chairman.',
-            'dpc_chairman_member_id.exists' => 'The DPC Chairman must be a serving member of this DPC\'s own committee.',
+            'allotted_to.required' => 'Choose the DPC Chairman this DPC is allotted to.',
             'reallotment_reason.required' => 'A reason is required when re-allotting a DPC.',
             'complete_by.required' => 'State the date this DPC must be concluded by.',
             'complete_by.after_or_equal' => 'The completion date cannot be in the past.',

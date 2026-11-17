@@ -37,8 +37,8 @@ return [
         ],
         'index' => [
             'allot' => 'Allot',
-            'no_allottable_member' => 'No member of this committee holds a portal account, so there is nobody to allot it to. Add the member as an account on the DPC Committee screen first.',
-            'allot_to' => 'Allot to…',
+            'no_allottable_member' => 'No active Member, CGPSC or Chairman, CGPSC account exists. Create one in User Management first.',
+            'allot_to' => 'Allot to DPC Chairman…',
             'allotment_of_dpc' => 'Allotment of DPC',
             'allotted_by' => 'allotted :date by :actor',
             'default_dpc_date_optional' => 'Default DPC date (optional)',

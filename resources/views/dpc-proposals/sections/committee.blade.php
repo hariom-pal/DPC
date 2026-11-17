@@ -49,26 +49,8 @@
                                                 <span class="badge text-bg-info">{{ __('dpc.committee.dpc_chairman_badge') }}</span>
                                             @endif
 
-                                            {{-- Item 9, as clarified: the CGPSC Chairman names who
-                                                 conducts this DPC, choosing from this committee — which
-                                                 includes their own seat, so taking it themselves is the
-                                                 same control rather than a special case.
-
-                                                 Shown only to the CGPSC Chairman, and only once the DPC
-                                                 has reached the Commission: designating a conductor for a
-                                                 proposal still being drafted in a department would be
-                                                 acting before there is anything to conduct. --}}
-                                            @if (! $member->isDpcChairman()
-                                                && auth()->user()?->hasRole(\App\Enums\Role::Chairman->value)
-                                                && $proposal->forwarded_at !== null)
-                                                <form method="POST" class="d-inline"
-                                                      action="{{ route('cgpsc.committee.designate-chairman', [$proposal, $member]) }}">
-                                                    @csrf
-                                                    <button class="btn btn-link btn-sm p-0 align-baseline">
-                                                        {{ __('dpc.committee.designate_chairman') }}
-                                                    </button>
-                                                </form>
-                                            @endif
+                                            {{-- Who presides is no longer designated here: the person the DPC
+                                                 is allotted to is its DPC Chairman (business instruction, 2026-11-17). --}}
 
                                             {{-- Item 9e: the Administrator may substitute a member at
                                                  **any** stage, so this is not gated on the proposal being

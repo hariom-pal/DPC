@@ -484,26 +484,15 @@ class ProceedingLifecycleTest extends TestCase
     }
 
     /**
-     * The allottee who holds no portal role conducts the sitting and sees the
-     * candidates on it.
-     *
-     * **This is the far end of the same defect.** Since 2026-09-07 a DPC is allotted
-     * to a member of its own committee and the allottee need hold no role, but
-     * `DpcProceedingPolicy::viewAny()` and `::open()` still asked for one — so an
-     * allottee could be admitted to Schedules, accept, fix a date, and then be
-     * refused the screen that runs the sitting they had just scheduled.
-     *
-     * `view()` and `act()` needed no change: both already bind the individual by
-     * `conducted_by`, and name no role.
+     * The allottee conducts the sitting and sees the candidates on it — a Member,
+     * CGPSC who is not on the DPC committee at all (business instruction,
+     * 2026-11-17: a DPC is allotted to the Commission's own accounts, and that
+     * person is its DPC Chairman).
      */
-    public function test_an_allottee_with_no_portal_role_opens_the_sitting_and_sees_the_candidates(): void
+    public function test_an_allottee_off_the_committee_opens_the_sitting_and_sees_the_candidates(): void
     {
         $seated = User::factory()->create(['name' => 'Deputy Secretary, GAD']);
-
-        $this->assertSame([], $seated->roles->pluck('name')->all(), 'The point of this test is that they hold none.');
-
-        // Committee membership is the qualification, so it has to exist first.
-        $this->seatAccountOnCommittee($this->proposal, $seated);
+        $seated->assignRole(Role::Member->value);
 
         $this->allottedAndScheduled($seated);
         $this->addEvaluationRow(1, 'Shri Ramesh Chandra Verma');

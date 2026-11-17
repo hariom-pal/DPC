@@ -276,4 +276,43 @@ class CgpscChairmanTest extends TestCase
         $this->actingAs($officer)->get(route('admin.cgpsc-chairman.index'))->assertForbidden();
         $this->actingAs($officer)->post(route('admin.cgpsc-chairman.store'), ['name' => 'X'])->assertForbidden();
     }
+
+    // ------------------------------------------------ the Chairman's login (2026-11-17)
+
+    public function test_the_administrator_creates_the_chairmans_login_and_can_then_reset_it(): void
+    {
+        $chairman = $this->service()->appoint(['name' => 'New Chairman', 'designation' => 'Chairman, CGPSC', 'email' => 'chairperson@cgpsc.gov.in', 'mobile' => '9898907805']);
+
+        $this->actingAs($this->admin)->get(route('admin.cgpsc-chairman.index'))->assertOk()
+            ->assertSee('id="chairman-create-account"', false)->assertDontSee('id="chairman-reset-password"', false);
+
+        $this->post(route('admin.cgpsc-chairman.account', $chairman))->assertOk()->assertSee('id="issued-password"', false);
+
+        $user = User::query()->where('email', 'chairperson@cgpsc.gov.in')->sole();
+        $this->assertTrue($user->hasRole(Role::Chairman->value));
+        $this->assertSame($user->id, $chairman->fresh()->user_id);
+
+        $this->get(route('admin.cgpsc-chairman.index'))
+            ->assertSee('id="chairman-reset-password"', false)->assertDontSee('id="chairman-create-account"', false);
+    }
+
+    public function test_a_chairman_login_made_in_user_management_is_the_same_chairman(): void
+    {
+        $chairman = $this->service()->appoint(['name' => 'New Chairman', 'email' => 'chairperson@cgpsc.gov.in', 'mobile' => '9898907805']);
+
+        $this->actingAs($this->admin)->post(route('admin.users.store'), [
+            'date_of_birth' => '1970-01-01', 'gender' => 'M',
+            'name' => 'New Chairman', 'email' => 'chairperson@cgpsc.gov.in', 'mobile' => '9898907805', 'role' => Role::Chairman->value,
+        ])->assertOk();
+
+        $user = User::query()->where('email', 'chairperson@cgpsc.gov.in')->sole();
+        $this->assertSame($user->id, $chairman->fresh()->user_id, 'Linked to the serving record, not a second Chairman.');
+
+        // A second Chairman cannot be created beside the linked one.
+        $this->post(route('admin.users.store'), [
+            'date_of_birth' => '1970-01-01', 'gender' => 'M',
+            'name' => 'Another', 'email' => 'another@cgpsc.gov.in', 'mobile' => '9898907806', 'role' => Role::Chairman->value,
+        ])->assertSessionHasErrors('role');
+        $this->assertSame(1, User::role(Role::Chairman->value)->count());
+    }
 }

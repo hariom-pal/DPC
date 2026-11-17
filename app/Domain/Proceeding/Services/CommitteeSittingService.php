@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Proceeding\Services;
 
 use App\Domain\Authentication\Models\User;
+use App\Domain\Cgpsc\Models\DpcAllotment;
 use App\Domain\Cgpsc\Models\DpcSchedule;
 use App\Domain\Dpc\Models\DpcCommitteeMember;
 use App\Domain\Dpc\Models\DpcEvaluationRow;
@@ -61,7 +62,8 @@ class CommitteeSittingService
         $proposalIds = DpcCommitteeMember::query()
             ->serving()
             ->where('user_id', $member->id)
-            ->pluck('dpc_proposal_id');
+            ->pluck('dpc_proposal_id')
+            ->merge(DpcAllotment::query()->current()->where('allotted_to', $member->id)->pluck('dpc_proposal_id'));
 
         return DpcProposal::query()
             ->whereIn('id', $proposalIds)
@@ -78,11 +80,14 @@ class CommitteeSittingService
      */
     public function isSeatedOn(DpcProposal $proposal, User $member): bool
     {
+        // The DPC Chairman sits on it, and is the person it is allotted to
+        // (business instruction, 2026-11-17) — no longer necessarily a seat.
         return DpcCommitteeMember::query()
             ->where('dpc_proposal_id', $proposal->id)
             ->serving()
             ->where('user_id', $member->id)
-            ->exists();
+            ->exists()
+            || DpcAllotment::query()->where('dpc_proposal_id', $proposal->id)->current()->where('allotted_to', $member->id)->exists();
     }
 
     /**

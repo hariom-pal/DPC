@@ -179,7 +179,6 @@ class AllotmentDeadlineTest extends TestCase
         $designated = $this->designateAsDpcChairman($this->proposal, $this->memberTwo);
 
         $this->actingAs($this->chairman)->post(route('cgpsc.allotments.store', $this->proposal), [
-            'dpc_chairman_member_id' => $designated->id,
             'allotted_to' => $this->memberOne->id,
             'complete_by' => '2026-09-30',
         ])->assertSessionHasNoErrors();
@@ -191,21 +190,20 @@ class AllotmentDeadlineTest extends TestCase
      * The designated DPC Chairman keeps the ability to allot, which the earlier
      * register gave them. Widening who may act did not narrow it elsewhere.
      */
-    public function test_this_dpcs_designated_chairman_may_also_allot_it(): void
+    public function test_this_dpcs_chairman_may_also_re_allot_it(): void
     {
-        // The seat Member Two already holds — one person has one serving seat, and
-        // the database enforces it.
-        $designated = $this->designateAsDpcChairman($this->proposal, $this->memberTwo);
+        // The allottee is the DPC Chairman (business instruction, 2026-11-17).
+        $this->allot(to: $this->memberTwo)->assertSessionHasNoErrors();
 
         // Holds only Role::Member. The policy answers "could this actor ever
         // allot"; the service answers "may they allot *this* one".
-        $this->actingAs($this->memberTwo)->post(route('cgpsc.allotments.store', $this->proposal), [
-            'dpc_chairman_member_id' => $designated->id,
+        $this->actingAs($this->memberTwo)->post(route('cgpsc.allotments.reallot', $this->proposal), [
             'allotted_to' => $this->memberOne->id,
             'complete_by' => '2026-09-30',
+            'reallotment_reason' => 'Handing over.',
         ])->assertSessionHasNoErrors();
 
-        $this->assertSame(1, DpcAllotment::query()->count());
+        $this->assertSame($this->memberOne->id, DpcAllotment::query()->current()->sole()->allotted_to);
     }
 
     public function test_a_member_who_neither_chairs_the_commission_nor_this_dpc_cannot_allot(): void
@@ -218,7 +216,6 @@ class AllotmentDeadlineTest extends TestCase
         $other->assignRole(Role::Member->value);
 
         $this->actingAs($other)->post(route('cgpsc.allotments.store', $this->proposal), [
-            'dpc_chairman_member_id' => $designated->id,
             'allotted_to' => $this->memberOne->id,
             'complete_by' => '2026-09-30',
         ])->assertSessionHasErrors('allotment');
