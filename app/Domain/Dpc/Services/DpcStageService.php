@@ -17,6 +17,7 @@ use App\Domain\Proceeding\Enums\DpcProceedingStatus;
 use App\Domain\Proceeding\Models\DpcProceeding;
 use App\Domain\Shared\Workflow\WorkflowTransition;
 use App\Enums\Role;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
@@ -97,6 +98,8 @@ final class DpcStageService
             DpcStage::Committee => array_merge(
                 DpcAllotment::query()->where('dpc_proposal_id', $proposal->id)->current()->pluck('allotted_to')->all(),
                 DpcCommitteeMember::query()->where('dpc_proposal_id', $proposal->id)->serving()->whereNotNull('user_id')->pluck('user_id')->all(),
+                // A returned allotment waits on the Chairman to reassign it.
+                $this->awaitingReassignment($proposal) ? $this->roleUserIds(Role::Chairman) : [],
             ),
         };
 
@@ -169,10 +172,10 @@ final class DpcStageService
             ])),
             DpcStage::Secretary => [(string) __('dpc.stage.items.secretary_approval')],
             DpcStage::Chairman => [(string) __('dpc.stage.items.allotment')],
-            DpcStage::Committee => [(string) __('dpc.stage.items.decisions', [
+            DpcStage::Committee => array_values(array_filter([$this->awaitingReassignment($proposal) ? (string) __('dpc.stage.items.reassign') : null, (string) __('dpc.stage.items.decisions', [
                 'done' => DpcCommitteeDecision::query()->where('dpc_proposal_id', $proposal->id)->where('decided_at', '>=', $this->enteredAt($proposal, $stage))->distinct()->count('user_id'),
                 'total' => DpcCommitteeMember::query()->where('dpc_proposal_id', $proposal->id)->serving()->count(),
-            ])],
+            ])])),
         };
     }
 
@@ -237,22 +240,64 @@ final class DpcStageService
             return null;
         }
 
-        return DpcAllotment::query()->where('dpc_proposal_id', $proposal->id)->current()->exists()
+        // Once allotted, the DPC stays at the committee stage — also while a member's
+        // allotment has come back to the Chairman for reassignment (2026-11-17). The
+        // member's completion date is the allotment's own deadline; the stage's
+        // timeline is not reset by a reassignment, nor taken over by the Chairman's.
+        return $this->committeeAllotments($proposal)->exists()
             ? DpcStage::Committee
             : DpcStage::Chairman;
     }
 
+    /**
+     * The allotments of this visit to the committee: the current one, and any made
+     * since the DPC last reached the Chairman (a returned or superseded one among
+     * them).
+     *
+     * @return Builder<DpcAllotment>
+     */
+    private function committeeAllotments(DpcProposal $proposal): Builder
+    {
+        $approvedAt = $this->statusEnteredAt($proposal);
+
+        return DpcAllotment::query()
+            ->where('dpc_proposal_id', $proposal->id)
+            ->where(fn ($query) => $query
+                ->where(fn ($current) => $current->whereNull('superseded_by_id')->whereNull('returned_at'))
+                ->when($approvedAt !== null, fn ($since) => $since->orWhere('allotted_at', '>=', $approvedAt)));
+    }
+
+    /** Whether the member's allotment has come back to the Chairman for reassignment. */
+    public function awaitingReassignment(DpcProposal $proposal): bool
+    {
+        return $this->stageOf($proposal) === DpcStage::Committee
+            && ! DpcAllotment::query()->where('dpc_proposal_id', $proposal->id)->current()->exists();
+    }
+
     private function enteredAt(DpcProposal $proposal, DpcStage $stage): Carbon
     {
-        if ($stage === DpcStage::Committee) {
-            $allotted = DpcAllotment::query()->where('dpc_proposal_id', $proposal->id)->current()->latest('allotted_at')->value('allotted_at');
+        $statusAt = $this->statusEnteredAt($proposal);
 
-            if ($allotted !== null) {
-                return Carbon::parse($allotted);
+        // The committee's stage began with its first allotment of this visit — not
+        // with the current one, so a reassignment does not reset it (2026-11-17).
+        if ($stage === DpcStage::Committee) {
+            $first = $this->committeeAllotments($proposal)->min('allotted_at');
+
+            if ($first !== null) {
+                $first = Carbon::parse($first);
+
+                return $statusAt !== null && $statusAt->greaterThan($first) ? $statusAt : $first;
             }
         }
 
+        return $statusAt ?? Carbon::parse($proposal->created_at ?? now());
+    }
+
+    /** When the DPC last reached its present status, from the proposal's own workflow ledger. */
+    private function statusEnteredAt(DpcProposal $proposal): ?Carbon
+    {
         $entered = WorkflowTransition::query()
+            ->where('workflow', 'dpc_proposal')
             ->where('subject_type', $proposal->getMorphClass())
             ->where('subject_id', $proposal->id)
             ->where('to_state', $proposal->status->value)
@@ -260,7 +305,7 @@ final class DpcStageService
             ->latest('id')
             ->value('occurred_at');
 
-        return Carbon::parse($entered ?? $proposal->created_at ?? now());
+        return $entered === null ? null : Carbon::parse($entered);
     }
 
     /**

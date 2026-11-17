@@ -486,7 +486,13 @@ return [
             'ah_approval' => 'Approval (or return) by the Administrative Head',
             'secretary_approval' => 'Approval (or return) by the Secretary, CGPSC',
             'allotment' => 'Allotment to the DPC Committee by the Chairman, CGPSC',
+            'reassign' => 'Committee member allotment returned (completion date passed): reassignment by the Chairman, CGPSC',
             'decisions' => 'Evaluation and decision by the committee: :done of :total member(s) decided',
+        ],
+        'auto' => [
+            'secretary_escalated' => 'Forwarded to the Chairman, CGPSC automatically: the :stage deadline of :date had passed.',
+            'ah_auto_forward' => 'Forwarded to the Secretary, CGPSC automatically: the :stage deadline of :date had passed.',
+            'auto_cancel' => 'Cancelled automatically: the :stage deadline of :date had passed.',
         ],
         'next_heading' => 'Next Process',
         'now' => 'Now with: :stage — :action.',

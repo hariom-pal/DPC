@@ -609,6 +609,8 @@ class AllotmentService
                         'allotted_to_name' => $allotment->allottee->name ?? null,
                         'complete_by' => $allotment->complete_by?->toDateString(),
                         'returned_at' => now()->toIso8601String(),
+                        // The member's own completion date, not the stage's Workflow Timeline (2026-11-17).
+                        'deadline_type' => 'committee_member_allotment',
                     ],
                 );
 

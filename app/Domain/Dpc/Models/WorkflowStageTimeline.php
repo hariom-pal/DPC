@@ -14,18 +14,48 @@ use Illuminate\Database\Eloquent\Model;
  * @property int $id
  * @property DpcStage $stage
  * @property int|null $days
+ * @property string $on_expiry notify | cancel | forward (2026-11-17)
+ * @property int $reminder_every_days
+ * @property bool $remind_email
+ * @property bool $remind_sms
  * @property int|null $updated_by
  */
 class WorkflowStageTimeline extends Model
 {
-    protected $fillable = ['stage', 'days', 'updated_by'];
+    public const NOTIFY = 'notify';
+
+    public const CANCEL = 'cancel';
+
+    public const FORWARD = 'forward';
+
+    protected $fillable = ['stage', 'days', 'on_expiry', 'reminder_every_days', 'remind_email', 'remind_sms', 'updated_by'];
 
     /**
      * @return array<string, string>
      */
     protected function casts(): array
     {
-        return ['stage' => DpcStage::class, 'days' => 'integer'];
+        return [
+            'stage' => DpcStage::class,
+            'days' => 'integer',
+            'reminder_every_days' => 'integer',
+            'remind_email' => 'boolean',
+            'remind_sms' => 'boolean',
+        ];
+    }
+
+    /** The stage's settings, or the defaults where the Administrator has saved none. */
+    public static function for(DpcStage $stage): self
+    {
+        return self::query()->where('stage', $stage->value)->first()
+            ?? new self([
+                'stage' => $stage->value,
+                'days' => null,
+                'on_expiry' => $stage === DpcStage::Secretary ? self::FORWARD : self::NOTIFY,
+                'reminder_every_days' => 1,
+                'remind_email' => true,
+                'remind_sms' => false,
+            ]);
     }
 
     public static function daysFor(DpcStage $stage): ?int

@@ -30,6 +30,24 @@ enum DpcStage: string
         return (string) __('dpc.stage.'.$this->value.'.action');
     }
 
+    /**
+     * What may happen once the stage's days have passed (2026-11-17). Forwarding
+     * is offered only where the next step needs no one's choice or signature: the
+     * AH's approval to the Secretary, and the Secretary's to the Chairman. The AO's
+     * submission needs the AO's eSign, the Chairman's allotment a committee member,
+     * and nothing follows the committee.
+     *
+     * @return list<string>
+     */
+    public function expiryActions(): array
+    {
+        return match ($this) {
+            self::Ah, self::Secretary => ['notify', 'cancel', 'forward'],
+            self::Ao, self::Chairman => ['notify', 'cancel'],
+            self::Committee => ['notify'],
+        };
+    }
+
     /** The stage the DPC goes to next, or null after the committee. */
     public function next(): ?self
     {

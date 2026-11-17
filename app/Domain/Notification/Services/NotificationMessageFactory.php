@@ -38,6 +38,8 @@ class NotificationMessageFactory
         // DPC proposal (S12–S25)
         'dpc_proposal.submit' => 'A DPC proposal is awaiting your approval',
         'dpc_proposal.approve' => 'A DPC proposal has been approved by the Administrative Head and is pending with the Secretary, CGPSC',
+        'dpc_proposal.ah_auto_forward' => 'A DPC has been forwarded to the Secretary, CGPSC automatically: the Administrative Head\'s deadline had passed',
+        'dpc_proposal.auto_cancel' => 'A DPC has been cancelled automatically: its stage deadline had passed',
         'dpc_proposal.secretary_escalated' => 'A DPC has been sent on to the Chairman, CGPSC automatically: the Secretary\'s deadline had passed',
         'dpc_proposal.secretary_approve' => 'A DPC proposal has been approved by the Secretary, CGPSC and forwarded to the Chairman',
         'dpc_proposal.secretary_return' => 'A DPC proposal has been returned by the Secretary, CGPSC for correction',

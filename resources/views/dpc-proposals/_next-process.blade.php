@@ -31,6 +31,17 @@
         @endif
     </div>
 @endif
-@if ($proposal->secretary_escalated_at)
-    <div class="alert alert-warning py-2 small" id="secretary-escalated">{{ __('dpc.stage.escalated', ['date' => $proposal->secretary_escalated_at->format('d-m-Y')]) }}</div>
+{{-- Every automatic action on this DPC (2026-11-17): forwarded or cancelled once a deadline passed. --}}
+@php
+    $automatic = \App\Domain\Shared\Workflow\WorkflowTransition::query()
+        ->where('subject_type', $proposal->getMorphClass())->where('subject_id', $proposal->id)
+        ->whereNull('actor_id')->whereIn('event', ['secretary_escalated', 'ah_auto_forward', 'auto_cancel'])
+        ->orderBy('occurred_at')->get();
+@endphp
+@if ($automatic->isNotEmpty())
+    <div class="alert alert-warning py-2 small" id="secretary-escalated">
+        @foreach ($automatic as $transition)
+            <div data-automatic-action="{{ $transition->event }}">{{ $transition->occurred_at->format('d-m-Y') }}: {{ $transition->remarks }}</div>
+        @endforeach
+    </div>
 @endif

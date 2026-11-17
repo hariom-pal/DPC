@@ -151,8 +151,8 @@ final class MessageTemplateCatalog
             // MoM of 16 November 2026, point 6: deadline reminders, e-mailed.
             'stage.reminder' => [
                 'label' => 'DPC stage deadline near',
-                'when' => 'Once a day while a DPC\'s stage has a day or less left before the deadline set in Workflow Timelines. Sent to whoever is to act at the stage.',
-                'channels' => [MessageTemplate::EMAIL],
+                'when' => 'Once a day while a DPC\'s stage has a day or less left before the deadline set in Workflow Timelines. Sent to whoever is to act at the stage, by e-mail and/or SMS as set in Workflow Timelines.',
+                'channels' => $both,
                 'placeholders' => ['dpc', 'stage', 'action', 'due', 'url'],
                 'required' => ['due'],
                 'mandatory' => false,
@@ -163,8 +163,8 @@ final class MessageTemplateCatalog
             ],
             'stage.overdue' => [
                 'label' => 'DPC stage deadline passed',
-                'when' => 'Once a day after a DPC\'s stage has passed its deadline. Sent to whoever is to act at the stage.',
-                'channels' => [MessageTemplate::EMAIL],
+                'when' => 'Once a day after a DPC\'s stage has passed its deadline. Sent to whoever is to act at the stage, by e-mail and/or SMS as set in Workflow Timelines.',
+                'channels' => $both,
                 'placeholders' => ['dpc', 'stage', 'action', 'due', 'url'],
                 'required' => ['due'],
                 'mandatory' => false,
