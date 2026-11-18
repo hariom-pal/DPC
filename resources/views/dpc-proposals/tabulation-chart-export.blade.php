@@ -57,10 +57,8 @@
                     <td style="text-align: center; {{ $crFit === null ? '' : ($crFit ? 'background-color: #C6EFCE;' : 'background-color: #FFC7CE;') }}">
                         @if ($cr === null)
                             —
-                        @elseif ($cr->put_up === false)
-                            {{ __('dpc.tabulation.missing') }}
-                        @elseif ($cr->has_grading === false)
-                            {{ __('dpc.tabulation.no_grading') }}
+                        @elseif ($cr->put_up === false || $cr->has_grading === false)
+                            {{ $cr->put_up === false ? __('dpc.tabulation.missing') : __('dpc.tabulation.no_grading') }}@if (array_key_exists($year, $replacements[$row->id] ?? [])) — @if ($replacements[$row->id][$year] === null){{ __('dpc.tabulation.no_older_cr') }}@else{{ __('dpc.tabulation.replaced_by', ['year' => $replacements[$row->id][$year]]) }} {{ $row->crGrades->firstWhere('year', $replacements[$row->id][$year])?->grade ?? '—' }}@if ($insteadOption = $row->crGrades->firstWhere('year', $replacements[$row->id][$year])?->integrityOption) ({{ $insteadOption->label() }})@endif @endif @endif
                         @else
                             {{ $cr->grade ?? '—' }}@if ($cr->tribal_area === true) ({{ __('dpc.tabulation.tribal_short') }})@endif
                         @endif

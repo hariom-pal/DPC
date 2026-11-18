@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Dpc;
 
 use App\Domain\Dpc\Exports\TabulationChartExport;
 use App\Domain\Dpc\Models\DpcProposal;
+use App\Domain\Dpc\Services\EmployeeDetailsService;
 use App\Domain\Import\Enums\ImportBatchStatus;
 use App\Domain\Import\Enums\ImportTemplate;
 use App\Domain\Import\Models\ImportBatch;
@@ -28,6 +29,8 @@ class DpcTabulationController extends Controller
     /** The files, as uploaded: the latest committed batch of each list. */
     private const TEMPLATES = [ImportTemplate::CurrentlyWorkingUs, ImportTemplate::FinalSeniorityListUs];
 
+    public function __construct(private readonly EmployeeDetailsService $details) {}
+
     public function show(DpcProposal $dpcProposal): View
     {
         $this->authorize('viewRecords', $dpcProposal);
@@ -38,6 +41,7 @@ class DpcTabulationController extends Controller
             'originals' => $this->originals($dpcProposal),
             'crYears' => $years,
             'propertyYears' => $years,
+            'replacements' => $this->replacements($dpcProposal, $years),
         ]);
     }
 
@@ -48,7 +52,7 @@ class DpcTabulationController extends Controller
         $years = $this->prepare($dpcProposal);
         $name = 'tabulation-chart-'.Str::slug((string) ($dpcProposal->dpc_code ?: $dpcProposal->id)).'-'.now()->format('Ymd-His').'.xlsx';
 
-        return Excel::download(new TabulationChartExport($dpcProposal, $years, $years), $name);
+        return Excel::download(new TabulationChartExport($dpcProposal, $years, $years, $this->replacements($dpcProposal, $years)), $name);
     }
 
     /**
@@ -61,7 +65,37 @@ class DpcTabulationController extends Controller
         $proposal->load(['evaluationRows' => fn ($query) => $query->orderBy('sn'), 'evaluationRows.reservationCategory', 'evaluationRows.crGrades.integrityOption', 'evaluationRows.propertyFlags', 'evaluationRows.currentDocuments']);
         $dpcYear = (int) ($proposal->dpc_year ?: $proposal->proposal_date->year);
 
-        return range($dpcYear - 1, $dpcYear - 5);
+        // As many as the promotion rule counts (five without a rule), 2026-11-18.
+        return range($dpcYear - 1, $dpcYear - $this->details->crSlots($proposal));
+    }
+
+    /**
+     * For each officer, each CR year on the chart that does not count (missing, or put
+     * up without a grading) and the older year counted in its place — the officer's own
+     * CR window, as the rule check and the calculation take it (2026-11-18). Null where
+     * no older year is left (the year before the DPC year is never replaced).
+     *
+     * @param  list<int>  $years  the chart's CR years, latest first
+     * @return array<int, array<int, int|null>> row id => [skipped year => year counted instead]
+     */
+    private function replacements(DpcProposal $proposal, array $years): array
+    {
+        $slots = count($years);
+        $replacements = [];
+
+        foreach ($proposal->evaluationRows as $row) {
+            $row->setRelation('proposal', $proposal);
+            $window = $this->details->crWindow($row, $row->crGrades, $slots);
+            // The older years the window reached for, latest first, pair with the skipped chart years in order.
+            $extra = array_values(array_diff($window->counted, $years));
+            $skipped = array_values(array_intersect($window->skipped, $years));
+
+            foreach ($skipped as $i => $year) {
+                $replacements[$row->id][$year] = $extra[$i] ?? null;
+            }
+        }
+
+        return $replacements;
     }
 
     public function original(DpcProposal $dpcProposal, ImportBatch $importBatch): StreamedResponse

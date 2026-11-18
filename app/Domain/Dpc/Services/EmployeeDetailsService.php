@@ -287,19 +287,34 @@ class EmployeeDetailsService
      */
     public function crYearWindow(DpcEvaluationRow $row): array
     {
+        return $this->crWindow($row, $row->crGrades()->get())->years;
+    }
+
+    /**
+     * The officer's whole CR window — the years counted and the middle years skipped,
+     * each replaced by one older year — from the CR years given (the Tabulation Chart
+     * passes the ones it loaded, 2026-11-18).
+     *
+     * @param  iterable<DpcEvaluationCrGrade>  $grades
+     */
+    public function crWindow(DpcEvaluationRow $row, iterable $grades, ?int $slots = null): CrWindow
+    {
         $proposal = $row->proposal;
         $last = (int) ($proposal->dpc_year ?: $proposal->proposal_date->year) - 1;
         // Not before joining — nor, where the rule says so, before the year recorded
         // "appointed in this year" (2026-11-18).
         $from = max((int) config('dpc.evaluation.min_year', 1950), $row->serviceFloorYear() ?? ($last - 20));
-        $notCounted = $row->crGrades()->get()
+        $notCounted = collect($grades)
             ->filter(fn ($record): bool => $record->put_up === false || ($record->put_up === true && $record->has_grading === false))
             ->pluck('year')->map(fn ($year): int => (int) $year)->values()->all();
-        // The promotion rule's CR count (2026-11-18: the rule decides, no fixed five);
-        // five only for a DPC without a rule.
-        $slots = (int) ($this->promotionRules->ruleForProposal($proposal)->cr_years ?? config('dpc.merit.required_cr_count', 5));
 
-        return CrWindow::of($last, $slots, $notCounted, $from)->years;
+        return CrWindow::of($last, $slots ?? $this->crSlots($proposal), $notCounted, $from);
+    }
+
+    /** The promotion rule's CR count (2026-11-18: the rule decides, no fixed five); five only for a DPC without a rule. */
+    public function crSlots(DpcProposal $proposal): int
+    {
+        return (int) ($this->promotionRules->ruleForProposal($proposal)->cr_years ?? config('dpc.merit.required_cr_count', 5));
     }
 
     /**

@@ -37,7 +37,7 @@
             <span class="badge text-bg-light border">{{ __('dpc.tabulation.legend_csv') }}</span>
             <span class="badge text-bg-info">{{ __('dpc.tabulation.legend_portal') }}</span>
             <span class="d-inline-flex align-items-center gap-1"><x-fit-mark :fit="true" /><x-fit-mark :fit="false" /></span>
-            <span class="text-muted">{{ __('dpc.tabulation.legend_tribal') }} · {{ __('dpc.tabulation.legend_pf') }}</span>
+            <span class="text-muted">{{ __('dpc.tabulation.legend_tribal') }} · {{ __('dpc.tabulation.legend_pf') }} · {{ __('dpc.tabulation.legend_replaced') }}</span>
         </div>
         <a href="{{ route('dpc-proposals.tabulation-chart.download', $proposal) }}" class="btn btn-success btn-sm" id="tabulation-download">{{ __('dpc.tabulation.download_chart') }}</a>
     </div>
@@ -93,10 +93,23 @@
                                 <td class="{{ $crFit === null ? '' : ($crFit ? 'cell-fit' : 'cell-unfit') }}" @if ($cr?->integrityOption) title="{{ $cr->integrityOption->label() }}" @endif @if ($crFit !== null) data-fit="{{ $crFit ? 'fit' : 'unfit' }}" @endif>
                                     @if ($cr === null)
                                         —
-                                    @elseif ($cr->put_up === false)
-                                        <span class="text-danger">{{ __('dpc.tabulation.missing') }}</span>
-                                    @elseif ($cr->has_grading === false)
-                                        {{ __('dpc.tabulation.no_grading') }}
+                                    @elseif ($cr->put_up === false || $cr->has_grading === false)
+                                        <span class="{{ $cr->put_up === false ? 'text-danger' : '' }}">{{ $cr->put_up === false ? __('dpc.tabulation.missing') : __('dpc.tabulation.no_grading') }}</span>
+                                        {{-- The older year counted in its place, as the calculation takes it (2026-11-18). --}}
+                                        @if (array_key_exists($year, $replacements[$row->id] ?? []))
+                                            @php
+                                                $instead = $replacements[$row->id][$year];
+                                                $insteadCr = $instead === null ? null : $row->crGrades->firstWhere('year', $instead);
+                                            @endphp
+                                            <div class="tab-replaced" data-replaced-year="{{ $year }}" data-replaced-by="{{ $instead ?? 'none' }}" @if ($insteadCr?->integrityOption) title="{{ $insteadCr->integrityOption->label() }}" @endif>
+                                                @if ($instead === null)
+                                                    {{ __('dpc.tabulation.no_older_cr') }}
+                                                @else
+                                                    {{ __('dpc.tabulation.replaced_by', ['year' => $instead]) }} <strong>{{ $insteadCr?->grade ?? '—' }}</strong>
+                                                    @if (($insteadFit = $insteadCr?->integrityFit()) !== null)<x-fit-mark :fit="$insteadFit" />@endif
+                                                @endif
+                                            </div>
+                                        @endif
                                     @else
                                         <strong>{{ $cr->grade ?? '—' }}</strong>
                                         @if ($cr->tribal_area === true)<span class="badge text-bg-info ms-1" title="{{ __('dpc.employee_details.cr.tribal_yes') }}">{{ __('dpc.tabulation.tribal_short') }}</span>@endif

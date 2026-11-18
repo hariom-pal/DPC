@@ -7,6 +7,8 @@ namespace Tests\Feature\Proceeding;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Dpc\Models\DpcEvaluationCrGrade;
 use App\Domain\Master\Models\IntegrityOption;
+use App\Domain\Master\Models\PromotionCrRule;
+use App\Domain\Master\Services\PromotionCrRules;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -102,6 +104,86 @@ class TabulationChartExportTest extends TestCase
         $this->assertContains(__('dpc.tabulation.cr_n', ['n' => 5]), $found);
         $this->assertContains((string) ($this->dpcYear() - 1), $found);
         $this->assertContains((string) ($this->dpcYear() - 5), $found);
+    }
+
+    /**
+     * A missing middle CR shows the older year counted in its place, as the CR window
+     * takes it (2026-11-18); the year before the DPC year is never replaced.
+     */
+    public function test_a_missing_cr_shows_the_older_year_counted_in_its_place(): void
+    {
+        $year = $this->dpcYear();
+        $row = $this->officer(3, 'With a gap', $this->urCategoryId(), [
+            $year - 6 => 'ख', $year - 5 => 'क', $year - 4 => 'क', $year - 3 => 'क+', $year - 2 => 'क', $year - 1 => 'क',
+        ]);
+        // CR 3 (three years back) not put up: the sixth year back is counted instead.
+        DpcEvaluationCrGrade::query()->where('dpc_evaluation_row_id', $row->id)->where('year', $year - 3)->update(['put_up' => false, 'grade' => null]);
+        // The substituted year's own Integrity goes with it.
+        $unfit = IntegrityOption::query()->create(['code' => 'sub_t', 'name_en' => 'Doubtful integrity', 'name_hi' => 'संदिग्ध', 'fit' => false, 'needs_departmental_view' => false, 'sort_order' => 3]);
+        DpcEvaluationCrGrade::query()->where('dpc_evaluation_row_id', $row->id)->where('year', $year - 6)->update(['integrity_option_id' => $unfit->id]);
+
+        $html = (string) $this->actingAs($this->memberOne)->get(route('dpc-proposals.tabulation-chart', $this->proposal))->assertOk()
+            ->assertSee('data-replaced-year="'.($year - 3).'" data-replaced-by="'.($year - 6).'"', false)
+            ->assertSee(__('dpc.tabulation.replaced_by', ['year' => $year - 6]))
+            // PF years are their own: the CR substitution moves none of them.
+            ->assertSeeInOrder(array_map(fn (int $n): string => __('dpc.tabulation.property_n', ['n' => $n]), range(1, 5)))
+            ->getContent();
+        $this->assertMatchesRegularExpression('/data-replaced-by="'.($year - 6).'"\\s+title="Doubtful integrity"\\s*>\s*'.preg_quote(__('dpc.tabulation.replaced_by', ['year' => $year - 6]), '/').'\s*<strong>ख<\/strong>\s*<span class="fit-mark fit-mark-unfit"/u', $html);
+
+        // The last year missing: nothing replaces it.
+        DpcEvaluationCrGrade::query()->where('dpc_evaluation_row_id', $row->id)->where('year', $year - 1)->update(['put_up' => false, 'grade' => null]);
+        $this->get(route('dpc-proposals.tabulation-chart', $this->proposal))->assertOk()
+            ->assertDontSee('data-replaced-year="'.($year - 1).'"', false)
+            ->assertSee('data-replaced-year="'.($year - 3).'" data-replaced-by="'.($year - 6).'"', false);
+
+        // The workbook says the same.
+        $file = $this->get(route('dpc-proposals.tabulation-chart.download', $this->proposal))->assertOk()->baseResponse;
+        $this->assertInstanceOf(BinaryFileResponse::class, $file);
+        $values = [];
+        foreach (IOFactory::load($file->getFile()->getPathname())->getActiveSheet()->getRowIterator() as $sheetRow) {
+            foreach ($sheetRow->getCellIterator() as $cell) {
+                $values[] = (string) $cell->getValue();
+            }
+        }
+        $this->assertNotEmpty(array_filter($values, fn (string $v): bool => str_contains($v, __('dpc.tabulation.replaced_by', ['year' => $year - 6]).' ख (Doubtful integrity)')));
+        // The last year is never replaced, in the workbook either: its cell says Missing and nothing more.
+        $this->assertContains(__('dpc.tabulation.missing'), $values);
+    }
+
+    /** CR and PF columns follow the promotion rule's Years of CR; five without a rule (2026-11-18). */
+    public function test_the_columns_follow_the_rules_years_of_cr(): void
+    {
+        $year = $this->dpcYear();
+        $rule = PromotionCrRule::query()->create([
+            'to_class' => 'I', 'from_class' => 'I', 'effective_from_year' => 2020,
+            'cr_years' => 3, 'loyalty_years' => 3, 'property_years' => 3,
+            'qualifying_total' => 18, 'qualifying_average' => 6, 'super_seat_grade' => 9, 'tribal_bonus' => 2,
+        ]);
+        $this->proposal->forceFill(['promotion_cr_rule_id' => $rule->id])->save();
+
+        $this->actingAs($this->memberOne)->get(route('dpc-proposals.tabulation-chart', $this->proposal))->assertOk()
+            ->assertSee('data-cr-column="3"', false)->assertDontSee('data-cr-column="4"', false)
+            ->assertSee(__('dpc.tabulation.property_n', ['n' => 3]))->assertDontSee(__('dpc.tabulation.property_n', ['n' => 4]))
+            ->assertSeeInOrder([__('dpc.tabulation.cr_n', ['n' => 3]), (string) ($year - 3), __('dpc.tabulation.property_n', ['n' => 1]), (string) ($year - 1)]);
+
+        $file = $this->get(route('dpc-proposals.tabulation-chart.download', $this->proposal))->assertOk()->baseResponse;
+        $this->assertInstanceOf(BinaryFileResponse::class, $file);
+        $values = [];
+        foreach (IOFactory::load($file->getFile()->getPathname())->getActiveSheet()->getRowIterator() as $sheetRow) {
+            foreach ($sheetRow->getCellIterator() as $cell) {
+                $values[] = (string) $cell->getValue();
+            }
+        }
+        $this->assertContains(__('dpc.tabulation.cr_n', ['n' => 3]), $values);
+        $this->assertNotContains(__('dpc.tabulation.cr_n', ['n' => 4]), $values);
+        $this->assertNotContains(__('dpc.tabulation.property_full', ['n' => 4]), $values);
+
+        // No rule: five.
+        $this->proposal->forceFill(['promotion_cr_rule_id' => null])->save();
+        $rule->years()->delete();
+        $rule->delete();
+        $this->app->forgetInstance(PromotionCrRules::class);
+        $this->get(route('dpc-proposals.tabulation-chart', $this->proposal))->assertSee('data-cr-column="5"', false)->assertDontSee('data-cr-column="6"', false);
     }
 
     public function test_the_workbook_is_refused_to_whoever_cannot_read_the_chart(): void

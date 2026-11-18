@@ -26,11 +26,13 @@ final class TabulationChartExport extends DefaultValueBinder implements FromView
     /**
      * @param  list<int>  $crYears
      * @param  list<int>  $propertyYears
+     * @param  array<int, array<int, int|null>>  $replacements  row id => [skipped year => year counted instead]
      */
     public function __construct(
         private readonly DpcProposal $proposal,
         private readonly array $crYears,
         private readonly array $propertyYears,
+        private readonly array $replacements = [],
     ) {}
 
     public function view(): View
@@ -39,6 +41,7 @@ final class TabulationChartExport extends DefaultValueBinder implements FromView
             'proposal' => $this->proposal,
             'crYears' => $this->crYears,
             'propertyYears' => $this->propertyYears,
+            'replacements' => $this->replacements,
         ]);
     }
 
