@@ -10,6 +10,7 @@ use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Requests\RecordGapRequest;
 use App\Domain\Dpc\Services\RecordGapService;
 use App\Domain\Master\Models\RecordReason;
+use App\Domain\Proceeding\Services\ChairmanSittingEdit;
 use App\Http\Controllers\Controller;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -43,7 +44,7 @@ class DpcRecordGapController extends Controller
     {
         // Readable by whoever may view the proposal — the AH reviews the missing-record
         // evidence here (2026-11-05); recording and withdrawing stay the AO's.
-        $this->authorize('view', $dpcProposal);
+        $this->authorizeRead($dpcProposal);
         $this->assertRowBelongsToProposal($dpcProposal, $evaluationRow);
 
         $evaluationRow->loadMissing('crGrades', 'loyaltyFlags', 'recordGaps.reason', 'recordGaps.recordedBy');
@@ -74,6 +75,7 @@ class DpcRecordGapController extends Controller
         $this->assertRowBelongsToProposal($dpcProposal, $evaluationRow);
 
         $reason = RecordReason::query()->findOrFail($request->integer('record_reason_id'));
+        $atSitting = $request->user()->can('editAtSitting', $dpcProposal);
 
         $this->gaps->record(
             $evaluationRow,
@@ -85,6 +87,11 @@ class DpcRecordGapController extends Controller
             $request->user(),
             $request->file('second_document'),
         );
+
+        // The DPC Chairman's edit at the sitting (2026-11-18).
+        if ($atSitting) {
+            app(ChairmanSittingEdit::class)->recorded($evaluationRow, 'missing_record', $request->user());
+        }
 
         return redirect()
             ->route('dpc-proposals.record-gaps.index', [$dpcProposal, $evaluationRow])
@@ -101,7 +108,12 @@ class DpcRecordGapController extends Controller
         $this->assertRowBelongsToProposal($dpcProposal, $evaluationRow);
         abort_unless($recordGap->dpc_evaluation_row_id === $evaluationRow->id, 404);
 
+        $atSitting = $request->user()->can('editAtSitting', $dpcProposal);
         $this->gaps->withdraw($recordGap, $request->user());
+
+        if ($atSitting) {
+            app(ChairmanSittingEdit::class)->recorded($evaluationRow, 'missing_record', $request->user());
+        }
 
         return redirect()
             ->route('dpc-proposals.record-gaps.index', [$dpcProposal, $evaluationRow])
@@ -121,7 +133,7 @@ class DpcRecordGapController extends Controller
         DpcEvaluationRow $evaluationRow,
         DpcEvaluationRecordGap $recordGap,
     ): StreamedResponse {
-        $this->authorize('view', $dpcProposal);
+        $this->authorizeRead($dpcProposal);
         $this->assertRowBelongsToProposal($dpcProposal, $evaluationRow);
         abort_unless($recordGap->dpc_evaluation_row_id === $evaluationRow->id, 404);
 
@@ -146,6 +158,13 @@ class DpcRecordGapController extends Controller
      * `/dpc-proposals/{a}/officers/{row-of-b}/missing-records` from reading and
      * writing across proposals.
      */
+    /** The proposal's readers, and the DPC Chairman while they may edit it at the sitting (2026-11-18). */
+    private function authorizeRead(DpcProposal $proposal): void
+    {
+        $user = request()->user();
+        abort_unless($user !== null && ($user->can('view', $proposal) || $user->can('editAtSitting', $proposal)), 403);
+    }
+
     private function assertRowBelongsToProposal(DpcProposal $proposal, DpcEvaluationRow $evaluationRow): void
     {
         abort_unless($evaluationRow->dpc_proposal_id === $proposal->id, 404);

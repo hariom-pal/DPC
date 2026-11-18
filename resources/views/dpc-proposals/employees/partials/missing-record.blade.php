@@ -19,7 +19,7 @@
             </select>
             @error('missing_reason_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
         </div>
-        <div class="col-12 small text-danger" data-missing-unfit hidden>{{ __('dpc.employee_details.missing_record.unfit_note') }}</div>
+        <div class="col-12 small text-danger" data-missing-unfit hidden><x-fit-mark :fit="false" /> {{ __('dpc.employee_details.missing_record.unfit_note') }}</div>
         <div class="col-md-4" data-missing-documents>
             <label class="form-label small" for="{{ $prefix }}-missing-document" data-document-label-default="{{ __('dpc.employee_details.missing_record.document') }}">{{ __('dpc.employee_details.missing_record.document') }}</label>
             <input type="file" accept="application/pdf,.pdf" class="form-control form-control-sm @error('missing_document') is-invalid @enderror" id="{{ $prefix }}-missing-document" name="missing_document" data-required-when-shown>

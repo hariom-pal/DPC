@@ -1659,6 +1659,13 @@ return [
     ],
 
     'merit' => [
+        // The Waiting List's size (2026-11-18): DpcCalculationService::waitingListSize.
+        'waiting_list' => [
+            'small_main_list_max' => 7,
+            'small_size' => 2,
+            'percent' => 25,
+        ],
+
         /*
         | How many continuous years of Property Return are mandatory (item 13).
         |

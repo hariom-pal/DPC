@@ -325,6 +325,7 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
             // MoM of 16 November 2026, point 9: the original lists and the Tabulation
             // Chart, for the AH and every authority after — DpcProposalPolicy::viewRecords().
             Route::get('/{dpcProposal}/tabulation-chart', [DpcTabulationController::class, 'show'])->name('tabulation-chart');
+            Route::get('/{dpcProposal}/tabulation-chart/download', [DpcTabulationController::class, 'download'])->name('tabulation-chart.download');
             Route::get('/{dpcProposal}/originals/{importBatch}', [DpcTabulationController::class, 'original'])->name('originals.download');
         });
 
@@ -586,24 +587,6 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
                  | S18 row it is, and `scopeBindings()` stops one proposal's URL
                  | reaching another's officer.
                  */
-                Route::scopeBindings()->group(function (): void {
-                    Route::get(
-                        '/{dpcProposal}/officers/{evaluationRow:sn}/missing-records',
-                        [DpcRecordGapController::class, 'index'],
-                    )->name('record-gaps.index');
-                    Route::post(
-                        '/{dpcProposal}/officers/{evaluationRow:sn}/missing-records',
-                        [DpcRecordGapController::class, 'store'],
-                    )->name('record-gaps.store');
-                    Route::get(
-                        '/{dpcProposal}/officers/{evaluationRow:sn}/missing-records/{recordGap}/document',
-                        [DpcRecordGapController::class, 'download'],
-                    )->name('record-gaps.download');
-                    Route::delete(
-                        '/{dpcProposal}/officers/{evaluationRow:sn}/missing-records/{recordGap}',
-                        [DpcRecordGapController::class, 'destroy'],
-                    )->name('record-gaps.destroy');
-                });
                 /*
                  | Employee-wise details — "Complete Details" for each officer on the
                  | Seniority List (Coder Instructions, points 2 and 3, rule 4.1).
@@ -619,24 +602,13 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
                 Route::post('/{dpcProposal}/document-verification', [DpcEmployeeDetailsController::class, 'verifyDocuments'])
                     ->name('document-verification.verify');
                 Route::scopeBindings()->prefix('/{dpcProposal}/employees/{evaluationRow:sn}')->name('employees.')->group(function (): void {
-                    Route::get('/', [DpcEmployeeDetailsController::class, 'show'])->name('show');
-                    Route::put('/basic', [DpcEmployeeDetailsController::class, 'updateBasic'])->name('basic');
-                    Route::post('/cr', [DpcEmployeeDetailsController::class, 'saveCrYear'])->name('cr.save');
-                    Route::delete('/cr/{year}', [DpcEmployeeDetailsController::class, 'removeCrYear'])->whereNumber('year')->name('cr.remove');
-                    Route::post('/property', [DpcEmployeeDetailsController::class, 'savePropertyYear'])->name('property.save');
-                    Route::delete('/property/{year}', [DpcEmployeeDetailsController::class, 'removePropertyYear'])->whereNumber('year')->name('property.remove');
-                    Route::put('/ph', [DpcEmployeeDetailsController::class, 'savePh'])->name('ph');
                     // Rule 2.1: the Administrative Head's decision on a PH claim.
                     Route::post('/ph/verify', [DpcEmployeeDetailsController::class, 'verifyPh'])->name('ph.verify');
                     // Departmental enquiry and the sealed cover (Coder Instructions rule 2.2).
-                    Route::put('/vigilance', [DpcEmployeeDetailsController::class, 'saveVigilance'])->name('vigilance');
                     // Rule 4.4: the Administrative Head's verification of the documents.
                     Route::post('/documents/verify', [DpcEmployeeDetailsController::class, 'verifyDocument'])->name('documents.verify-all');
                     Route::post('/documents/{document}/verify', [DpcEmployeeDetailsController::class, 'verifyDocument'])->name('documents.verify');
                     // Rule 2.3 (deputation without a sanctioned setup) and rule 4.4 (promotion refused).
-                    Route::put('/declarations', [DpcEmployeeDetailsController::class, 'saveDeclarations'])->name('declarations');
-                    Route::post('/documents', [DpcEmployeeDetailsController::class, 'uploadDocument'])->name('documents.store');
-                    Route::get('/documents/{document}', [DpcEmployeeDetailsController::class, 'download'])->name('documents.download');
                 });
                 /*
                  | Rule 1.1 — the department's pre-submission confirmations. A step of
@@ -698,6 +670,48 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
                 Route::get('/{dpcProposal}/revisions/{revision}/return-document', [SecretaryController::class, 'returnDocument'])->name('revisions.return-document');
                 Route::post('/{dpcProposal}/cancel', [DpcProposalController::class, 'cancel'])->name('cancel');
             });
+
+        /*
+         | One officer's record — Complete Details and the missing-record evidence — with
+         | no role on the group: what each may do is the proposal policy's alone
+         | (`view`, `updateEmployeeSection`). Out of the role group so the DPC Chairman,
+         | who holds a committee seat and no role, can edit a record themselves on the
+         | day the DPC is held (2026-11-18, DpcProposalPolicy::editAtSitting).
+         | The AH's verifications stay in the role group above.
+         */
+        Route::prefix('dpc-proposals')->name('dpc-proposals.')->group(function (): void {
+            Route::scopeBindings()->group(function (): void {
+                Route::get(
+                    '/{dpcProposal}/officers/{evaluationRow:sn}/missing-records',
+                    [DpcRecordGapController::class, 'index'],
+                )->name('record-gaps.index');
+                Route::post(
+                    '/{dpcProposal}/officers/{evaluationRow:sn}/missing-records',
+                    [DpcRecordGapController::class, 'store'],
+                )->name('record-gaps.store');
+                Route::get(
+                    '/{dpcProposal}/officers/{evaluationRow:sn}/missing-records/{recordGap}/document',
+                    [DpcRecordGapController::class, 'download'],
+                )->name('record-gaps.download');
+                Route::delete(
+                    '/{dpcProposal}/officers/{evaluationRow:sn}/missing-records/{recordGap}',
+                    [DpcRecordGapController::class, 'destroy'],
+                )->name('record-gaps.destroy');
+            });
+            Route::scopeBindings()->prefix('/{dpcProposal}/employees/{evaluationRow:sn}')->name('employees.')->group(function (): void {
+                Route::get('/', [DpcEmployeeDetailsController::class, 'show'])->name('show');
+                Route::put('/basic', [DpcEmployeeDetailsController::class, 'updateBasic'])->name('basic');
+                Route::post('/cr', [DpcEmployeeDetailsController::class, 'saveCrYear'])->name('cr.save');
+                Route::delete('/cr/{year}', [DpcEmployeeDetailsController::class, 'removeCrYear'])->whereNumber('year')->name('cr.remove');
+                Route::post('/property', [DpcEmployeeDetailsController::class, 'savePropertyYear'])->name('property.save');
+                Route::delete('/property/{year}', [DpcEmployeeDetailsController::class, 'removePropertyYear'])->whereNumber('year')->name('property.remove');
+                Route::put('/ph', [DpcEmployeeDetailsController::class, 'savePh'])->name('ph');
+                Route::put('/vigilance', [DpcEmployeeDetailsController::class, 'saveVigilance'])->name('vigilance');
+                Route::put('/declarations', [DpcEmployeeDetailsController::class, 'saveDeclarations'])->name('declarations');
+                Route::post('/documents', [DpcEmployeeDetailsController::class, 'uploadDocument'])->name('documents.store');
+                Route::get('/documents/{document}', [DpcEmployeeDetailsController::class, 'download'])->name('documents.download');
+            });
+        });
 
         // Circulation DPC — the department's side (M9 Phase 1, PPT S45/S47).
         //

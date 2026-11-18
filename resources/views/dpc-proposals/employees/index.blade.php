@@ -69,7 +69,11 @@
                                     $check = $ruleChecks[$entry['row']->id] ?? null;
                                 @endphp
                                 @if ($check !== null)
-                                    <span class="badge {{ ['meets' => 'text-bg-success', 'cir' => 'text-bg-warning', 'does_not_meet' => 'text-bg-danger', 'no_rule' => 'text-bg-secondary'][$check['status']] }}" data-rule-status="{{ $check['status'] }}">{{ __('dpc.employee_details.rule.status.'.$check['status']) }}</span>
+                                    @if (in_array($check['status'], ['meets', 'does_not_meet'], true))
+                                        <x-fit-mark :fit="$check['status'] === 'meets'" data-rule-status="{{ $check['status'] }}" />
+                                    @else
+                                        <span class="badge {{ ['cir' => 'text-bg-warning', 'no_rule' => 'text-bg-secondary'][$check['status']] }}" data-rule-status="{{ $check['status'] }}">{{ __('dpc.employee_details.rule.status.'.$check['status']) }}</span>
+                                    @endif
                                 @endif
                             </td>
                             <td class="text-end">

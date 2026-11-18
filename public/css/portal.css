@@ -636,3 +636,20 @@ details > summary.card-header { cursor: pointer; }
 @media (prefers-reduced-motion: reduce) {
     .next-step-flag { animation: none; }
 }
+
+/* Fit and Unfit by colour alone (2026-11-18): no word is shown. */
+.fit-mark { display: inline-block; width: .9rem; height: .9rem; border-radius: 50%; vertical-align: middle; border: 1px solid rgba(0, 0, 0, .15); }
+.fit-mark-fit { background-color: #198754; }
+.fit-mark-unfit { background-color: #dc3545; }
+.cell-fit { background-color: #d1e7dd !important; }
+.cell-unfit { background-color: #f8d7da !important; }
+
+/* Tabulation Chart: compact, the identifying columns kept in view while scrolling. */
+#tabulation-chart { font-size: .78rem; }
+#tabulation-chart th, #tabulation-chart td { white-space: nowrap; padding: .2rem .35rem; text-align: center; }
+#tabulation-chart td.text-start, #tabulation-chart th.text-start { text-align: left; }
+#tabulation-chart .tab-year { display: block; font-weight: 400; font-size: .7rem; opacity: .85; }
+#tabulation-chart .sticky-col { position: sticky; z-index: 2; background-clip: padding-box; }
+#tabulation-chart .sticky-sn { left: 0; min-width: 2.5rem; }
+#tabulation-chart .sticky-name { left: 2.5rem; }
+#tabulation-chart .tab-grounds { white-space: normal; min-width: 14rem; text-align: left; }

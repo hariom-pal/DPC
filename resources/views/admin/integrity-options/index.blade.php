@@ -35,7 +35,7 @@
                                 @if ($reason->needs_departmental_view)
                                     <span class="badge text-bg-warning" data-integrity-fit="view">{{ __('admin.integrity_options.by_view') }}</span>
                                 @else
-                                    <span class="badge {{ $reason->fit ? 'text-bg-success' : 'text-bg-danger' }}" data-integrity-fit="{{ $reason->fit ? 'fit' : 'unfit' }}">{{ $reason->fit ? __('admin.integrity_options.fit') : __('admin.integrity_options.unfit') }}</span>
+                                    <x-fit-mark :fit="(bool) $reason->fit" data-integrity-fit="{{ $reason->fit ? 'fit' : 'unfit' }}" />
                                 @endif
                             </td>
                             <td class="text-end">{{ $reason->sort_order }}</td>

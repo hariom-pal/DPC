@@ -1097,6 +1097,15 @@ class EmployeeDetailsTest extends TestCase
         $download = $this->get(route('dpc-proposals.originals.download', [$this->proposal, $batch]))->assertOk();
         $this->assertStringContainsString('seniority-original.csv', (string) $download->headers->get('content-disposition'));
 
+        // 2026-11-18: CR 1 to CR 5 across the header, each year beneath; and an Excel download.
+        $dpcYear = (int) ($this->proposal->dpc_year ?: $this->proposal->proposal_date->year);
+        $this->get(route('dpc-proposals.tabulation-chart', $this->proposal))
+            ->assertSee('data-cr-column="1"', false)
+            ->assertSeeInOrder([__('dpc.tabulation.cr_n', ['n' => 1]), (string) ($dpcYear - 1), __('dpc.tabulation.cr_n', ['n' => 5]), (string) ($dpcYear - 5)])
+            ->assertSee(route('dpc-proposals.tabulation-chart.download', $this->proposal), false);
+        $workbook = $this->get(route('dpc-proposals.tabulation-chart.download', $this->proposal))->assertOk();
+        $this->assertStringContainsString('.xlsx', (string) $workbook->headers->get('content-disposition'));
+
         // The Secretary and a committee member too; the AO does not.
         $secretary = User::factory()->create();
         $secretary->assignRole(Role::Secretary->value);
@@ -1106,6 +1115,7 @@ class EmployeeDetailsTest extends TestCase
             ->forceFill(['user_id' => $member->id])->save();
         $this->actingAs($member)->get(route('dpc-proposals.tabulation-chart', $this->proposal))->assertOk();
         $this->actingAs($this->ao)->get(route('dpc-proposals.tabulation-chart', $this->proposal))->assertForbidden();
+        $this->get(route('dpc-proposals.tabulation-chart.download', $this->proposal))->assertForbidden();
     }
 
     public function test_the_administrative_head_decides_every_ph_claim_before_approving(): void
@@ -1219,9 +1229,11 @@ class EmployeeDetailsTest extends TestCase
             ->assertSee('id="promotion-rule-check"', false)
             ->assertSee('data-rule-status="meets"', false);
 
+        // Fit by colour alone, never the word (2026-11-18).
         $this->actingAs($this->ao)->get(route('dpc-proposals.employees.index', $this->proposal))
             ->assertOk()
-            ->assertSee('FIT');
+            ->assertSee('data-fit="fit"', false)
+            ->assertDontSee('>FIT<', false);
     }
 
     public function test_the_highest_available_authority_counts_within_a_cr(): void

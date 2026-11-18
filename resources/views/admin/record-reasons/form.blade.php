@@ -71,7 +71,7 @@
                                 <label class="form-check form-check-inline">
                                     <input type="radio" class="form-check-input" name="makes_unfit" value="{{ $value }}" required
                                            @checked((int) old('makes_unfit', (int) ($reason->makes_unfit ?? false)) === $value)>
-                                    {{ __('admin.record_reasons.'.$label) }}
+                                    @if ($label === 'result_unfit')<x-fit-mark :fit="false" />@else{{ __('admin.record_reasons.'.$label) }}@endif
                                 </label>
                             @endforeach
                         </div>

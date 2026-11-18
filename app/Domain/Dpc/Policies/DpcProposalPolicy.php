@@ -11,6 +11,7 @@ use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\PreDpc\Models\PreDpcProposal;
 use App\Domain\Proceeding\Services\CalculationGate;
+use App\Domain\Proceeding\Services\ChairmanSittingEdit;
 use App\Domain\Proceeding\Services\CommitteeSittingService;
 use App\Domain\Proceeding\Services\SealedCoverService;
 use App\Enums\Role;
@@ -141,6 +142,11 @@ class DpcProposalPolicy
      */
     public function updateEmployeeSection(User $user, DpcProposal $proposal, string $section, ?DpcEvaluationRow $row = null): bool
     {
+        // The DPC Chairman, at the sitting itself: every section of every candidate (2026-11-18).
+        if ($this->editAtSitting($user, $proposal)) {
+            return true;
+        }
+
         $sections = $proposal->committeeReturnSections();
 
         if ($sections === null) {
@@ -152,6 +158,16 @@ class DpcProposalPolicy
         return $this->allotments->isAllotted($user, $proposal, Role::AuthorizedOfficer)
             && $proposal->status === DpcProposalStatus::Returned
             && ($row === null ? in_array($section, $sections, true) : $proposal->committeeReturnOpens($row->id, $section));
+    }
+
+    /**
+     * The DPC Chairman edits any candidate's record themselves on the day the DPC is
+     * held, from its scheduled hour, once they accepted it (2026-11-18) — see
+     * ChairmanSittingEdit. Nothing is sent back to the department for it.
+     */
+    public function editAtSitting(User $user, DpcProposal $proposal): bool
+    {
+        return app(ChairmanSittingEdit::class)->mayEdit($proposal, $user);
     }
 
     /** The AO sends a committee return, corrected, straight back to the committee (point 3). */

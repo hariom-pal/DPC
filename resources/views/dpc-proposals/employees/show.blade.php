@@ -38,18 +38,26 @@
 
     <nav aria-label="{{ __('ui.screen.breadcrumb') }}">
         <ol class="breadcrumb small">
+            @if ($atSitting)
+                <li class="breadcrumb-item"><a href="{{ route('sitting.show', $proposal) }}">{{ $proposal->dpc_id ?? __('dpc.record_gaps.proposal') }}</a></li>
+                <li class="breadcrumb-item"><a href="{{ route('sitting.candidate', [$proposal, $row]) }}">{{ __('proceeding.sitting.record') }}</a></li>
+            @else
             <li class="breadcrumb-item">
                 <a href="{{ route('dpc-proposals.show', $proposal) }}">{{ $proposal->dpc_id ?? __('dpc.record_gaps.proposal') }}</a>
             </li>
             <li class="breadcrumb-item">
                 <a href="{{ route('dpc-proposals.employees.index', $proposal) }}">{{ __('dpc.employee_details.index_title') }}</a>
             </li>
+            @endif
             <li class="breadcrumb-item active" aria-current="page">{{ $row->name }}</li>
         </ol>
     </nav>
 
     <div id="employee-details" data-employee-details>
     @include('partials.alerts')
+    @if ($atSitting)
+        <div class="alert alert-warning py-2 small" id="chairman-sitting-edit">{{ __('proceeding.sitting.chairman_editing') }}</div>
+    @endif
 
     <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
         <div>
@@ -201,7 +209,11 @@
             <div class="border rounded p-2 mb-3" id="promotion-rule-check">
                 <div class="d-flex flex-wrap justify-content-between gap-2 mb-1">
                     <strong class="small">{{ __('dpc.employee_details.rule.heading') }}</strong>
-                    <span class="badge {{ ['meets' => 'text-bg-success', 'cir' => 'text-bg-warning', 'does_not_meet' => 'text-bg-danger', 'no_rule' => 'text-bg-secondary'][$ruleCheck['status']] }}" data-rule-status="{{ $ruleCheck['status'] }}">{{ __('dpc.employee_details.rule.status.'.$ruleCheck['status']) }}</span>
+                    @if (in_array($ruleCheck['status'], ['meets', 'does_not_meet'], true))
+                        <x-fit-mark :fit="$ruleCheck['status'] === 'meets'" data-rule-status="{{ $ruleCheck['status'] }}" />
+                    @else
+                        <span class="badge {{ ['cir' => 'text-bg-warning', 'no_rule' => 'text-bg-secondary'][$ruleCheck['status']] }}" data-rule-status="{{ $ruleCheck['status'] }}">{{ __('dpc.employee_details.rule.status.'.$ruleCheck['status']) }}</span>
+                    @endif
                 </div>
                 @if ($ruleCheck['rule'] !== null)
                     <p class="small text-muted mb-2">{{ __('dpc.employee_details.rule.summary', [
@@ -279,7 +291,7 @@
                                     @if ($cr->put_up === false && ($gap = $crGaps->get($cr->year)))
                                         <div class="small" data-cr-missing-reason="{{ $cr->year }}">
                                             <span class="text-muted">{{ __('dpc.employee_details.cr.missing_reason') }}:</span> {{ $gap->reason?->label() ?? '—' }}
-                                            @if ($gap->reason?->makes_unfit)<span class="badge text-bg-danger">{{ __('dpc.employee_details.rule.status.does_not_meet') }}</span>@endif
+                                            @if ($gap->reason?->makes_unfit)<x-fit-mark :fit="false" />@endif
                                             @if ($gap->remarks)<div class="text-muted">{{ $gap->remarks }}</div>@endif
                                         </div>
                                     @endif
@@ -303,7 +315,7 @@
                                             <div class="text-muted" data-cr-integrity-view="{{ $cr->year }}">{{ __('dpc.employee_details.cr.integrity_view') }}: {{ __('dpc.employee_details.cr.integrity_views.'.$cr->integrity_departmental_view) }}</div>
                                         @endif
                                         @if (($fit = $cr->integrityFit()) !== null)
-                                            <span class="badge {{ $fit ? 'text-bg-success' : 'text-bg-danger' }}">{{ $fit ? __('dpc.employee_details.rule.status.meets') : __('dpc.employee_details.rule.status.does_not_meet') }}</span>
+                                            <x-fit-mark :fit="$fit" />
                                         @endif
                                     @else
                                         —
@@ -957,7 +969,7 @@
                         {{ $row->{$field} === null ? '—' : ($row->{$field} ? __('ui.yes') : __('ui.no')) }}
                         {{-- The first question's Yes is the sealed cover (2026-11-18); the second's is Unfit. --}}
                         @if ($row->{$field} && $field === 'enquiry_ongoing')<span class="badge text-bg-warning" data-sealed-cover="yes">{{ __('dpc.employee_details.vigilance.sealed_cover') }}</span>
-                        @elseif ($row->{$field})<span class="badge text-bg-danger">{{ __('dpc.employee_details.rule.status.does_not_meet') }}</span>@endif
+                        @elseif ($row->{$field})<x-fit-mark :fit="false" />@endif
                     </dd>
                 @endforeach
                 {{-- A "matter pending" recorded before the question was retired (2026-11-18). --}}

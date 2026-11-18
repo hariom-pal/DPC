@@ -50,6 +50,16 @@
                 </div>
             </div>
 
+            {{-- The DPC Chairman edits the record themselves at the sitting (2026-11-18). --}}
+            @can('editAtSitting', $proposal)
+                <div class="card border-warning shadow-sm mb-3" id="chairman-edit">
+                    <div class="card-body d-flex flex-wrap gap-2 align-items-center">
+                        <a href="{{ route('dpc-proposals.employees.show', [$proposal, $row]) }}" class="btn btn-warning" id="chairman-edit-link">{{ __('proceeding.sitting.edit_record') }}</a>
+                        <span class="small text-body-secondary">{{ __('proceeding.sitting.edit_record_help') }}</span>
+                    </div>
+                </div>
+            @endcan
+
             {{-- The record itself. --}}
             <div class="card border-0 shadow-sm mb-3">
                 <div class="card-body">

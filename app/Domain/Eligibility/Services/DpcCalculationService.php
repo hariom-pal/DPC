@@ -526,6 +526,18 @@ class DpcCalculationService
             ];
         }
 
+        /*
+         | How many wait (business rule of 2026-11-18): two for a Main List of 1 to 7;
+         | for 8 or more, 25% of it — a fraction of .5 or more up, below .5 down (8.6
+         | is 9, 8.4 is 8). The rest, beyond it, are on no list.
+         */
+        $limit = self::waitingListSize($mainPosition);
+        foreach ($placement as $sn => $placed) {
+            if ($placed['list_type'] === ListType::Waiting && $placed['list_position'] > $limit) {
+                unset($placement[$sn]);
+            }
+        }
+
         foreach ($entries as $index => $entry) {
             $sn = $entry['record']->serialNumber;
 
@@ -687,5 +699,25 @@ class DpcCalculationService
         } catch (\Throwable) {
             return null;
         }
+    }
+
+    /**
+     * The Waiting List's size for a Main List of this many (2026-11-18): two for 1 to
+     * 7; for 8 or more, 25% of it, a fraction of .5 or more rounded up and below .5
+     * down. None for an empty Main List.
+     */
+    public static function waitingListSize(int $selected): int
+    {
+        if ($selected <= 0) {
+            return 0;
+        }
+
+        $small = (int) config('dpc.merit.waiting_list.small_main_list_max', 7);
+
+        if ($selected <= $small) {
+            return (int) config('dpc.merit.waiting_list.small_size', 2);
+        }
+
+        return (int) round($selected * (float) config('dpc.merit.waiting_list.percent', 25) / 100, 0, PHP_ROUND_HALF_UP);
     }
 }

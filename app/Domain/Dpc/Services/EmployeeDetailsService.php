@@ -22,6 +22,7 @@ use App\Domain\Master\Models\IntegrityOption;
 use App\Domain\Master\Services\PhReservationPolicy;
 use App\Domain\Master\Services\PromotionCrRules;
 use App\Domain\Master\Support\ReservationMode;
+use App\Domain\Proceeding\Services\ChairmanSittingEdit;
 use App\Domain\Shared\Services\ActivityTimelineService;
 use App\Domain\Shared\Workflow\WorkflowException;
 use Illuminate\Http\UploadedFile;
@@ -1366,7 +1367,9 @@ class EmployeeDetailsService
     {
         $proposal = $row->proposal;
 
-        if (! $proposal->status->isEditable()) {
+        // The DPC Chairman's own edits at the sitting (2026-11-18): who may is the
+        // policy's to decide (DpcProposalPolicy::editAtSitting); this is the state.
+        if (! $proposal->status->isEditable() && ! app(ChairmanSittingEdit::class)->windowOpen($proposal)) {
             throw new WorkflowException(__('dpc.employee_details.not_editable'));
         }
     }

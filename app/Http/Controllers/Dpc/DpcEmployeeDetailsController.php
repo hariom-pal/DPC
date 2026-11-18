@@ -25,6 +25,7 @@ use App\Domain\Master\Models\RecordReason;
 use App\Domain\Master\Models\ReservationCategory;
 use App\Domain\Master\Models\SealedCoverReason;
 use App\Domain\Master\Services\PromotionCrRules;
+use App\Domain\Proceeding\Services\ChairmanSittingEdit;
 use App\Domain\Shared\Workflow\WorkflowException;
 use App\Enums\MasterStatus;
 use App\Http\Controllers\Controller;
@@ -82,7 +83,7 @@ class DpcEmployeeDetailsController extends Controller
 
     public function show(DpcProposal $dpcProposal, DpcEvaluationRow $evaluationRow): View
     {
-        $this->authorize('view', $dpcProposal);
+        $this->authorizeRead($dpcProposal);
         $this->assertRowBelongsToProposal($dpcProposal, $evaluationRow);
 
         $evaluationRow->load([
@@ -112,6 +113,8 @@ class DpcEmployeeDetailsController extends Controller
                 ->mapWithKeys(fn (string $section): array => [$section => request()->user()?->can('updateEmployeeSection', [$dpcProposal, $section, $evaluationRow]) ?? false])
                 ->all(),
             'canEdit' => in_array(true, $canEditSection, true),
+            // The DPC Chairman editing at the sitting (2026-11-18).
+            'atSitting' => request()->user()?->can('editAtSitting', $dpcProposal) ?? false,
             'committeeReturn' => $dpcProposal->committee_returned_at === null ? null : $dpcProposal->committee_return,
             // Rule 4.4: the Administrative Head verifies the documents of a submitted proposal.
             'canVerify' => request()->user()?->can('approve', $dpcProposal) ?? false,
@@ -359,7 +362,7 @@ class DpcEmployeeDetailsController extends Controller
      */
     public function download(DpcProposal $dpcProposal, DpcEvaluationRow $evaluationRow, DpcEvaluationDocument $document): StreamedResponse
     {
-        $this->authorize('view', $dpcProposal);
+        $this->authorizeRead($dpcProposal);
         $this->assertRowBelongsToProposal($dpcProposal, $evaluationRow);
         abort_unless($document->dpc_evaluation_row_id === $evaluationRow->id, 404);
 
@@ -382,10 +385,18 @@ class DpcEmployeeDetailsController extends Controller
 
         $back = redirect()->to(route('dpc-proposals.employees.show', [$proposal, $row]).'#section-'.$section);
 
+        // Decided before the write: the write itself does not change who may edit.
+        $atSitting = $request->user() !== null && $request->user()->can('editAtSitting', $proposal);
+
         try {
             $action();
         } catch (WorkflowException $e) {
             return $back->withInput()->withErrors([$section => $e->getMessage()]);
+        }
+
+        // The DPC Chairman's edit at the sitting: on the timeline, and the candidate OK'd afresh (2026-11-18).
+        if ($atSitting) {
+            app(ChairmanSittingEdit::class)->recorded($row, $section, $request->user());
         }
 
         // "Save & Next" (2026-11-14): saved, the officer lands on the next section.
@@ -418,6 +429,13 @@ class DpcEmployeeDetailsController extends Controller
             $request->filled('missing_remarks') ? (string) $request->input('missing_remarks') : null,
             $document, $request->user(), $second instanceof UploadedFile ? $second : null,
         );
+    }
+
+    /** The proposal's readers, and the DPC Chairman while they may edit it at the sitting. */
+    private function authorizeRead(DpcProposal $proposal): void
+    {
+        $user = request()->user();
+        abort_unless($user !== null && ($user->can('view', $proposal) || $user->can('editAtSitting', $proposal)), 403);
     }
 
     private function assertRowBelongsToProposal(DpcProposal $proposal, DpcEvaluationRow $row): void

@@ -221,6 +221,34 @@ class DpcCalculationTest extends TestCase
         $this->assertSame(2, $run->waiting_list_count);
     }
 
+    /**
+     * The waiting list's size (2026-11-18): two for a main list of one to seven — and
+     * never more than the eligible officers left over after the main list.
+     */
+    public function test_the_waiting_list_is_capped_and_never_exceeds_the_eligible_left_over(): void
+    {
+        $grades = [2013 => 'क', 2014 => 'क', 2015 => 'क', 2016 => 'क', 2017 => 'क'];
+
+        // 2 seats, 5 eligible: 2 main, 2 waiting (the cap), the fifth on neither list.
+        $this->seedProposal(array_map(fn (int $sn) => $this->officer($sn, 'UR'.$sn, $grades), range(1, 5)), ['UR' => 2]);
+        $run = $this->calculate();
+        $this->assertSame(2, $run->main_list_count);
+        $this->assertSame(2, $run->waiting_list_count);
+        $this->assertSame(1, $run->results()->where('list_type', ListType::None->value)->count());
+        $this->assertSame([1, 2], $run->results()->where('list_type', ListType::Waiting->value)->orderBy('list_position')->pluck('list_position')->all());
+    }
+
+    public function test_the_waiting_list_takes_only_the_eligible_there_are(): void
+    {
+        $grades = [2013 => 'क', 2014 => 'क', 2015 => 'क', 2016 => 'क', 2017 => 'क'];
+
+        // 2 seats, 3 eligible: the cap is 2, but only one is left to wait.
+        $this->seedProposal(array_map(fn (int $sn) => $this->officer($sn, 'UR'.$sn, $grades), range(1, 3)), ['UR' => 2]);
+        $run = $this->calculate();
+        $this->assertSame(2, $run->main_list_count);
+        $this->assertSame(1, $run->waiting_list_count);
+    }
+
     public function test_a_super_seat_officer_takes_notional_seniority_over_seniors(): void
     {
         // US4 is fourth by seniority but has five क+ years, so §5.5's notional

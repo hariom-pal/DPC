@@ -12,8 +12,10 @@ use App\Domain\Proceeding\Enums\CorrectableField;
 use App\Domain\Proceeding\Models\DpcCandidateReview;
 use App\Domain\Proceeding\Models\DpcSittingMeeting;
 use App\Domain\Proceeding\Services\CalculationGate;
+use App\Domain\Proceeding\Services\ChairmanSittingEdit;
 use App\Domain\Proceeding\Services\CommitteeSittingService;
 use App\Domain\Proceeding\Services\SittingMeetingService;
+use App\Domain\Shared\Models\ActivityTimeline;
 use App\Domain\Shared\Workflow\WorkflowException;
 use Illuminate\Support\Carbon;
 use Tests\Feature\Proceeding\Concerns\BuildsProceedings;
@@ -367,6 +369,52 @@ final class CommitteeSittingTest extends TestCase
         $this->assertContains('ok_pending', array_column(app(CalculationGate::class)->pendingMembers($this->proposal->fresh()), 'state'));
         $meetings->review($this->proposal, $corrected, $member);
         $this->assertSame([], $meetings->candidatesAwaitingOk($this->proposal, $member->id));
+    }
+
+    /**
+     * 2026-11-18: on the day the DPC is held, the DPC Chairman edits any candidate's
+     * record themselves — nothing is sent back. Each edit is on the timeline and asks
+     * every member for a fresh OK on that candidate. Nobody else, and not before.
+     */
+    public function test_the_dpc_chairman_edits_a_record_themselves_at_the_sitting(): void
+    {
+        $member = $this->seatedMember();
+        $row = $this->firstCandidate();
+        $this->memberOne->forceFill(['must_change_password' => false, 'email_verified_at' => now()])->save();
+        $basic = [
+            'dob_order_number' => 'SR/12/1995', 'dob_order_date' => '1995-07-01',
+            'joining_order_number' => 'APPT/45/1995', 'joining_order_date' => '1995-07-01',
+            'service_record_undertaking' => '1',
+        ];
+
+        // The day before: not even the DPC Chairman.
+        Carbon::setTestNow($this->atTheSitting()->copy()->subDay());
+        $this->actingAs($this->memberOne)->get(route('sitting.candidate', [$this->proposal, $row]))->assertOk()->assertDontSee('id="chairman-edit-link"', false);
+        $this->get(route('dpc-proposals.employees.show', [$this->proposal, $row]))->assertForbidden();
+        $this->put(route('dpc-proposals.employees.basic', [$this->proposal, $row]), $basic)->assertForbidden();
+
+        // At the sitting: a member OKs, then the DPC Chairman edits.
+        Carbon::setTestNow($this->atTheSitting());
+        $meetings = app(SittingMeetingService::class);
+        $meetings->review($this->proposal, $row, $member);
+
+        $this->actingAs($this->memberOne)->get(route('sitting.candidate', [$this->proposal, $row]))->assertSee('id="chairman-edit-link"', false);
+        $this->get(route('dpc-proposals.employees.show', [$this->proposal, $row]))->assertOk()->assertSee('id="chairman-sitting-edit"', false);
+        $this->put(route('dpc-proposals.employees.basic', [$this->proposal, $row]), $basic)->assertSessionHasNoErrors();
+
+        $this->assertSame('SR/12/1995', $row->fresh()->dob_order_number);
+        $this->assertSame(1, ActivityTimeline::query()->where('event', ChairmanSittingEdit::EVENT)->count());
+        $this->assertSame([$row->id], array_values(array_intersect([$row->id], $meetings->candidatesAwaitingOk($this->proposal, $member->id))), 'The OK on the edited record is to be given again.');
+        $this->assertNotNull(app(ChairmanSittingEdit::class)->lastEditAt($this->proposal));
+
+        // Any other member: no edit.
+        $this->actingAs($member)->get(route('sitting.candidate', [$this->proposal, $row]))->assertDontSee('id="chairman-edit-link"', false);
+        $this->get(route('dpc-proposals.employees.show', [$this->proposal, $row]))->assertForbidden();
+        $this->put(route('dpc-proposals.employees.basic', [$this->proposal, $row]), $basic)->assertForbidden();
+
+        // Not once the DPC Chairman's Accept is gone (a rejection reopens the department's correction instead).
+        DpcCommitteeDecision::query()->delete();
+        $this->actingAs($this->memberOne)->put(route('dpc-proposals.employees.basic', [$this->proposal, $row]), $basic)->assertForbidden();
     }
 
     /** Two presses at once, or twice: one OK. */

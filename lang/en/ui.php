@@ -402,6 +402,7 @@ return [
     'year' => 'Year',
     'year_wise_cr' => 'Year-wise CR',
     'yes' => 'Yes',
+    'fit_mark' => ['fit' => 'Fit', 'unfit' => 'Unfit'],
 
     // Labels of statuses and roles shown on screens (2026-10-31), so they follow the
     // chosen language. Labels printed on generated documents stay in their enums.

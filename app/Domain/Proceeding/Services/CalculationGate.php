@@ -24,7 +24,8 @@ use Illuminate\Support\Facades\DB;
  *  - Only once every member of the DPC's committee holding a portal account has
  *    recorded Agree, after the DPC last came back to the committee from the AO.
  *  - Once. Again only when the data changed after it: a correction at the sitting,
- *    or a return to the AO resubmitted (and agreed to afresh) since.
+ *    the DPC Chairman's own edit at the sitting, or a return to the AO resubmitted
+ *    (and agreed to afresh) since.
  *
  * The result, once calculated, is every member's to see (viewCalculation).
  */
@@ -209,7 +210,14 @@ final class CalculationGate
             ? DpcCalculationRun::query()->find($proceeding->latest_calculation_run_id)
             : $this->latestRun($proposal);
 
-        return $since !== null && $run !== null && $run->executed_at->lte($since);
+        if ($since !== null && $run !== null && $run->executed_at->lte($since)) {
+            return true;
+        }
+
+        // The DPC Chairman edited a record at the sitting after the result (2026-11-18).
+        $edited = app(ChairmanSittingEdit::class)->lastEditAt($proposal);
+
+        return $edited !== null && $run !== null && $run->executed_at->lte($edited);
     }
 
     /** The DPC's open proceeding, if one has been opened. */

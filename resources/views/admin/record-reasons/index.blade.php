@@ -42,7 +42,7 @@
                                     <span class="text-muted small">{{ __('admin.record_reasons.remarks_optional') }}</span>
                                 @endif
                                 @if ($reason->makes_unfit)
-                                    <span class="badge text-bg-danger" data-reason-unfit>{{ __('admin.record_reasons.unfit_badge') }}</span>
+                                    <x-fit-mark :fit="false" data-reason-unfit />
                                 @else
                                     <span class="badge text-bg-warning" data-reason-cir>{{ __('admin.record_reasons.cir_badge') }}</span>
                                 @endif

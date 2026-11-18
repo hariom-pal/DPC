@@ -187,14 +187,44 @@ final class DpcStageService
     }
 
     /**
+     * Who returned the DPC to the AO, from the latest return in its workflow ledger:
+     * the AH, the Secretary, or the DPC Chairman's rejection (marked by the Secretary
+     * and opened by the AH), or a committee member's return of the earlier kind.
+     */
+    public function returnedBy(DpcProposal $proposal): ?string
+    {
+        $event = WorkflowTransition::query()
+            ->where('workflow', 'dpc_proposal')
+            ->where('subject_type', $proposal->getMorphClass())
+            ->where('subject_id', $proposal->id)
+            ->where('to_state', DpcProposalStatus::Returned->value)
+            ->latest('occurred_at')
+            ->latest('id')
+            ->value('event');
+
+        $key = match ($event) {
+            'return' => 'ah',
+            'secretary_return' => 'secretary',
+            'ah_opens_sections' => 'chairman',
+            'committee_return' => 'committee',
+            default => null,
+        };
+
+        return $key === null ? null : (string) __('dpc.stage.returned_by.'.$key);
+    }
+
+    /**
      * @return list<string>
      */
     private function aoItems(DpcProposal $proposal, EmployeeDetailsService $details): array
     {
         $returned = $proposal->committeeReturnSections();
+        // Who sent it back (2026-11-18): said beside the correction asked for.
+        $by = $proposal->status === DpcProposalStatus::Returned ? $this->returnedBy($proposal) : null;
 
         if ($returned !== null) {
             return [(string) __('dpc.stage.items.committee_return', [
+                'by' => $by ?? (string) __('dpc.stage.returned_by.committee'),
                 'sections' => implode(', ', array_map(fn (string $section): string => (string) __('dpc.committee_decision.sections.'.$section), $returned)),
             ])];
         }
@@ -203,7 +233,7 @@ final class DpcStageService
         $incomplete = $statuses->reject(fn (array $entry): bool => $entry['status']['complete'])->count();
 
         return array_values(array_filter([
-            $proposal->status === DpcProposalStatus::Returned ? (string) __('dpc.stage.items.returned', ['remarks' => (string) $proposal->return_remarks]) : null,
+            $proposal->status === DpcProposalStatus::Returned ? (string) __('dpc.stage.items.returned', ['by' => $by ?? '—', 'remarks' => (string) $proposal->return_remarks]) : null,
             $incomplete > 0 ? (string) __('dpc.stage.items.employees', ['count' => $incomplete, 'total' => $statuses->count()]) : null,
             (string) __('dpc.stage.items.submit'),
         ]));

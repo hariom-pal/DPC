@@ -22,6 +22,7 @@ use Database\Seeders\LookupMasterSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
+use Tests\Concerns\CompletesDpcProposals;
 use Tests\Concerns\RaisesDpcProposals;
 use Tests\Support\RecordingSmsSender;
 use Tests\TestCase;
@@ -33,6 +34,7 @@ use Tests\TestCase;
  */
 class StageWorkflowTest extends TestCase
 {
+    use CompletesDpcProposals;
     use RaisesDpcProposals;
     use RefreshDatabase;
 
@@ -103,6 +105,36 @@ class StageWorkflowTest extends TestCase
         // Past the deadline: highlighted.
         $this->travel(6)->days();
         $this->actingAs($this->ao)->get(route('dashboard'))->assertSee('data-pending="'.$this->proposal->uuid.'" data-overdue="yes"', false);
+    }
+
+    public function test_a_return_to_the_ao_says_who_sent_it_back(): void
+    {
+        // 2026-11-18: the AO's pending item names the desk the DPC came back from.
+        $this->makeProposalSubmittable($this->proposal, $this->ao);
+        $this->actingAs($this->ao)->post(route('dpc-proposals.submit', $this->proposal))->assertSessionHasNoErrors();
+        $this->actingAs($this->ah)->post(route('dpc-proposals.return', $this->proposal), ['return_remarks' => 'Recheck the gradation list.'])
+            ->assertSessionHasNoErrors();
+
+        $proposal = $this->proposal->fresh();
+        $this->assertSame(__('dpc.stage.returned_by.ah'), app(DpcStageService::class)->returnedBy($proposal));
+        $this->actingAs($this->ao)->get(route('dashboard'))->assertOk()
+            ->assertSee(__('dpc.stage.returned_by.ah'));
+    }
+
+    public function test_each_return_names_its_own_source(): void
+    {
+        $this->proposal->forceFill(['status' => DpcProposalStatus::Returned->value])->save();
+        $stages = app(DpcStageService::class);
+
+        foreach (['secretary_return' => 'secretary', 'ah_opens_sections' => 'chairman', 'committee_return' => 'committee', 'return' => 'ah'] as $event => $key) {
+            $this->travel(1)->minutes();
+            WorkflowTransition::query()->create([
+                'workflow' => 'dpc_proposal', 'subject_type' => $this->proposal->getMorphClass(), 'subject_id' => $this->proposal->id,
+                'event' => $event, 'from_state' => DpcProposalStatus::Submitted->value, 'to_state' => DpcProposalStatus::Returned->value,
+                'occurred_at' => now(),
+            ]);
+            $this->assertSame(__('dpc.stage.returned_by.'.$key), $stages->returnedBy($this->proposal->fresh()), $event);
+        }
     }
 
     public function test_a_stage_near_or_past_its_deadline_is_reminded_once_a_day(): void
