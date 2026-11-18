@@ -332,8 +332,11 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
             Route::get('/', [CommitteeSittingController::class, 'index'])->name('index');
             Route::get('/{dpcProposal}', [CommitteeSittingController::class, 'show'])->name('show');
             Route::get('/{dpcProposal}/candidate/{row}', [CommitteeSittingController::class, 'candidate'])->name('candidate');
-            Route::post('/{dpcProposal}/candidate/{row}/call', [CommitteeSittingController::class, 'call'])->name('call');
-            Route::post('/{dpcProposal}/candidate/{row}/conclude', [CommitteeSittingController::class, 'conclude'])->name('conclude');
+            // Candidates are never called before a DPC (2026-11-18): each member records an
+            // OK on each record, and the DPC Chairman starts the sitting's meeting.
+            Route::post('/{dpcProposal}/candidate/{row}/ok', [CommitteeSittingController::class, 'review'])->name('candidate.ok');
+            Route::post('/{dpcProposal}/meeting', [CommitteeSittingController::class, 'initiateMeeting'])->middleware('throttle:10,1')->name('meeting.initiate');
+            Route::get('/{dpcProposal}/meeting', [CommitteeSittingController::class, 'joinMeeting'])->name('meeting');
             // MoM of 16 November 2026, points 2 and 3: a member's decision — agreed, or returned by section.
             Route::post('/{dpcProposal}/decision', [CommitteeDecisionController::class, 'store'])->name('decision');
         });

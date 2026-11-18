@@ -587,6 +587,8 @@ class CalculationUiTest extends TestCase
         $member = User::factory()->create(['name' => 'Second Member']);
         $this->seatAccountOnCommittee($this->proposal, $member);
         DpcCommitteeDecision::query()->delete();
+        // Both have OK'd every candidate; this test is about the Agree (2026-11-18).
+        $this->everyMemberOksEveryCandidate($this->proposal);
 
         // Nobody has agreed: no button, and the POST is refused.
         $this->actingAs($this->ao)->get(route('sitting.show', $this->proposal))->assertOk()

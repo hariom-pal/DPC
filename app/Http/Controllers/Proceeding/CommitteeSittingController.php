@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Proceeding;
 use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Proceeding\Services\CommitteeSittingService;
+use App\Domain\Proceeding\Services\SittingMeetingService;
 use App\Domain\Shared\Workflow\WorkflowException;
 use App\Http\Controllers\Controller;
 use Illuminate\Contracts\View\View;
@@ -60,8 +61,9 @@ class CommitteeSittingController extends Controller
             'proposal' => $dpcProposal,
             'candidates' => $this->sittings->candidates($dpcProposal),
             'schedule' => $this->sittings->schedule($dpcProposal),
-            'callOpen' => $this->sittings->callWindowIsOpen($dpcProposal),
-            'callReason' => $this->sittings->callWindowReason($dpcProposal),
+            'meeting' => app(SittingMeetingService::class)->current($dpcProposal),
+            'reviews' => app(SittingMeetingService::class)->reviews($dpcProposal),
+            'memberCount' => app(SittingMeetingService::class)->memberCount($dpcProposal),
         ]);
     }
 
@@ -77,7 +79,6 @@ class CommitteeSittingController extends Controller
             'reservationCategory', 'seatReservationCategory',
             'crGrades', 'loyaltyFlags', 'propertyFlags',
             'recordGaps.reason',
-            'candidateCall.caller', 'candidateCall.concluder',
         ]);
 
         return view('proceedings.sitting.candidate', [
@@ -96,43 +97,56 @@ class CommitteeSittingController extends Controller
             'result' => $this->sittings->resultFor($dpcProposal, $row),
 
             'schedule' => $this->sittings->schedule($dpcProposal),
-            'callOpen' => $this->sittings->callWindowIsOpen($dpcProposal),
-            'callReason' => $this->sittings->callWindowReason($dpcProposal),
+            // Each member's OK on this record (2026-11-18).
+            'reviews' => app(SittingMeetingService::class)->reviews($dpcProposal)->get($row->id, collect()),
         ]);
     }
 
-    public function call(Request $request, DpcProposal $dpcProposal, DpcEvaluationRow $row): RedirectResponse
+    /**
+     * Start the sitting's meeting (2026-11-18): the DPC Chairman alone. The other
+     * members are sent a link to join it through the portal.
+     */
+    public function initiateMeeting(Request $request, DpcProposal $dpcProposal): RedirectResponse
+    {
+        $this->assertSeated($request, $dpcProposal);
+
+        try {
+            app(SittingMeetingService::class)->initiate($dpcProposal, $request->user());
+        } catch (WorkflowException $e) {
+            return back()->withErrors(['meeting' => $e->getMessage()]);
+        }
+
+        return back()->with('status', __('proceeding.sitting.meeting_started'));
+    }
+
+    /**
+     * Join the meeting: a member of this DPC's committee is sent on to the room. The
+     * room is never shown to anybody else.
+     */
+    public function joinMeeting(Request $request, DpcProposal $dpcProposal): RedirectResponse
+    {
+        $this->assertSeated($request, $dpcProposal);
+
+        $meeting = app(SittingMeetingService::class)->current($dpcProposal);
+
+        if ($meeting === null) {
+            return redirect()->route('sitting.show', $dpcProposal)->withErrors(['meeting' => __('proceeding.sitting.meeting_not_started')]);
+        }
+
+        return redirect()->away($meeting->url);
+    }
+
+    /**
+     * This member's OK on a candidate's record (2026-11-18).
+     */
+    public function review(Request $request, DpcProposal $dpcProposal, DpcEvaluationRow $row): RedirectResponse
     {
         $this->assertSeated($request, $dpcProposal);
         $this->assertBelongs($dpcProposal, $row);
 
-        try {
-            $this->sittings->call($dpcProposal, $row, $request->user());
-        } catch (WorkflowException $e) {
-            return back()->withErrors(['call' => $e->getMessage()]);
-        }
+        app(SittingMeetingService::class)->review($dpcProposal, $row, $request->user());
 
-        return back()->with('status', __('proceeding.sitting.called', ['name' => $row->name]));
-    }
-
-    public function conclude(Request $request, DpcProposal $dpcProposal, DpcEvaluationRow $row): RedirectResponse
-    {
-        $this->assertSeated($request, $dpcProposal);
-        $this->assertBelongs($dpcProposal, $row);
-
-        $validated = $request->validate([
-            // Not marks — the scheme is undecided. Whatever the committee wants
-            // beside the candidate's name on the record.
-            'remarks' => ['nullable', 'string', 'max:2000'],
-        ]);
-
-        try {
-            $this->sittings->conclude($dpcProposal, $row, $request->user(), $validated['remarks'] ?? null);
-        } catch (WorkflowException $e) {
-            return back()->withErrors(['call' => $e->getMessage()]);
-        }
-
-        return back()->with('status', __('proceeding.sitting.concluded', ['name' => $row->name]));
+        return back()->with('status', __('proceeding.sitting.ok_recorded', ['name' => $row->name]));
     }
 
     private function assertSeated(Request $request, DpcProposal $proposal): void

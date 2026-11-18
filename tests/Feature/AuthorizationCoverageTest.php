@@ -79,8 +79,11 @@ class AuthorizationCoverageTest extends TestCase
         'dpc-proposals.tabulation-chart' => 'Guarded by DpcProposalPolicy::viewRecords(): the AH, Secretary, DPC Committee and Chairman.',
         'dpc-proposals.originals.download' => 'As above, and the batch must be a committed list of this proposal or it is a 404.',
         'sitting.candidate' => 'As above, and the row must belong to the proposal or it is a 404.',
-        'sitting.call' => 'As above, and additionally refused outside the scheduled sitting window.',
-        'sitting.conclude' => 'As above, and refused unless the candidate was called first.',
+        // 2026-11-18: no candidate is called; each member records an OK, and the DPC
+        // Chairman starts the meeting.
+        'sitting.candidate.ok' => 'As above, and the row must belong to the proposal or it is a 404.',
+        'sitting.meeting' => 'As above (a seat on the committee); sent on to the room only once started.',
+        'sitting.meeting.initiate' => 'As above, and SittingMeetingService refuses anybody but the DPC Chairman.',
         // The DPC's Chairman is a committee seat, not an office (2026-11-06).
         'cgpsc.proceedings.sealed-covers' => 'Guarded by SealedCoverService::isDpcChairman() on this proceeding\'s proposal.',
         'cgpsc.proceedings.sealed-covers.open' => 'As above, in the Form Request and again in the service.',

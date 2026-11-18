@@ -9,6 +9,7 @@ use App\Domain\Dpc\Enums\DpcProposalStatus;
 use App\Domain\Dpc\Models\DpcCommitteeDecision;
 use App\Domain\Dpc\Models\DpcCommitteeMember;
 use App\Domain\Dpc\Models\DpcProposal;
+use App\Domain\Proceeding\Services\SittingMeetingService;
 use App\Domain\Shared\Workflow\WorkflowEngine;
 use App\Domain\Shared\Workflow\WorkflowException;
 use Illuminate\Http\Request;
@@ -58,6 +59,14 @@ final class CommitteeDecisionService
 
             if ($locked->status !== DpcProposalStatus::Approved) {
                 throw new WorkflowException(__('dpc.committee_decision.not_at_committee'));
+            }
+
+            // Agree only once this member has OK'd every candidate on the record as it
+            // now stands (2026-11-18). A Return needs no OK.
+            $meetings = app(SittingMeetingService::class);
+            if ($decision === DpcCommitteeDecision::AGREED && in_array($member->id, $meetings->requiredMemberIds($locked), true)
+                && ($awaiting = count($meetings->candidatesAwaitingOk($locked, $member->id))) > 0) {
+                throw new WorkflowException((string) __('dpc.committee_decision.ok_first', ['count' => $awaiting]));
             }
 
             $name = (string) (DpcCommitteeMember::query()->where('dpc_proposal_id', $locked->id)->serving()->where('user_id', $member->id)->value('name') ?? $member->name);
@@ -121,6 +130,10 @@ final class CommitteeDecisionService
             DpcCommitteeDecision::query()->where('dpc_proposal_id', $locked->id)
                 ->where('decision', DpcCommitteeDecision::RETURNED)->whereNull('resubmitted_at')
                 ->update(['resubmitted_at' => now()]);
+
+            // What came back is OK'd afresh: no OK on the earlier submission carries
+            // forward unverified (2026-11-18).
+            app(SittingMeetingService::class)->invalidateProposal($locked, 'resubmission', $ao);
 
             $this->revisions->recordApproval($locked);
 

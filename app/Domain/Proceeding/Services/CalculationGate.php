@@ -64,6 +64,10 @@ final class CalculationGate
             return (string) __('dpc.calculation_gate.missing_account');
         }
 
+        if (collect($pending)->contains(fn (array $member): bool => $member['state'] === 'ok_pending')) {
+            return (string) __('dpc.calculation_gate.awaiting_ok');
+        }
+
         if ($pending !== []) {
             return (string) __('dpc.calculation_gate.awaiting_agreement');
         }
@@ -88,7 +92,7 @@ final class CalculationGate
      * The members whose Agree is still wanted, each with why: no login account to
      * record it with, nothing recorded since the DPC last came back, or a Return.
      *
-     * @return list<array{name: string, user_id: int|null, state: 'no_account'|'pending'|'returned'}>
+     * @return list<array{name: string, user_id: int|null, state: 'no_account'|'ok_pending'|'pending'|'returned'}>
      */
     public function pendingMembers(DpcProposal $proposal): array
     {
@@ -107,10 +111,13 @@ final class CalculationGate
             ->get()
             ->keyBy('user_id');
 
+        $meetings = app(SittingMeetingService::class);
         $pending = [];
         foreach ($this->seats($proposal) as $seat) {
             $state = match (true) {
                 $seat->user_id === null => 'no_account',
+                // Every candidate OK'd on the record as it now stands (2026-11-18).
+                $meetings->candidatesAwaitingOk($proposal, (int) $seat->user_id) !== [] => 'ok_pending',
                 ! $latest->has($seat->user_id) => 'pending',
                 $latest[$seat->user_id]->decision !== DpcCommitteeDecision::AGREED => 'returned',
                 default => null,

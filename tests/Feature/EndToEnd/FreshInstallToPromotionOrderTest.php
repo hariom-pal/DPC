@@ -468,6 +468,9 @@ class FreshInstallToPromotionOrderTest extends TestCase
             // Every member with an account records Agree at the sitting first (2026-11-18).
             foreach (DpcCommitteeMember::query()->where('dpc_proposal_id', $proposal->id)->serving()->whereNotNull('user_id')->with('user')->get() as $seat) {
                 $seat->user->forceFill(['must_change_password' => false, 'email_verified_at' => now()])->save();
+                foreach (DpcEvaluationRow::query()->where('dpc_proposal_id', $proposal->id)->get() as $okRow) {
+                    $this->ok($this->actingAs($seat->user)->post(route('sitting.candidate.ok', [$proposal, $okRow])));
+                }
                 $this->ok($this->actingAs($seat->user)->post(route('sitting.decision', $proposal), ['decision' => 'agreed']));
             }
             $this->ok($this->actingAs($member)->post(route('cgpsc.proceedings.calculate', $proceeding)));

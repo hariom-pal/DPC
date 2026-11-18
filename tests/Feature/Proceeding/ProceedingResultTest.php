@@ -195,6 +195,9 @@ class ProceedingResultTest extends TestCase
 
     private function calculate(?User $as = null)
     {
+        // The members have OK'd every candidate on the record as it stands (2026-11-18).
+        $this->everyMemberOksEveryCandidate($this->proposal);
+
         return $this->actingAs($as ?? $this->memberOne)
             ->post(route('cgpsc.proceedings.calculate', $this->proceeding));
     }

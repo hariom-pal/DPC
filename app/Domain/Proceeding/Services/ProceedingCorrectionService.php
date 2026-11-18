@@ -100,6 +100,9 @@ class ProceedingCorrectionService
                 $actor,
             );
 
+            // The record changed: its OKs are given again on the updated record (2026-11-18).
+            app(SittingMeetingService::class)->invalidateCandidate($row, 'correction', $actor);
+
             return $override;
         });
     }
@@ -158,6 +161,12 @@ class ProceedingCorrectionService
                 ),
                 $actor,
             );
+
+            // Withdrawn, the record changed back: its OKs are given again (2026-11-18).
+            $withdrawnRow = DpcEvaluationRow::query()->where('dpc_proposal_id', $proceeding->dpc_proposal_id)->where('sn', $override->sn)->first();
+            if ($withdrawnRow !== null) {
+                app(SittingMeetingService::class)->invalidateCandidate($withdrawnRow, 'correction', $actor);
+            }
 
             return $reverting;
         });

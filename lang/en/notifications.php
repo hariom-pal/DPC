@@ -45,6 +45,8 @@ return [
         'overdue_body' => ':dpc is with you (:stage): :action. The deadline of :due has passed. Open it: :url',
     ],
     'sitting' => [
+        'meeting_subject' => 'ODPC Portal — :dpc: the DPC meeting has started',
+        'meeting_body' => 'The DPC Chairman (:chairman) has started the meeting of :dpc. Sign in to the e-DPC Portal and join it: :url',
         // Business clarification of 2026-09-05: the message the committee and the
         // candidates receive when the DPC Allottee fixes or moves the sitting.
         'subject_candidate_scheduled' => 'ODPC Portal — the DPC for your promotion is fixed',

@@ -13,6 +13,8 @@ use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Services\DpcProposalService;
 use App\Domain\Master\Models\DepartmentPost;
+use App\Domain\Proceeding\Models\DpcCandidateReview;
+use App\Domain\Proceeding\Services\SittingMeetingService;
 use App\Domain\Shared\Workflow\WorkflowTransition;
 use App\Enums\Role;
 use Database\Seeders\LookupMasterSeeder;
@@ -77,6 +79,8 @@ class CommitteeDecisionTest extends TestCase
         $this->actingAs($this->member)->get(route('sitting.show', $this->proposal))->assertOk()
             ->assertSee('id="committee-decision"', false)->assertSee('name="section_remarks[cr]"', false);
 
+        // Every candidate is OK'd before Agree (2026-11-18).
+        $this->post(route('sitting.candidate.ok', [$this->proposal, $this->row]));
         $this->post(route('sitting.decision', $this->proposal), ['decision' => 'agreed', 'remarks' => 'Evaluation in order.'])
             ->assertRedirect(route('sitting.show', $this->proposal));
 
@@ -94,6 +98,8 @@ class CommitteeDecisionTest extends TestCase
         // A ticked section needs its remark.
         $this->actingAs($this->member)->post(route('sitting.decision', $this->proposal), ['decision' => 'returned', 'sections' => ['cr']])
             ->assertSessionHasErrors('section_remarks.cr');
+        // The member had OK'd the candidate on the submission being returned (2026-11-18).
+        app(SittingMeetingService::class)->review($this->proposal, $this->row, $this->member);
         $this->post(route('sitting.decision', $this->proposal), ['decision' => 'returned'])->assertSessionHasErrors('decision');
         $this->assertSame(DpcProposalStatus::Approved, $this->proposal->fresh()->status);
 
@@ -135,6 +141,13 @@ class CommitteeDecisionTest extends TestCase
         $this->assertNotNull(DpcCommitteeDecision::query()->where('decision', 'returned')->sole()->resubmitted_at);
         $this->assertSame(1, WorkflowTransition::query()->where('event', 'committee_resubmit')->count());
         $this->assertSame(0, WorkflowTransition::query()->where('to_state', 'submitted')->where('id', '>', WorkflowTransition::query()->where('event', 'committee_return')->value('id'))->count(), 'The AH does not see it again.');
+
+        // No OK of the returned submission carries forward: the member OKs the corrected
+        // record before agreeing again (2026-11-18).
+        $this->assertSame(1, DpcCandidateReview::query()->where('invalidation_reason', 'resubmission')->count());
+        $this->actingAs($this->member)->post(route('sitting.decision', $this->proposal), ['decision' => 'agreed'])
+            ->assertSessionHasErrors(['decision' => __('dpc.committee_decision.ok_first', ['count' => 1])]);
+        $this->post(route('sitting.candidate.ok', [$this->proposal, $this->row]))->assertSessionHasNoErrors();
 
         // The member decides again on the corrected DPC.
         $this->actingAs($this->member)->post(route('sitting.decision', $this->proposal), ['decision' => 'agreed'])->assertRedirect();

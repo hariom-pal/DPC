@@ -5,9 +5,16 @@ declare(strict_types=1);
 namespace Tests\Feature\Proceeding;
 
 use App\Domain\Authentication\Models\User;
+use App\Domain\Dpc\Models\DpcCommitteeDecision;
+use App\Domain\Dpc\Models\DpcCommitteeMember;
 use App\Domain\Dpc\Models\DpcEvaluationRow;
-use App\Domain\Proceeding\Models\DpcCandidateCall;
+use App\Domain\Proceeding\Enums\CorrectableField;
+use App\Domain\Proceeding\Models\DpcCandidateReview;
+use App\Domain\Proceeding\Models\DpcSittingMeeting;
+use App\Domain\Proceeding\Services\CalculationGate;
 use App\Domain\Proceeding\Services\CommitteeSittingService;
+use App\Domain\Proceeding\Services\SittingMeetingService;
+use App\Domain\Shared\Workflow\WorkflowException;
 use Illuminate\Support\Carbon;
 use Tests\Feature\Proceeding\Concerns\BuildsProceedings;
 use Tests\TestCase;
@@ -243,154 +250,146 @@ final class CommitteeSittingTest extends TestCase
             ->assertSee((string) $orphanYear);
     }
 
-    // ---------------------------------------------------------- the call window
+    // ------------------------------------------- the meeting and each member's OK
 
     /**
-     * **Calling is refused before the sitting.** The rule as business stated it: the
-     * call activates on the date and time the DPC is scheduled for.
-     *
-     * Enforced on the request and not only by disabling a button — a screen left
-     * open from the day before would otherwise still post.
+     * 2026-11-18: no candidate is called before a DPC. Each member opens each record
+     * and records an OK on it — once — and the list shows whose OK is in.
      */
-    public function test_a_candidate_cannot_be_called_before_the_sitting(): void
+    public function test_each_member_records_an_ok_on_each_candidate(): void
     {
         $member = $this->seatedMember();
         $row = $this->firstCandidate();
 
-        Carbon::setTestNow($this->atTheSitting()->copy()->subDay());
+        $this->actingAs($member)->get(route('sitting.candidate', [$this->proposal, $row]))->assertOk()
+            ->assertSee('id="record-ok"', false)
+            ->assertDontSee(__('proceeding.sitting.call'))->assertDontSee(__('proceeding.sitting.waiting_badge'));
 
-        $this->actingAs($member)
-            ->post(route('sitting.call', [$this->proposal, $row]))
-            ->assertSessionHasErrors('call');
+        $this->post(route('sitting.candidate.ok', [$this->proposal, $row]))->assertSessionHas('status');
+        $this->post(route('sitting.candidate.ok', [$this->proposal, $row]));
+        $this->assertSame(1, DpcCandidateReview::query()->where('user_id', $member->id)->count(), 'Once per member per candidate.');
 
-        $this->assertSame(0, DpcCandidateCall::query()->count());
-    }
+        $this->get(route('sitting.candidate', [$this->proposal, $row]))->assertDontSee('id="record-ok"', false)->assertSee(__('proceeding.sitting.ok_yours'));
+        $this->get(route('sitting.show', $this->proposal))->assertSee('data-candidate-ok="'.$row->id.'"', false)->assertSee(__('proceeding.sitting.ok_yours'));
 
-    public function test_a_candidate_cannot_be_called_after_the_day_of_the_sitting(): void
-    {
-        $member = $this->seatedMember();
-        $row = $this->firstCandidate();
-
-        Carbon::setTestNow($this->atTheSitting()->copy()->addDay());
-
-        $this->actingAs($member)
-            ->post(route('sitting.call', [$this->proposal, $row]))
-            ->assertSessionHasErrors('call');
-    }
-
-    public function test_a_candidate_is_called_at_the_sitting(): void
-    {
-        $member = $this->seatedMember();
-        $row = $this->firstCandidate();
-
-        Carbon::setTestNow($this->atTheSitting());
-
-        $this->actingAs($member)
-            ->post(route('sitting.call', [$this->proposal, $row]))
-            ->assertSessionHasNoErrors();
-
-        $call = DpcCandidateCall::query()->sole();
-
-        $this->assertSame($row->id, $call->dpc_evaluation_row_id);
-        $this->assertSame($member->id, $call->called_by);
-        $this->assertNotNull($call->called_at);
-        $this->assertNull($call->concluded_at);
+        // Nobody off the committee records one.
+        $this->actingAs(User::factory()->create())->post(route('sitting.candidate.ok', [$this->proposal, $row]))->assertForbidden();
+        $this->assertSame(1, DpcCandidateReview::query()->count());
     }
 
     /**
-     * The sitting runs on into the day. A committee scheduled for 14:00 and still
-     * working at 17:00 is an ordinary sitting, not a rule breach.
+     * Only the DPC Chairman (the allottee) starts the meeting; the portal makes the
+     * room, and every member joins it through the portal.
      */
-    public function test_the_window_stays_open_for_the_rest_of_the_day(): void
+    public function test_the_dpc_chairman_starts_the_meeting_and_members_join_it(): void
     {
+        config(['dpc.meeting.base_url' => 'https://vc.example.test']);
         $member = $this->seatedMember();
-        $row = $this->firstCandidate();
 
-        Carbon::setTestNow($this->atTheSitting()->copy()->addHours(3));
+        // A member who is not the DPC Chairman cannot start it.
+        $this->actingAs($member)->get(route('sitting.show', $this->proposal))->assertOk()
+            ->assertDontSee('id="initiate-meeting"', false)->assertSee(__('proceeding.sitting.meeting_none'));
+        $this->post(route('sitting.meeting.initiate', $this->proposal))->assertSessionHasErrors('meeting');
+        $this->get(route('sitting.meeting', $this->proposal))->assertRedirect(route('sitting.show', $this->proposal));
+        $this->assertSame(0, DpcSittingMeeting::query()->count());
 
-        $this->actingAs($member)
-            ->post(route('sitting.call', [$this->proposal, $row]))
-            ->assertSessionHasNoErrors();
+        // The DPC Chairman starts it.
+        $this->memberOne->forceFill(['must_change_password' => false, 'email_verified_at' => now()])->save();
+        $this->actingAs($this->memberOne)->get(route('sitting.show', $this->proposal))->assertSee('id="initiate-meeting"', false);
+        $this->post(route('sitting.meeting.initiate', $this->proposal))->assertSessionHas('status', __('proceeding.sitting.meeting_started'));
+
+        $meeting = DpcSittingMeeting::query()->sole();
+        $this->assertStringStartsWith('https://vc.example.test/eDPC-', $meeting->url);
+        $this->assertSame($this->memberOne->id, $meeting->initiated_by);
+
+        // Every member joins through the portal; the room itself is never on the page.
+        $this->actingAs($member)->get(route('sitting.show', $this->proposal))
+            ->assertSee('id="join-meeting"', false)->assertDontSee($meeting->url, false);
+        $this->get(route('sitting.meeting', $this->proposal))->assertRedirect($meeting->url);
+        $this->actingAs(User::factory()->create())->get(route('sitting.meeting', $this->proposal))->assertForbidden();
     }
 
-    /**
-     * Calling the same candidate back re-stamps the one row. The question the screen
-     * answers is where the committee has got to, not how many times somebody was
-     * called.
-     */
-    public function test_calling_a_candidate_twice_keeps_one_record(): void
+    /** A member agrees only once every candidate carries their OK; the CGPSC Chairman's seat is not awaited. */
+    public function test_agree_waits_for_every_candidates_ok(): void
     {
+        DpcCommitteeDecision::query()->delete();
         $member = $this->seatedMember();
-        $row = $this->firstCandidate();
+        $member->forceFill(['must_change_password' => false, 'email_verified_at' => now()])->save();
+        $meetings = app(SittingMeetingService::class);
 
-        Carbon::setTestNow($this->atTheSitting());
+        $this->assertNotContains(
+            DpcCommitteeMember::query()->where('dpc_proposal_id', $this->proposal->id)->where('capacity', 'cgpsc_chairman')->value('user_id'),
+            $meetings->requiredMemberIds($this->proposal),
+            'The CGPSC Chairman\'s own seat is not awaited.',
+        );
 
-        $this->actingAs($member)->post(route('sitting.call', [$this->proposal, $row]));
-        $this->actingAs($member)->post(route('sitting.call', [$this->proposal, $row]));
+        $this->actingAs($member)->get(route('sitting.show', $this->proposal))->assertSee('id="ok-before-agree"', false);
+        $this->post(route('sitting.decision', $this->proposal), ['decision' => 'agreed'])
+            ->assertSessionHasErrors(['decision' => __('dpc.committee_decision.ok_first', ['count' => 3])]);
 
-        $this->assertSame(1, DpcCandidateCall::query()->count());
-    }
-
-    // ------------------------------------------------------------- concluding
-
-    public function test_the_committee_concludes_a_called_candidate(): void
-    {
-        $member = $this->seatedMember();
-        $row = $this->firstCandidate();
-
-        Carbon::setTestNow($this->atTheSitting());
-
-        $this->actingAs($member)->post(route('sitting.call', [$this->proposal, $row]));
-
-        $this->actingAs($member)
-            ->post(route('sitting.conclude', [$this->proposal, $row]), ['remarks' => 'Seen by the committee.'])
-            ->assertSessionHasNoErrors();
-
-        $call = DpcCandidateCall::query()->sole();
-
-        $this->assertTrue($call->isConcluded());
-        $this->assertSame($member->id, $call->concluded_by);
-        $this->assertSame('Seen by the committee.', $call->remarks);
-    }
-
-    /**
-     * Concluding somebody the committee never called is a minute that does not
-     * describe a sitting.
-     */
-    public function test_a_candidate_who_was_never_called_cannot_be_concluded(): void
-    {
-        $member = $this->seatedMember();
-        $row = $this->firstCandidate();
-
-        Carbon::setTestNow($this->atTheSitting());
-
-        $this->actingAs($member)
-            ->post(route('sitting.conclude', [$this->proposal, $row]))
-            ->assertSessionHasErrors('call');
-
-        $this->assertSame(0, DpcCandidateCall::query()->count());
-    }
-
-    /**
-     * **No marks are recorded, and that is deliberate.** Business has not settled
-     * the scheme — *"how the marking is to be done we will see later"* — so the
-     * record carries the act, its author and its moment, and nothing that would
-     * presume it.
-     */
-    public function test_concluding_records_no_score(): void
-    {
-        $member = $this->seatedMember();
-        $row = $this->firstCandidate();
-
-        Carbon::setTestNow($this->atTheSitting());
-
-        $this->actingAs($member)->post(route('sitting.call', [$this->proposal, $row]));
-        $this->actingAs($member)->post(route('sitting.conclude', [$this->proposal, $row]));
-
-        $columns = array_keys(DpcCandidateCall::query()->sole()->getAttributes());
-
-        foreach (['score', 'marks', 'grade', 'rating'] as $absent) {
-            $this->assertNotContains($absent, $columns);
+        foreach ($this->proposal->evaluationRows as $row) {
+            $this->post(route('sitting.candidate.ok', [$this->proposal, $row]));
         }
+        $this->post(route('sitting.decision', $this->proposal), ['decision' => 'agreed'])->assertSessionHasNoErrors();
+        $this->assertSame(1, DpcCommitteeDecision::query()->where('user_id', $member->id)->count());
+    }
+
+    /** A correction at the sitting changes the record: its OKs count no more, and a fresh OK is needed. */
+    public function test_a_correction_asks_for_a_fresh_ok_on_that_candidate_only(): void
+    {
+        $member = $this->seatedMember();
+        $meetings = app(SittingMeetingService::class);
+        foreach ($this->proposal->evaluationRows as $row) {
+            $meetings->review($this->proposal, $row, $member);
+        }
+        $this->assertSame([], $meetings->candidatesAwaitingOk($this->proposal, $member->id));
+
+        $corrected = $this->firstCandidate();
+        $this->corrections()->record(
+            $this->proceeding->fresh(), $this->memberOne, CorrectableField::TribalAreaServiceYears, $corrected->sn, null, '2',
+            'Tribal service confirmed at the sitting.',
+        );
+
+        $this->assertSame([$corrected->id], $meetings->candidatesAwaitingOk($this->proposal, $member->id), 'Only the corrected candidate.');
+        $this->assertSame(1, DpcCandidateReview::query()->whereNotNull('invalidated_at')->where('invalidation_reason', 'correction')->count(), 'Kept, not deleted.');
+
+        // Calculate waits for the fresh OK.
+        $this->assertContains('ok_pending', array_column(app(CalculationGate::class)->pendingMembers($this->proposal->fresh()), 'state'));
+        $meetings->review($this->proposal, $corrected, $member);
+        $this->assertSame([], $meetings->candidatesAwaitingOk($this->proposal, $member->id));
+    }
+
+    /** Two presses at once, or twice: one OK. */
+    public function test_a_repeated_ok_makes_one_record(): void
+    {
+        $member = $this->seatedMember();
+        $row = $this->firstCandidate();
+
+        $this->actingAs($member)->post(route('sitting.candidate.ok', [$this->proposal, $row]));
+        $this->actingAs($member)->post(route('sitting.candidate.ok', [$this->proposal, $row]));
+        app(SittingMeetingService::class)->review($this->proposal, $row, $member);
+
+        $this->assertSame(1, DpcCandidateReview::query()->where('user_id', $member->id)->count());
+    }
+
+    /** Outside development a meeting needs the Commission's own server; the public one is never used there. */
+    public function test_no_meeting_starts_without_a_configured_server_outside_development(): void
+    {
+        config(['dpc.meeting.base_url' => null]);
+        $this->app['env'] = 'production';
+        $meetings = app(SittingMeetingService::class);
+
+        $this->assertNull($meetings->serverUrl());
+        try {
+            $meetings->initiate($this->proposal, $this->memberOne);
+            $this->fail('No meeting without a server.');
+        } catch (WorkflowException $e) {
+            $this->assertSame(__('proceeding.sitting.meeting_server_missing'), $e->getMessage());
+        }
+        $this->assertSame(0, DpcSittingMeeting::query()->count());
+
+        config(['dpc.meeting.base_url' => 'https://vc.cgpsc.example/']);
+        $this->assertSame('https://vc.cgpsc.example', $meetings->serverUrl());
+        $this->app['env'] = 'testing';
     }
 }

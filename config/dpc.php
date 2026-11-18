@@ -1647,6 +1647,17 @@ return [
     | 21 to 23 say those are the PPT's and are not to be modified, and they are in
     | `scoring` below, unchanged.
     */
+    /*
+    | The DPC sitting's meeting (2026-11-18): the DPC Chairman starts it and the
+    | portal makes the room on this video-conference server — a Jitsi Meet
+    | installation controlled by the Commission or NIC. Required outside development:
+    | with none set, the public meet.jit.si is used only when APP_ENV is local or
+    | testing (SittingMeetingService::serverUrl), and elsewhere no meeting starts.
+    */
+    'meeting' => [
+        'base_url' => env('DPC_MEETING_BASE_URL'),
+    ],
+
     'merit' => [
         /*
         | How many continuous years of Property Return are mandatory (item 13).

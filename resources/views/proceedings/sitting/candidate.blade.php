@@ -3,20 +3,15 @@
 @section('title', $row->name)
 
 @section('content')
-    {{-- One candidate's whole record, and the two acts the committee performs on it
-         (business instruction, 2026-09-07).
-
-         **No marks.** Business has not settled the marking scheme — *"how the
-         marking is to be done we will see later"* — so this records that the
-         candidate was called and that the committee concluded them, with who and
-         when. A score box invented now would be inventing the scheme. --}}
-    @php($call = $row->candidateCall)
+    {{-- One candidate's whole record, and each member's OK on it (2026-11-18: a
+         candidate is never called before a DPC). **No marks**: the marking scheme is
+         not settled, and a score box invented now would be inventing it. --}}
+    @php($mine = $reviews->firstWhere('user_id', auth()->id()))
 
     <div class="row justify-content-center">
         <div class="col-lg-10">
             @include('partials.alerts')
 
-            @error('call')<div class="alert alert-danger py-2">{{ $message }}</div>@enderror
 
             <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
                 <div>
@@ -25,66 +20,27 @@
                         {{ __('ui.sn') }} {{ $row->sn }} · {{ $row->employee_number ?? '—' }} · {{ $proposal->citation() }}
                     </div>
                 </div>
-                <div class="text-end">
-                    @if ($call?->isConcluded())
-                        <span class="badge text-bg-success fs-6">{{ __('proceeding.sitting.concluded_badge') }}</span>
-                    @elseif ($call?->isCalled())
-                        <span class="badge text-bg-warning fs-6">{{ __('proceeding.sitting.called_badge') }}</span>
-                    @else
-                        <span class="badge text-bg-light fs-6">{{ __('proceeding.sitting.waiting_badge') }}</span>
-                    @endif
-                </div>
             </div>
 
-            {{-- The two acts, before the record: this is the screen the committee is
-                 working from, and what they came to do belongs at the top of it. --}}
-            <div class="card border-0 shadow-sm mb-3">
-                <div class="card-body">
-                    @unless ($callOpen)
-                        <div class="alert alert-secondary py-2 small mb-3">{{ $callReason }}</div>
-                    @endunless
-
-                    <div class="d-flex flex-wrap gap-2 align-items-center">
-                        <form method="POST" action="{{ route('sitting.call', [$proposal, $row]) }}" class="m-0">
+            {{-- This member's OK, and every member's so far. --}}
+            <div class="card border-0 shadow-sm mb-3" id="candidate-ok">
+                <div class="card-body d-flex flex-wrap gap-2 align-items-center">
+                    @if ($mine)
+                        <span class="badge text-bg-success fs-6">{{ __('proceeding.sitting.ok_yours') }}</span>
+                        <span class="small text-body-secondary">{{ $mine->reviewed_at->format('d-m-Y H:i') }}</span>
+                    @else
+                        <form method="POST" action="{{ route('sitting.candidate.ok', [$proposal, $row]) }}" class="m-0">
                             @csrf
-                            <button class="btn btn-primary" @disabled(! $callOpen)>
-                                {{ $call?->isCalled() ? __('proceeding.sitting.call_again') : __('proceeding.sitting.call') }}
-                            </button>
+                            <button class="btn btn-success" id="record-ok">{{ __('proceeding.sitting.ok') }}</button>
                         </form>
-
-                        @if ($call?->isCalled())
-                            <span class="small text-body-secondary">
-                                {{ __('proceeding.sitting.called_by', [
-                                    'name' => $call->caller?->name ?? '—',
-                                    'at' => $call->called_at?->format('d-m-Y H:i'),
-                                ]) }}
-                            </span>
-                        @endif
-                    </div>
-
-                    @if ($call?->isCalled() && ! $call->isConcluded())
-                        <form method="POST" action="{{ route('sitting.conclude', [$proposal, $row]) }}" class="row g-2 mt-2">
-                            @csrf
-                            <div class="col-md-8">
-                                <label class="form-label small mb-0" for="remarks">{{ __('proceeding.sitting.remarks') }}</label>
-                                <input type="text" class="form-control form-control-sm" id="remarks" name="remarks"
-                                       placeholder="{{ __('proceeding.sitting.remarks_hint') }}">
-                            </div>
-                            <div class="col-md-4 align-self-end">
-                                <button class="btn btn-success w-100">{{ __('proceeding.sitting.conclude') }}</button>
-                            </div>
-                        </form>
+                        <span class="small text-body-secondary">{{ __('proceeding.sitting.ok_hint') }}</span>
                     @endif
-
-                    @if ($call?->isConcluded())
-                        <div class="alert alert-success py-2 small mt-3 mb-0">
-                            {{ __('proceeding.sitting.concluded_by', [
-                                'name' => $call->concluder?->name ?? '—',
-                                'at' => $call->concluded_at?->format('d-m-Y H:i'),
-                            ]) }}
-                            @if ($call->remarks)
-                                <div class="mt-1">{{ $call->remarks }}</div>
-                            @endif
+                    @if ($reviews->isNotEmpty())
+                        <div class="w-100 small text-body-secondary">
+                            {{ __('proceeding.sitting.ok_by') }}:
+                            @foreach ($reviews as $review)
+                                <span class="badge text-bg-light border">{{ $review->user?->name ?? '—' }}</span>
+                            @endforeach
                         </div>
                     @endif
                 </div>

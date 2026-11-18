@@ -465,6 +465,7 @@ return [
         ],
     ],
     'committee_decision' => [
+        'ok_first' => 'Record OK on every candidate before you agree: :count candidate(s) still await your OK.',
         'heading' => 'Committee decision',
         'choices' => ['agreed' => 'Agree', 'returned' => 'Return to the AO for correction'],
         'sections' => [
@@ -1459,6 +1460,8 @@ return [
         'open_screen' => 'Open verification',
     ],
     'calculation_gate' => [
+        'awaiting_ok' => 'Calculate will be available after every committee member has recorded OK on every candidate and then Agree.',
+        'state_ok_pending' => 'OK on candidates pending',
         'wrong_stage' => 'Calculate is available only while the DPC is with the committee (approved, with no return open).',
         'proceeding_closed' => 'The proceeding has concluded; its approved result stands and is not calculated again.',
         'missing_account' => 'Calculate will be available after every committee member has a login account and has recorded Agree. A member has no login account yet: ask the Administrator to create it.',

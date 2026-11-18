@@ -56,6 +56,18 @@ final class MessageTemplateCatalog
                 'mandatory' => false,
                 'default' => fn (array $p): array => self::lang('authui.credentials.reset', $p),
             ],
+            'sitting.meeting' => [
+                'label' => 'DPC sitting meeting started',
+                'when' => 'When the DPC Chairman starts the sitting\'s meeting. Sent to every other member of the committee with a login.',
+                'channels' => [MessageTemplate::EMAIL],
+                'placeholders' => ['dpc', 'chairman', 'url'],
+                'required' => ['url'],
+                'mandatory' => false,
+                'default' => fn (array $p): array => [
+                    'subject' => (string) __('notifications.sitting.meeting_subject', $p),
+                    'body' => (string) __('notifications.sitting.meeting_body', $p),
+                ],
+            ],
             'department.invitation' => [
                 'label' => 'Department Admin invitation',
                 'when' => 'When the CGPSC Administrator invites a department, or sends its invitation again. Sent to the department\'s official e-mail.',

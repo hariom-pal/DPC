@@ -12,6 +12,12 @@
             <form method="POST" action="{{ route('sitting.decision', $proposal) }}" class="border rounded p-2 mb-3">
                 @csrf
                 @error('decision')<div class="alert alert-danger py-2 small">{{ $message }}</div>@enderror
+                {{-- Agree only once every candidate carries this member's OK (2026-11-18). --}}
+                @php($okService = app(\App\Domain\Proceeding\Services\SittingMeetingService::class))
+                @php($awaitingOk = in_array(auth()->id(), $okService->requiredMemberIds($proposal), true) ? count($okService->candidatesAwaitingOk($proposal, (int) auth()->id())) : 0)
+                @if ($awaitingOk > 0)
+                    <div class="alert alert-warning py-2 small" id="ok-before-agree">{{ __('dpc.committee_decision.ok_first', ['count' => $awaitingOk]) }}</div>
+                @endif
                 @foreach (['agreed', 'returned'] as $choice)
                     <label class="form-check form-check-inline">
                         <input class="form-check-input" type="radio" name="decision" value="{{ $choice }}" required @checked(old('decision') === $choice)>

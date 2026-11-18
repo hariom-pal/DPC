@@ -7,19 +7,36 @@
         <div class="col-lg-11">
             @include('partials.alerts')
 
-            @error('call')<div class="alert alert-danger py-2">{{ $message }}</div>@enderror
+            @error('meeting')<div class="alert alert-danger py-2">{{ $message }}</div>@enderror
 
             <h1 class="h4 mb-1">{{ __('proceeding.sitting.candidates') }}</h1>
             <p class="text-muted small mb-2">{{ $proposal->citation() }}</p>
 
-            {{-- The Call window. Stated here rather than only implied by a disabled
-                 button: a committee that cannot call needs to know when it can. --}}
-            <div class="alert {{ $callOpen ? 'alert-success' : 'alert-secondary' }} py-2 small">
-                @if ($callOpen)
-                    {{ __('proceeding.sitting.window_open') }}
-                @else
-                    {{ $callReason }}
-                @endif
+            {{-- The sitting's meeting (2026-11-18): the DPC Chairman starts it; every
+                 member joins it through the portal. Candidates are never called. --}}
+            @php($meetings = app(\App\Domain\Proceeding\Services\SittingMeetingService::class))
+            <div class="card border-0 shadow-sm mb-3" id="sitting-meeting">
+                <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-2">
+                    <div class="small">
+                        @if ($meeting)
+                            <span class="badge text-bg-success">{{ __('proceeding.sitting.meeting_live') }}</span>
+                            {{ __('proceeding.sitting.meeting_started_by', ['name' => $meeting->initiator?->name ?? '—', 'at' => $meeting->initiated_at->format('d-m-Y H:i')]) }}
+                        @else
+                            {{ __('proceeding.sitting.meeting_none') }}
+                        @endif
+                    </div>
+                    <div class="d-flex gap-2">
+                        @if ($meeting)
+                            <a href="{{ route('sitting.meeting', $proposal) }}" target="_blank" rel="noopener" class="btn btn-success btn-sm" id="join-meeting">{{ __('proceeding.sitting.meeting_join') }}</a>
+                        @endif
+                        @if ($meetings->mayInitiate($proposal, auth()->user()))
+                            <form method="POST" action="{{ route('sitting.meeting.initiate', $proposal) }}" class="m-0">
+                                @csrf
+                                <button class="btn btn-primary btn-sm" id="initiate-meeting">{{ $meeting ? __('proceeding.sitting.meeting_restart') : __('proceeding.sitting.meeting_initiate') }}</button>
+                            </form>
+                        @endif
+                    </div>
+                </div>
             </div>
 
             @include('dpc-proposals._next-process')
@@ -76,13 +93,13 @@
                                 <th>{{ __('ui.sn') }}</th>
                                 <th>{{ __('ui.name') }}</th>
                                 <th>{{ __('ui.category') }}</th>
-                                <th>{{ __('proceeding.sitting.status') }}</th>
+                                <th>{{ __('proceeding.sitting.ok_heading') }}</th>
                                 <th class="text-end">{{ __('ui.actions') }}</th>
                             </tr>
                         </thead>
                         <tbody>
                             @foreach ($candidates as $row)
-                                @php($call = $row->candidateCall)
+                                @php($rowReviews = $reviews->get($row->id, collect()))
                                 <tr>
                                     <td>{{ $row->sn }}</td>
                                     <td>
@@ -95,14 +112,13 @@
                                             <span class="small text-body-secondary">({{ __('ui.seat_category') }}: {{ $row->seatReservationCategory->code }})</span>
                                         @endif
                                     </td>
-                                    <td>
-                                        @if ($call?->isConcluded())
-                                            <span class="badge text-bg-success">{{ __('proceeding.sitting.concluded_badge') }}</span>
-                                        @elseif ($call?->isCalled())
-                                            <span class="badge text-bg-warning">{{ __('proceeding.sitting.called_badge') }}</span>
+                                    <td data-candidate-ok="{{ $row->id }}">
+                                        @if ($rowReviews->contains('user_id', auth()->id()))
+                                            <span class="badge text-bg-success">{{ __('proceeding.sitting.ok_yours') }}</span>
                                         @else
-                                            <span class="badge text-bg-light">{{ __('proceeding.sitting.waiting_badge') }}</span>
+                                            <span class="badge text-bg-light border">{{ __('proceeding.sitting.ok_pending') }}</span>
                                         @endif
+                                        <span class="small text-body-secondary">{{ __('proceeding.sitting.ok_count', ['n' => $rowReviews->count(), 'of' => $memberCount]) }}</span>
                                     </td>
                                     <td class="text-end">
                                         <a href="{{ route('sitting.candidate', [$proposal, $row]) }}" class="btn btn-outline-primary btn-sm">

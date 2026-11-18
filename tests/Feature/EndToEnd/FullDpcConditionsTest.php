@@ -1006,6 +1006,9 @@ class FullDpcConditionsTest extends TestCase
             $members = DpcCommitteeMember::query()->where('dpc_proposal_id', $c['proposal']->id)->serving()->whereNotNull('user_id')->with('user')->get();
             foreach ($members as $seat) {
                 $seat->user->forceFill(['must_change_password' => false, 'email_verified_at' => now()])->save();
+                foreach (DpcEvaluationRow::query()->where('dpc_proposal_id', $c['proposal']->id)->get() as $okRow) {
+                    $this->ok($this->actingAs($seat->user)->post(route('sitting.candidate.ok', [$c['proposal'], $okRow])));
+                }
                 $this->ok($this->actingAs($seat->user)->post(route('sitting.decision', $c['proposal']), ['decision' => 'agreed']));
             }
             $this->ok($this->actingAs($c['member'])->post(route('cgpsc.proceedings.calculate', $proceeding)));

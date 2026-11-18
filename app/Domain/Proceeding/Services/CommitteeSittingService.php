@@ -11,13 +11,8 @@ use App\Domain\Dpc\Models\DpcCommitteeMember;
 use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Eligibility\Models\DpcCalculationResult;
-use App\Domain\Proceeding\Models\DpcCandidateCall;
-use App\Domain\Proceeding\Models\DpcProceeding;
-use App\Domain\Shared\Services\ActivityTimelineService;
-use App\Domain\Shared\Workflow\WorkflowException;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\DB;
 
 /**
  * The sitting, from a committee member's side (business instruction, 2026-09-07).
@@ -50,8 +45,6 @@ use Illuminate\Support\Facades\DB;
  */
 class CommitteeSittingService
 {
-    public function __construct(private readonly ActivityTimelineService $timeline) {}
-
     /**
      * The DPCs this person sits on, most recently scheduled first.
      *
@@ -223,110 +216,5 @@ class CommitteeSittingService
             ->whereHas('run', fn ($query) => $query->where('dpc_proposal_id', $proposal->id))
             ->latest('id')
             ->first();
-    }
-
-    /**
-     * Call a candidate before the committee.
-     *
-     * @throws WorkflowException when the sitting is not open
-     */
-    public function call(DpcProposal $proposal, DpcEvaluationRow $row, User $member): DpcCandidateCall
-    {
-        $proceeding = $this->openProceeding($proposal);
-
-        if (! $this->callWindowIsOpen($proposal)) {
-            throw new WorkflowException((string) $this->callWindowReason($proposal));
-        }
-
-        return DB::transaction(function () use ($proceeding, $proposal, $row, $member): DpcCandidateCall {
-            $call = DpcCandidateCall::query()->firstOrNew([
-                'dpc_proceeding_id' => $proceeding->id,
-                'dpc_evaluation_row_id' => $row->id,
-            ]);
-
-            // A second call of the same candidate re-stamps the row rather than
-            // adding another: the question the screen asks is where the committee
-            // has got to, not how many times somebody was called back.
-            $call->forceFill([
-                'called_at' => now(),
-                'called_by' => $member->id,
-            ])->save();
-
-            $this->timeline->record(
-                'dpc_proceeding.candidate_called',
-                $proposal,
-                sprintf('%s called before the committee by %s', $row->name, $member->name),
-                ['sn' => $row->sn, 'officer' => $row->name, 'call_uuid' => $call->uuid],
-                $member,
-            );
-
-            return $call;
-        });
-    }
-
-    /**
-     * Record that the committee has finished with this candidate.
-     *
-     * **What "concluded" carries is deliberately thin.** Business has not decided
-     * the marking scheme — *"how the marking is to be done we will see later"* — so
-     * this records the act and its author, and nothing that would presume the
-     * scheme.
-     *
-     * A candidate must have been called first: concluding somebody the committee
-     * never called is a minute that does not describe a sitting.
-     */
-    public function conclude(DpcProposal $proposal, DpcEvaluationRow $row, User $member, ?string $remarks = null): DpcCandidateCall
-    {
-        $proceeding = $this->openProceeding($proposal);
-
-        $call = DpcCandidateCall::query()
-            ->where('dpc_proceeding_id', $proceeding->id)
-            ->where('dpc_evaluation_row_id', $row->id)
-            ->first();
-
-        if ($call === null || ! $call->isCalled()) {
-            throw new WorkflowException((string) __('proceeding.sitting.call_first'));
-        }
-
-        return DB::transaction(function () use ($call, $proposal, $row, $member, $remarks): DpcCandidateCall {
-            $call->forceFill([
-                'concluded_at' => now(),
-                'concluded_by' => $member->id,
-                'remarks' => $remarks !== null && trim($remarks) !== '' ? trim($remarks) : $call->remarks,
-            ])->save();
-
-            $this->timeline->record(
-                'dpc_proceeding.candidate_concluded',
-                $proposal,
-                sprintf('The committee concluded %s', $row->name),
-                ['sn' => $row->sn, 'officer' => $row->name, 'call_uuid' => $call->uuid],
-                $member,
-            );
-
-            return $call;
-        });
-    }
-
-    /**
-     * The open sitting for this DPC.
-     *
-     * Refused rather than created: opening a sitting is the allottee's act and has
-     * its own screen, its own guard and its own transition. A committee member
-     * arriving before it is opened is early, not authorised to start it.
-     *
-     * @throws WorkflowException
-     */
-    private function openProceeding(DpcProposal $proposal): DpcProceeding
-    {
-        $proceeding = DpcProceeding::query()
-            ->where('dpc_proposal_id', $proposal->id)
-            ->latest('id')
-            ->first();
-
-        if ($proceeding === null) {
-            throw new WorkflowException((string) __('proceeding.sitting.not_open'));
-        }
-
-        return $proceeding;
     }
 }
