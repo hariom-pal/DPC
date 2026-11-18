@@ -21,7 +21,7 @@ use Tests\Feature\Proceeding\Concerns\BuildsProceedings;
  * The two officers are deliberately different **grounds**, because the whole
  * of Phase 1's BD-15 behaviour turns on telling them apart:
  *
- * - **US8** has a complete CR window and a missing 2016 immovable-property
+ * - **US8** has a complete CR window and a missing 2024 immovable-property
  *   return — a `PropertyMissing` hold. This is the deck's own worked case
  *   (S44/S48 show `ST SS CIR`, and Super Seat is refused on an incomplete
  *   window, so US8's hold cannot be a CR one).
@@ -41,14 +41,15 @@ trait BuildsCirculations
 
         $this->administrativeHead = User::factory()->assignedTo($this->department->id, Role::AdministrativeHead)->create(['name' => 'Administrative Head']);
 
-        // Property ground: five CR years, 2016 property return not recorded — a year
+        // Property ground: five CR years, 2024 property return not recorded — a year
         // the promotion rule makes mandatory, marked Missing with its reason and
         // document (2026-11-05), so it is held (CIR) rather than refused.
-        $this->makePropertyMandatory($this->proposal, 2016);
+        // Inside the rule's CR years, which the IPR years are (2026-11-18).
+        $this->makePropertyMandatory($this->proposal, 2024);
         $us8 = $this->officer(8, 'US8', $this->stCategoryId(), [
-            2013 => 'क+', 2014 => 'क+', 2015 => 'क+', 2016 => 'क+', 2017 => 'क+',
-        ], [2016]);
-        $this->justifyMissing($us8, DpcEvaluationRecordGap::KIND_PROPERTY, 2016);
+            2021 => 'क+', 2022 => 'क+', 2023 => 'क+', 2024 => 'क+', 2025 => 'क+',
+        ], [2024]);
+        $this->justifyMissing($us8, DpcEvaluationRecordGap::KIND_PROPERTY, 2024);
 
         // CR ground: only two years recorded, against the five required, the other
         // three marked Missing with their reason and document.

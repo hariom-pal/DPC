@@ -101,6 +101,26 @@ class ProposalVerificationTest extends TestCase
             ->assertSee(__('dpc.verification.items.sanctioned_strength.statement'));
     }
 
+    /** 2026-11-18: the final submission, eSigned, at the end of the verification page. */
+    public function test_the_verification_page_ends_with_the_esigned_final_submission(): void
+    {
+        $esign = route('esign.show', ['kind' => 'dpc-submit', 'uuid' => $this->proposal->uuid]);
+
+        $this->actingAs($this->ao)->get(route('dpc-proposals.verification', $this->proposal))->assertOk()
+            ->assertSee('id="verification-dpc-submit"', false)
+            ->assertSee($esign, false)
+            ->assertSee('Final Submission (eSign)')->assertSee('Record all the confirmations above first');
+
+        // Only the AO who may submit sees it.
+        $this->actingAs($this->ah)->get(route('dpc-proposals.verification', $this->proposal))
+            ->assertDontSee('id="verification-dpc-submit"', false);
+
+        // …and nobody else reaches the eSign submission by its URL.
+        $this->actingAs($this->ah)->get($esign)->assertForbidden();
+        $this->actingAs($this->ah)->post(route('esign.start', ['kind' => 'dpc-submit', 'uuid' => $this->proposal->uuid]), ['consent' => '1'])->assertForbidden();
+        $this->assertSame(DpcProposalStatus::Draft, $this->proposal->fresh()->status);
+    }
+
     public function test_a_draft_can_be_saved_with_the_checklist_incomplete(): void
     {
         $this->sectionsCompleteButUnverified();

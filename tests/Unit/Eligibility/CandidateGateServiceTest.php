@@ -582,4 +582,22 @@ final class CandidateGateServiceTest extends TestCase
             requiredPromotionDurationMonths: $requiredPromotionDurationMonths,
         );
     }
+
+    /**
+     * 2026-11-18: the Integrity Certificate of the CR years counted — the substituted
+     * older year among them — and of no CR recorded outside them.
+     */
+    public function test_integrity_is_asked_of_the_counted_cr_years_only(): void
+    {
+        $grades = [2025 => 'क', 2024 => 'क', 2022 => 'क', 2021 => 'क', 2020 => 'क', 2019 => 'क'];
+        $integrity = fn (array $missing): array => array_map(fn (int $year): bool => ! in_array($year, $missing, true), array_combine(array_keys($grades), array_keys($grades)));
+
+        // 2019 is beyond the five counted: its certificate is not asked for.
+        $officer = new OfficerRecord(name: 'A', crGrades: $grades, loyaltyByYear: $integrity([2019]));
+        $this->assertSame([], $this->gates->gapFindings($officer, 5)['unjustified']);
+
+        // 2020, the year substituted for a missing 2023, is: its certificate is.
+        $officer = new OfficerRecord(name: 'B', crGrades: $grades, loyaltyByYear: $integrity([2020]));
+        $this->assertStringContainsString('Integrity Certificate for 2020', implode(' ', $this->gates->gapFindings($officer, 5)['unjustified']));
+    }
 }

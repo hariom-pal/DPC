@@ -56,10 +56,13 @@ final class PromotionCrRules
             return null;
         }
 
-        $key = $to.'|'.$from.'|'.$year;
+        // The feeder's minimum experience on its Pre-DPC picks the band (2026-11-18).
+        $experience = $proposal->preDpcProposal?->promotionSources
+            ->firstWhere('promotion_from_post_id', $proposal->promotion_from_post_id)?->experienceInMonths();
+        $key = $to.'|'.$from.'|'.$year.'|'.($experience ?? '');
 
         if (! array_key_exists($key, $this->resolved)) {
-            $this->resolved[$key] = $this->ruleFor($to, $from, $year);
+            $this->resolved[$key] = $this->ruleFor($to, $from, $year, $experience);
         }
 
         return $this->resolved[$key];
@@ -163,13 +166,36 @@ final class PromotionCrRules
             ->all();
     }
 
-    public function ruleFor(string $toClass, string $fromClass, int $year): ?PromotionCrRule
+    /**
+     * The rule in force for a promotion and DPC year. With the DPC's minimum
+     * experience in months (2026-11-18), the rule of the narrowest band that covers it
+     * — "up to 3 years" before "up to 5" — and otherwise the pair's general rule.
+     * Within a band, the latest effective year.
+     */
+    public function ruleFor(string $toClass, string $fromClass, int $year, ?int $experienceMonths = null): ?PromotionCrRule
     {
-        return PromotionCrRule::query()
+        $query = fn () => PromotionCrRule::query()
             ->with('years')
             ->where('to_class', $toClass)
             ->where('from_class', $fromClass)
-            ->where('effective_from_year', '<=', $year)
+            ->where('effective_from_year', '<=', $year);
+
+        if ($experienceMonths !== null && $experienceMonths > 0) {
+            $banded = $query()
+                ->whereNotNull('max_experience_years')
+                ->where('max_experience_years', '>=', (int) ceil($experienceMonths / 12))
+                ->orderBy('max_experience_years')
+                ->orderByDesc('effective_from_year')
+                ->orderByDesc('id')
+                ->first();
+
+            if ($banded !== null) {
+                return $banded;
+            }
+        }
+
+        return $query()
+            ->whereNull('max_experience_years')
             ->orderByDesc('effective_from_year')
             ->orderByDesc('id')
             ->first();
@@ -201,10 +227,15 @@ final class PromotionCrRules
             $rule = PromotionCrRule::query()->create([
                 'to_class' => $to->code,
                 'from_class' => $data['from_class'],
+                // A band of minimum experience (2026-11-18); blank is the general rule.
+                'max_experience_years' => ($data['max_experience_years'] ?? '') === '' || $data['max_experience_years'] === null ? null : (int) $data['max_experience_years'],
+                'appointed_year_is_fit' => (bool) ($data['appointed_year_is_fit'] ?? false),
                 'effective_from_year' => (int) $data['effective_from_year'],
                 'cr_years' => (int) $data['cr_years'],
-                'loyalty_years' => (int) $data['loyalty_years'],
-                'property_years' => (int) $data['property_years'],
+                // IPR and Integrity years are the CR years (2026-11-18): stored so,
+                // and read so whatever is stored (PromotionCrRule).
+                'loyalty_years' => (int) $data['cr_years'],
+                'property_years' => (int) $data['cr_years'],
                 // Qualifying is on the total of the CR years' points; the average is
                 // that total over the CR years, kept for reading.
                 'qualifying_total' => (int) $data['qualifying_total'],

@@ -40,7 +40,9 @@ class SaveEmployeeVigilanceRequest extends FormRequest
             'enquiry_document' => ['nullable', 'file', 'mimes:pdf', 'max:'.(int) config('dpc.documents.max_kb', 10240)],
             'punishment_document' => ['nullable', 'file', 'mimes:pdf', 'max:'.(int) config('dpc.documents.max_kb', 10240)],
             'vigilance_verified' => ['nullable', 'boolean'],
-            'vigilance_pending' => ['required', 'boolean'],
+            // No longer asked (2026-11-18): the first question's Yes is the sealed cover.
+            // Accepted from an older form, never required.
+            'vigilance_pending' => ['nullable', 'boolean'],
             'sealed_cover_reason_id' => [
                 'required_if:vigilance_pending,1', 'nullable', 'integer',
                 Rule::exists('sealed_cover_reasons', 'id')->where('status', MasterStatus::Active->value)->whereNull('deleted_at'),
@@ -85,8 +87,9 @@ class SaveEmployeeVigilanceRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
-        // Nothing pending: the details are cleared, not kept.
-        if (! $this->boolean('vigilance_pending')) {
+        // Nothing pending: the details are cleared, not kept. Not posted at all (the
+        // question is gone, 2026-11-18): whatever was recorded is left alone.
+        if ($this->has('vigilance_pending') && ! $this->boolean('vigilance_pending')) {
             $this->merge(['sealed_cover_reason_id' => null, 'vigilance_date' => null, 'vigilance_remarks' => null]);
         }
     }

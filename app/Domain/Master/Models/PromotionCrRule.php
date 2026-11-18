@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Master\Models;
 
 use App\Domain\Authentication\Models\User;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -22,6 +23,8 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property string $uuid
  * @property string $to_class
  * @property string $from_class
+ * @property int|null $max_experience_years the rule is for a DPC whose minimum experience is at most this; null = the pair's general rule (2026-11-18)
+ * @property bool $appointed_year_is_fit "appointed in this year" ends the years asked for and is not Unfit (2026-11-18)
  * @property int $effective_from_year
  * @property int $cr_years
  * @property int $loyalty_years
@@ -44,7 +47,7 @@ class PromotionCrRule extends Model implements Auditable
     use HasUuids;
 
     protected $fillable = [
-        'to_class', 'from_class', 'effective_from_year', 'cr_years', 'loyalty_years', 'property_years',
+        'to_class', 'from_class', 'max_experience_years', 'appointed_year_is_fit', 'effective_from_year', 'cr_years', 'loyalty_years', 'property_years',
         'qualifying_average', 'qualifying_total', 'super_seat_grade', 'tribal_bonus', 'tribal_bonus_applicable', 'tribal_bonus_basis', 'tribal_bonus_skips_extremes', 'tribal_bonus_grades', 'remarks', 'recorded_by',
     ];
 
@@ -82,9 +85,9 @@ class PromotionCrRule extends Model implements Auditable
     {
         return [
             'effective_from_year' => 'integer',
+            'max_experience_years' => 'integer',
+            'appointed_year_is_fit' => 'boolean',
             'cr_years' => 'integer',
-            'loyalty_years' => 'integer',
-            'property_years' => 'integer',
             'qualifying_average' => 'decimal:2',
             'qualifying_total' => 'integer',
             'tribal_bonus_skips_extremes' => 'boolean',
@@ -109,6 +112,29 @@ class PromotionCrRule extends Model implements Auditable
     public function recorder(): BelongsTo
     {
         return $this->belongsTo(User::class, 'recorded_by');
+    }
+
+    /**
+     * The Property Declaration (IPR) years: always the CR years (business rule of
+     * 2026-11-18 — "as many years of IPR and Integrity as of CR"). The CR years are
+     * the one source; the stored column is not read, so a rule recorded before with
+     * another figure (0, or 3 beside 5 CRs) asks the CR years too.
+     *
+     * @return Attribute<int, never>
+     */
+    protected function propertyYears(): Attribute
+    {
+        return Attribute::get(fn (): int => (int) ($this->attributes['cr_years'] ?? 0));
+    }
+
+    /**
+     * The Integrity Certificate years: always the CR years, for the same reason.
+     *
+     * @return Attribute<int, never>
+     */
+    protected function loyaltyYears(): Attribute
+    {
+        return Attribute::get(fn (): int => (int) ($this->attributes['cr_years'] ?? 0));
     }
 
     /** How many year rows the rule carries: the longest of the three requirements. */

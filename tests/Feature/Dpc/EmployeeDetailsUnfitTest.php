@@ -14,17 +14,20 @@ use App\Domain\Dpc\Services\DpcProposalService;
 use App\Domain\Dpc\Services\EmployeeDetailsService;
 use App\Domain\Dpc\Services\PromotionRuleCheck;
 use App\Domain\Eligibility\Enums\RemarkCode;
+use App\Domain\Eligibility\RuleSet;
 use App\Domain\Eligibility\Services\CandidateGateService;
 use App\Domain\Eligibility\ValueObjects\OfficerRecord;
 use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\IntegrityOption;
 use App\Domain\Master\Models\RecordReason;
+use App\Domain\Master\Services\PromotionCrRules;
 use App\Enums\Role;
 use Database\Seeders\LookupMasterSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Concerns\RaisesDpcProposals;
 use Tests\TestCase;
 
@@ -229,6 +232,124 @@ class EmployeeDetailsUnfitTest extends TestCase
 
     // =================================================== Appointed in this year
 
+    /**
+     * 2026-11-18, the year mapping: a middle CR missing takes the next older year,
+     * and the Integrity follows the CR to that year; the IPR keeps the DPC year's
+     * own window and does not move back.
+     */
+    public function test_integrity_follows_a_substituted_cr_year_and_the_ipr_does_not(): void
+    {
+        $rule = app(PromotionCrRules::class)->ruleForProposal($this->proposal);
+        $rule->forceFill(['cr_years' => 5])->save();
+        $rule->years()->update(['loyalty_mandatory' => true, 'property_mandatory' => true]);
+        $last = $this->dpcYear - 1;                     // 2025 for a 2026 DPC
+        $missing = $last - 2;                           // 2023
+        $reason = RecordReason::query()->where('code', 'record_not_available')->value('id');
+
+        foreach ([$last, $last - 1, $last - 3, $last - 4] as $year) {
+            $this->saveCr($year)->assertSessionHasNoErrors();
+        }
+        $this->post($this->route('cr.save'), ['year' => $missing, 'put_up' => '0', 'missing_reason_id' => $reason, 'missing_document' => $this->pdf()])->assertSessionHasNoErrors();
+        // The older year joins the CR window in 2023's place, and is recorded with its Integrity.
+        $this->assertContains($last - 5, app(EmployeeDetailsService::class)->crYearWindow($this->row->fresh()));
+        $this->saveCr($last - 5)->assertSessionHasNoErrors();
+
+        $row = $this->row->fresh();
+        $counted = [$last, $last - 1, $last - 3, $last - 4, $last - 5];
+        $this->assertSame(range($last, $last - 4), app(EmployeeDetailsService::class)->propertyYearWindow($row), 'The IPR does not move back.');
+
+        $check = collect(app(PromotionRuleCheck::class)->check($row, $this->proposal->fresh())['years'])->keyBy('year');
+        foreach ($counted as $year) {
+            $this->assertTrue($check[$year]['loyalty_required'], "Integrity of the counted CR year {$year}.");
+        }
+        $this->assertFalse($check[$missing]['loyalty_required'], 'No Integrity for the substituted-away year.');
+        $this->assertTrue($check[$missing]['property_required'], 'The IPR of 2023 is still asked.');
+        $this->assertFalse($check[$last - 5]['property_required'], 'No IPR for the substituted-in year.');
+    }
+
+    /** @return array<string, array{int}> */
+    public static function crYearCounts(): array
+    {
+        return ['3 years' => [3], '4 years' => [4], '5 years' => [5], '7 years' => [7]];
+    }
+
+    /**
+     * 2026-11-18: as many years of IPR and Integrity as of CR — on the screen, in the
+     * rule check and in the calculation's rule — even where the rule fixed on the DPC
+     * was recorded with another IPR figure (0 here, the PPT rule's).
+     */
+    #[DataProvider('crYearCounts')]
+    public function test_the_ipr_and_integrity_years_follow_the_cr_years(int $years): void
+    {
+        $rule = app(PromotionCrRules::class)->ruleForProposal($this->proposal);
+        $rule->forceFill(['cr_years' => $years, 'property_years' => 0, 'loyalty_years' => 0])->save();
+        $last = $this->dpcYear - 1;
+        $window = range($last, $last - $years + 1);
+        $details = app(EmployeeDetailsService::class);
+        $row = $this->row->fresh();
+
+        $this->assertSame($window, $details->crYearWindow($row), 'CR years.');
+        $this->assertSame($window, $details->propertyYearWindow($row), 'IPR years: the same.');
+        $this->assertSame([$years, $years], [$rule->fresh()->property_years, $rule->fresh()->loyalty_years]);
+
+        // A year beyond them is refused for either; the oldest of them is taken.
+        $this->saveCr($last - $years)->assertSessionHasErrors();
+        $this->saveCr($last - $years + 1)->assertSessionHasNoErrors();
+        $this->post($this->route('property.save'), ['year' => $last - $years, 'submitted' => '0'])->assertSessionHasErrors();
+
+        // The rule check asks IPR and Integrity of no year outside them.
+        $check = app(PromotionRuleCheck::class)->check($this->row->fresh(), $this->proposal->fresh());
+        foreach ($check['years'] as $entry) {
+            if (! in_array($entry['year'], $window, true)) {
+                $this->assertFalse($entry['property_required'], 'No IPR is required for '.$entry['year']);
+                $this->assertFalse($entry['loyalty_required'], 'No Integrity is required for '.$entry['year']);
+            }
+        }
+
+        // The calculation's rule reads the same years.
+        $set = RuleSet::forPromotionRule(RuleSet::fromConfig(), $rule->fresh()->load('years'), [], $this->dpcYear, 'I-I');
+        $this->assertSame([], array_diff((array) $set->propertyMandatoryYears(), $window));
+    }
+
+    /**
+     * 2026-11-18: a promotion rule may say "appointed in this year" ends the years
+     * asked for — none older — and does not make the officer Unfit. The CRs left are
+     * judged against the full qualifying marks (the Commission's interim decision).
+     */
+    public function test_under_its_rule_appointed_in_this_year_asks_no_older_year_and_is_not_unfit(): void
+    {
+        $rule = app(PromotionCrRules::class)->ruleForProposal($this->proposal);
+        $rule->forceFill(['cr_years' => 3, 'appointed_year_is_fit' => true, 'qualifying_total' => 14])->save();
+        $last = $this->dpcYear - 1;
+        $reason = RecordReason::query()->where('code', 'newly_appointed')->sole();
+
+        $this->saveCr($last)->assertSessionHasNoErrors();
+        $this->saveCr($last - 1)->assertSessionHasNoErrors();
+        $this->post($this->route('cr.save'), [
+            'year' => $last - 2, 'put_up' => '0', 'missing_reason_id' => $reason->id, 'missing_document' => $this->pdf(),
+        ])->assertSessionHasNoErrors();
+        $row = $this->row->fresh();
+
+        $this->assertSame([], $this->unfit(), 'Not Unfit under this rule.');
+        $this->assertSame([$last, $last - 1, $last - 2], app(EmployeeDetailsService::class)->crYearWindow($row), 'No year before the appointment is asked for.');
+        $this->assertSame([$last, $last - 1, $last - 2], app(EmployeeDetailsService::class)->propertyYearWindow($row));
+        $this->assertSame($last - 2, OfficerRecord::fromEvaluationRow($row)->appointedYear);
+
+        // The two CRs (क 7 + क 7 = 14) against the full qualifying marks of 14: met.
+        $check = app(PromotionRuleCheck::class)->check($row, $this->proposal->fresh());
+        $this->assertSame([], array_filter($check['findings'], fn (string $f): bool => str_contains($f, (string) ($last - 3))), 'Nothing older is a finding.');
+        $this->assertNotContains(__('dpc.employee_details.rule.total_below', ['total' => 14, 'required' => 14]), $check['findings']);
+
+        // Full marks, not reduced: 15 is not met by two CRs.
+        $rule->forceFill(['qualifying_total' => 15])->save();
+        $check = app(PromotionRuleCheck::class)->check($row->fresh(), $this->proposal->fresh());
+        $this->assertContains(__('dpc.employee_details.rule.total_below', ['total' => 14, 'required' => 15]), $check['findings']);
+
+        // Without the rule's Yes, the same record makes the officer Unfit, as before.
+        $rule->forceFill(['appointed_year_is_fit' => false])->save();
+        $this->assertCount(1, $this->row->fresh()->unfitReasons());
+    }
+
     public function test_appointed_in_this_year_asks_for_the_appointment_letter_and_makes_the_officer_unfit(): void
     {
         $reason = RecordReason::query()->where('code', 'newly_appointed')->sole();
@@ -367,7 +488,8 @@ class EmployeeDetailsUnfitTest extends TestCase
     {
         $year = $this->dpcYear - 1;
         $this->actingAs($this->ao)->get(route('dpc-proposals.employees.show', [$this->proposal, $this->row]))
-            ->assertSee('name="tribal_area"', false)->assertSee(__('dpc.employee_details.cr.q_tribal'));
+            // Asked of each CR since 2026-11-18; the year-level answer is still accepted.
+            ->assertSee('name="reports[0][tribal_area]"', false)->assertSee(__('dpc.employee_details.cr.q_tribal_cr'));
 
         $this->saveCr($year, ['tribal_area' => '1'])->assertSessionHasNoErrors();
         $this->assertTrue($this->row->crGrades()->where('year', $year)->value('tribal_area'));
@@ -380,6 +502,26 @@ class EmployeeDetailsUnfitTest extends TestCase
         // Without grading there is nothing to score, so nothing is kept.
         $this->post($this->route('cr.save'), ['year' => $year, 'put_up' => '1', 'has_grading' => '0', 'tribal_area' => '1', 'integrity_option_id' => $this->integrity('certified_good')])->assertSessionHasNoErrors();
         $this->assertNull($this->row->crGrades()->where('year', $year)->value('tribal_area'));
+    }
+
+    /** 2026-11-18: each CR of a year answers the tribal question on its own. */
+    public function test_each_cr_of_a_year_answers_the_tribal_question(): void
+    {
+        $year = $this->dpcYear - 1;
+        $this->actingAs($this->ao)->post($this->route('cr.save'), [
+            'year' => $year, 'put_up' => '1', 'has_grading' => '1', 'cr_count' => '2',
+            'integrity_option_id' => $this->integrity('certified_good'),
+            'reports' => [
+                ['authorities' => ['reporter', 'reviewer', 'accepting'], 'grade' => 'क', 'tribal_area' => '1'],
+                ['authorities' => ['reporter', 'reviewer', 'accepting'], 'grade' => 'ख', 'tribal_area' => '0'],
+            ],
+            'cr_documents' => [$this->pdf(), $this->pdf()], 'cr_verified' => '1', 'cr_undertaking' => '1',
+        ])->assertSessionHasNoErrors();
+
+        $record = $this->row->crGrades()->where('year', $year)->sole();
+        $this->assertSame([true, false], array_map(fn (array $report): bool => $report['tribal_area'], (array) $record->reports));
+        $this->assertTrue($record->tribal_area, 'The year is tribal when any of its CRs is.');
+        $this->assertSame([['grade' => 'क', 'tribal' => true], ['grade' => 'ख', 'tribal' => false]], OfficerRecord::fromEvaluationRow($this->row->fresh())->crReportsByYear[$year]);
     }
 
     /** 2026-11-16: a year with several CRs uploads each one on its own. */

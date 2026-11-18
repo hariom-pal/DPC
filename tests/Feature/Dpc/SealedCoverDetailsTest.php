@@ -11,6 +11,7 @@ use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Services\DpcProposalService;
 use App\Domain\Dpc\Services\EmployeeDetailsService;
+use App\Domain\Eligibility\ValueObjects\OfficerRecord;
 use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\SealedCoverReason;
 use App\Enums\Role;
@@ -130,19 +131,55 @@ class SealedCoverDetailsTest extends TestCase
 
     public function test_every_officer_must_be_answered(): void
     {
+        // The two questions; "is a matter pending?" is no longer asked (2026-11-18).
         $this->assertSame([
             __('dpc.employee_details.missing.enquiry_ongoing'),
             __('dpc.employee_details.missing.punishment_effective'),
-            __('dpc.employee_details.missing.vigilance_unanswered'),
         ], $this->missing());
 
         $this->actingAs($this->ao)->get(route('dpc-proposals.employees.show', [$this->proposal, $this->row]))
             ->assertOk()
             ->assertSee('id="section-vigilance"', false)
-            ->assertSee(__('dpc.employee_details.vigilance.question'));
+            ->assertDontSee(__('dpc.employee_details.vigilance.question'))
+            ->assertDontSee('name="vigilance_pending"', false);
 
-        $this->answer(['vigilance_pending' => '0'])->assertSessionHasNoErrors();
+        $this->answer([])->assertSessionHasNoErrors();
         $this->assertSame([], $this->missing());
+    }
+
+    /**
+     * 2026-11-18: the first question — a charge-sheet issued and the departmental
+     * inquiry / court case ongoing — is the sealed cover of rule 2.2, not Unfit.
+     */
+    public function test_a_charge_sheet_with_the_inquiry_ongoing_is_the_sealed_cover(): void
+    {
+        $this->answer(['enquiry_ongoing' => '1'])->assertSessionHasNoErrors();
+        $row = $this->row->fresh();
+
+        $this->assertTrue($row->isUnderSealedCover());
+        $this->assertSame([], $row->unfitReasons(), 'Sealed cover, not Unfit.');
+        $this->assertSame('Charge-sheet issued and departmental inquiry / court case ongoing', OfficerRecord::fromEvaluationRow($row)->sealedCover);
+        $this->actingAs($this->ao)->get(route('dpc-proposals.employees.show', [$this->proposal, $this->row]))
+            ->assertSee('data-sealed-cover="yes"', false)->assertSee(__('dpc.employee_details.vigilance.sealed_cover'));
+
+        // A punishment in effect is still Unfit.
+        $this->answer(['enquiry_ongoing' => '0', 'punishment_effective' => '1'])->assertSessionHasNoErrors();
+        $row = $this->row->fresh();
+        $this->assertFalse($row->isUnderSealedCover());
+        $this->assertCount(1, $row->unfitReasons());
+    }
+
+    /** A matter recorded pending before the question was retired is kept, and still seals. */
+    public function test_a_pending_matter_recorded_before_is_kept(): void
+    {
+        $this->row->forceFill(['vigilance_pending' => true, 'sealed_cover_reason_id' => $this->reason('de_chargesheet')->id, 'vigilance_date' => '2025-06-01'])->save();
+
+        $this->answer([])->assertSessionHasNoErrors();
+        $row = $this->row->fresh();
+
+        $this->assertTrue($row->vigilance_pending);
+        $this->assertSame($this->reason('de_chargesheet')->id, $row->sealed_cover_reason_id);
+        $this->assertTrue($row->isUnderSealedCover());
     }
 
     public function test_a_pending_matter_needs_its_reason_date_and_order(): void

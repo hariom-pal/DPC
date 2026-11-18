@@ -89,6 +89,13 @@ final class OfficerRecord
         public readonly array $crNotCountedYears = [],
         /** The officer's first year of service, the earliest year the CR window may reach. */
         public readonly ?int $firstServiceYear = null,
+        /**
+         * @var array<int, list<array{grade: string, tribal: bool}>> year => its CRs, for a
+         *                                                           year of several: each CR is upgraded by the tribal rule on its own (2026-11-18)
+         */
+        public readonly array $crReportsByYear = [],
+        /** The year recorded "appointed in this year" where the rule says older years are not asked for (2026-11-18). */
+        public readonly ?int $appointedYear = null,
     ) {}
 
     /**
@@ -114,6 +121,7 @@ final class OfficerRecord
         $grades = [];
         $points = [];
         $tribalByYear = [];
+        $reportsByYear = [];
         $notCounted = [];
 
         foreach ($row->crGrades as $crGrade) {
@@ -131,6 +139,21 @@ final class OfficerRecord
 
             if ($crGrade->tribal_area !== null) {
                 $tribalByYear[$crGrade->year] = (bool) $crGrade->tribal_area;
+            }
+
+            // A year of several CRs: each CR with its own tribal answer (2026-11-18); a
+            // CR saved before the per-CR question takes the year's.
+            $reports = [];
+            foreach ((array) $crGrade->reports as $report) {
+                $grade = DpcEvaluationCrGrade::finalGradeOf((array) $report);
+
+                if ($grade !== null) {
+                    $reports[] = ['grade' => $grade, 'tribal' => (bool) ($report['tribal_area'] ?? $crGrade->tribal_area ?? false)];
+                }
+            }
+
+            if (count($reports) > 1) {
+                $reportsByYear[$crGrade->year] = $reports;
             }
 
             // A CR not put up, or put up without a grading, does not count and opens the
@@ -162,8 +185,12 @@ final class OfficerRecord
         $loyaltyGaps = [];
         $propertyGaps = [];
 
+        // "Appointed in this year" under a rule that says it ends the years asked for
+        // (2026-11-18): that year and any older one are not gaps to answer for.
+        $appointed = $row->appointedYearIsFit() ? $row->appointedYear() : null;
+
         foreach ($row->recordGaps as $gap) {
-            if (! $gap->isJustified()) {
+            if (! $gap->isJustified() || ($appointed !== null && (int) $gap->year <= $appointed)) {
                 continue;
             }
 
@@ -214,15 +241,20 @@ final class OfficerRecord
             requiredExperienceMonths: $source?->minExperienceInMonths(),
             requiredPromotionDurationMonths: self::promotionDurationMonths($row),
             crPoints: $points,
-            sealedCover: $row->isUnderSealedCover()
-                ? trim($row->sealedCoverReason?->name_en.($row->vigilance_date ? ' ('.$row->vigilance_date->format('d-m-Y').')' : ''))
-                : null,
+            sealedCover: match (true) {
+                // The first enquiry question (2026-11-18).
+                $row->enquiry_ongoing === true => 'Charge-sheet issued and departmental inquiry / court case ongoing',
+                $row->isUnderSealedCover() => trim($row->sealedCoverReason?->name_en.($row->vigilance_date ? ' ('.$row->vigilance_date->format('d-m-Y').')' : '')),
+                default => null,
+            },
             unsanctionedDeputation: $row->unsanctioned_deputation === true,
             refusedPromotionLastYear: $row->refusedPromotionLastYear(),
             phSeat: $row->holdsVerifiedPhClaim(),
             unfitReasons: $row->unfitReasons('en'),
             crNotCountedYears: $notCounted,
-            firstServiceYear: $row->date_of_joining_service?->year,
+            firstServiceYear: $row->serviceFloorYear(),
+            crReportsByYear: $reportsByYear,
+            appointedYear: $appointed,
         );
     }
 

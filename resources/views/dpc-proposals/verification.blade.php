@@ -355,4 +355,17 @@
             </div>
         </div>
     @endif
+    {{-- The final submission, eSigned by the AO, at the end of this page (2026-11-18) —
+         the same step as on the proposal screen; the server checks completeness again. --}}
+    @can('submit', $proposal)
+        @php($allConfirmed = collect($status)->every(fn ($entry) => $entry['complete']))
+        <div class="card border-0 shadow-sm mt-3" id="verification-final-submit">
+            <div class="card-body d-flex flex-wrap align-items-center gap-2">
+                @unless ($allConfirmed)
+                    <span class="small text-danger">{{ __('dpc.verification.submit_after_confirmations') }}</span>
+                @endunless
+                <a href="{{ route('esign.show', ['kind' => 'dpc-submit', 'uuid' => $proposal->uuid]) }}" class="btn btn-success ms-auto" data-esign id="verification-dpc-submit">{{ __('dpc.verification.final_submit') }}</a>
+            </div>
+        </div>
+    @endcan
 @endsection

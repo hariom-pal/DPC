@@ -163,9 +163,8 @@ class EmployeeDetailsService
             'integrity_departmental_view' => $view,
             // Posted in a tribal area this year (2026-11-16): the per-year tribal bonus
             // reads it; asked of a graded CR only, the one a bonus can attach to.
-            'tribal_area' => $putUp && $hasGrading && array_key_exists('tribal_area', $data) && $data['tribal_area'] !== null && $data['tribal_area'] !== ''
-                ? (bool) $data['tribal_area']
-                : ($putUp && $hasGrading ? $record->tribal_area : null),
+            // Answered for each CR (2026-11-18): the year is tribal when any of its CRs is.
+            'tribal_area' => $this->yearTribal($putUp, (bool) $hasGrading, $reports, $data, $record),
         ])->save();
 
         // The engine reads the year's Integrity Certificate as held once an answer is
@@ -191,11 +190,37 @@ class EmployeeDetailsService
     }
 
     /**
+     * The year's tribal answer: from its CRs where they carry one (2026-11-18) — any
+     * of them in a tribal area — else the year-level answer of the earlier form, else
+     * what was recorded. Only for a graded CR, the one a bonus can attach to.
+     *
+     * @param  list<array<string, mixed>>|null  $reports
+     * @param  array<string, mixed>  $data
+     */
+    private function yearTribal(bool $putUp, bool $hasGrading, ?array $reports, array $data, DpcEvaluationCrGrade $record): ?bool
+    {
+        if (! $putUp || ! $hasGrading) {
+            return null;
+        }
+
+        $answers = array_values(array_filter(array_map(fn (array $report): ?bool => $report['tribal_area'] ?? null, $reports ?? []), fn (?bool $answer): bool => $answer !== null));
+        if ($answers !== []) {
+            return in_array(true, $answers, true);
+        }
+
+        if (array_key_exists('tribal_area', $data) && $data['tribal_area'] !== null && $data['tribal_area'] !== '') {
+            return (bool) $data['tribal_area'];
+        }
+
+        return $record->tribal_area;
+    }
+
+    /**
      * The CRs of a year as posted: `reports[]` (each with `authorities` and `grade`)
      * up to `cr_count`, or the single CR of the earlier form (`authorities`, `grade`).
      *
      * @param  array<string, mixed>  $data
-     * @return list<array{authorities: list<string>, authority: string|null, grade: string|null}>
+     * @return list<array{authorities: list<string>, authority: string|null, grade: string|null, tribal_area?: bool}>
      */
     private function reportsFrom(array $data): array
     {
@@ -217,7 +242,12 @@ class EmployeeDetailsService
                 throw new WorkflowException(__('dpc.employee_details.cr.reports_required'));
             }
 
-            $reports[] = ['authorities' => $authorities, 'authority' => end($authorities), 'grade' => $grade];
+            // Posted in a tribal area for this CR (2026-11-18): each CR of a year is
+            // upgraded by the tribal rule on its own.
+            $tribal = $report['tribal_area'] ?? null;
+
+            $reports[] = ['authorities' => $authorities, 'authority' => end($authorities), 'grade' => $grade]
+                + ($tribal === null || $tribal === '' ? [] : ['tribal_area' => (bool) $tribal]);
         }
 
         if (count($reports) > $max) {
@@ -258,20 +288,23 @@ class EmployeeDetailsService
     {
         $proposal = $row->proposal;
         $last = (int) ($proposal->dpc_year ?: $proposal->proposal_date->year) - 1;
-        $from = max((int) config('dpc.evaluation.min_year', 1950), $row->date_of_joining_service->year ?? ($last - 20));
+        // Not before joining — nor, where the rule says so, before the year recorded
+        // "appointed in this year" (2026-11-18).
+        $from = max((int) config('dpc.evaluation.min_year', 1950), $row->serviceFloorYear() ?? ($last - 20));
         $notCounted = $row->crGrades()->get()
             ->filter(fn ($record): bool => $record->put_up === false || ($record->put_up === true && $record->has_grading === false))
             ->pluck('year')->map(fn ($year): int => (int) $year)->values()->all();
-        // Five, or the rule's CR count where it asks for more (2026-11-16): the screen
-        // never offers fewer years than the rule check and the calculation look at.
-        $slots = max((int) config('dpc.merit.required_cr_count', 5), (int) $this->promotionRules->ruleForProposal($proposal)?->cr_years);
+        // The promotion rule's CR count (2026-11-18: the rule decides, no fixed five);
+        // five only for a DPC without a rule.
+        $slots = (int) ($this->promotionRules->ruleForProposal($proposal)->cr_years ?? config('dpc.merit.required_cr_count', 5));
 
         return CrWindow::of($last, $slots, $notCounted, $from)->years;
     }
 
     /**
-     * The Property Return years (2026-11-14): exactly the five continuous years before
-     * the DPC year — a 2026 DPC asks 2021 to 2025, no fewer and no more.
+     * The Property Return years: as many continuous years before the DPC year as the
+     * promotion rule's CR years (2026-11-18), or five (2021 to 2025 for a 2026 DPC)
+     * for a DPC without a rule.
      *
      * @return list<int> latest first
      */
@@ -279,9 +312,20 @@ class EmployeeDetailsService
     {
         $proposal = $row->proposal;
         $last = (int) ($proposal->dpc_year ?: $proposal->proposal_date->year) - 1;
-        $count = max(1, (int) config('dpc.merit.property_return_years', 5));
+        // The promotion rule's Property Declaration years (2026-11-18: the rule decides,
+        // no fixed five); five only for a DPC without a rule. None before the year
+        // recorded "appointed in this year" where the rule says so.
+        // As many years as the rule's CR years (2026-11-18: the rule's IPR years are its
+        // CR years); five only for a DPC without a rule.
+        $rule = $this->promotionRules->ruleForProposal($proposal);
+        $count = max(1, $rule === null ? (int) config('dpc.merit.property_return_years', 5) : (int) $rule->property_years);
+        $first = $last - $count + 1;
 
-        return range($last, $last - $count + 1);
+        if ($row->appointedYearIsFit()) {
+            $first = max($first, (int) $row->appointedYear());
+        }
+
+        return range($last, min($last, $first));
     }
 
     /** The authorities a CR can carry remarks of, lowest first. */
@@ -535,19 +579,25 @@ class EmployeeDetailsService
     {
         $this->assertEditable($row);
 
-        $pending = (bool) $data['vigilance_pending'];
+        // The "matter pending" question is no longer asked (2026-11-18): the first
+        // question's Yes is the sealed cover. A form that still sends it is honoured;
+        // one that does not leaves what was recorded untouched.
+        $asked = array_key_exists('vigilance_pending', $data) && $data['vigilance_pending'] !== null;
+        $pending = $asked ? (bool) $data['vigilance_pending'] : $row->vigilance_pending === true;
 
         $row->forceFill([
-            // 2026-11-14: a case ongoing, a punishment in effect, in the DPC's period — a Yes is Unfit.
+            // A charge-sheet with the inquiry / court case ongoing: sealed cover (2026-11-18);
+            // a punishment in effect in the DPC's period: Unfit (2026-11-14).
             'enquiry_ongoing' => array_key_exists('enquiry_ongoing', $data) ? (bool) $data['enquiry_ongoing'] : $row->enquiry_ongoing,
             'punishment_effective' => array_key_exists('punishment_effective', $data) ? (bool) $data['punishment_effective'] : $row->punishment_effective,
+            'vigilance_recorded_by' => $actor->id,
+            'vigilance_recorded_at' => now(),
+        ] + ($asked ? [
             'vigilance_pending' => $pending,
             'sealed_cover_reason_id' => $pending ? (int) $data['sealed_cover_reason_id'] : null,
             'vigilance_date' => $pending ? $data['vigilance_date'] : null,
             'vigilance_remarks' => $pending ? $this->blankToNull($data['vigilance_remarks'] ?? null) : null,
-            'vigilance_recorded_by' => $actor->id,
-            'vigilance_recorded_at' => now(),
-        ])->save();
+        ] : []))->save();
 
         $row->unsetRelation('sealedCoverReason');
 
@@ -901,7 +951,7 @@ class EmployeeDetailsService
             crNotCountedYears: $row->crGrades
                 ->filter(fn ($record): bool => $record->put_up === false || ($record->put_up === true && $record->has_grading === false))
                 ->map(fn ($record): int => (int) $record->year)->values()->all(),
-            firstServiceYear: $row->date_of_joining_service?->year,
+            firstServiceYear: $row->serviceFloorYear(),
         );
 
         return RuleSet::forPromotionRule(RuleSet::fromConfig(), $rule, [], $dpcYear, '')->mandatoryCrYearsFor($officer);
@@ -918,7 +968,11 @@ class EmployeeDetailsService
         $proposal = $row->proposal;
         $rule = $proposal === null ? null : $this->promotionRules->ruleForProposal($proposal);
 
-        return $rule === null ? [] : $this->promotionRules->mandatoryPropertyYears($rule, (int) ($proposal->dpc_year ?: $proposal->proposal_date->year));
+        // Not a year before the officer's appointment, where the rule says so (2026-11-18).
+        return $rule === null ? [] : array_values(array_filter(
+            $this->promotionRules->mandatoryPropertyYears($rule, (int) ($proposal->dpc_year ?: $proposal->proposal_date->year)),
+            fn (int $year): bool => ! $row->isBeforeAppointment($year),
+        ));
     }
 
     /**
@@ -1133,11 +1187,8 @@ class EmployeeDetailsService
      */
     private function sealedCoverMissing(DpcEvaluationRow $row): array
     {
-        if ($row->vigilance_pending === null) {
-            return [(string) __('dpc.employee_details.missing.vigilance_unanswered')];
-        }
-
-        if ($row->vigilance_pending === false) {
+        // No longer asked (2026-11-18); only a "matter pending" recorded before needs its details.
+        if ($row->vigilance_pending !== true) {
             return [];
         }
 

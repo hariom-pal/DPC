@@ -154,13 +154,14 @@ trait SeedsEvaluationCharts
 
     /**
      * Make a Property Return year mandatory under the proposal's promotion rule
-     * (2026-11-05): its years run back from the DPC year.
+     * (2026-11-05): its years run back from the DPC year, as many as its CR years.
      */
     protected function makePropertyMandatory(DpcProposal $proposal, int $calendarYear): void
     {
         $rule = app(PromotionCrRules::class)->ruleForProposal($proposal);
         $before = (int) ($proposal->dpc_year ?: $proposal->proposal_date->year) - $calendarYear;
-        $rule->forceFill(['property_years' => max((int) $rule->property_years, $before)])->save();
+        // IPR years are the CR years (2026-11-18): reaching back that far takes as many CR years.
+        $rule->forceFill(['cr_years' => max((int) $rule->cr_years, $before)])->save();
         $rule->years()->updateOrCreate(['years_before' => $before], ['property_mandatory' => true]);
     }
 }

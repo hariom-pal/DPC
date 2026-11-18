@@ -58,6 +58,8 @@ class SaveEmployeeCrYearRequest extends FormRequest
             'reports.*.authorities' => ['nullable', 'array'],
             'reports.*.authorities.*' => ['string', Rule::in(EmployeeDetailsService::CR_AUTHORITIES)],
             'reports.*.grade' => ['nullable', 'string', Rule::in((array) config('dpc.evaluation.cr_grades'))],
+            // Posted in a tribal area for this CR (2026-11-18).
+            'reports.*.tribal_area' => ['nullable', 'boolean'],
             'nrc' => ['nullable', 'file', 'mimes:pdf', 'max:'.(int) config('dpc.documents.max_kb', 10240)],
             // The CR itself, uploaded with its grading (2026-11-14): verified against its
             // original (rule 4.4) and with the no-duplicate undertaking, as the separate upload asks.

@@ -43,20 +43,33 @@
                     @error('effective_from_year')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-md-5"><div class="form-text mt-md-4">{{ __('admin.promotion_rules.effective_help') }}</div></div>
+                {{-- A band of minimum experience (2026-11-18): blank is the general rule. --}}
+                <div class="col-md-4">
+                    <label class="form-label" for="max_experience_years">{{ __('admin.promotion_rules.max_experience_years') }}</label>
+                    <input type="number" min="1" max="40" class="form-control @error('max_experience_years') is-invalid @enderror" id="max_experience_years" name="max_experience_years" value="{{ old('max_experience_years', request('max_experience_years')) }}">
+                    @error('max_experience_years')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                </div>
+                <div class="col-md-8"><div class="form-text mt-md-4">{{ __('admin.promotion_rules.max_experience_help') }}</div></div>
             </div>
         </div>
 
         <div class="card border-0 shadow-sm mb-3">
             <div class="card-header bg-white"><strong>2. {{ __('admin.promotion_rules.step_counts') }}</strong></div>
             <div class="card-body row g-3">
-                @foreach (['cr_years' => 5, 'loyalty_years' => 5, 'property_years' => 5] as $field => $default)
+                <div class="col-md-3">
+                    <label class="form-label" for="cr_years">{{ __('admin.promotion_rules.cr_years') }}</label>
+                    <input type="number" min="1" max="{{ $maxYears }}" class="form-control @error('cr_years') is-invalid @enderror js-year-count"
+                           id="cr_years" name="cr_years" value="{{ $count('cr_years', 5) }}" required @error('cr_years') autofocus @enderror>
+                    @error('cr_years')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                </div>
+                {{-- IPR and Integrity years are the CR years (2026-11-18): shown, never set apart. --}}
+                @foreach (['loyalty_years', 'property_years'] as $field)
                     <div class="col-md-3">
-                        <label class="form-label" for="{{ $field }}">{{ __('admin.promotion_rules.'.$field) }}</label>
-                        <input type="number" min="{{ $field === 'cr_years' ? 1 : 0 }}" max="{{ $maxYears }}" class="form-control @error($field) is-invalid @enderror js-year-count"
-                               id="{{ $field }}" name="{{ $field }}" value="{{ $count($field, $default) }}" required @error($field) autofocus @enderror>
-                        @error($field)<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        <label class="form-label" for="{{ $field }}-derived">{{ __('admin.promotion_rules.'.$field) }}</label>
+                        <input type="number" class="form-control bg-body-secondary" id="{{ $field }}-derived" value="{{ $count('cr_years', 5) }}" readonly tabindex="-1" data-derived-years>
                     </div>
                 @endforeach
+                <div class="col-12"><div class="form-text">{{ __('admin.promotion_rules.derived_years_help') }}</div></div>
                 <div class="col-12"><div class="form-text">{{ __('admin.promotion_rules.counts_help', ['year' => $year, 'last' => $year - 1]) }}</div></div>
             </div>
         </div>
@@ -184,6 +197,18 @@
                     @error('tribal_bonus_grades')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
                     @error('tribal_bonus_grades.*')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
                     <div class="form-text">{{ __('admin.promotion_rules.tribal_grades_help') }}</div>
+                </div>
+                {{-- "Appointed in this year" (2026-11-18): ends the years asked for, not Unfit. --}}
+                <div class="col-12">
+                    <span class="form-label d-block">{{ __('admin.promotion_rules.appointed_year_is_fit') }}</span>
+                    @foreach (['1' => __('ui.yes'), '0' => __('ui.no')] as $value => $label)
+                        <label class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="appointed_year_is_fit" value="{{ $value }}" required
+                                   @checked((string) old('appointed_year_is_fit', (int) ($current?->appointed_year_is_fit ?? false)) === $value)>
+                            {{ $label }}
+                        </label>
+                    @endforeach
+                    <div class="form-text">{{ __('admin.promotion_rules.appointed_year_help') }}</div>
                 </div>
                 <div class="col-12">
                     <label class="form-label" for="remarks">{{ __('ui.remarks') }}</label>

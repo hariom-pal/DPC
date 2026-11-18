@@ -122,6 +122,7 @@ class DpcCalculationService
         $source = $this->promotionSourceFor($proposal);
 
         $propertyYears = (int) config('dpc.merit.property_return_years', 5);
+        $dpcYear = (int) ($proposal->dpc_year ?: $proposal->proposal_date->year);
         // The Class Master rule's CR count; the years it makes mandatory are each
         // officer's own (RuleSet::mandatoryCrYearsFor).
         $requiredCrs = $rules->scoringYears;
@@ -153,7 +154,7 @@ class DpcCalculationService
 
         $assessed = $officers->map(function (array $entry) use (
             $rules, $fromClass, $toClass, $hierarchyFailures, $propertyYears, $requiredCrs,
-            $ruleFailureStatus, $enforceQualification
+            $ruleFailureStatus, $enforceQualification, $dpcYear
         ): array {
             $record = $entry['record'];
 
@@ -166,11 +167,24 @@ class DpcCalculationService
              | row is entitled to see how the marks fell. What a gate decides is the
              | *status*, not whether the arithmetic happens.
              */
+            /*
+             | An officer appointed inside the window, under a rule that says so
+             | (2026-11-18): no year up to the appointment is asked for, so the CR count
+             | is what the years after it can hold, and no Property File of those years
+             | is mandatory. The qualifying marks stay whole (scored below).
+             */
+            $appointed = $record->appointedYear;
+            $officerCrs = $appointed === null ? $requiredCrs : min($requiredCrs, max(0, $dpcYear - 1 - $appointed));
+            $propertyMandatory = $rules->propertyMandatoryYears();
+            if ($appointed !== null && $propertyMandatory !== null) {
+                $propertyMandatory = array_values(array_filter($propertyMandatory, fn (int $year): bool => $year > $appointed));
+            }
+
             $gate = $this->gates->assess(
-                $record, $hierarchyFailures, $propertyYears, $requiredCrs, $ruleFailureStatus,
+                $record, $hierarchyFailures, $propertyYears, $officerCrs, $ruleFailureStatus,
                 // The officer's own CR window (2026-11-16): a skipped middle year is
                 // still answered for, and the rule's positions follow the counted years.
-                $enforceQualification, $rules->mandatoryCrYearsFor($record), $rules->propertyMandatoryYears(),
+                $enforceQualification, array_values(array_filter($rules->mandatoryCrYearsFor($record), fn (int $year): bool => $appointed === null || $year > $appointed)), $propertyMandatory,
             );
 
             $score = $this->scoring->score($record, $rules);

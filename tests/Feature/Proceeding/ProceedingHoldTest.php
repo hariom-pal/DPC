@@ -66,21 +66,22 @@ class ProceedingHoldTest extends TestCase
     public function test_an_officer_with_a_missing_property_return_is_held(): void
     {
         // PPT S33's US8: 20 marks, Super Seat — and still CIR.
-        // 2016 is mandatory under the promotion rule and marked Missing with its
+        // 2024 is mandatory under the promotion rule and marked Missing with its
         // reason and document (2026-11-05).
-        $this->makePropertyMandatory($this->proposal, 2016);
+        // Within the rule's CR years, which the IPR years are (2026-11-18).
+        $this->makePropertyMandatory($this->proposal, 2024);
         $us8 = $this->officer(8, 'US8', $this->stCategoryId(),
-            [2013 => 'क+', 2014 => 'क+', 2015 => 'क+', 2016 => 'क+', 2017 => 'क+'],
-            propertyMissingYears: [2016],
+            [2021 => 'क+', 2022 => 'क+', 2023 => 'क+', 2024 => 'क+', 2025 => 'क+'],
+            propertyMissingYears: [2024],
         );
-        $this->justifyMissing($us8, DpcEvaluationRecordGap::KIND_PROPERTY, 2016);
+        $this->justifyMissing($us8, DpcEvaluationRecordGap::KIND_PROPERTY, 2024);
 
         $this->holds()->detect($this->proceeding->fresh(), $this->memberOne);
 
         $hold = DpcProceedingHold::query()->where('sn', 8)
             ->where('reason_code', HoldReason::PropertyMissing->value)->firstOrFail();
 
-        $this->assertStringContainsString('2016', (string) $hold->detail);
+        $this->assertStringContainsString('2024', (string) $hold->detail);
     }
 
     /**
@@ -106,14 +107,15 @@ class ProceedingHoldTest extends TestCase
      */
     public function test_a_hold_is_independent_of_merit(): void
     {
-        // 2016 is mandatory under the promotion rule and marked Missing with its
+        // 2024 is mandatory under the promotion rule and marked Missing with its
         // reason and document (2026-11-05).
-        $this->makePropertyMandatory($this->proposal, 2016);
+        // Within the rule's CR years, which the IPR years are (2026-11-18).
+        $this->makePropertyMandatory($this->proposal, 2024);
         $us8 = $this->officer(8, 'US8', $this->stCategoryId(),
-            [2013 => 'क+', 2014 => 'क+', 2015 => 'क+', 2016 => 'क+', 2017 => 'क+'],
-            propertyMissingYears: [2016],
+            [2021 => 'क+', 2022 => 'क+', 2023 => 'क+', 2024 => 'क+', 2025 => 'क+'],
+            propertyMissingYears: [2024],
         );
-        $this->justifyMissing($us8, DpcEvaluationRecordGap::KIND_PROPERTY, 2016);
+        $this->justifyMissing($us8, DpcEvaluationRecordGap::KIND_PROPERTY, 2024);
 
         $this->calculate();
 
@@ -159,19 +161,20 @@ class ProceedingHoldTest extends TestCase
 
     public function test_a_correction_clears_an_automatic_hold(): void
     {
-        // 2016 is mandatory under the promotion rule and marked Missing with its
+        // 2024 is mandatory under the promotion rule and marked Missing with its
         // reason and document (2026-11-05).
-        $this->makePropertyMandatory($this->proposal, 2016);
+        // Within the rule's CR years, which the IPR years are (2026-11-18).
+        $this->makePropertyMandatory($this->proposal, 2024);
         $us8 = $this->officer(8, 'US8', $this->stCategoryId(),
-            [2013 => 'क+', 2014 => 'क+', 2015 => 'क+', 2016 => 'क+', 2017 => 'क+'],
-            propertyMissingYears: [2016],
+            [2021 => 'क+', 2022 => 'क+', 2023 => 'क+', 2024 => 'क+', 2025 => 'क+'],
+            propertyMissingYears: [2024],
         );
-        $this->justifyMissing($us8, DpcEvaluationRecordGap::KIND_PROPERTY, 2016);
+        $this->justifyMissing($us8, DpcEvaluationRecordGap::KIND_PROPERTY, 2024);
         $this->calculate();
         $this->assertTrue($this->holds()->isHeld($this->proceeding->fresh(), 8));
 
         $this->corrections()->record(
-            $this->proceeding->fresh(), $this->memberOne, CorrectableField::PropertyFlag, 8, 2016, 'Y',
+            $this->proceeding->fresh(), $this->memberOne, CorrectableField::PropertyFlag, 8, 2024, 'Y',
             'Immovable property return produced at the sitting.',
         );
         $this->calculate();
@@ -383,14 +386,15 @@ class ProceedingHoldTest extends TestCase
     {
         // S34's "ST SS CIR" — the hold is composed onto the remark rather than
         // produced by the frozen engine.
-        // 2016 is mandatory under the promotion rule and marked Missing with its
+        // 2024 is mandatory under the promotion rule and marked Missing with its
         // reason and document (2026-11-05).
-        $this->makePropertyMandatory($this->proposal, 2016);
+        // Within the rule's CR years, which the IPR years are (2026-11-18).
+        $this->makePropertyMandatory($this->proposal, 2024);
         $us8 = $this->officer(8, 'US8', $this->stCategoryId(),
-            [2013 => 'क+', 2014 => 'क+', 2015 => 'क+', 2016 => 'क+', 2017 => 'क+'],
-            propertyMissingYears: [2016],
+            [2021 => 'क+', 2022 => 'क+', 2023 => 'क+', 2024 => 'क+', 2025 => 'क+'],
+            propertyMissingYears: [2024],
         );
-        $this->justifyMissing($us8, DpcEvaluationRecordGap::KIND_PROPERTY, 2016);
+        $this->justifyMissing($us8, DpcEvaluationRecordGap::KIND_PROPERTY, 2024);
         $this->calculate();
 
         $this->actingAs($this->memberOne)
@@ -407,12 +411,13 @@ class ProceedingHoldTest extends TestCase
      */
     public function test_a_cir_with_a_ground_no_hold_answers_stays_held(): void
     {
-        $this->makePropertyMandatory($this->proposal, 2016);
+        // Within the rule's CR years, which the IPR years are (2026-11-18).
+        $this->makePropertyMandatory($this->proposal, 2024);
         $us8 = $this->officer(8, 'US8', $this->stCategoryId(),
-            [2013 => 'क+', 2014 => 'क+', 2015 => 'क+', 2016 => 'क+', 2017 => 'क+'],
-            propertyMissingYears: [2016],
+            [2021 => 'क+', 2022 => 'क+', 2023 => 'क+', 2024 => 'क+', 2025 => 'क+'],
+            propertyMissingYears: [2024],
         );
-        $this->justifyMissing($us8, DpcEvaluationRecordGap::KIND_PROPERTY, 2016);
+        $this->justifyMissing($us8, DpcEvaluationRecordGap::KIND_PROPERTY, 2024);
         $this->calculate();
 
         $result = $this->latestRun()->results()->where('sn', 8)->firstOrFail();

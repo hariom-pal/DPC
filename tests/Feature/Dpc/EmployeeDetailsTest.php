@@ -1260,7 +1260,7 @@ class EmployeeDetailsTest extends TestCase
         $save(2023, $five, 4)->assertSessionHasErrors('reports');
 
         // Graded, but no grade at all: refused.
-        $save(2022, [['authorities' => $all, 'grade' => '']], 1)->assertSessionHasErrors(['cr' => __('dpc.employee_details.cr.reports_required')]);
+        $save(2024, [['authorities' => $all, 'grade' => '']], 1)->assertSessionHasErrors(['cr' => __('dpc.employee_details.cr.reports_required')]);
     }
 
     /** The DPC year is not a CR year; the year list stops at the year before it and drops recorded years. */
@@ -1381,14 +1381,16 @@ class EmployeeDetailsTest extends TestCase
      */
     public function test_a_missing_mandatory_property_return_needs_its_reason_and_document(): void
     {
-        $this->promotionRule(propertyYears: 1); // 2025 mandatory, 2024 optional
+        $this->promotionRule(propertyYears: 1); // 2025 mandatory, 2024 optional; IPR years = CR years (2)
 
         $this->actingAs($this->ao)->post($this->route('property.save'), ['year' => 2025, 'submitted' => '0'])
             ->assertSessionHasErrors(['missing_reason_id', 'missing_document']);
         $this->assertFalse($this->row->propertyFlags()->where('year', 2025)->exists());
 
+        // The IPR runs the rule's two CR years (2026-11-18); 2024's is not mandatory.
         $this->post($this->route('property.save'), ['year' => 2024, 'submitted' => '0'])->assertSessionHasNoErrors();
         $this->assertSame(0, $this->row->recordGaps()->count(), 'An optional year asks for no reason or document.');
+        $this->post($this->route('property.save'), ['year' => 2023, 'submitted' => '0'])->assertSessionHasErrors();
 
         $this->post($this->route('property.save'), [
             'year' => 2025, 'submitted' => '0',

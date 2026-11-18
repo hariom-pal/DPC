@@ -417,17 +417,6 @@
                         $oldReports = (array) old('reports', []);
                         $crCount = (int) old('cr_count', max(1, count($existingReports)));
                     @endphp
-                    {{-- Posted in a tribal area this year (2026-11-16): the per-year tribal bonus reads it. --}}
-                    <div class="mt-1" data-show-when="has_grading=1" data-cr-tribal>
-                        <span class="form-label small d-block">{{ __('dpc.employee_details.cr.q_tribal') }}</span>
-                        @foreach ([1 => __('ui.yes'), 0 => __('ui.no')] as $value => $label)
-                            <label class="form-check form-check-inline small">
-                                <input class="form-check-input" type="radio" name="tribal_area" value="{{ $value }}" data-required-when-shown
-                                       @checked((string) old('tribal_area', $editCr?->tribal_area === null ? '' : (int) $editCr->tribal_area) === (string) $value)>
-                                {{ $label }}
-                            </label>
-                        @endforeach
-                    </div>
                     <div data-show-when="has_grading=1" class="mt-1" data-cr-reports>
                         <div class="row g-2 mb-2">
                             <div class="col-md-4">
@@ -469,6 +458,21 @@
                                             <option value="{{ $grade }}" @selected(($oldReports[$i]['grade'] ?? ($oldReports === [] ? $existingGrade : null)) === $grade)>{{ $grade }}@isset($gradePoints[$grade]) ({{ $gradePoints[$grade] }})@endisset</option>
                                         @endforeach
                                     </select>
+                                </div>
+                                {{-- Posted in a tribal area for this CR (2026-11-18): each CR of a year is
+                                     upgraded by the tribal rule on its own. --}}
+                                @php
+                                    $tribalAnswer = $oldReports[$i]['tribal_area'] ?? ($oldReports === [] ? ($existing['tribal_area'] ?? ($existing === [] ? null : $editCr?->tribal_area)) : null);
+                                @endphp
+                                <div class="col-12" data-cr-tribal-report="{{ $i }}">
+                                    <span class="form-label small d-block">{{ __('dpc.employee_details.cr.q_tribal_cr') }}</span>
+                                    @foreach ([1 => __('ui.yes'), 0 => __('ui.no')] as $value => $label)
+                                        <label class="form-check form-check-inline small">
+                                            <input class="form-check-input" type="radio" name="reports[{{ $i }}][tribal_area]" value="{{ $value }}" data-required-when-shown
+                                                   @checked($tribalAnswer !== null && (string) (int) (bool) $tribalAnswer === (string) $value)>
+                                            {{ $label }}
+                                        </label>
+                                    @endforeach
                                 </div>
                                 {{-- Each CR uploaded on its own (2026-11-16). --}}
                                 @php
@@ -950,12 +954,15 @@
                     <dt class="col-sm-4">{{ __('dpc.employee_details.vigilance.'.$labelKey) }}</dt>
                     <dd class="col-sm-8" data-vigilance-answer="{{ $field }}">
                         {{ $row->{$field} === null ? '—' : ($row->{$field} ? __('ui.yes') : __('ui.no')) }}
-                        @if ($row->{$field})<span class="badge text-bg-danger">{{ __('dpc.employee_details.rule.status.does_not_meet') }}</span>@endif
+                        {{-- The first question's Yes is the sealed cover (2026-11-18); the second's is Unfit. --}}
+                        @if ($row->{$field} && $field === 'enquiry_ongoing')<span class="badge text-bg-warning" data-sealed-cover="yes">{{ __('dpc.employee_details.vigilance.sealed_cover') }}</span>
+                        @elseif ($row->{$field})<span class="badge text-bg-danger">{{ __('dpc.employee_details.rule.status.does_not_meet') }}</span>@endif
                     </dd>
                 @endforeach
-                <dt class="col-sm-4">{{ __('dpc.employee_details.vigilance.answer') }}</dt>
-                <dd class="col-sm-8">{{ $row->vigilance_pending === null ? '—' : ($row->vigilance_pending ? __('ui.yes') : __('ui.no')) }}</dd>
+                {{-- A "matter pending" recorded before the question was retired (2026-11-18). --}}
                 @if ($row->vigilance_pending && $row->sealedCoverReason)
+                    <dt class="col-sm-4">{{ __('dpc.employee_details.vigilance.answer') }}</dt>
+                    <dd class="col-sm-8">{{ __('ui.yes') }}</dd>
                     <dt class="col-sm-4">{{ __('dpc.employee_details.vigilance.reason') }}</dt>
                     <dd class="col-sm-8">{{ $row->sealedCoverReason->label() }}
                         <span class="badge {{ $row->isUnderSealedCover() ? 'text-bg-danger' : 'text-bg-secondary' }}" data-sealed-cover="{{ $row->isUnderSealedCover() ? 'yes' : 'no' }}">{{ __('admin.sealed_cover_reasons.effects.'.$row->sealedCoverReason->effect) }}</span>
@@ -969,7 +976,7 @@
 
             @if ($canEditSection['vigilance'])
                 <form method="POST" action="{{ route('dpc-proposals.employees.vigilance', [$proposal, $row]) }}" class="border rounded p-2 mb-3" enctype="multipart/form-data" data-ajax-section id="vigilance-form"
-                      @if (! $errors->any() && $row->vigilance_pending !== null && $row->enquiry_ongoing !== null) data-saved-lock data-label-edit="{{ __('ui.edit') }}" data-label-cancel="{{ __('ui.cancel') }}" data-label-saved="{{ __('ui.saved_entry') }}" @endif>
+                      @if (! $errors->any() && $row->enquiry_ongoing !== null && $row->punishment_effective !== null) data-saved-lock data-label-edit="{{ __('ui.edit') }}" data-label-cancel="{{ __('ui.cancel') }}" data-label-saved="{{ __('ui.saved_entry') }}" @endif>
                     @csrf @method('PUT')
                     {{-- The two questions of 2026-11-14, for the DPC's period. A Yes makes the officer
                          Unfit and asks for its document; a No asks for none (2026-11-16). --}}
@@ -987,7 +994,7 @@
                                 </label>
                             @endforeach
                             @error($field)<div class="text-danger small">{{ $message }}</div>@enderror
-                            <div class="form-text">{{ __('dpc.employee_details.vigilance.unfit_help') }}</div>
+                            <div class="form-text">{{ __('dpc.employee_details.vigilance.'.($field === 'enquiry_ongoing' ? 'sealed_help' : 'unfit_help')) }}</div>
                             <div class="mt-1" data-show-when="{{ $field }}=1" data-vigilance-document="{{ $field }}">
                                 <label class="form-label small" for="{{ $documentKind }}">{{ __('dpc.employee_details.documents.kinds.'.$documentKind) }}</label>
                                 @if ($existingDocument = $docFor($documentKind))
@@ -1004,40 +1011,8 @@
                         {{ __('dpc.employee_details.verification.ao_confirm') }}
                     </label>
                     @error('vigilance_verified')<div class="text-danger small">{{ $message }}</div>@enderror
-                    <div class="mb-2">
-                        <span class="form-label small d-block">{{ __('dpc.employee_details.vigilance.question') }}</span>
-                        @foreach ([1 => __('ui.yes'), 0 => __('ui.no')] as $value => $label)
-                            <label class="form-check form-check-inline small">
-                                <input class="form-check-input" type="radio" name="vigilance_pending" value="{{ $value }}" required
-                                       @checked((string) old('vigilance_pending', $row->vigilance_pending === null ? '' : (int) $row->vigilance_pending) === (string) $value)>
-                                {{ $label }}
-                            </label>
-                        @endforeach
-                    </div>
-                    <div class="row g-2 mb-2" data-show-when="vigilance_pending=1">
-                        <div class="col-md-6">
-                            <label class="form-label small" for="sealed_cover_reason_id">{{ __('dpc.employee_details.vigilance.reason') }}</label>
-                            <select class="form-select form-select-sm @error('sealed_cover_reason_id') is-invalid @enderror" id="sealed_cover_reason_id" name="sealed_cover_reason_id">
-                                <option value="">—</option>
-                                @foreach ($sealedCoverReasons as $sealedReason)
-                                    <option value="{{ $sealedReason->id }}" @selected((int) old('sealed_cover_reason_id', $row->sealed_cover_reason_id) === $sealedReason->id)>
-                                        {{ $sealedReason->label() }} — {{ __('admin.sealed_cover_reasons.effects.'.$sealedReason->effect) }}
-                                    </option>
-                                @endforeach
-                            </select>
-                            @error('sealed_cover_reason_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label small" for="vigilance_date">{{ __('dpc.employee_details.vigilance.date') }}</label>
-                            <input type="date" class="form-control form-control-sm @error('vigilance_date') is-invalid @enderror" id="vigilance_date" name="vigilance_date"
-                                   value="{{ old('vigilance_date', $row->vigilance_date?->toDateString()) }}">
-                            @error('vigilance_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                        </div>
-                        <div class="col-12">
-                            <label class="form-label small" for="vigilance_remarks">{{ __('ui.remarks') }}</label>
-                            <textarea class="form-control form-control-sm" id="vigilance_remarks" name="vigilance_remarks" rows="2" maxlength="2000">{{ old('vigilance_remarks', $row->vigilance_remarks) }}</textarea>
-                        </div>
-                    </div>
+                    {{-- "Is any enquiry, charge-sheet, show-cause notice or suspension pending?" is
+                         no longer asked (2026-11-18): the first question's Yes is the sealed cover. --}}
                     @include('dpc-proposals.employees.partials.save-buttons', ['next' => $nextSection('vigilance')])
                 </form>
             @endif

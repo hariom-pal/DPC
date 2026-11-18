@@ -374,7 +374,15 @@ class CandidateGateService
         // ---- Loyalty certificates (item 15) ------------------------------
         $missingLoyalty = [];
 
-        foreach ($gradedYears as $year) {
+        // The Integrity Certificate of the CR years counted, and only those (2026-11-18:
+        // "the year whose CR is taken, that year's Integrity too") — the most recent
+        // graded years, as the score takes them, a substituted older year among them.
+        // A CR recorded outside them asks for no certificate.
+        $countedYears = $gradedYears;
+        rsort($countedYears);
+        $countedYears = $requiredCrCount > 0 ? array_slice($countedYears, 0, $requiredCrCount) : $countedYears;
+
+        foreach ($countedYears as $year) {
             if (($officer->loyaltyByYear[$year] ?? null) !== true) {
                 $missingLoyalty[] = $year;
             }

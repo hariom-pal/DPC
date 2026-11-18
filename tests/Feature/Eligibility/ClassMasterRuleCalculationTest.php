@@ -189,6 +189,27 @@ class ClassMasterRuleCalculationTest extends TestCase
         $this->assertSame(1, DpcProposal::query()->count());
     }
 
+    /** 2026-11-18: the feeder's minimum experience on the Pre-DPC picks the rule's band. */
+    public function test_a_dpc_is_held_to_the_rule_of_its_minimum_experience_band(): void
+    {
+        $band = PromotionCrRule::query()->create([
+            'to_class' => 'I', 'from_class' => 'II', 'max_experience_years' => 3, 'appointed_year_is_fit' => true, 'effective_from_year' => 2026,
+            'cr_years' => 3, 'loyalty_years' => 0, 'property_years' => 3, 'qualifying_total' => 18, 'qualifying_average' => 6,
+        ]);
+        $department = $this->proposal->department;
+        $from = DepartmentPost::query()->create(['department_id' => $department->id, 'name' => 'Sub Engineer', 'class_level' => 'II', 'status' => 'active']);
+        $to = DepartmentPost::query()->create(['department_id' => $department->id, 'name' => 'Executive Engineer', 'class_level' => 'I', 'status' => 'active']);
+
+        // Three years asked by the Pre-DPC: the "up to 3" rule.
+        $preDpc = $this->sanctioningPreDpc($from, $to);
+        $preDpc->promotionSources()->where('promotion_from_post_id', $from->id)->update(['min_experience_years' => 3]);
+        $this->actingAs($this->ao)->post(route('dpc-proposals.store'), $this->dpcStorePayload($preDpc->fresh(), ['promotion_from_post_id' => $from->id]))->assertSessionHasNoErrors();
+        $this->assertSame($band->id, DpcProposal::query()->latest('id')->firstOrFail()->promotion_cr_rule_id);
+
+        // The first DPC, whose Pre-DPC asks five years, keeps the general rule.
+        $this->assertNotSame($band->id, $this->proposal->fresh()->promotion_cr_rule_id);
+    }
+
     public function test_a_dpc_raised_before_rules_were_fixed_is_not_calculated_without_one(): void
     {
         $this->chart([$this->officer(1, $this->five('क'))]);
@@ -410,6 +431,39 @@ class ClassMasterRuleCalculationTest extends TestCase
         $this->assertSame(37, $score['total']);
     }
 
+    /**
+     * Several CRs in a year (2026-11-18: "upgrade every CR as per the tribal posting
+     * rule"): each CR is upgraded on its own answer, then the year is the nearest
+     * grade at or below the average.
+     */
+    public function test_each_cr_of_a_year_is_upgraded_by_the_tribal_rule_on_its_own(): void
+    {
+        // Bonus of 2 at क (7) only.
+        $this->rule(total: 31)->forceFill(['tribal_bonus_applicable' => true, 'tribal_bonus_grades' => [7]])->save();
+        $rows = $this->chart([$this->officer(1, $this->five('क')), $this->officer(2, $this->five('क'))]);
+
+        // Officer 1, 2025: क (7) in a tribal area → 9, and ख (5) not → average 7 = क;
+        // without the upgrade the year is the average of 7 and 5 = ख (5). Bonus 2.
+        $rows[1]->crGrades()->where('year', 2025)->update(['grade' => 'ख', 'tribal_area' => true, 'reports' => json_encode([
+            ['authorities' => ['accepting'], 'authority' => 'accepting', 'grade' => 'क', 'tribal_area' => true],
+            ['authorities' => ['accepting'], 'authority' => 'accepting', 'grade' => 'ख', 'tribal_area' => false],
+        ])]);
+        // Officer 2, 2025: the same grades, but the tribal posting is the ख CR's, which
+        // earns nothing at 5 — though the year is tribal, no CR is upgraded.
+        $rows[2]->crGrades()->where('year', 2025)->update(['grade' => 'ख', 'tribal_area' => true, 'reports' => json_encode([
+            ['authorities' => ['accepting'], 'authority' => 'accepting', 'grade' => 'क', 'tribal_area' => false],
+            ['authorities' => ['accepting'], 'authority' => 'accepting', 'grade' => 'ख', 'tribal_area' => true],
+        ])]);
+
+        $run = $this->calculate();
+        $one = $this->resultFor($run, 1)->score_breakdown;
+        $two = $this->resultFor($run, 2)->score_breakdown;
+
+        $this->assertSame(5, (int) $one['marks_by_year'][2025]);
+        $this->assertSame([2025 => 2], $one['tribal_bonus_by_year']);
+        $this->assertArrayNotHasKey('tribal_bonus_years', $two);
+    }
+
     private function underSealedCover(DpcEvaluationRow $row, string $reasonCode): void
     {
         $row->forceFill([
@@ -417,6 +471,20 @@ class ClassMasterRuleCalculationTest extends TestCase
             'sealed_cover_reason_id' => SealedCoverReason::query()->where('code', $reasonCode)->firstOrFail()->id,
             'vigilance_date' => '2025-06-01',
         ])->save();
+    }
+
+    /** 2026-11-18: the first enquiry question's Yes is the sealed cover in the calculation, not Unfit. */
+    public function test_a_charge_sheet_with_the_inquiry_ongoing_is_calculated_as_sealed_cover(): void
+    {
+        $this->rule(total: 31);
+        $rows = $this->chart([$this->officer(1, $this->five('क')), $this->officer(2, $this->five('क'))]);
+        $rows[1]->forceFill(['enquiry_ongoing' => true])->save();
+
+        $sealed = $this->resultFor($this->calculate(), 1);
+
+        $this->assertSame(['main', 1, 'SCOVER'], [$sealed->list_type->value, $sealed->list_position, $sealed->remark]);
+        $this->assertSame(RemarkCode::SealedCover, $sealed->status());
+        $this->assertStringContainsString('Charge-sheet issued and departmental inquiry / court case ongoing', (string) $sealed->verdict['sealed_cover']);
     }
 
     public function test_a_sealed_cover_officer_keeps_the_post_held_and_is_shown_as_sealed_cover(): void

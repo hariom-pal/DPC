@@ -8,6 +8,7 @@ use App\Domain\Dpc\Enums\PhReservationOutcome;
 use App\Domain\Master\Models\PhType;
 use App\Domain\Master\Models\ReservationCategory;
 use App\Domain\Master\Models\SealedCoverReason;
+use App\Domain\Master\Services\PromotionCrRules;
 use App\Domain\Proceeding\Models\DpcCandidateCall;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -212,6 +213,62 @@ class DpcEvaluationRow extends Model
         return $this->phOutcome()->isClaim() && $this->ph_verification_status === 'verified';
     }
 
+    /** The reason code of "appointed in this year" (Record Reason master). */
+    public const APPOINTED_REASON = 'newly_appointed';
+
+    /** @var array{0: bool}|null the promotion rule's answer, asked once per row */
+    private ?array $appointedRuleAnswer = null;
+
+    /**
+     * The latest year recorded "appointed in this year" for a CR or Property File
+     * (2026-11-18), or null.
+     */
+    public function appointedYear(): ?int
+    {
+        $this->loadMissing('recordGaps.reason');
+        $years = $this->recordGaps
+            ->filter(fn (DpcEvaluationRecordGap $gap): bool => $gap->reason?->code === self::APPOINTED_REASON)
+            ->pluck('year')
+            ->map(fn ($year): int => (int) $year);
+
+        return $years->isEmpty() ? null : (int) $years->max();
+    }
+
+    /**
+     * Whether this DPC's promotion rule says "appointed in this year" ends the years
+     * asked for and is not Unfit (2026-11-18), and a year is recorded so.
+     */
+    public function appointedYearIsFit(): bool
+    {
+        if ($this->appointedYear() === null || $this->proposal === null) {
+            return false;
+        }
+
+        $this->appointedRuleAnswer ??= [app(PromotionCrRules::class)->ruleForProposal($this->proposal)?->appointed_year_is_fit === true];
+
+        return $this->appointedRuleAnswer[0];
+    }
+
+    /**
+     * The earliest year anything is asked for: the year of joining the service, or —
+     * where the rule says so — the year recorded "appointed in this year" (2026-11-18).
+     */
+    public function serviceFloorYear(): ?int
+    {
+        $joined = $this->date_of_joining_service?->year;
+
+        return $this->appointedYearIsFit() ? max($joined ?? 0, (int) $this->appointedYear()) : $joined;
+    }
+
+    /**
+     * Whether a year is before the one the officer was appointed in, under a rule
+     * that says such years are not asked for (2026-11-18).
+     */
+    public function isBeforeAppointment(int $year): bool
+    {
+        return $this->appointedYearIsFit() && $year < (int) $this->appointedYear();
+    }
+
     /**
      * Why the officer is Unfit, from the employee details (business decisions of
      * 2026-11-14): an Unfit Integrity answer in a CR year, a CR year missing for a
@@ -243,16 +300,22 @@ class DpcEvaluationRow extends Model
         // for a Circulation DPC (MoM of 16 November 2026, point 11, superseding the
         // Unfit rule of the same day).
 
+        $appointedIsFit = $this->appointedYearIsFit();
+
         foreach ($this->recordGaps as $gap) {
+            // "Appointed in this year" is not Unfit where the rule says so (2026-11-18).
+            if ($appointedIsFit && $gap->reason?->code === self::APPOINTED_REASON) {
+                continue;
+            }
+
             if ($gap->reason?->makes_unfit === true) {
                 // A Property File reason the Administrator marks Unfit says so (MoM point 12).
                 $grounds[] = ['key' => $gap->kind === DpcEvaluationRecordGap::KIND_PROPERTY ? 'dpc.employee_details.unfit.record_reason_property' : 'dpc.employee_details.unfit.record_reason', 'params' => ['year' => $gap->year, 'reason' => $gap->reason->name_en]];
             }
         }
 
-        if ($this->enquiry_ongoing === true) {
-            $grounds[] = ['key' => 'dpc.employee_details.unfit.enquiry_ongoing', 'params' => []];
-        }
+        // A charge-sheet issued with the departmental inquiry / court case ongoing is
+        // Rule 2.2's sealed cover, not Unfit (2026-11-18): see isUnderSealedCover().
 
         if ($this->punishment_effective === true) {
             $grounds[] = ['key' => 'dpc.employee_details.unfit.punishment_effective', 'params' => []];
@@ -276,6 +339,13 @@ class DpcEvaluationRow extends Model
 
     public function isUnderSealedCover(): bool
     {
+        // The first enquiry question (2026-11-18): a charge-sheet issued and the
+        // departmental inquiry / court case ongoing keeps the finding in a sealed cover.
+        if ($this->enquiry_ongoing === true) {
+            return true;
+        }
+
+        // A "matter pending" recorded before that question took its place.
         return $this->vigilance_pending === true && $this->sealedCoverReason?->sealsTheCover() === true;
     }
 

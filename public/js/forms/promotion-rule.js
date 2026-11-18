@@ -16,8 +16,10 @@
 
     function refresh() {
         var cr = number('cr_years');
-        var loyalty = number('loyalty_years');
-        var property = number('property_years');
+        // IPR and Integrity years are the CR years (2026-11-18).
+        var loyalty = cr;
+        var property = cr;
+        form.querySelectorAll('[data-derived-years]').forEach(function (el) { el.value = cr; });
         var span = Math.max(cr, loyalty, property);
         var year = number('effective_from_year');
 
@@ -36,7 +38,7 @@
         });
     }
 
-    ['cr_years', 'loyalty_years', 'property_years', 'effective_from_year'].forEach(function (name) {
+    ['cr_years', 'effective_from_year'].forEach(function (name) {
         var el = field(name);
         if (el) {
             el.addEventListener('input', refresh);

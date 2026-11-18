@@ -88,7 +88,8 @@ class DpcProposalService
         $year = (int) ($preDpc->dpc_year ?? now()->format('Y'));
         $from = PromotionCrRules::classCode(DepartmentPost::query()->find($source->promotion_from_post_id)?->class_level);
         $to = PromotionCrRules::classCode(DepartmentPost::query()->find($preDpc->promotion_to_post_id)?->class_level);
-        $rule = $from === null || $to === null ? null : $this->promotionRules->ruleFor($to, $from, $year);
+        // The band of this feeder's minimum experience picks the rule (2026-11-18).
+        $rule = $from === null || $to === null ? null : $this->promotionRules->ruleFor($to, $from, $year, $source->experienceInMonths());
 
         if ($rule === null) {
             throw new WorkflowException(__('dpc.calculation_rules.no_rule_to_raise', ['from' => $from ?? '—', 'to' => $to ?? '—', 'year' => $year]));

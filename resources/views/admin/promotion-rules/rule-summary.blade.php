@@ -1,5 +1,12 @@
 {{-- One rule, as it reads: counts, marks, and the year-wise table for a DPC of $dpcYear. --}}
 <dl class="row small mb-2">
+    {{-- The band of minimum experience, and "appointed in this year" (2026-11-18). --}}
+    <dt class="col-sm-5">{{ __('admin.promotion_rules.max_experience_years') }}</dt>
+    <dd class="col-sm-7" data-experience-band>{{ $rule->max_experience_years === null ? __('admin.promotion_rules.band_general') : __('admin.promotion_rules.band', ['years' => $rule->max_experience_years]) }}</dd>
+    @if ($rule->appointed_year_is_fit)
+        <dt class="col-sm-5"></dt>
+        <dd class="col-sm-7" data-appointed-fit>{{ __('admin.promotion_rules.appointed_fit') }}</dd>
+    @endif
     <dt class="col-sm-5">{{ __('admin.promotion_rules.counts') }}</dt>
     <dd class="col-sm-7">{{ __('admin.promotion_rules.counts_value', ['cr' => $rule->cr_years, 'loyalty' => $rule->loyalty_years, 'property' => $rule->property_years]) }}</dd>
     <dt class="col-sm-5">{{ __('admin.promotion_rules.qualifying_total') }}</dt>

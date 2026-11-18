@@ -133,7 +133,8 @@ final class PromotionRuleCheck
             }
 
             $propertyRequirement = $byYear->get($before);
-            $propertyRequired = $before <= $rule->property_years && (bool) $propertyRequirement?->property_mandatory;
+            // Not a year before the officer's appointment, where the rule says so (2026-11-18).
+            $propertyRequired = $before <= $rule->property_years && (bool) $propertyRequirement?->property_mandatory && ! $row->isBeforeAppointment($calendar);
             $propertyOk = ! $propertyRequired || $row->propertyFlags->firstWhere('year', $calendar)?->flag === true;
 
             if (! $propertyOk) {
@@ -174,7 +175,9 @@ final class PromotionRuleCheck
         $score = $this->scoring->score($officer, $ruleSet);
         $required = (int) ($rule->qualifying_total ?? round((float) $rule->qualifying_average * $rule->cr_years));
 
-        if ($score->yearsUsed !== [] && $score->total < $required) {
+        // The full qualifying marks, however few CRs an officer appointed in the window
+        // has (2026-11-18, the Commission's interim decision): none at all is below it.
+        if (($score->yearsUsed !== [] || $row->appointedYearIsFit()) && $score->total < $required) {
             $findings[] = (string) __('dpc.employee_details.rule.total_below', ['total' => $score->total, 'required' => $required]);
         }
 

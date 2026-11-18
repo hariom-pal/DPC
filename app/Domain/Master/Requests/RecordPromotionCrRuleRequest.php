@@ -37,9 +37,13 @@ class RecordPromotionCrRuleRequest extends FormRequest
         return [
             'from_class' => ['required', Rule::in($from)],
             'effective_from_year' => ['required', 'integer', 'min:2000', 'max:2100'],
+            // For a DPC whose minimum experience is at most this many years (2026-11-18);
+            // blank is the general rule for the pair.
+            'max_experience_years' => ['nullable', 'integer', 'min:1', 'max:40'],
+            // "Appointed in this year" ends the years asked for and is not Unfit (2026-11-18).
+            'appointed_year_is_fit' => ['nullable', 'boolean'],
             'cr_years' => ['required', 'integer', 'min:1', 'max:'.self::MAX_YEARS],
-            'loyalty_years' => ['required', 'integer', 'min:0', 'max:'.self::MAX_YEARS],
-            'property_years' => ['required', 'integer', 'min:0', 'max:'.self::MAX_YEARS],
+            // Not asked (2026-11-18): IPR and Integrity years are the CR years.
             'qualifying_total' => ['required', 'integer', 'min:1', 'max:1000'],
             // Super seat (2026-11-02): Yes needs the grade; No records none.
             'super_seat_applicable' => ['nullable', 'boolean'],
@@ -98,8 +102,6 @@ class RecordPromotionCrRuleRequest extends FormRequest
             'from_class' => __('admin.promotion_rules.from_class'),
             'effective_from_year' => __('admin.promotion_rules.effective_from_year'),
             'cr_years' => __('admin.promotion_rules.cr_years'),
-            'loyalty_years' => __('admin.promotion_rules.loyalty_years'),
-            'property_years' => __('admin.promotion_rules.property_years'),
             'qualifying_total' => __('admin.promotion_rules.qualifying_total'),
             'super_seat_applicable' => __('admin.promotion_rules.super_seat_applicable'),
             'super_seat_grade' => __('admin.promotion_rules.super_seat_grade'),

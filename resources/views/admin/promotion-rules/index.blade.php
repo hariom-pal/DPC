@@ -14,7 +14,12 @@
     @foreach ($fromClasses as $from)
         @php
             $rules = $history->get($from->code, collect());
-            $inForce = $rules->first(fn ($rule) => $rule->effective_from_year <= $year);
+            // One rule in force for each band of minimum experience (2026-11-18), the general first.
+            $inForce = $rules->groupBy(fn ($rule) => (string) $rule->max_experience_years)
+                ->map(fn ($band) => $band->first(fn ($rule) => $rule->effective_from_year <= $year))
+                ->filter()
+                ->sortBy(fn ($rule) => $rule->max_experience_years ?? 0)
+                ->values();
         @endphp
         <div class="card border-0 shadow-sm mb-3">
             <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
@@ -25,13 +30,15 @@
                 @if ($rules->isEmpty())
                     <p class="text-muted small mb-0">{{ __('admin.promotion_rules.none_yet') }}</p>
                 @else
-                    @if ($inForce)
-                        <p class="small mb-2"><span class="badge text-bg-success">{{ __('admin.promotion_rules.in_force_now', ['year' => $year]) }}</span>
-                            {{ __('admin.promotion_rules.from_year', ['year' => $inForce->effective_from_year]) }}</p>
-                        @include('admin.promotion-rules.rule-summary', ['rule' => $inForce, 'dpcYear' => $year])
-                    @endif
+                    @foreach ($inForce as $current)
+                        <div @class(['mt-3 pt-2 border-top' => ! $loop->first])>
+                            <p class="small mb-2"><span class="badge text-bg-success">{{ __('admin.promotion_rules.in_force_now', ['year' => $year]) }}</span>
+                                {{ __('admin.promotion_rules.from_year', ['year' => $current->effective_from_year]) }}</p>
+                            @include('admin.promotion-rules.rule-summary', ['rule' => $current, 'dpcYear' => $year])
+                        </div>
+                    @endforeach
 
-                    @php $others = $rules->reject(fn ($rule) => $inForce && $rule->is($inForce)); @endphp
+                    @php $others = $rules->reject(fn ($rule) => $inForce->contains(fn ($current) => $rule->is($current))); @endphp
                     @if ($others->isNotEmpty())
                         <details class="mt-3">
                             <summary class="small fw-semibold">{{ __('admin.promotion_rules.history', ['count' => $others->count()]) }}</summary>

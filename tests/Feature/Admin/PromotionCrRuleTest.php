@@ -14,6 +14,7 @@ use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Testing\TestResponse;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 /**
@@ -100,7 +101,8 @@ class PromotionCrRuleTest extends TestCase
         $this->record()->assertSessionHasNoErrors()->assertRedirect(route('admin.service-classes.promotion-rules.index', $this->classOne));
 
         $rule = PromotionCrRule::query()->with('years')->sole();
-        $this->assertSame(['I', 'I', 2026, 5, 5, 3], [$rule->to_class, $rule->from_class, $rule->effective_from_year, $rule->cr_years, $rule->loyalty_years, $rule->property_years]);
+        // IPR and Integrity years are the CR years (2026-11-18): a posted "3" is not taken.
+        $this->assertSame(['I', 'I', 2026, 5, 5, 5], [$rule->to_class, $rule->from_class, $rule->effective_from_year, $rule->cr_years, $rule->loyalty_years, $rule->property_years]);
         // The tribal bonus is per tribal CR year, not at the highest or lowest grade by default.
         $this->assertSame(['year', true], [$rule->tribal_bonus_basis, $rule->tribal_bonus_skips_extremes]);
 
@@ -116,11 +118,46 @@ class PromotionCrRuleTest extends TestCase
         $fifth = $rule->years->firstWhere('years_before', 5);
         $this->assertSame(5, $fifth->cr_min_marks);
         $this->assertFalse($fifth->cr_mandatory, 'The fifth CR may be missing.');
-        $this->assertFalse($fifth->property_mandatory, 'Property is needed for three years only.');
+        $this->assertTrue($fifth->property_mandatory, 'The IPR runs the five CR years, so the fifth year\'s tick is kept.');
 
         $this->actingAs($this->admin)->get(route('admin.service-classes.promotion-rules.index', $this->classOne))
             ->assertOk()
             ->assertSee(__('admin.promotion_rules.in_force_now', ['year' => now()->year]), false);
+    }
+
+    /** @return array<string, array{int}> */
+    public static function crYearCounts(): array
+    {
+        return ['3 years' => [3], '4 years' => [4], '5 years' => [5], '7 years' => [7]];
+    }
+
+    /**
+     * 2026-11-18: the Years of CR are the one setting; IPR and Integrity take them.
+     * A posted figure for either is not taken.
+     */
+    #[DataProvider('crYearCounts')]
+    public function test_ipr_and_integrity_years_are_the_cr_years(int $years): void
+    {
+        $extra = [];
+        for ($before = 6; $before <= $years; $before++) {
+            $extra[$before] = ['cr_min_marks' => '5', 'cr_mandatory' => '0', 'loyalty_mandatory' => '1', 'property_mandatory' => '1'];
+        }
+        $this->record(['cr_years' => (string) $years, 'property_years' => '0', 'loyalty_years' => '1', 'years' => $extra])->assertSessionHasNoErrors();
+
+        $rule = PromotionCrRule::query()->with('years')->sole();
+        $this->assertSame([$years, $years, $years], [$rule->cr_years, $rule->property_years, $rule->loyalty_years]);
+        $this->assertSame($years, $rule->span());
+        $this->assertCount($years, $rule->years);
+        $this->assertSame(range(2025, 2026 - $years), app(PromotionCrRules::class)->mandatoryPropertyYears($rule, 2026), 'Each IPR year ticked is within the CR years.');
+    }
+
+    public function test_the_form_shows_ipr_and_integrity_years_read_only_from_the_cr_years(): void
+    {
+        $page = $this->actingAs($this->admin)->get(route('admin.service-classes.promotion-rules.create', [$this->classOne, 'from' => 'I', 'year' => 2026]))->assertOk();
+        $page->assertSee('name="cr_years"', false)
+            ->assertDontSee('name="property_years"', false)->assertDontSee('name="loyalty_years"', false)
+            ->assertSee('id="property_years-derived"', false)->assertSee('id="loyalty_years-derived"', false)
+            ->assertSee(__('admin.promotion_rules.derived_years_help'));
     }
 
     public function test_a_rule_applies_from_its_year_until_a_newer_one(): void
@@ -134,6 +171,37 @@ class PromotionCrRuleTest extends TestCase
         $this->assertSame(35, $rules->ruleFor('I', 'I', 2030)?->qualifying_total);
         $this->assertFalse($rules->ruleFor('I', 'I', 2030)?->tribal_bonus_skips_extremes, 'Unticked, every tribal year earns the bonus.');
         $this->assertNull($rules->ruleFor('I', 'II', 2027), 'Each promotion has its own rule.');
+    }
+
+    /**
+     * 2026-11-18: a rule for a band of minimum experience. A DPC whose Pre-DPC asks at
+     * most that experience is held to it; the narrowest band that covers it wins, and
+     * otherwise the general rule.
+     */
+    public function test_a_rule_for_a_band_of_minimum_experience_is_chosen_by_the_dpcs_experience(): void
+    {
+        $this->record()->assertSessionHasNoErrors();
+        $this->record(['max_experience_years' => '3', 'cr_years' => '3', 'qualifying_total' => '18', 'appointed_year_is_fit' => '1'])->assertSessionHasNoErrors();
+        $this->record(['max_experience_years' => '5', 'qualifying_total' => '25'])->assertSessionHasNoErrors();
+
+        $rules = app(PromotionCrRules::class);
+        $this->assertSame(30, $rules->ruleFor('I', 'I', 2027)?->qualifying_total, 'No experience given: the general rule.');
+        $this->assertSame(18, $rules->ruleFor('I', 'I', 2027, 36)?->qualifying_total, 'Three years: the "up to 3" rule.');
+        $this->assertSame(18, $rules->ruleFor('I', 'I', 2027, 18)?->qualifying_total, 'Eighteen months is within "up to 3".');
+        $this->assertSame(25, $rules->ruleFor('I', 'I', 2027, 48)?->qualifying_total, 'Four years: the "up to 5" rule.');
+        $this->assertSame(30, $rules->ruleFor('I', 'I', 2027, 84)?->qualifying_total, 'Seven years: no band covers it, the general rule.');
+
+        $banded = $rules->ruleFor('I', 'I', 2027, 36);
+        $this->assertSame([3, true], [$banded->max_experience_years, $banded->appointed_year_is_fit]);
+
+        // The screen shows every band in force, with what it asks.
+        $this->actingAs($this->admin)->get(route('admin.service-classes.promotion-rules.index', $this->classOne))->assertOk()
+            ->assertSee(__('admin.promotion_rules.band', ['years' => 3]))
+            ->assertSee(__('admin.promotion_rules.band', ['years' => 5]))
+            ->assertSee(__('admin.promotion_rules.band_general'))
+            ->assertSee(__('admin.promotion_rules.appointed_fit'));
+        $this->get(route('admin.service-classes.promotion-rules.create', $this->classOne))->assertOk()
+            ->assertSee('name="max_experience_years"', false)->assertSee('name="appointed_year_is_fit"', false);
     }
 
     public function test_marks_come_from_the_eligible_grades_and_each_cr_year_needs_them(): void

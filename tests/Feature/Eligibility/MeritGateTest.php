@@ -53,7 +53,7 @@ class MeritGateTest extends TestCase
     use SeedsEvaluationCharts;
     use UsesPptPromotionRules;
 
-    private const YEARS = [2013, 2014, 2015, 2016, 2017];
+    private const YEARS = [2021, 2022, 2023, 2024, 2025];
 
     private Department $department;
 
@@ -111,13 +111,13 @@ class MeritGateTest extends TestCase
      */
     public function test_a_missing_mandatory_property_return_is_cir_not_rj(): void
     {
-        $this->makePropertyMandatory($this->proposal, 2015);
+        $this->makePropertyMandatory($this->proposal, 2023);
         $rows = $this->chart([
-            ['sn' => 1, 'name' => 'Justified', 'propertyMissing' => [2015]],
-            ['sn' => 2, 'name' => 'Unexplained', 'propertyMissing' => [2015]],
-            ['sn' => 3, 'name' => 'Optional year', 'propertyMissing' => [2014]],
+            ['sn' => 1, 'name' => 'Justified', 'propertyMissing' => [2023]],
+            ['sn' => 2, 'name' => 'Unexplained', 'propertyMissing' => [2023]],
+            ['sn' => 3, 'name' => 'Optional year', 'propertyMissing' => [2022]],
         ]);
-        $this->recordGap($rows[1], DpcEvaluationRecordGap::KIND_PROPERTY, 2015);
+        $this->recordGap($rows[1], DpcEvaluationRecordGap::KIND_PROPERTY, 2023);
 
         $run = $this->calculate();
         $result = fn (int $sn) => $run->results()->where('sn', $sn)->firstOrFail();
@@ -126,7 +126,7 @@ class MeritGateTest extends TestCase
         $this->assertNotSame(RemarkCode::Rejected->value, $result(1)->remark);
 
         $this->assertSame(RemarkCode::NotEligible->value, $result(2)->remark);
-        $this->assertStringContainsString('Property File for 2015 is mandatory', implode(' ', $result(2)->verdict['failure_reasons']));
+        $this->assertStringContainsString('Property File for 2023 is mandatory', implode(' ', $result(2)->verdict['failure_reasons']));
 
         $this->assertTrue((bool) $result(3)->is_eligible, 'A year the rule does not make mandatory refuses nobody.');
     }
@@ -137,9 +137,9 @@ class MeritGateTest extends TestCase
      */
     public function test_a_refused_candidate_does_not_take_a_seat(): void
     {
-        $this->makePropertyMandatory($this->proposal, 2015);
+        $this->makePropertyMandatory($this->proposal, 2023);
         $this->chart([
-            ['sn' => 1, 'name' => 'US1', 'propertyMissing' => [2015]],
+            ['sn' => 1, 'name' => 'US1', 'propertyMissing' => [2023]],
             ['sn' => 2, 'name' => 'US2'],
         ], sanctioned: 1, vacancies: 1);
 
@@ -171,10 +171,10 @@ class MeritGateTest extends TestCase
     {
         $row = $this->chart([[
             'sn' => 1, 'name' => 'US1',
-            'crYears' => [2014, 2015, 2016, 2017],
+            'crYears' => [2022, 2023, 2024, 2025],
         ]])[1];
 
-        $this->recordGap($row, DpcEvaluationRecordGap::KIND_CR, 2013);
+        $this->recordGap($row, DpcEvaluationRecordGap::KIND_CR, 2021);
 
         $result = $this->calculate()->results()->where('sn', 1)->firstOrFail();
 
@@ -194,10 +194,10 @@ class MeritGateTest extends TestCase
     {
         $row = $this->chart([[
             'sn' => 1, 'name' => 'US1',
-            'crYears' => [2014, 2015, 2016, 2017],
+            'crYears' => [2022, 2023, 2024, 2025],
         ]])[1];
 
-        $this->recordGap($row, DpcEvaluationRecordGap::KIND_CR, 2013, withDocument: false);
+        $this->recordGap($row, DpcEvaluationRecordGap::KIND_CR, 2021, withDocument: false);
 
         $result = $this->calculate()->results()->where('sn', 1)->firstOrFail();
 
@@ -216,10 +216,10 @@ class MeritGateTest extends TestCase
     {
         $row = $this->chart([[
             'sn' => 1, 'name' => 'US1',
-            'loyaltyMissing' => [2016],
+            'loyaltyMissing' => [2024],
         ]])[1];
 
-        $this->recordGap($row, DpcEvaluationRecordGap::KIND_LOYALTY, 2016);
+        $this->recordGap($row, DpcEvaluationRecordGap::KIND_LOYALTY, 2024);
 
         $result = $this->calculate()->results()->where('sn', 1)->firstOrFail();
 
@@ -235,10 +235,10 @@ class MeritGateTest extends TestCase
     {
         $row = $this->chart([[
             'sn' => 1, 'name' => 'US1',
-            'crYears' => [2014, 2015, 2016, 2017],
+            'crYears' => [2022, 2023, 2024, 2025],
         ]], sanctioned: 1, vacancies: 1)[1];
 
-        $this->recordGap($row, DpcEvaluationRecordGap::KIND_CR, 2013);
+        $this->recordGap($row, DpcEvaluationRecordGap::KIND_CR, 2021);
 
         $result = $this->calculate()->results()->where('sn', 1)->firstOrFail();
 
@@ -255,10 +255,10 @@ class MeritGateTest extends TestCase
     public function test_a_cir_candidate_eligible_on_merit_keeps_the_seat(): void
     {
         $rows = $this->chart([
-            ['sn' => 1, 'name' => 'CIR1', 'grade' => 'क+', 'crYears' => [2014, 2015, 2016, 2017]],
+            ['sn' => 1, 'name' => 'CIR1', 'grade' => 'क+', 'crYears' => [2022, 2023, 2024, 2025]],
             ['sn' => 2, 'name' => 'Next'],
         ], sanctioned: 1, vacancies: 1);
-        $this->recordGap($rows[1], DpcEvaluationRecordGap::KIND_CR, 2013);
+        $this->recordGap($rows[1], DpcEvaluationRecordGap::KIND_CR, 2021);
 
         $run = $this->calculate();
         $held = $run->results()->where('sn', 1)->firstOrFail();
@@ -287,10 +287,10 @@ class MeritGateTest extends TestCase
     {
         $row = $this->chart([[
             'sn' => 1, 'name' => 'US1',
-            'crYears' => [2016, 2017],
+            'crYears' => [2024, 2025],
         ]])[1];
 
-        foreach ([2013, 2014, 2015] as $year) {
+        foreach ([2021, 2022, 2023] as $year) {
             // Not "appointed in this year": that reason makes the officer Unfit (2026-11-14).
             $this->recordGap($row, DpcEvaluationRecordGap::KIND_CR, $year, reasonCode: 'record_not_available');
         }
@@ -355,19 +355,19 @@ class MeritGateTest extends TestCase
     {
         // A missing mandatory Property Return is CIR or NE since 2026-11-05, never RJ;
         // RJ is the post pair's (the downhill test above).
-        $this->makePropertyMandatory($this->proposal, 2015);
+        $this->makePropertyMandatory($this->proposal, 2023);
         $rows = $this->chart([
             // Clean and top-graded — eligible, and takes the one seat.
             ['sn' => 1, 'name' => 'EL1', 'grade' => 'क+'],
             // Ordinary grades throughout — scored, and short of the minimum.
             ['sn' => 2, 'name' => 'NE1', 'grade' => 'ख'],
             // A justified gap — held.
-            ['sn' => 3, 'name' => 'CIR1', 'grade' => 'क+', 'crYears' => [2014, 2015, 2016, 2017]],
+            ['sn' => 3, 'name' => 'CIR1', 'grade' => 'क+', 'crYears' => [2022, 2023, 2024, 2025]],
             // A mandatory Property Return missing with no reason — out.
-            ['sn' => 4, 'name' => 'NE2', 'grade' => 'क+', 'propertyMissing' => [2015]],
+            ['sn' => 4, 'name' => 'NE2', 'grade' => 'क+', 'propertyMissing' => [2023]],
         ], sanctioned: 1, vacancies: 1);
 
-        $this->recordGap($rows[3], DpcEvaluationRecordGap::KIND_CR, 2013);
+        $this->recordGap($rows[3], DpcEvaluationRecordGap::KIND_CR, 2021);
 
         $run = $this->calculate();
 
@@ -400,10 +400,10 @@ class MeritGateTest extends TestCase
     {
         $row = $this->chart([[
             'sn' => 1, 'name' => 'CIR1', 'grade' => 'क+',
-            'crYears' => [2014, 2015, 2016, 2017],
+            'crYears' => [2022, 2023, 2024, 2025],
         ]])[1];
 
-        $this->recordGap($row, DpcEvaluationRecordGap::KIND_CR, 2013);
+        $this->recordGap($row, DpcEvaluationRecordGap::KIND_CR, 2021);
 
         $run = $this->calculate();
 
@@ -414,7 +414,7 @@ class MeritGateTest extends TestCase
         $response->assertSee('CIR');
         $response->assertDontSee('Not Eligible');
         // The citation names the record that is holding the promotion.
-        $response->assertSee('2013');
+        $response->assertSee('2021');
     }
 
     /**

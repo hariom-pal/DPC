@@ -155,8 +155,13 @@ class HoldService
         $lastYear = $window === [] ? null : max($window);
         $counted = $row->crGrades->filter(fn ($cr): bool => in_array((int) $cr->year, $window, true) && $cr->put_up === true && $cr->has_grading !== false)->count();
         $graded = max($counted, count(array_filter($crCells, fn (array $cell): bool => $this->present($cell['effective'] === null ? null : (string) $cell['effective']))));
-        $justifiedCr = $row->recordGaps->filter(fn (DpcEvaluationRecordGap $gap): bool => $gap->kind === DpcEvaluationRecordGap::KIND_CR && $gap->isJustified() && (int) $gap->year !== $lastYear)->pluck('year')->all();
-        $shortfall = $ruleYears['cr_count'] - $graded;
+        // Appointed inside the window under a rule that says so (2026-11-18): nothing up
+        // to that year is asked for, so it holds nothing and the count is what is left.
+        $appointed = $row->appointedYearIsFit() ? (int) $row->appointedYear() : null;
+        $justifiedCr = $row->recordGaps->filter(fn (DpcEvaluationRecordGap $gap): bool => $gap->kind === DpcEvaluationRecordGap::KIND_CR && $gap->isJustified() && (int) $gap->year !== $lastYear
+            && ($appointed === null || (int) $gap->year > $appointed))->pluck('year')->all();
+        $crCount = $appointed === null || $lastYear === null ? $ruleYears['cr_count'] : min($ruleYears['cr_count'], max(0, $lastYear - $appointed));
+        $shortfall = $crCount - $graded;
 
         $cr = array_values(array_filter($details->ruleCrYears($row), fn (int $year): bool => $year !== $lastYear
             && ! $row->crGrades->contains(fn ($grade): bool => (int) $grade->year === $year && $grade->put_up === true)
@@ -166,7 +171,7 @@ class HoldService
             $cr = array_values(array_unique([...$cr, ...array_map('intval', $justifiedCr)]));
             sort($cr);
         }
-        $property = array_values(array_filter($ruleYears['property'], fn (int $year): bool => ($propertyCells[$year]['effective'] ?? null) !== 'Y'
+        $property = array_values(array_filter($ruleYears['property'], fn (int $year): bool => ($appointed === null || $year > $appointed) && ($propertyCells[$year]['effective'] ?? null) !== 'Y'
             && $justified(DpcEvaluationRecordGap::KIND_PROPERTY, $year)));
 
         $found = [];

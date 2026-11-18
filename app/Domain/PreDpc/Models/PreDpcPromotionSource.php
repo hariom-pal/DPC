@@ -123,6 +123,16 @@ class PreDpcPromotionSource extends Model implements Auditable
         return $names === [] ? null : implode(' / ', $names);
     }
 
+    /** The minimum experience in months, or null when none is prescribed (2026-11-18). */
+    public function experienceInMonths(): ?int
+    {
+        if ($this->min_experience_years <= 0) {
+            return null;
+        }
+
+        return $this->experience_unit === ExperienceUnit::Months ? $this->min_experience_years : $this->min_experience_years * 12;
+    }
+
     /**
      * The qualifying service, as a sentence, or null when none is prescribed.
      */
