@@ -18,6 +18,7 @@ use App\Domain\Eligibility\Services\DpcCalculationService;
 use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\ReservationCategory;
 use App\Domain\Master\Models\VacancyType;
+use App\Domain\Proceeding\Models\DpcCandidateReview;
 use App\Domain\Proceeding\Services\CalculationGate;
 use App\Enums\Role;
 use Database\Seeders\LookupMasterSeeder;
@@ -587,23 +588,19 @@ class CalculationUiTest extends TestCase
         $member = User::factory()->create(['name' => 'Second Member']);
         $this->seatAccountOnCommittee($this->proposal, $member);
         DpcCommitteeDecision::query()->delete();
-        // Both have OK'd every candidate; this test is about the Agree (2026-11-18).
-        $this->everyMemberOksEveryCandidate($this->proposal);
+        DpcCandidateReview::query()->delete();
 
-        // Nobody has agreed: no button, and the POST is refused.
+        // Not accepted by the DPC Chairman: no button, and the POST is refused (2026-11-18).
         $this->actingAs($this->ao)->get(route('sitting.show', $this->proposal))->assertOk()
-            ->assertDontSee('id="committee-calculate"', false)->assertSee(__('dpc.calculation_gate.awaiting_agreement'));
-        $this->post(route('dpc-proposals.calculate', $this->proposal))->assertSessionHasErrors(['calculate' => __('dpc.calculation_gate.awaiting_agreement')]);
+            ->assertDontSee('id="committee-calculate"', false)->assertSee(__('dpc.calculation_gate.awaiting_accept'));
+        $this->post(route('dpc-proposals.calculate', $this->proposal))->assertSessionHasErrors(['calculate' => __('dpc.calculation_gate.awaiting_accept')]);
 
-        // The Chairman alone agreeing is not enough.
-        $agree = fn (User $user) => DpcCommitteeDecision::query()->create([
-            'dpc_proposal_id' => $this->proposal->id, 'user_id' => $user->id, 'member_name' => $user->name, 'decision' => 'agreed', 'decided_at' => now(),
-        ]);
-        $agree($this->ao);
-        $this->post(route('dpc-proposals.calculate', $this->proposal))->assertSessionHasErrors(['calculate' => __('dpc.calculation_gate.awaiting_agreement')]);
+        // Accepted, but a member's OK is still awaited.
+        DpcCommitteeDecision::query()->create(['dpc_proposal_id' => $this->proposal->id, 'user_id' => $this->ao->id, 'member_name' => 'AO', 'decision' => 'agreed', 'decided_at' => now()]);
+        $this->post(route('dpc-proposals.calculate', $this->proposal))->assertSessionHasErrors(['calculate' => __('dpc.calculation_gate.awaiting_ok')]);
 
-        // Every member agreed: the DPC Chairman has the button; the other member does not.
-        $agree($member);
+        // Every OK in: the DPC Chairman has the button; the other member does not.
+        $this->everyMemberOksEveryCandidate($this->proposal);
         $this->actingAs($member)->get(route('sitting.show', $this->proposal))->assertDontSee('id="committee-calculate"', false)->assertSee(__('dpc.calculation_gate.only_dpc_chairman'));
         $this->post(route('dpc-proposals.calculate', $this->proposal))->assertSessionHasErrors(['calculate' => __('dpc.calculation_gate.only_dpc_chairman')]);
         $this->assertSame(0, DpcCalculationRun::query()->count());

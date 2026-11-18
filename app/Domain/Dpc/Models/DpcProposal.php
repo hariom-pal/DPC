@@ -78,7 +78,7 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property int|null $secretary_approved_by
  * @property Carbon|null $secretary_approved_at
  * @property Carbon|null $committee_returned_at MoM point 3: a committee member's return to the AO, open
- * @property array{sections: array<string, string>, by: int|null, member: string, decision: string}|null $committee_return
+ * @property array<string, mixed>|null $committee_return the committee's rejection: stage, remarks, by, member, decision, candidates (row id => section => remark); or, before 2026-11-18, sections
  * @property Carbon|null $secretary_escalated_at MoM of 16 November 2026, point 7: sent on to the Chairman because the Secretary's deadline passed
  * @property int|null $secretary_signature_id
  * @property Carbon|null $returned_at
@@ -447,7 +447,65 @@ class DpcProposal extends Model implements Auditable
             return null;
         }
 
+        // Candidate-wise since 2026-11-18: every section opened for any candidate.
+        if (isset($this->committee_return['candidates'])) {
+            return array_values(array_unique(array_merge(...array_map(
+                fn ($sections): array => array_map('strval', array_keys((array) $sections)),
+                array_values((array) $this->committee_return['candidates']) ?: [[]],
+            ))));
+        }
+
         return array_map('strval', array_keys((array) ($this->committee_return['sections'] ?? [])));
+    }
+
+    /**
+     * Where a DPC rejected by its DPC Chairman now is (2026-11-18): 'secretary' marks
+     * the candidates and sections, 'ah' opens them for the AO, 'ao' corrects them.
+     * Null when no rejection is in hand. A return of the earlier, section-wise kind
+     * reads as 'ao'.
+     */
+    public function committeeReturnStage(): ?string
+    {
+        $stage = $this->committee_return['stage'] ?? null;
+
+        if (is_string($stage)) {
+            return $stage;
+        }
+
+        return $this->committee_returned_at !== null ? 'ao' : null;
+    }
+
+    /**
+     * The candidates and sections the Secretary marked: row id => [section => remark].
+     *
+     * @return array<int, array<string, string>>
+     */
+    public function committeeReturnCandidates(): array
+    {
+        $candidates = [];
+        foreach ((array) ($this->committee_return['candidates'] ?? []) as $rowId => $sections) {
+            $candidates[(int) $rowId] = array_map('strval', (array) $sections);
+        }
+
+        return $candidates;
+    }
+
+    /**
+     * Whether the AO may change this section of this candidate while a committee
+     * rejection is open with the AO: the candidate's own sections (2026-11-18), or —
+     * for a return of the earlier kind — the sections returned for every candidate.
+     */
+    public function committeeReturnOpens(?int $rowId, string $section): bool
+    {
+        if ($this->committee_returned_at === null) {
+            return false;
+        }
+
+        if (isset($this->committee_return['candidates'])) {
+            return $rowId !== null && array_key_exists($section, $this->committeeReturnCandidates()[$rowId] ?? []);
+        }
+
+        return in_array($section, (array) $this->committeeReturnSections(), true);
     }
 
     /**

@@ -43,7 +43,7 @@ return [
     ],
     'sitting' => [
         'meeting_subject' => 'ओ.डी.पी.सी. पोर्टल — :dpc: डी.पी.सी. बैठक प्रारंभ',
-        'meeting_body' => 'डी.पी.सी. अध्यक्ष (:chairman) ने :dpc की बैठक प्रारंभ की है। ई-डी.पी.सी. पोर्टल में लॉगिन कर बैठक से जुड़ें: :url',
+        'meeting_body' => 'डी.पी.सी. अध्यक्ष (:chairman) ने :dpc की बैठक प्रारंभ की है, जो :when को होगी। उस समय ई-डी.पी.सी. पोर्टल में लॉगिन कर बैठक से जुड़ें: :url',
         // Business clarification of 2026-09-05: the message the committee and the
         // candidates receive when the DPC Allottee fixes or moves the sitting.
         'subject_candidate_scheduled' => 'ओ.डी.पी.सी. पोर्टल — आपकी पदोन्नति हेतु डी.पी.सी. की तिथि निर्धारित',

@@ -12,14 +12,16 @@ use App\Domain\Dpc\Models\DpcCommitteeMember;
 use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Services\DpcProposalService;
+use App\Domain\Dpc\Services\DpcStageService;
 use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Proceeding\Models\DpcCandidateReview;
-use App\Domain\Proceeding\Services\SittingMeetingService;
+use App\Domain\Proceeding\Services\CalculationGate;
 use App\Domain\Shared\Workflow\WorkflowTransition;
 use App\Enums\Role;
 use Database\Seeders\LookupMasterSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Tests\Concerns\CompletesDpcProposals;
 use Tests\Concerns\RaisesDpcProposals;
@@ -74,83 +76,89 @@ class CommitteeDecisionTest extends TestCase
             ->forceFill(['user_id' => $this->member->id])->save();
     }
 
-    public function test_a_member_records_agreement(): void
+    /** The DPC Chairman of this DPC, by the seat designation (a DPC never allotted). */
+    private function makeChairman(User $user): void
     {
-        $this->actingAs($this->member)->get(route('sitting.show', $this->proposal))->assertOk()
-            ->assertSee('id="committee-decision"', false)->assertSee('name="section_remarks[cr]"', false);
-
-        // Every candidate is OK'd before Agree (2026-11-18).
-        $this->post(route('sitting.candidate.ok', [$this->proposal, $this->row]));
-        $this->post(route('sitting.decision', $this->proposal), ['decision' => 'agreed', 'remarks' => 'Evaluation in order.'])
-            ->assertRedirect(route('sitting.show', $this->proposal));
-
-        $decision = DpcCommitteeDecision::query()->sole();
-        $this->assertSame(['agreed', 'Evaluation in order.'], [$decision->decision, $decision->remarks]);
-        $this->assertSame(DpcProposalStatus::Approved, $this->proposal->fresh()->status, 'Agreeing moves nothing.');
-        $this->get(route('sitting.show', $this->proposal))->assertSee('data-committee-decision="agreed"', false);
-
-        // Somebody without a seat cannot decide.
-        $this->actingAs($this->ah)->post(route('sitting.decision', $this->proposal), ['decision' => 'agreed'])->assertForbidden();
+        DpcCommitteeMember::query()->where('dpc_proposal_id', $this->proposal->id)->update(['is_dpc_chairman' => null]);
+        DpcCommitteeMember::query()->where('dpc_proposal_id', $this->proposal->id)->where('user_id', $user->id)->update(['is_dpc_chairman' => 1]);
     }
 
-    public function test_a_section_wise_return_opens_only_those_sections_and_goes_straight_back_to_the_committee(): void
+    /** 2026-11-18: only the DPC Chairman accepts or rejects the DPC, once a visit. */
+    public function test_only_the_dpc_chairman_accepts_the_dpc(): void
     {
-        // A ticked section needs its remark.
-        $this->actingAs($this->member)->post(route('sitting.decision', $this->proposal), ['decision' => 'returned', 'sections' => ['cr']])
-            ->assertSessionHasErrors('section_remarks.cr');
-        // The member had OK'd the candidate on the submission being returned (2026-11-18).
-        app(SittingMeetingService::class)->review($this->proposal, $this->row, $this->member);
-        $this->post(route('sitting.decision', $this->proposal), ['decision' => 'returned'])->assertSessionHasErrors('decision');
-        $this->assertSame(DpcProposalStatus::Approved, $this->proposal->fresh()->status);
+        // A member who is not the DPC Chairman has no decision to make.
+        $this->actingAs($this->member)->get(route('sitting.show', $this->proposal))->assertOk()->assertDontSee('name="decision"', false);
+        $this->post(route('sitting.decision', $this->proposal), ['decision' => 'agreed'])->assertForbidden();
 
-        $this->post(route('sitting.decision', $this->proposal), [
-            'decision' => 'returned', 'sections' => ['cr', 'property'],
-            'section_remarks' => ['cr' => 'CR 2023 grade does not match the copy.', 'property' => 'Property File 2022 date is wrong.', 'basic' => 'ignored: not ticked'],
-        ])->assertRedirect(route('sitting.show', $this->proposal));
+        $this->makeChairman($this->member);
+        $this->get(route('sitting.show', $this->proposal))->assertSee('name="decision"', false)->assertDontSee('name="sections[]"', false);
+        $this->post(route('sitting.decision', $this->proposal), ['decision' => 'agreed', 'remarks' => 'In order.'])->assertRedirect(route('sitting.show', $this->proposal));
+
+        $this->assertSame(['agreed', 'In order.'], [DpcCommitteeDecision::query()->sole()->decision, DpcCommitteeDecision::query()->sole()->remarks]);
+        $this->assertSame(DpcProposalStatus::Approved, $this->proposal->fresh()->status, 'Accepting moves nothing: the sitting goes ahead.');
+        $this->assertTrue(app(CalculationGate::class)->chairmanAccepted($this->proposal->fresh()));
+
+        // Once accepted, no second decision.
+        $this->post(route('sitting.decision', $this->proposal), ['decision' => 'returned', 'remarks' => 'x'])->assertForbidden();
+    }
+
+    /**
+     * Rejected by the DPC Chairman with a remark: to the Secretary, who marks the
+     * candidates and sections; to the AH, who opens them; to the AO, who corrects only
+     * them and sends it on to the AH — no OK of the earlier submission carried forward.
+     */
+    public function test_a_rejection_travels_secretary_ah_ao_and_back_to_the_ah(): void
+    {
+        $secretary = User::factory()->create();
+        $secretary->assignRole(Role::Secretary->value);
+        $this->makeChairman($this->member);
+        DpcCandidateReview::query()->create(['dpc_proposal_id' => $this->proposal->id, 'dpc_evaluation_row_id' => $this->row->id, 'user_id' => $this->member->id, 'reviewed_at' => now()]);
+
+        // A rejection needs its remark, and no section is chosen at the sitting.
+        $this->actingAs($this->member)->post(route('sitting.decision', $this->proposal), ['decision' => 'returned'])->assertSessionHasErrors('remarks');
+        $this->post(route('sitting.decision', $this->proposal), ['decision' => 'returned', 'remarks' => 'CR grades of 2023 do not match the copies.'])->assertRedirect();
 
         $proposal = $this->proposal->fresh();
-        $this->assertSame(DpcProposalStatus::Returned, $proposal->status, 'Straight to the AO.');
-        $this->assertSame(['cr', 'property'], $proposal->committeeReturnSections());
-        $this->assertSame(1, WorkflowTransition::query()->where('event', 'committee_return')->count());
+        $this->assertSame([DpcProposalStatus::PendingSecretary, 'secretary'], [$proposal->status, $proposal->committeeReturnStage()]);
+        $this->assertSame(1, WorkflowTransition::query()->where('event', 'committee_reject')->count());
 
-        // The AO sees which sections, and only those can be changed.
-        $this->actingAs($this->ao)->get(route('dpc-proposals.show', $proposal))->assertOk()
-            ->assertSee('id="committee-return"', false)->assertSee('CR 2023 grade does not match the copy.')
-            ->assertSee('id="committee-resubmit"', false)->assertDontSee('id="dpc-submit"', false);
-        $page = $this->get(route('dpc-proposals.employees.show', [$proposal, $this->row]))->assertOk()
-            ->assertSee('id="committee-return-banner"', false);
-        $this->assertStringContainsString('name="put_up"', (string) $page->getContent(), 'The CR form is open.');
+        // The Secretary marks; does not approve. Nobody else marks.
+        $this->assertFalse($secretary->can('secretaryApprove', $proposal));
+        $this->actingAs($this->ah)->get(route('dpc-proposals.committee-rejection', $proposal))->assertForbidden();
+        $this->actingAs($secretary)->get(route('dpc-proposals.committee-rejection', $proposal))->assertOk()
+            ->assertSee('CR grades of 2023 do not match the copies.')->assertSee('name="candidates['.$this->row->id.'][cr]"', false);
+        $this->post(route('dpc-proposals.committee-rejection.mark', $proposal), ['candidates' => []])->assertSessionHasErrors('candidates');
+        $this->post(route('dpc-proposals.committee-rejection.mark', $proposal), ['candidates' => [$this->row->id => ['cr' => 'Grade 2023 to be checked.', 'basic' => '']]])
+            ->assertRedirect(route('dpc-proposals.show', $proposal));
 
-        $this->put(route('dpc-proposals.employees.basic', [$proposal, $this->row]), [
-            'dob_order_number' => 'X', 'dob_order_date' => '1995-07-01', 'joining_order_number' => 'Y', 'joining_order_date' => '1995-07-01', 'service_record_undertaking' => '1',
-        ])->assertForbidden();
-        $this->put(route('dpc-proposals.employees.vigilance', [$proposal, $this->row]), ['enquiry_ongoing' => '0', 'punishment_effective' => '0', 'vigilance_pending' => '0'])->assertForbidden();
-        $year = (int) $this->row->crGrades()->value('year');
-        $this->delete(route('dpc-proposals.employees.cr.remove', [$proposal, $this->row, $year]))->assertRedirect();
-        $this->assertSame(0, $this->row->crGrades()->where('year', $year)->count(), 'A returned section is changed.');
+        $proposal = $proposal->fresh();
+        $this->assertSame([DpcProposalStatus::Submitted, 'ah'], [$proposal->status, $proposal->committeeReturnStage()]);
+        $this->assertSame([$this->row->id => ['cr' => 'Grade 2023 to be checked.']], $proposal->committeeReturnCandidates());
 
-        // The proposal's own screens and the ordinary submission to the AH are locked.
-        $this->assertFalse($this->ao->can('update', $proposal));
-        $this->assertFalse($this->ao->can('submit', $proposal));
+        // The AH opens them for the AO; does not approve.
+        $this->assertFalse($this->ah->can('approve', $proposal));
+        $this->actingAs($this->ah)->get(route('dpc-proposals.show', $proposal))->assertOk()->assertSee('id="open-for-ao"', false)->assertSee('Grade 2023 to be checked.');
+        Carbon::setTestNow(now()->addDays(3));
+        $this->post(route('dpc-proposals.committee-rejection.open', $proposal))->assertRedirect(route('dpc-proposals.show', $proposal));
 
-        // Resubmitted: straight back to the committee — not to the AH.
+        $proposal = $proposal->fresh();
+        $this->assertSame([DpcProposalStatus::Returned, 'ao'], [$proposal->status, $proposal->committeeReturnStage()]);
+        // The AO's Workflow Timeline runs from the opening, not from the application.
+        $this->assertSame(now()->toDateTimeString(), app(DpcStageService::class)->deadline($proposal)['entered_at']->toDateTimeString());
+
+        // Only that candidate's CR is open to the AO.
+        $this->actingAs($this->ao)->get(route('dpc-proposals.employees.show', [$proposal, $this->row]))->assertOk()->assertSee('id="committee-return-banner"', false);
+        $this->assertTrue($this->ao->can('updateEmployeeSection', [$proposal, 'cr', $this->row]));
+        $this->assertFalse($this->ao->can('updateEmployeeSection', [$proposal, 'basic', $this->row]));
+        $this->put(route('dpc-proposals.employees.basic', [$proposal, $this->row]), ['dob_order_number' => 'X'])->assertForbidden();
+
+        // Corrected, on to the AH — not straight to the committee — and every OK to be given again.
         $this->post(route('dpc-proposals.committee-resubmit', $proposal))->assertRedirect(route('dpc-proposals.show', $proposal));
         $proposal = $proposal->fresh();
-        $this->assertSame(DpcProposalStatus::Approved, $proposal->status);
-        $this->assertNull($proposal->committeeReturnSections());
-        $this->assertNotNull(DpcCommitteeDecision::query()->where('decision', 'returned')->sole()->resubmitted_at);
-        $this->assertSame(1, WorkflowTransition::query()->where('event', 'committee_resubmit')->count());
-        $this->assertSame(0, WorkflowTransition::query()->where('to_state', 'submitted')->where('id', '>', WorkflowTransition::query()->where('event', 'committee_return')->value('id'))->count(), 'The AH does not see it again.');
-
-        // No OK of the returned submission carries forward: the member OKs the corrected
-        // record before agreeing again (2026-11-18).
+        $this->assertSame(DpcProposalStatus::Submitted, $proposal->status);
+        $this->assertNull($proposal->committeeReturnStage());
         $this->assertSame(1, DpcCandidateReview::query()->where('invalidation_reason', 'resubmission')->count());
-        $this->actingAs($this->member)->post(route('sitting.decision', $this->proposal), ['decision' => 'agreed'])
-            ->assertSessionHasErrors(['decision' => __('dpc.committee_decision.ok_first', ['count' => 1])]);
-        $this->post(route('sitting.candidate.ok', [$this->proposal, $this->row]))->assertSessionHasNoErrors();
-
-        // The member decides again on the corrected DPC.
-        $this->actingAs($this->member)->post(route('sitting.decision', $this->proposal), ['decision' => 'agreed'])->assertRedirect();
-        $this->assertSame(2, DpcCommitteeDecision::query()->count());
+        $this->assertTrue($this->ah->can('approve', $proposal), 'The AH approves it on, to the Secretary and so to the committee.');
+        Carbon::setTestNow();
     }
 }

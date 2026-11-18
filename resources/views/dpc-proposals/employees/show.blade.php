@@ -76,9 +76,10 @@
     {{-- MoM of 16 November 2026, point 3: a committee member's return opens only its sections. --}}
     @if ($committeeReturn)
         <div class="alert alert-warning py-2 small" id="committee-return-banner">
-            <div class="fw-semibold">{{ __('dpc.committee_decision.returned_banner', ['member' => $committeeReturn['member'] ?? '—']) }}</div>
+            <div class="fw-semibold">{{ __('dpc.committee_rejection.banner', ['member' => $committeeReturn['member'] ?? '—']) }}</div>
             <ul class="mb-0">
-                @foreach ((array) ($committeeReturn['sections'] ?? []) as $section => $remark)
+                {{-- This candidate's sections (2026-11-18), or every section of a return of the earlier kind. --}}
+                @foreach ($proposal->committeeReturnCandidates()[$row->id] ?? (isset($committeeReturn['candidates']) ? [] : (array) ($committeeReturn['sections'] ?? [])) as $section => $remark)
                     <li data-returned-section="{{ $section }}"><strong>{{ __('dpc.committee_decision.sections.'.$section) }}:</strong> {{ $remark }}</li>
                 @endforeach
             </ul>

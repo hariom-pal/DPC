@@ -60,7 +60,7 @@ final class MessageTemplateCatalog
                 'label' => 'DPC sitting meeting started',
                 'when' => 'When the DPC Chairman starts the sitting\'s meeting. Sent to every other member of the committee with a login.',
                 'channels' => [MessageTemplate::EMAIL],
-                'placeholders' => ['dpc', 'chairman', 'url'],
+                'placeholders' => ['dpc', 'chairman', 'when', 'url'],
                 'required' => ['url'],
                 'mandatory' => false,
                 'default' => fn (array $p): array => [

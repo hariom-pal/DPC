@@ -133,6 +133,12 @@ class CommitteeSittingController extends Controller
             return redirect()->route('sitting.show', $dpcProposal)->withErrors(['meeting' => __('proceeding.sitting.meeting_not_started')]);
         }
 
+        // The members join together, on the sitting's day from its hour (2026-11-18).
+        $meetings = app(SittingMeetingService::class);
+        if (! $meetings->sittingOpen($dpcProposal)) {
+            return redirect()->route('sitting.show', $dpcProposal)->withErrors(['meeting' => (string) app(CommitteeSittingService::class)->callWindowReason($dpcProposal)]);
+        }
+
         return redirect()->away($meeting->url);
     }
 
@@ -144,7 +150,11 @@ class CommitteeSittingController extends Controller
         $this->assertSeated($request, $dpcProposal);
         $this->assertBelongs($dpcProposal, $row);
 
-        app(SittingMeetingService::class)->review($dpcProposal, $row, $request->user());
+        try {
+            app(SittingMeetingService::class)->review($dpcProposal, $row, $request->user());
+        } catch (WorkflowException $e) {
+            return back()->withErrors(['ok' => $e->getMessage()]);
+        }
 
         return back()->with('status', __('proceeding.sitting.ok_recorded', ['name' => $row->name]));
     }

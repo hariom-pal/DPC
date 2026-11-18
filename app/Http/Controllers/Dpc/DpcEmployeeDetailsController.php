@@ -109,7 +109,7 @@ class DpcEmployeeDetailsController extends Controller
             'pendingCount' => $statuses->reject(fn (array $entry): bool => $entry['status']['complete'])->count(),
             // Each section on its own: a committee return opens only the sections it names (MoM point 3).
             'canEditSection' => $canEditSection = collect(['basic', 'cr', 'property', 'ph', 'vigilance', 'declarations', 'documents'])
-                ->mapWithKeys(fn (string $section): array => [$section => request()->user()?->can('updateEmployeeSection', [$dpcProposal, $section]) ?? false])
+                ->mapWithKeys(fn (string $section): array => [$section => request()->user()?->can('updateEmployeeSection', [$dpcProposal, $section, $evaluationRow]) ?? false])
                 ->all(),
             'canEdit' => in_array(true, $canEditSection, true),
             'committeeReturn' => $dpcProposal->committee_returned_at === null ? null : $dpcProposal->committee_return,
@@ -377,7 +377,7 @@ class DpcEmployeeDetailsController extends Controller
     private function write(Request $request, DpcProposal $proposal, DpcEvaluationRow $row, string $section, callable $action): RedirectResponse
     {
         // Only the sections a committee return names, while it is open (MoM point 3).
-        $this->authorize('updateEmployeeSection', [$proposal, $section]);
+        $this->authorize('updateEmployeeSection', [$proposal, $section, $row]);
         $this->assertRowBelongsToProposal($proposal, $row);
 
         $back = redirect()->to(route('dpc-proposals.employees.show', [$proposal, $row]).'#section-'.$section);

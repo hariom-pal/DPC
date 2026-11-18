@@ -258,6 +258,7 @@ final class CommitteeSittingTest extends TestCase
      */
     public function test_each_member_records_an_ok_on_each_candidate(): void
     {
+        Carbon::setTestNow($this->atTheSitting());
         $member = $this->seatedMember();
         $row = $this->firstCandidate();
 
@@ -283,6 +284,7 @@ final class CommitteeSittingTest extends TestCase
      */
     public function test_the_dpc_chairman_starts_the_meeting_and_members_join_it(): void
     {
+        Carbon::setTestNow($this->atTheSitting());
         config(['dpc.meeting.base_url' => 'https://vc.example.test']);
         $member = $this->seatedMember();
 
@@ -309,34 +311,42 @@ final class CommitteeSittingTest extends TestCase
         $this->actingAs(User::factory()->create())->get(route('sitting.meeting', $this->proposal))->assertForbidden();
     }
 
-    /** A member agrees only once every candidate carries their OK; the CGPSC Chairman's seat is not awaited. */
-    public function test_agree_waits_for_every_candidates_ok(): void
+    /**
+     * 2026-11-18: OK is recorded at the sitting itself — the day and hour scheduled —
+     * and only once the DPC Chairman accepted the DPC. The CGPSC Chairman's own seat
+     * is not among the members awaited.
+     */
+    public function test_ok_waits_for_the_chairmans_accept_and_the_sitting(): void
     {
-        DpcCommitteeDecision::query()->delete();
         $member = $this->seatedMember();
-        $member->forceFill(['must_change_password' => false, 'email_verified_at' => now()])->save();
+        $row = $this->firstCandidate();
         $meetings = app(SittingMeetingService::class);
 
         $this->assertNotContains(
             DpcCommitteeMember::query()->where('dpc_proposal_id', $this->proposal->id)->where('capacity', 'cgpsc_chairman')->value('user_id'),
             $meetings->requiredMemberIds($this->proposal),
-            'The CGPSC Chairman\'s own seat is not awaited.',
         );
 
-        $this->actingAs($member)->get(route('sitting.show', $this->proposal))->assertSee('id="ok-before-agree"', false);
-        $this->post(route('sitting.decision', $this->proposal), ['decision' => 'agreed'])
-            ->assertSessionHasErrors(['decision' => __('dpc.committee_decision.ok_first', ['count' => 3])]);
+        // The day before the sitting: no OK.
+        Carbon::setTestNow($this->atTheSitting()->copy()->subDay());
+        $this->actingAs($member)->post(route('sitting.candidate.ok', [$this->proposal, $row]))->assertSessionHasErrors('ok');
 
-        foreach ($this->proposal->evaluationRows as $row) {
-            $this->post(route('sitting.candidate.ok', [$this->proposal, $row]));
-        }
-        $this->post(route('sitting.decision', $this->proposal), ['decision' => 'agreed'])->assertSessionHasNoErrors();
-        $this->assertSame(1, DpcCommitteeDecision::query()->where('user_id', $member->id)->count());
+        // At the sitting, but not accepted by the DPC Chairman: no OK either.
+        Carbon::setTestNow($this->atTheSitting());
+        DpcCommitteeDecision::query()->delete();
+        $this->post(route('sitting.candidate.ok', [$this->proposal, $row]))->assertSessionHasErrors(['ok' => __('proceeding.sitting.ok_after_accept')]);
+        $this->assertSame(0, DpcCandidateReview::query()->count());
+
+        // Accepted: the OK is taken.
+        DpcCommitteeDecision::query()->create(['dpc_proposal_id' => $this->proposal->id, 'user_id' => $this->memberOne->id, 'member_name' => 'Member One', 'decision' => 'agreed', 'decided_at' => now()]);
+        $this->post(route('sitting.candidate.ok', [$this->proposal, $row]))->assertSessionHasNoErrors();
+        $this->assertSame(1, DpcCandidateReview::query()->count());
     }
 
     /** A correction at the sitting changes the record: its OKs count no more, and a fresh OK is needed. */
     public function test_a_correction_asks_for_a_fresh_ok_on_that_candidate_only(): void
     {
+        Carbon::setTestNow($this->atTheSitting());
         $member = $this->seatedMember();
         $meetings = app(SittingMeetingService::class);
         foreach ($this->proposal->evaluationRows as $row) {
@@ -362,6 +372,7 @@ final class CommitteeSittingTest extends TestCase
     /** Two presses at once, or twice: one OK. */
     public function test_a_repeated_ok_makes_one_record(): void
     {
+        Carbon::setTestNow($this->atTheSitting());
         $member = $this->seatedMember();
         $row = $this->firstCandidate();
 

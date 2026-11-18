@@ -8,6 +8,7 @@
             @include('partials.alerts')
 
             @error('meeting')<div class="alert alert-danger py-2">{{ $message }}</div>@enderror
+            @error('ok')<div class="alert alert-danger py-2">{{ $message }}</div>@enderror
 
             <h1 class="h4 mb-1">{{ __('proceeding.sitting.candidates') }}</h1>
             <p class="text-muted small mb-2">{{ $proposal->citation() }}</p>
@@ -23,6 +24,10 @@
                             {{ __('proceeding.sitting.meeting_started_by', ['name' => $meeting->initiator?->name ?? '—', 'at' => $meeting->initiated_at->format('d-m-Y H:i')]) }}
                         @else
                             {{ __('proceeding.sitting.meeting_none') }}
+                        @endif
+                        {{-- The day and hour every member joins (2026-11-18). --}}
+                        @if ($schedule)
+                            <div id="meeting-when">{{ __('proceeding.sitting.scheduled_for', ['when' => $schedule->scheduledFor()->format('d-m-Y H:i')]) }}</div>
                         @endif
                     </div>
                     <div class="d-flex gap-2">

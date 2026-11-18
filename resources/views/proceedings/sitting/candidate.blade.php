@@ -28,6 +28,9 @@
                     @if ($mine)
                         <span class="badge text-bg-success fs-6">{{ __('proceeding.sitting.ok_yours') }}</span>
                         <span class="small text-body-secondary">{{ $mine->reviewed_at->format('d-m-Y H:i') }}</span>
+                    @elseif ($okRefusal = app(\App\Domain\Proceeding\Services\SittingMeetingService::class)->okRefusal($proposal))
+                        {{-- After the DPC Chairman's Accept, at the sitting itself (2026-11-18). --}}
+                        <span class="small text-body-secondary" id="ok-unavailable">{{ $okRefusal }}</span>
                     @else
                         <form method="POST" action="{{ route('sitting.candidate.ok', [$proposal, $row]) }}" class="m-0">
                             @csrf
@@ -35,6 +38,7 @@
                         </form>
                         <span class="small text-body-secondary">{{ __('proceeding.sitting.ok_hint') }}</span>
                     @endif
+                    @error('ok')<div class="w-100 text-danger small">{{ $message }}</div>@enderror
                     @if ($reviews->isNotEmpty())
                         <div class="w-100 small text-body-secondary">
                             {{ __('proceeding.sitting.ok_by') }}:

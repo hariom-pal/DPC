@@ -36,7 +36,7 @@ class SaveEmployeeCrYearRequest extends FormRequest
     {
         $proposal = $this->route('dpcProposal');
 
-        return $proposal instanceof DpcProposal && ($this->user()?->can('updateEmployeeSection', [$proposal, 'cr']) ?? false);
+        return $proposal instanceof DpcProposal && ($this->user()?->can('updateEmployeeSection', [$proposal, 'cr', $this->route('evaluationRow') instanceof DpcEvaluationRow ? $this->route('evaluationRow') : null]) ?? false);
     }
 
     /**

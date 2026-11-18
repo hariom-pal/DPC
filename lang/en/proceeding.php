@@ -68,6 +68,7 @@ return [
         'meeting_started' => 'The meeting has started. Every other member has been sent the link to join it.',
         'meeting_not_started' => 'The DPC Chairman has not started the meeting yet.',
         'meeting_server_missing' => 'No meeting server is configured. Ask the Administrator to set DPC_MEETING_BASE_URL to the meeting server of the Commission or NIC.',
+        'ok_after_accept' => 'OK is recorded at the sitting, once the DPC Chairman has accepted the DPC.',
         'meeting_only_chairman' => 'Only the DPC Chairman starts the meeting, while the DPC is with the committee.',
         'ok' => 'OK',
         'ok_hint' => 'Record OK once you have gone through this record.',

@@ -12,6 +12,7 @@ use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Proceeding\Services\SittingMeetingService;
 use App\Domain\Shared\Workflow\WorkflowEngine;
 use App\Domain\Shared\Workflow\WorkflowException;
+use App\Enums\Role;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -49,8 +50,10 @@ final class CommitteeDecisionService
             static fn (?string $remark): bool => trim((string) $remark) !== '',
         );
 
-        if ($decision === DpcCommitteeDecision::RETURNED && $sections === []) {
-            throw new WorkflowException(__('dpc.committee_decision.sections_required'));
+        // A rejection is a remark, not a choice of sections: the Secretary marks those,
+        // candidate by candidate (2026-11-18).
+        if ($decision === DpcCommitteeDecision::RETURNED && trim((string) $remarks) === '') {
+            throw new WorkflowException(__('dpc.committee_decision.remarks_required'));
         }
 
         return DB::transaction(function () use ($proposal, $member, $decision, $remarks, $sections, $request): DpcCommitteeDecision {
@@ -59,14 +62,6 @@ final class CommitteeDecisionService
 
             if ($locked->status !== DpcProposalStatus::Approved) {
                 throw new WorkflowException(__('dpc.committee_decision.not_at_committee'));
-            }
-
-            // Agree only once this member has OK'd every candidate on the record as it
-            // now stands (2026-11-18). A Return needs no OK.
-            $meetings = app(SittingMeetingService::class);
-            if ($decision === DpcCommitteeDecision::AGREED && in_array($member->id, $meetings->requiredMemberIds($locked), true)
-                && ($awaiting = count($meetings->candidatesAwaitingOk($locked, $member->id))) > 0) {
-                throw new WorkflowException((string) __('dpc.committee_decision.ok_first', ['count' => $awaiting]));
             }
 
             $name = (string) (DpcCommitteeMember::query()->where('dpc_proposal_id', $locked->id)->serving()->where('user_id', $member->id)->value('name') ?? $member->name);
@@ -85,30 +80,109 @@ final class CommitteeDecisionService
                 return $record;
             }
 
-            $summary = collect($sections)->map(fn (string $remark, string $section): string => __('dpc.committee_decision.sections.'.$section).': '.trim($remark))->implode('; ');
+            $remark = trim((string) $remarks);
+
+            // Rejected by the DPC Chairman: to the Secretary, who marks the candidates and
+            // sections at fault; then the AH opens them for the AO (2026-11-18).
+            $locked->forceFill([
+                'status' => DpcProposalStatus::PendingSecretary->value,
+                'committee_returned_at' => null,
+                'committee_return' => ['stage' => 'secretary', 'remarks' => $remark, 'by' => $member->id, 'member' => $name, 'decision' => $record->uuid, 'candidates' => []],
+            ])->save();
+
+            $this->revisions->recordReturn($locked, $member, $remark, 'committee');
+
+            $this->engine->record($locked, 'dpc_proposal', 'committee_reject', DpcProposalStatus::Approved->value, [
+                'from' => [DpcProposalStatus::Approved->value], 'to' => DpcProposalStatus::PendingSecretary->value,
+                'role' => 'committee', 'signature' => false, 'notify' => [],
+            ], $member, $request, $remark, null, $locked->department_id, [], notifyUserIds: $this->secretaryIds());
+
+            return $record;
+        });
+    }
+
+    /**
+     * The Secretary marks, candidate by candidate, the sections a rejected DPC is wrong
+     * in, with a remark each, and sends it to the AH (2026-11-18).
+     *
+     * @param  array<int, array<string, string>>  $candidates  row id => [section => remark]
+     */
+    public function markRejection(DpcProposal $proposal, User $secretary, array $candidates, Request $request): void
+    {
+        $candidates = array_filter(array_map(
+            fn (array $sections): array => array_filter(array_map('trim', array_intersect_key($sections, array_flip(self::SECTIONS))), fn (string $remark): bool => $remark !== ''),
+            $candidates,
+        ));
+
+        if ($candidates === []) {
+            throw new WorkflowException(__('dpc.committee_rejection.nothing_marked'));
+        }
+
+        DB::transaction(function () use ($proposal, $secretary, $candidates, $request): void {
+            /** @var DpcProposal $locked */
+            $locked = DpcProposal::query()->whereKey($proposal->id)->lockForUpdate()->firstOrFail();
+
+            if ($locked->status !== DpcProposalStatus::PendingSecretary || $locked->committeeReturnStage() !== 'secretary') {
+                throw new WorkflowException(__('dpc.committee_rejection.not_with_secretary'));
+            }
+
+            $own = $locked->evaluationRows()->pluck('id')->map(fn ($id): int => (int) $id)->all();
+            $candidates = array_intersect_key($candidates, array_flip($own));
+
+            $locked->forceFill([
+                'status' => DpcProposalStatus::Submitted->value,
+                'committee_return' => ['stage' => 'ah', 'candidates' => $candidates, 'secretary' => $secretary->id] + (array) $locked->committee_return,
+            ])->save();
+            // `+` keeps the left's keys: the stage and the candidates are the new ones.
+
+            $this->engine->record($locked, 'dpc_proposal', 'secretary_marks_rejection', DpcProposalStatus::PendingSecretary->value, [
+                'from' => [DpcProposalStatus::PendingSecretary->value], 'to' => DpcProposalStatus::Submitted->value,
+                'role' => 'secretary', 'signature' => false, 'notify' => ['administrative_head'],
+            ], $secretary, $request, null, null, $locked->department_id, ['candidates' => $candidates]);
+        });
+    }
+
+    /** The AH opens the sections the Secretary marked for the AO to correct (2026-11-18). */
+    public function openForAo(DpcProposal $proposal, User $ah, Request $request): void
+    {
+        DB::transaction(function () use ($proposal, $ah, $request): void {
+            /** @var DpcProposal $locked */
+            $locked = DpcProposal::query()->whereKey($proposal->id)->lockForUpdate()->firstOrFail();
+
+            if ($locked->status !== DpcProposalStatus::Submitted || $locked->committeeReturnStage() !== 'ah') {
+                throw new WorkflowException(__('dpc.committee_rejection.not_with_ah'));
+            }
+
+            $names = $locked->evaluationRows()->pluck('name', 'id');
+            $summary = collect($locked->committeeReturnCandidates())
+                ->map(fn (array $sections, int $rowId): string => ($names[$rowId] ?? '#'.$rowId).' — '.collect($sections)->map(fn (string $remark, string $section): string => __('dpc.committee_decision.sections.'.$section).': '.$remark)->implode('; '))
+                ->implode(' | ');
 
             $locked->forceFill([
                 'status' => DpcProposalStatus::Returned->value,
                 'returned_at' => now(),
                 'return_remarks' => $summary,
                 'committee_returned_at' => now(),
-                'committee_return' => ['sections' => array_map('trim', $sections), 'by' => $member->id, 'member' => $name, 'decision' => $record->uuid],
+                'committee_return' => ['stage' => 'ao'] + (array) $locked->committee_return,
             ])->save();
 
-            $this->revisions->recordReturn($locked, $member, $summary, 'committee');
-
-            // The committee holds no workflow role (a seat, not an office), so the
-            // transition is defined here and guarded by the policy, not the engine.
-            $this->engine->record($locked, 'dpc_proposal', 'committee_return', DpcProposalStatus::Approved->value, [
-                'from' => [DpcProposalStatus::Approved->value], 'to' => DpcProposalStatus::Returned->value,
-                'role' => 'committee', 'signature' => false, 'notify' => ['authorized_officer', 'administrative_head'],
-            ], $member, $request, $summary, null, $locked->department_id, ['sections' => array_keys($sections)]);
-
-            return $record;
+            $this->engine->record($locked, 'dpc_proposal', 'ah_opens_sections', DpcProposalStatus::Submitted->value, [
+                'from' => [DpcProposalStatus::Submitted->value], 'to' => DpcProposalStatus::Returned->value,
+                'role' => 'administrative_head', 'signature' => false, 'notify' => ['authorized_officer'],
+            ], $ah, $request, $summary, null, $locked->department_id);
         });
     }
 
-    /** The AO sends the corrected DPC straight back to the committee (point 3). */
+    /** @return list<int> */
+    private function secretaryIds(): array
+    {
+        return User::role(Role::Secretary->value)->where('is_active', true)->pluck('id')->map(fn ($id): int => (int) $id)->all();
+    }
+
+    /**
+     * The AO sends the corrected DPC on: to the AH, then the Secretary, and so back to
+     * the committee (2026-11-18; until then it went straight to the committee).
+     */
     public function resubmit(DpcProposal $proposal, User $ao, Request $request): void
     {
         DB::transaction(function () use ($proposal, $ao, $request): void {
@@ -119,10 +193,12 @@ final class CommitteeDecisionService
                 throw new WorkflowException(__('dpc.committee_decision.no_open_return'));
             }
 
-            $sections = (array) ($locked->committee_return['sections'] ?? []);
+            $sections = array_flip((array) $locked->committeeReturnSections());
+            $candidates = array_keys($locked->committeeReturnCandidates());
 
             $locked->forceFill([
-                'status' => DpcProposalStatus::Approved->value,
+                'status' => DpcProposalStatus::Submitted->value,
+                'submitted_at' => now(),
                 'committee_returned_at' => null,
                 'committee_return' => null,
             ])->save();
@@ -135,14 +211,13 @@ final class CommitteeDecisionService
             // forward unverified (2026-11-18).
             app(SittingMeetingService::class)->invalidateProposal($locked, 'resubmission', $ao);
 
-            $this->revisions->recordApproval($locked);
-
-            $committee = DpcCommitteeMember::query()->where('dpc_proposal_id', $locked->id)->serving()->whereNotNull('user_id')->pluck('user_id')->map(fn ($id): int => (int) $id)->all();
+            // A submission again, as any resubmission to the AH is.
+            $this->revisions->recordSubmission($locked, $ao);
 
             $this->engine->record($locked, 'dpc_proposal', 'committee_resubmit', DpcProposalStatus::Returned->value, [
-                'from' => [DpcProposalStatus::Returned->value], 'to' => DpcProposalStatus::Approved->value,
-                'role' => 'authorized_officer', 'signature' => false, 'notify' => [],
-            ], $ao, $request, null, null, $locked->department_id, ['sections' => array_keys($sections)], notifyUserIds: $committee);
+                'from' => [DpcProposalStatus::Returned->value], 'to' => DpcProposalStatus::Submitted->value,
+                'role' => 'authorized_officer', 'signature' => false, 'notify' => ['administrative_head'],
+            ], $ao, $request, null, null, $locked->department_id, ['sections' => array_keys($sections), 'candidates' => $candidates]);
         });
     }
 }

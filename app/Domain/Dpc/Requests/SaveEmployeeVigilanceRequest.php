@@ -24,7 +24,7 @@ class SaveEmployeeVigilanceRequest extends FormRequest
     {
         $proposal = $this->route('dpcProposal');
 
-        return $proposal instanceof DpcProposal && ($this->user()?->can('updateEmployeeSection', [$proposal, 'vigilance']) ?? false);
+        return $proposal instanceof DpcProposal && ($this->user()?->can('updateEmployeeSection', [$proposal, 'vigilance', $this->route('evaluationRow') instanceof DpcEvaluationRow ? $this->route('evaluationRow') : null]) ?? false);
     }
 
     /**

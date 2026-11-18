@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Dpc\Requests;
 
 use App\Domain\Dpc\Enums\EvaluationDocumentKind;
+use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\Dpc\Models\DpcProposal;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rules\Enum;
@@ -25,7 +26,7 @@ class UploadEmployeeDocumentRequest extends FormRequest
     {
         $proposal = $this->route('dpcProposal');
 
-        return $proposal instanceof DpcProposal && ($this->user()?->can('updateEmployeeSection', [$proposal, EvaluationDocumentKind::tryFrom((string) $this->input('kind'))?->section() ?? 'documents']) ?? false);
+        return $proposal instanceof DpcProposal && ($this->user()?->can('updateEmployeeSection', [$proposal, EvaluationDocumentKind::tryFrom((string) $this->input('kind'))?->section() ?? 'documents', $this->route('evaluationRow') instanceof DpcEvaluationRow ? $this->route('evaluationRow') : null]) ?? false);
     }
 
     /**

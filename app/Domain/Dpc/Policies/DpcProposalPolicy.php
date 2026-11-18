@@ -7,10 +7,12 @@ namespace App\Domain\Dpc\Policies;
 use App\Domain\Allotment\Services\ProposalAllotmentService;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Dpc\Enums\DpcProposalStatus;
+use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\PreDpc\Models\PreDpcProposal;
 use App\Domain\Proceeding\Services\CalculationGate;
 use App\Domain\Proceeding\Services\CommitteeSittingService;
+use App\Domain\Proceeding\Services\SealedCoverService;
 use App\Enums\Role;
 
 /**
@@ -75,7 +77,25 @@ class DpcProposalPolicy
     /** The Secretary, CGPSC decides a DPC the AH approved (2026-11-14). */
     public function secretaryApprove(User $user, DpcProposal $proposal): bool
     {
-        return $this->isSecretary($user) && $proposal->status === DpcProposalStatus::PendingSecretary;
+        // A DPC its DPC Chairman rejected is not approved: the Secretary marks what is
+        // wrong in it and sends it to the AH (2026-11-18).
+        return $this->isSecretary($user) && $proposal->status === DpcProposalStatus::PendingSecretary
+            && $proposal->committeeReturnStage() !== 'secretary';
+    }
+
+    /** The Secretary marks, candidate by candidate, the sections a rejected DPC is wrong in (2026-11-18). */
+    public function secretaryMarkRejection(User $user, DpcProposal $proposal): bool
+    {
+        return $this->isSecretary($user) && $proposal->status === DpcProposalStatus::PendingSecretary
+            && $proposal->committeeReturnStage() === 'secretary';
+    }
+
+    /** The AH opens the sections the Secretary marked for the AO to correct (2026-11-18). */
+    public function ahOpenSections(User $user, DpcProposal $proposal): bool
+    {
+        return $this->allotments->isAllotted($user, $proposal, Role::AdministrativeHead)
+            && $proposal->status === DpcProposalStatus::Submitted
+            && $proposal->committeeReturnStage() === 'ah';
     }
 
     public function secretaryReturn(User $user, DpcProposal $proposal): bool
@@ -119,7 +139,7 @@ class DpcProposalPolicy
      * One Employee Details section (MoM of 16 November 2026, point 3): as update(),
      * and while a committee member's return is open, only the sections it names.
      */
-    public function updateEmployeeSection(User $user, DpcProposal $proposal, string $section): bool
+    public function updateEmployeeSection(User $user, DpcProposal $proposal, string $section, ?DpcEvaluationRow $row = null): bool
     {
         $sections = $proposal->committeeReturnSections();
 
@@ -127,9 +147,11 @@ class DpcProposalPolicy
             return $this->update($user, $proposal);
         }
 
+        // Only the sections opened — for this candidate, since 2026-11-18. Without a
+        // candidate in hand, any candidate's opened section (a screen's own menu).
         return $this->allotments->isAllotted($user, $proposal, Role::AuthorizedOfficer)
             && $proposal->status === DpcProposalStatus::Returned
-            && in_array($section, $sections, true);
+            && ($row === null ? in_array($section, $sections, true) : $proposal->committeeReturnOpens($row->id, $section));
     }
 
     /** The AO sends a committee return, corrected, straight back to the committee (point 3). */
@@ -146,8 +168,11 @@ class DpcProposalPolicy
      */
     public function committeeDecide(User $user, DpcProposal $proposal): bool
     {
+        // The DPC Chairman alone accepts or rejects the DPC, before it is held
+        // (2026-11-18); once accepted, the sitting goes ahead.
         return $proposal->status === DpcProposalStatus::Approved
-            && app(CommitteeSittingService::class)->isSeatedOn($proposal, $user);
+            && app(SealedCoverService::class)->isDpcChairman($proposal, $user)
+            && ! app(CalculationGate::class)->chairmanAccepted($proposal);
     }
 
     /**
@@ -171,8 +196,10 @@ class DpcProposalPolicy
 
     public function approve(User $user, DpcProposal $proposal): bool
     {
+        // A rejection the Secretary marked is opened for the AO, not approved (2026-11-18).
         return $this->allotments->isAllotted($user, $proposal, Role::AdministrativeHead)
-            && $proposal->status === DpcProposalStatus::Submitted;
+            && $proposal->status === DpcProposalStatus::Submitted
+            && $proposal->committeeReturnStage() !== 'ah';
     }
 
     public function return(User $user, DpcProposal $proposal): bool

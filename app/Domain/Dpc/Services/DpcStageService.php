@@ -9,12 +9,12 @@ use App\Domain\Authentication\Models\User;
 use App\Domain\Cgpsc\Models\DpcAllotment;
 use App\Domain\Dpc\Enums\DpcProposalStatus;
 use App\Domain\Dpc\Enums\DpcStage;
-use App\Domain\Dpc\Models\DpcCommitteeDecision;
 use App\Domain\Dpc\Models\DpcCommitteeMember;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Models\WorkflowStageTimeline;
 use App\Domain\Proceeding\Enums\DpcProceedingStatus;
 use App\Domain\Proceeding\Models\DpcProceeding;
+use App\Domain\Proceeding\Services\CalculationGate;
 use App\Domain\Shared\Workflow\WorkflowTransition;
 use App\Enums\Role;
 use Illuminate\Database\Eloquent\Builder;
@@ -163,6 +163,11 @@ final class DpcStageService
     {
         $details = app(EmployeeDetailsService::class);
 
+        // A DPC its DPC Chairman rejected (2026-11-18): the AH opens the marked sections.
+        if ($stage === DpcStage::Ah && $proposal->committeeReturnStage() === 'ah') {
+            return [(string) __('dpc.stage.items.open_sections')];
+        }
+
         return match ($stage) {
             DpcStage::Ao => $this->aoItems($proposal, $details),
             DpcStage::Ah => array_values(array_filter([
@@ -170,12 +175,14 @@ final class DpcStageService
                 ($claims = $details->phClaimsAwaitingHead($proposal)) > 0 ? (string) __('dpc.stage.items.ph_claims', ['count' => $claims]) : null,
                 (string) __('dpc.stage.items.ah_approval'),
             ])),
-            DpcStage::Secretary => [(string) __('dpc.stage.items.secretary_approval')],
+            DpcStage::Secretary => [(string) __($proposal->committeeReturnStage() === 'secretary' ? 'dpc.stage.items.mark_rejection' : 'dpc.stage.items.secretary_approval')],
             DpcStage::Chairman => [(string) __('dpc.stage.items.allotment')],
-            DpcStage::Committee => array_values(array_filter([$this->awaitingReassignment($proposal) ? (string) __('dpc.stage.items.reassign') : null, (string) __('dpc.stage.items.decisions', [
-                'done' => DpcCommitteeDecision::query()->where('dpc_proposal_id', $proposal->id)->where('decided_at', '>=', $this->enteredAt($proposal, $stage))->distinct()->count('user_id'),
-                'total' => DpcCommitteeMember::query()->where('dpc_proposal_id', $proposal->id)->serving()->count(),
-            ])])),
+            // The DPC Chairman's Accept, then every member's OK on every candidate (2026-11-18).
+            DpcStage::Committee => array_values(array_filter([
+                $this->awaitingReassignment($proposal) ? (string) __('dpc.stage.items.reassign') : null,
+                app(CalculationGate::class)->chairmanAccepted($proposal) ? null : (string) __('dpc.stage.items.chairman_accept'),
+                ($okPending = count(app(CalculationGate::class)->pendingMembers($proposal))) > 0 ? (string) __('dpc.stage.items.member_ok', ['count' => $okPending]) : null,
+            ])),
         };
     }
 

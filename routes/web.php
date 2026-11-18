@@ -683,6 +683,11 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
                 Route::post('/{dpcProposal}/submit', [DpcProposalController::class, 'submit'])->name('submit');
                 // A committee return, corrected, goes straight back to the committee (MoM point 3).
                 Route::post('/{dpcProposal}/committee-resubmit', [CommitteeDecisionController::class, 'resubmit'])->name('committee-resubmit');
+                // A DPC its DPC Chairman rejected (2026-11-18): the Secretary marks the
+                // candidates and sections, the AH opens them for the AO.
+                Route::get('/{dpcProposal}/committee-rejection', [CommitteeDecisionController::class, 'rejectionForm'])->name('committee-rejection');
+                Route::post('/{dpcProposal}/committee-rejection', [CommitteeDecisionController::class, 'markRejection'])->name('committee-rejection.mark');
+                Route::post('/{dpcProposal}/committee-rejection/open', [CommitteeDecisionController::class, 'openForAo'])->name('committee-rejection.open');
                 // The AO marks the DPC Proceeding Complete (MoM of 12 November 2026).
                 Route::post('/{dpcProposal}/complete', [DpcProposalController::class, 'complete'])->name('complete');
                 // The AO takes the DPC back to correct it, until the result (MoM of 12 November 2026).

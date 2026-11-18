@@ -1,9 +1,7 @@
-{{-- MoM of 16 November 2026, points 2 and 3: each committee member's decision on the
-     DPC — agreed, or returned to the AO naming the sections to correct, each with its
-     remark — and every decision recorded so far. Expects: $proposal. --}}
+{{-- The DPC Chairman's Accept or Reject of the DPC, with a remark (2026-11-18), and
+     every decision recorded so far. Expects: $proposal. --}}
 @php
     $decisions = \App\Domain\Dpc\Models\DpcCommitteeDecision::query()->where('dpc_proposal_id', $proposal->id)->latest('decided_at')->latest('id')->get();
-    $sectionKeys = \App\Domain\Dpc\Services\CommitteeDecisionService::SECTIONS;
 @endphp
 <div class="card border-0 shadow-sm mb-3" id="committee-decision">
     <div class="card-body">
@@ -12,38 +10,19 @@
             <form method="POST" action="{{ route('sitting.decision', $proposal) }}" class="border rounded p-2 mb-3">
                 @csrf
                 @error('decision')<div class="alert alert-danger py-2 small">{{ $message }}</div>@enderror
-                {{-- Agree only once every candidate carries this member's OK (2026-11-18). --}}
-                @php($okService = app(\App\Domain\Proceeding\Services\SittingMeetingService::class))
-                @php($awaitingOk = in_array(auth()->id(), $okService->requiredMemberIds($proposal), true) ? count($okService->candidatesAwaitingOk($proposal, (int) auth()->id())) : 0)
-                @if ($awaitingOk > 0)
-                    <div class="alert alert-warning py-2 small" id="ok-before-agree">{{ __('dpc.committee_decision.ok_first', ['count' => $awaitingOk]) }}</div>
-                @endif
+                {{-- The DPC Chairman alone accepts or rejects, before the sitting, with a
+                     remark — required to reject (2026-11-18). A rejection goes to the
+                     Secretary, who marks the candidates and sections at fault. --}}
+                <p class="small text-muted mb-1">{{ __('dpc.committee_decision.chairman_help') }}</p>
                 @foreach (['agreed', 'returned'] as $choice)
                     <label class="form-check form-check-inline">
                         <input class="form-check-input" type="radio" name="decision" value="{{ $choice }}" required @checked(old('decision') === $choice)>
-                        {{ __('dpc.committee_decision.choices.'.$choice) }}
+                        {{ __('dpc.committee_decision.chairman_choices.'.$choice) }}
                     </label>
                 @endforeach
-                <div class="mt-2" data-return-sections>
-                    <p class="small text-muted mb-1">{{ __('dpc.committee_decision.sections_help') }}</p>
-                    @foreach ($sectionKeys as $section)
-                        <div class="row g-2 align-items-start mb-1">
-                            <div class="col-md-4">
-                                <label class="form-check small">
-                                    <input class="form-check-input" type="checkbox" name="sections[]" value="{{ $section }}" @checked(in_array($section, (array) old('sections', []), true))>
-                                    {{ __('dpc.committee_decision.sections.'.$section) }}
-                                </label>
-                            </div>
-                            <div class="col-md-8">
-                                <input type="text" class="form-control form-control-sm @error('section_remarks.'.$section) is-invalid @enderror" name="section_remarks[{{ $section }}]" maxlength="2000"
-                                       value="{{ old('section_remarks.'.$section) }}" placeholder="{{ __('dpc.committee_decision.remark_placeholder') }}">
-                                @error('section_remarks.'.$section)<div class="invalid-feedback">{{ $message }}</div>@enderror
-                            </div>
-                        </div>
-                    @endforeach
-                </div>
                 <label class="form-label small mt-2" for="decision-remarks">{{ __('dpc.committee_decision.remarks') }}</label>
-                <textarea class="form-control form-control-sm" id="decision-remarks" name="remarks" rows="2" maxlength="2000">{{ old('remarks') }}</textarea>
+                <textarea class="form-control form-control-sm @error('remarks') is-invalid @enderror" id="decision-remarks" name="remarks" rows="2" maxlength="2000">{{ old('remarks') }}</textarea>
+                @error('remarks')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 <button class="btn btn-primary btn-sm mt-2">{{ __('dpc.committee_decision.submit') }}</button>
             </form>
         @endcan

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Dpc\Requests;
 
+use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\Dpc\Models\DpcProposal;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -17,7 +18,7 @@ class SaveEmployeeDeclarationsRequest extends FormRequest
     {
         $proposal = $this->route('dpcProposal');
 
-        return $proposal instanceof DpcProposal && ($this->user()?->can('updateEmployeeSection', [$proposal, 'declarations']) ?? false);
+        return $proposal instanceof DpcProposal && ($this->user()?->can('updateEmployeeSection', [$proposal, 'declarations', $this->route('evaluationRow') instanceof DpcEvaluationRow ? $this->route('evaluationRow') : null]) ?? false);
     }
 
     /**

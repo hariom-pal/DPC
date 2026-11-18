@@ -61,7 +61,28 @@ final class SittingMeetingService
     /** Whether this user may start the meeting: the DPC Chairman, while the DPC is with the committee. */
     public function mayInitiate(DpcProposal $proposal, ?User $user): bool
     {
-        return $proposal->status === DpcProposalStatus::Approved && $this->covers->isDpcChairman($proposal, $user);
+        // Once the DPC Chairman has accepted the DPC (2026-11-18).
+        return $proposal->status === DpcProposalStatus::Approved && $this->covers->isDpcChairman($proposal, $user)
+            && app(CalculationGate::class)->chairmanAccepted($proposal);
+    }
+
+    /**
+     * Whether the sitting is on: the day the DPC was scheduled for, from its hour
+     * (the members join and OK the candidates then, together).
+     */
+    public function sittingOpen(DpcProposal $proposal): bool
+    {
+        return $this->sittings->callWindowIsOpen($proposal);
+    }
+
+    /** Why a member cannot record an OK now, or null when they can. */
+    public function okRefusal(DpcProposal $proposal): ?string
+    {
+        if (! app(CalculationGate::class)->chairmanAccepted($proposal)) {
+            return (string) __('proceeding.sitting.ok_after_accept');
+        }
+
+        return $this->sittingOpen($proposal) ? null : (string) $this->sittings->callWindowReason($proposal);
     }
 
     /**
@@ -144,6 +165,11 @@ final class SittingMeetingService
      */
     public function review(DpcProposal $proposal, DpcEvaluationRow $row, User $member): DpcCandidateReview
     {
+        // After the DPC Chairman accepted it, at the sitting itself (2026-11-18).
+        if (($refusal = $this->okRefusal($proposal)) !== null) {
+            throw new WorkflowException($refusal);
+        }
+
         return DB::transaction(function () use ($proposal, $row, $member): DpcCandidateReview {
             // Serialised on the candidate, so two presses at once make one OK.
             DpcEvaluationRow::query()->whereKey($row->id)->lockForUpdate()->first();
@@ -256,10 +282,13 @@ final class SittingMeetingService
 
     private function notifyMembers(DpcProposal $proposal, User $chairman): void
     {
+        $schedule = $this->sittings->schedule($proposal);
         $mail = $this->templates->email('sitting.meeting', [
             'dpc' => (string) ($proposal->dpc_code ?? $proposal->citation()),
             'chairman' => $chairman->name,
             'url' => route('sitting.meeting', $proposal),
+            // The day and hour the members join together: the sitting's.
+            'when' => $schedule?->scheduledFor()->format('d-m-Y H:i') ?? '—',
         ]);
 
         if ($mail === null) {
