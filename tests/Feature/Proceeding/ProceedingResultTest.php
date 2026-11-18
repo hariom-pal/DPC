@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Tests\Feature\Proceeding;
 
 use App\Domain\Authentication\Models\User;
+use App\Domain\Cgpsc\Models\DpcAllotment;
 use App\Domain\Cgpsc\Services\AllotmentService;
 use App\Domain\Cgpsc\Services\SchedulingService;
 use App\Domain\Department\Models\Department;
 use App\Domain\Dpc\Enums\DpcProposalStatus;
+use App\Domain\Dpc\Models\DpcCommitteeMember;
 use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Eligibility\Enums\ListType;
@@ -20,6 +22,7 @@ use App\Domain\Master\Models\VacancyType;
 use App\Domain\Proceeding\Enums\CorrectableField;
 use App\Domain\Proceeding\Enums\DpcProceedingStatus;
 use App\Domain\Proceeding\Models\DpcProceeding;
+use App\Domain\Proceeding\Services\CalculationGate;
 use App\Domain\Proceeding\Services\ProceedingCalculationService;
 use App\Domain\Proceeding\Services\ProceedingCorrectionService;
 use App\Domain\Proceeding\Services\ProceedingService;
@@ -35,6 +38,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Event;
 use OwenIt\Auditing\Models\Audit;
 use RuntimeException;
+use Tests\Concerns\AgreesAsCommittee;
 use Tests\Concerns\AllotsProposals;
 use Tests\Concerns\SeatsDpcCommittees;
 use Tests\Concerns\UsesPptPromotionRules;
@@ -52,6 +56,7 @@ use Tests\TestCase;
  */
 class ProceedingResultTest extends TestCase
 {
+    use AgreesAsCommittee;
     use AllotsProposals;
     use RefreshDatabase;
     use SeatsDpcCommittees;
@@ -127,6 +132,9 @@ class ProceedingResultTest extends TestCase
 
         $this->proceeding = app(ProceedingService::class)
             ->open($this->proposal->fresh(), $this->memberOne, request());
+
+        // Calculate is the DPC Chairman's (the allottee), once every member agrees (2026-11-18).
+        $this->everyMemberAgrees($this->proposal);
     }
 
     // ----------------------------------------------------------------- helpers
@@ -284,11 +292,67 @@ class ProceedingResultTest extends TestCase
         $this->assertSame(16, $after->score_breakdown['total']);
     }
 
+    /** A correction stands in for "the data changed": only then is Calculate offered again (2026-11-18). */
+    private function changeTheData(): void
+    {
+        $this->corrections()->record(
+            $this->proceeding->fresh(), $this->memberOne, CorrectableField::TribalAreaServiceYears, 3, null, '2',
+            'Tribal service confirmed at the sitting.',
+        );
+    }
+
+    public function test_calculate_is_refused_again_until_the_data_changes(): void
+    {
+        $this->calculate()->assertSessionHasNoErrors();
+        $this->calculate()->assertSessionHasErrors(['result' => __('dpc.calculation_gate.already_calculated')]);
+        $this->assertSame(1, DpcCalculationRun::query()->count());
+
+        $this->changeTheData();
+        $this->calculate()->assertSessionHasNoErrors();
+        $this->assertSame(2, DpcCalculationRun::query()->count());
+    }
+
+    /** A member with no login account cannot agree, so Calculate stays closed, and the screen says why (2026-11-18). */
+    public function test_a_member_without_a_login_blocks_calculate(): void
+    {
+        $seat = DpcCommitteeMember::query()->where('dpc_proposal_id', $this->proposal->id)->serving()
+            ->where('capacity', 'member')->where('user_id', '!=', $this->memberOne->id)->firstOrFail();
+        $seat->forceFill(['user_id' => null])->save();
+
+        $this->calculate()->assertSessionHasErrors(['result' => __('dpc.calculation_gate.missing_account')]);
+        $this->assertSame(0, DpcCalculationRun::query()->count());
+
+        $this->memberOne->forceFill(['must_change_password' => false, 'email_verified_at' => now()])->save();
+        $this->actingAs($this->memberOne)->get(route('sitting.show', $this->proposal))->assertOk()
+            ->assertSee('data-pending-member="no_account"', false)->assertSee(__('dpc.calculation_gate.missing_account'));
+    }
+
+    /** The CGPSC Chairman's own seat is not one more Agree to wait for: the allottee presides (2026-11-18). */
+    public function test_the_cgpsc_chairmans_seat_without_a_login_does_not_block_calculate(): void
+    {
+        DpcCommitteeMember::query()->where('dpc_proposal_id', $this->proposal->id)
+            ->where('capacity', 'cgpsc_chairman')->update(['user_id' => null]);
+
+        $this->assertSame([], app(CalculationGate::class)->pendingMembers($this->proposal->fresh()));
+        $this->calculate()->assertSessionHasNoErrors();
+        $this->assertSame(1, DpcCalculationRun::query()->count());
+    }
+
+    /** A returned allotment leaves nobody presiding, so nobody calculates until it is allotted again. */
+    public function test_a_returned_allotment_gives_nobody_calculate(): void
+    {
+        DpcAllotment::query()->where('dpc_proposal_id', $this->proposal->id)->update(['returned_at' => now()]);
+
+        $this->calculate()->assertSessionHasErrors(['result' => __('dpc.calculation_gate.only_dpc_chairman')]);
+        $this->assertSame(0, DpcCalculationRun::query()->count());
+    }
+
     public function test_recalculating_creates_a_new_run_and_keeps_the_old_one(): void
     {
         $this->calculate();
         $first = DpcCalculationRun::query()->firstOrFail();
 
+        $this->changeTheData();
         $this->calculate();
 
         $this->assertSame(2, DpcCalculationRun::query()->count());
@@ -299,6 +363,7 @@ class ProceedingResultTest extends TestCase
     public function test_calculation_history_lists_every_run(): void
     {
         $this->calculate();
+        $this->changeTheData();
         $this->calculate();
 
         $this->assertCount(2, $this->calculations()->history($this->proceeding->fresh()));

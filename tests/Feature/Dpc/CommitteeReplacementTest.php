@@ -104,6 +104,8 @@ class CommitteeReplacementTest extends TestCase
             array_replace([
                 'name' => 'Incoming Member',
                 'mobile' => '9000000201',
+                // Both are the successor's login (2026-11-18).
+                'email' => 'incoming.member@cg.gov.in',
                 'reason' => 'Transferred out of the department.',
             ], $payload),
         );
@@ -280,9 +282,9 @@ class CommitteeReplacementTest extends TestCase
                 // Covers the whole required combination on one member (business
                 // clarification, 2026-09-06), so nothing but authorisation can
                 // refuse this payload.
-                ['name' => 'Nope One', 'mobile' => '9000000401', 'designation' => 'Secretary', 'capacity' => 'member', 'is_sc' => true],
-                ['name' => 'Nope Two', 'mobile' => '9000000402', 'designation' => 'Secretary', 'capacity' => 'member', 'is_st' => true],
-                ['name' => 'Nope Three', 'mobile' => '9000000403', 'designation' => 'Secretary', 'capacity' => 'member',
+                ['name' => 'Nope One', 'email' => 'nope.one@cg.gov.in', 'mobile' => '9000000401', 'designation' => 'Secretary', 'capacity' => 'member', 'is_sc' => true],
+                ['name' => 'Nope Two', 'email' => 'nope.two@cg.gov.in', 'mobile' => '9000000402', 'designation' => 'Secretary', 'capacity' => 'member', 'is_st' => true],
+                ['name' => 'Nope Three', 'email' => 'nope.three@cg.gov.in', 'mobile' => '9000000403', 'designation' => 'Secretary', 'capacity' => 'member',
                     'is_obc' => true, 'is_female' => true,
                     'is_bhar_sadhak_sachiv' => true, 'is_vibhag_sachiv' => true],
             ],

@@ -40,11 +40,30 @@
                         </div>
                         <div class="d-flex gap-2">
                             <a href="{{ route('dpc-proposals.calculations.index', $proposal) }}" class="btn btn-outline-secondary btn-sm">{{ __('ui.history') }}</a>
-                            <form method="POST" action="{{ route('dpc-proposals.calculate', $proposal) }}">
-                                @csrf<button class="btn btn-primary btn-sm">{{ __('ui.calculate') }}</button>
-                            </form>
+                            {{-- The DPC Chairman alone, once every member has agreed (2026-11-18). --}}
+                            @can('calculate', $proposal)
+                                <form method="POST" action="{{ route('dpc-proposals.calculate', $proposal) }}">
+                                    @csrf<button class="btn btn-primary btn-sm" id="committee-calculate">{{ __('ui.calculate') }}</button>
+                                </form>
+                            @endcan
                         </div>
                     </div>
+                    @cannot('calculate', $proposal)
+                        <p class="small text-muted mx-3 mb-2" id="calculate-unavailable">{{ app(\App\Domain\Proceeding\Services\CalculationGate::class)->refusal($proposal, auth()->user()) }}</p>
+                    @endcannot
+                    {{-- Whose Agree is still awaited, and why (2026-11-18). --}}
+                    @php($pendingMembers = app(\App\Domain\Proceeding\Services\CalculationGate::class)->pendingMembers($proposal))
+                    @if ($pendingMembers !== [])
+                        <div class="small mx-3 mb-2" id="pending-agreements">
+                            @if (collect($pendingMembers)->contains(fn ($m) => $m['user_id'] === auth()->id()))
+                                <div class="text-danger fw-semibold mb-1" id="your-agree-pending">{{ __('dpc.calculation_gate.your_agree_pending') }}</div>
+                            @endif
+                            <span class="fw-semibold">{{ __('dpc.calculation_gate.pending_heading') }}:</span>
+                            @foreach ($pendingMembers as $pendingMember)
+                                <span class="badge text-bg-light border" data-pending-member="{{ $pendingMember['state'] }}">{{ $pendingMember['name'] }} — {{ __('dpc.calculation_gate.state_'.$pendingMember['state']) }}</span>
+                            @endforeach
+                        </div>
+                    @endif
                     @error('calculate')<div class="alert alert-danger py-2 mx-3">{{ $message }}</div>@enderror
                 </div>
             @endcan

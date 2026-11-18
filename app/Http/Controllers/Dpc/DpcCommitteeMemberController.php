@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Dpc;
 
 use App\Domain\Committee\Services\CommitteeDesignationLevel;
+use App\Domain\Committee\Services\CommitteeMemberAccounts;
 use App\Domain\Dpc\Models\DpcCommitteeMember;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Requests\ReplaceCommitteeMemberRequest;
@@ -108,5 +109,64 @@ class DpcCommitteeMemberController extends Controller
                 'outgoing' => $member->name,
                 'incoming' => $successor->name,
             ]));
+    }
+
+    /**
+     * Every serving DPC committee member, with the state of the login (2026-11-18):
+     * the Administrator's list to create or link a login and start a reset from.
+     */
+    public function index(Request $request): View
+    {
+        $search = trim((string) $request->query('q', ''));
+
+        return view('admin.committee-members.index', [
+            'search' => $search,
+            'members' => DpcCommitteeMember::query()
+                ->serving()
+                ->with(['user.activeAssignment.department', 'proposal'])
+                ->when($search !== '', fn ($query) => $query->where(fn ($inner) => $inner
+                    ->where('name', 'like', '%'.$search.'%')
+                    ->orWhere('email', 'like', '%'.$search.'%')
+                    ->orWhere('mobile', 'like', '%'.$search.'%')
+                    ->orWhereHas('proposal', fn ($p) => $p->where('dpc_code', 'like', '%'.$search.'%'))))
+                ->orderByDesc('dpc_proposal_id')
+                ->orderBy('sort_order')
+                ->paginate(25)
+                ->withQueryString(),
+        ]);
+    }
+
+    /**
+     * Create (or link) the login of a seat recorded without one (2026-11-18). The
+     * Administrator's, under `role:admin`.
+     */
+    public function createLogin(Request $request, DpcProposal $dpcProposal, DpcCommitteeMember $member): RedirectResponse
+    {
+        abort_unless($member->dpc_proposal_id === $dpcProposal->id, 404);
+
+        try {
+            $user = app(CommitteeMemberAccounts::class)->createLogin($member, $request->user());
+        } catch (RuntimeException $e) {
+            return back()->withErrors(['committee_account' => $e->getMessage()]);
+        }
+
+        return back()->with('status', __('dpc.committee.account.created', ['name' => $user->name]));
+    }
+
+    /**
+     * Start the member's password reset (2026-11-18): codes to the member's own
+     * registered e-mail and mobile; no password is issued or shown.
+     */
+    public function resetPassword(Request $request, DpcProposal $dpcProposal, DpcCommitteeMember $member): RedirectResponse
+    {
+        abort_unless($member->dpc_proposal_id === $dpcProposal->id && $member->user !== null, 404);
+
+        try {
+            app(CommitteeMemberAccounts::class)->initiateReset($member->user, $request->user());
+        } catch (RuntimeException $e) {
+            return back()->withErrors(['committee_account' => $e->getMessage()]);
+        }
+
+        return back()->with('status', __('dpc.committee.account.reset_started', ['name' => $member->user->name]));
     }
 }

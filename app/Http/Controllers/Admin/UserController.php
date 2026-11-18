@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Admin;
 
 use App\Domain\Authentication\Models\User;
+use App\Domain\Committee\Services\CommitteeMemberAccounts;
 use App\Domain\Department\Models\Department;
 use App\Domain\Master\Models\Designation;
+use App\Domain\Shared\Workflow\WorkflowException;
 use App\Domain\UserManagement\Requests\StoreUserRequest;
 use App\Domain\UserManagement\Requests\UpdateUserRequest;
 use App\Domain\UserManagement\Services\UserProvisioningService;
@@ -99,8 +101,22 @@ class UserController extends Controller
      * 2026-10-26). The previous password stops working; it is never shown, because
      * it is never stored. Rate limited per administrator and per account.
      */
-    public function resetPassword(Request $request, User $user): Response
+    public function resetPassword(Request $request, User $user): Response|RedirectResponse
     {
+        // A DPC committee member's own account sets its own password (2026-11-18): the
+        // reset is started — codes to the member's registered e-mail and mobile — and
+        // no temporary password is issued or shown.
+        $members = app(CommitteeMemberAccounts::class);
+        if ($members->isCommitteeOnly($user)) {
+            try {
+                $members->initiateReset($user, $request->user());
+            } catch (WorkflowException $e) {
+                return back()->withErrors(['reset' => $e->getMessage()]);
+            }
+
+            return back()->with('status', __('dpc.committee.account.reset_started', ['name' => $user->name]));
+        }
+
         $password = $this->provisioning->resetPassword($user, $request->user());
 
         return $this->showIssuedPassword($user, $password, 'reset', 'layouts.admin', route('admin.users.index'));

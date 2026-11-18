@@ -68,7 +68,7 @@
                 <span>
 {!! __('cgpsc.proceedings.show.corrections_explained') !!}
                 </span>
-                @if ($canEdit)
+                @if ($canEdit && $proceeding->proposal !== null && app(\App\Domain\Proceeding\Services\CalculationGate::class)->mayCalculate($proceeding->proposal, auth()->user()))
                     <form method="POST" action="{{ route('cgpsc.proceedings.calculate', $proceeding) }}"
                           class="ms-3">
                         @csrf

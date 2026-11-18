@@ -80,6 +80,21 @@ class DpcCommitteeTest extends TestCase
      */
     private function saveCommittee(array $overrides): TestResponse
     {
+        // Every member's e-mail and mobile are required (2026-11-18): a row that names
+        // neither an account nor these is given its own, unless the test sets them.
+        foreach ($overrides as $i => $row) {
+            if (! is_array($row) || ! empty($row['user_id'])) {
+                continue;
+            }
+            $key = substr(md5((string) ($row['name'] ?? $i)), 0, 8);
+            if (! array_key_exists('email', $row)) {
+                $overrides[$i]['email'] = 'member.'.$key.'@cg.gov.in';
+            }
+            if (! array_key_exists('mobile', $row)) {
+                $overrides[$i]['mobile'] = '9'.str_pad((string) (hexdec(substr($key, 0, 6)) % 1000000000), 9, '0', STR_PAD_LEFT);
+            }
+        }
+
         return $this->actingAs($this->ao)->put(route('dpc-proposals.committee.update', $this->proposal), ['members' => $overrides]);
     }
 
@@ -550,7 +565,8 @@ class DpcCommitteeTest extends TestCase
         $before = User::query()->count();
 
         $this->saveCommittee([
-            ['name' => 'Typed Differently', 'email' => strtoupper((string) $this->member->email), 'designation_id' => $this->designationId(), 'capacity' => 'member'],
+            // Both channels name the same account (2026-11-18): that is the verified link.
+            ['name' => 'Typed Differently', 'email' => strtoupper((string) $this->member->email), 'mobile' => (string) $this->member->mobile, 'designation_id' => $this->designationId(), 'capacity' => 'member'],
             ...$this->filler(3),
         ])->assertSessionHasNoErrors();
 

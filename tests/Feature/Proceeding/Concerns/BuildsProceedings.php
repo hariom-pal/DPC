@@ -30,6 +30,7 @@ use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Config;
+use Tests\Concerns\AgreesAsCommittee;
 use Tests\Concerns\AllotsProposals;
 use Tests\Concerns\RecordsSanctionedStrength;
 use Tests\Concerns\SeatsDpcCommittees;
@@ -46,6 +47,7 @@ use Tests\Concerns\UsesPptPromotionRules;
  */
 trait BuildsProceedings
 {
+    use AgreesAsCommittee;
     use AllotsProposals;
     use RecordsSanctionedStrength;
     use RefreshDatabase;
@@ -221,6 +223,9 @@ trait BuildsProceedings
 
         $this->proceeding = app(ProceedingService::class)
             ->open($this->proposal->fresh(), $this->memberOne, request());
+
+        // Calculate is the DPC Chairman's (the allottee), once every member agrees (2026-11-18).
+        $this->everyMemberAgrees($this->proposal);
     }
 
     protected function urCategoryId(): int

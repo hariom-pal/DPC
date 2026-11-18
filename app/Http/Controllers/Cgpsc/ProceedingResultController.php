@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Cgpsc;
 use App\Domain\Proceeding\Models\DpcProceeding;
 use App\Domain\Proceeding\Requests\ApproveResultRequest;
 use App\Domain\Proceeding\Requests\CancelDpcRequest;
+use App\Domain\Proceeding\Services\CalculationGate;
 use App\Domain\Proceeding\Services\HoldService;
 use App\Domain\Proceeding\Services\ProceedingCalculationService;
 use App\Domain\Proceeding\Services\ResultApprovalService;
@@ -35,8 +36,18 @@ class ProceedingResultController extends Controller
     {
         $this->authorize('act', $proceeding);
 
+        // The DPC Chairman alone, once every member has agreed, and again only after
+        // the data changed (2026-11-18) — re-checked under a lock, so two presses at
+        // once cannot both calculate.
         try {
-            $this->calculations->calculate($proceeding, $request->user());
+            $proposal = $proceeding->proposal;
+            $result = $proposal === null
+                ? $this->calculations->calculate($proceeding, $request->user())
+                : app(CalculationGate::class)->calculateUnderLock($proposal, $request->user(), fn () => $this->calculations->calculate($proceeding, $request->user()));
+
+            if (is_string($result)) {
+                return back()->withErrors(['result' => $result]);
+            }
         } catch (WorkflowException $e) {
             return back()->withErrors(['result' => $e->getMessage()]);
         }

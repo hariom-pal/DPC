@@ -153,7 +153,8 @@
                         </div>
                         <div class="d-flex gap-2">
                             <a href="{{ route('dpc-proposals.calculations.index', $proposal) }}" class="btn btn-outline-secondary btn-sm">{{ __('ui.history') }}</a>
-                            @if ($proposal->evaluationRows->isNotEmpty())
+                            {{-- The DPC Chairman alone, once every member has agreed (2026-11-18). --}}
+                            @if ($proposal->evaluationRows->isNotEmpty() && auth()->user()?->can('calculate', $proposal))
                                 <form method="POST" action="{{ route('dpc-proposals.calculate', $proposal) }}">
                                     @csrf<button class="btn btn-primary btn-sm">{{ __('ui.calculate') }}</button>
                                 </form>

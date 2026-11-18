@@ -356,9 +356,9 @@ class FreshInstallToPromotionOrderTest extends TestCase
             $designation = fn (string $name): int => (int) Designation::query()->where('name', $name)->value('id');
             $this->ok($this->actingAs($ao)->put(route('dpc-proposals.committee.update', $proposal), ['members' => [
                 ['name' => 'Shri R. K. Member', 'email' => 'member.test@cgpsc.gov.in', 'mobile' => '9000000301', 'designation_id' => $designation('Member, CGPSC'), 'capacity' => 'member', 'is_sc' => '1'],
-                ['name' => 'Smt. A. Test', 'mobile' => '9000000311', 'designation_id' => $designation('Joint Secretary'), 'capacity' => 'member', 'is_st' => '1', 'is_female' => '1'],
-                ['name' => 'Shri B. Test', 'mobile' => '9000000312', 'designation_id' => $designation('Deputy Secretary'), 'capacity' => 'member', 'is_obc' => '1', 'is_bhar_sadhak_sachiv' => '1'],
-                ['name' => 'Shri C. Test', 'mobile' => '9000000313', 'designation_id' => $designation('Under Secretary'), 'capacity' => 'member', 'is_vibhag_sachiv' => '1'],
+                ['name' => 'Smt. A. Test', 'email' => 'a.test@cg.gov.in', 'mobile' => '9000000311', 'designation_id' => $designation('Joint Secretary'), 'capacity' => 'member', 'is_st' => '1', 'is_female' => '1'],
+                ['name' => 'Shri B. Test', 'email' => 'b.test@cg.gov.in', 'mobile' => '9000000312', 'designation_id' => $designation('Deputy Secretary'), 'capacity' => 'member', 'is_obc' => '1', 'is_bhar_sadhak_sachiv' => '1'],
+                ['name' => 'Shri C. Test', 'email' => 'c.test@cg.gov.in', 'mobile' => '9000000313', 'designation_id' => $designation('Under Secretary'), 'capacity' => 'member', 'is_vibhag_sachiv' => '1'],
             ]]));
         });
 
@@ -465,6 +465,11 @@ class FreshInstallToPromotionOrderTest extends TestCase
             $this->ok($this->actingAs($member)->post(route('cgpsc.schedules.store', $proposal), ['dpc_at' => now()->addDays(2)->format('Y-m-d\TH:i')]));
             $this->ok($this->actingAs($member)->post(route('cgpsc.proceedings.open', $proposal)));
             $proceeding = DpcProceeding::query()->sole();
+            // Every member with an account records Agree at the sitting first (2026-11-18).
+            foreach (DpcCommitteeMember::query()->where('dpc_proposal_id', $proposal->id)->serving()->whereNotNull('user_id')->with('user')->get() as $seat) {
+                $seat->user->forceFill(['must_change_password' => false, 'email_verified_at' => now()])->save();
+                $this->ok($this->actingAs($seat->user)->post(route('sitting.decision', $proposal), ['decision' => 'agreed']));
+            }
             $this->ok($this->actingAs($member)->post(route('cgpsc.proceedings.calculate', $proceeding)));
             $this->ok($this->actingAs($member)->post(route('cgpsc.proceedings.approve', $proceeding), ['promotion_as_on_year' => 2026]));
             $this->assertSame('result_approved', $proceeding->fresh()->status->value);

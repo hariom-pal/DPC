@@ -8,6 +8,8 @@ use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Eligibility\Models\DpcCalculationRun;
 use App\Domain\Eligibility\Services\DpcCalculationService;
 use App\Domain\Eligibility\Services\ExplainCalculationService;
+use App\Domain\Proceeding\Services\CalculationGate;
+use App\Domain\Proceeding\Services\ProceedingCalculationService;
 use App\Domain\Shared\Workflow\WorkflowException;
 use App\Http\Controllers\Controller;
 use Illuminate\Contracts\View\View;
@@ -60,10 +62,24 @@ class DpcCalculationController extends Controller
 
     public function store(Request $request, DpcProposal $dpcProposal): RedirectResponse
     {
+        // The DPC Chairman alone, once every member has agreed (2026-11-18).
         $this->authorize('viewCalculation', $dpcProposal);
+        $gate = app(CalculationGate::class);
 
         try {
-            $run = $this->calculations->calculate($dpcProposal, $request->user());
+            // Re-checked under a lock, so two presses at once cannot both calculate.
+            // With a proceeding open, the result is the proceeding's, so it can be approved.
+            $run = $gate->calculateUnderLock($dpcProposal, $request->user(), function () use ($gate, $dpcProposal, $request) {
+                $proceeding = $gate->proceeding($dpcProposal);
+
+                return $proceeding !== null
+                    ? app(ProceedingCalculationService::class)->calculate($proceeding, $request->user())
+                    : $this->calculations->calculate($dpcProposal, $request->user());
+            });
+
+            if (is_string($run)) {
+                throw new WorkflowException($run);
+            }
         } catch (WorkflowException $e) {
             // Back to where the committee member pressed Calculate (2026-11-16): the
             // proposal for one who may view it, the sitting otherwise.

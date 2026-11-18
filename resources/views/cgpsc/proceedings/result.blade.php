@@ -20,10 +20,15 @@
             @error('result')<div class="alert alert-danger py-2">{{ $message }}</div>@enderror
             @error('promotion_as_on_year')<div class="alert alert-danger py-2">{{ $message }}</div>@enderror
 
+            @php
+                // The DPC Chairman alone, once every member has agreed, and again only
+                // after the data changed (2026-11-18).
+                $canCalculate = $canAct && $proceeding->proposal !== null && app(\App\Domain\Proceeding\Services\CalculationGate::class)->mayCalculate($proceeding->proposal, auth()->user());
+            @endphp
             @if ($run === null)
                 <div class="alert alert-secondary">
 {{ __('cgpsc.proceedings.result.not_calculated_yet') }}
-                    @if ($canAct)
+                    @if ($canCalculate)
                         <form method="POST" action="{{ route('cgpsc.proceedings.calculate', $proceeding) }}"
                               class="d-inline">
                             @csrf
@@ -221,10 +226,12 @@
                 @if ($canAct)
                     <div class="card border-0 shadow-sm mb-3">
                         <div class="card-body d-flex flex-wrap gap-3 align-items-end">
-                            <form method="POST" action="{{ route('cgpsc.proceedings.calculate', $proceeding) }}">
-                                @csrf
-                                <button class="btn btn-outline-primary">{{ __('cgpsc.proceedings.result.calculate_again') }}</button>
-                            </form>
+                            @if ($canCalculate)
+                                <form method="POST" action="{{ route('cgpsc.proceedings.calculate', $proceeding) }}">
+                                    @csrf
+                                    <button class="btn btn-outline-primary">{{ __('cgpsc.proceedings.result.calculate_again') }}</button>
+                                </form>
+                            @endif
 
                             <form method="POST" action="{{ route('cgpsc.proceedings.approve', $proceeding) }}"
                                   class="d-flex gap-2 align-items-end">

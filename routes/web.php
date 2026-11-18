@@ -1049,6 +1049,13 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
                     'dpc-proposals/{dpcProposal}/committee/{member}/replace',
                     [DpcCommitteeMemberController::class, 'replace'],
                 )->name('committee-members.replace');
+                Route::get('committee-members', [DpcCommitteeMemberController::class, 'index'])->name('committee-members.index');
+                // A member's login (2026-11-18): create or link it, and start a reset
+                // the member completes — the Administrator never sees a password.
+                Route::post('dpc-proposals/{dpcProposal}/committee/{member}/account', [DpcCommitteeMemberController::class, 'createLogin'])
+                    ->middleware('throttle:password-reset')->name('committee-members.account');
+                Route::post('dpc-proposals/{dpcProposal}/committee/{member}/reset-password', [DpcCommitteeMemberController::class, 'resetPassword'])
+                    ->middleware('throttle:password-reset')->name('committee-members.reset-password');
                 /*
                  | Suggestion 3. Proposals raised before change item 11 carry no
                  | sanctioning order, because migration 360007 refused to guess one.

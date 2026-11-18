@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Committee\Services;
 
 use App\Domain\Authentication\Models\User;
+use App\Domain\Shared\Workflow\WorkflowException;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Str;
 
@@ -134,6 +135,43 @@ class CommitteeMemberDirectory
                 }
             })
             ->first();
+    }
+
+    /**
+     * The one account this e-mail and mobile belong to, or null when neither is
+     * known (2026-11-18). Refused — never linked — when they point at two different
+     * accounts, or when the account found holds the other channel with a different
+     * value: an identity that does not agree on both is not verified.
+     *
+     * @throws WorkflowException
+     */
+    public function resolve(?string $email, ?string $mobile): ?User
+    {
+        $email = $email === null || trim($email) === '' ? null : Str::lower(trim($email));
+        $mobile = $this->normaliseMobile($mobile ?? '');
+
+        $byEmail = $email === null ? null : User::query()->whereRaw('LOWER(email) = ?', [$email])->first();
+        $byMobile = $mobile === null ? null : User::query()->whereRaw($this->mobileTailExpression(), [$mobile])->first();
+
+        if ($byEmail !== null && $byMobile !== null && $byEmail->id !== $byMobile->id) {
+            throw new WorkflowException((string) __('dpc.committee.account.conflict_two', ['email' => $email, 'mobile' => $mobile]));
+        }
+
+        $account = $byEmail ?? $byMobile;
+
+        if ($account === null) {
+            return null;
+        }
+
+        $accountMobile = $this->normaliseMobile((string) $account->mobile);
+        $accountEmail = $account->email === null ? null : Str::lower((string) $account->email);
+
+        if (($mobile !== null && $accountMobile !== null && $accountMobile !== $mobile)
+            || ($email !== null && $accountEmail !== null && $accountEmail !== $email)) {
+            throw new WorkflowException((string) __('dpc.committee.account.conflict_other', ['name' => $account->name]));
+        }
+
+        return $account;
     }
 
     /**

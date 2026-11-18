@@ -170,7 +170,7 @@ class DpcCommitteeService
      *
      * @param  array<string, mixed>  $row
      */
-    private function resolveMember(array $row, User $actor): ?User
+    public function resolveMember(array $row, User $actor): ?User
     {
         /*
          | An account the officer picked from the search takes precedence over
@@ -192,7 +192,10 @@ class DpcCommitteeService
         $email = $this->text($row['email'] ?? null);
         $mobile = $this->text($row['mobile'] ?? null);
 
-        $existing = $this->directory->existing($email, $mobile);
+        // The account the e-mail and mobile both belong to; a conflict between them
+        // is refused rather than linked (2026-11-18). An existing account is linked
+        // as it is: no role, permission or password of it changes.
+        $existing = $this->directory->resolve($email, $mobile);
 
         if ($existing !== null) {
             return $existing;

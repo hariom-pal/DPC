@@ -73,6 +73,8 @@
                        href="{{ route('admin.cr-grades.index') }}">{{ __('admin.cr_grades.title') }}</a>
                     <a class="list-group-item list-group-item-action fw-semibold {{ request()->routeIs('admin.users.*') ? 'active' : '' }}"
                        href="{{ route('admin.users.index') }}">{{ __('ui.layouts.admin.nav.user_management') }}</a>
+                    <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.committee-members.*') ? 'active' : '' }}"
+                       href="{{ route('admin.committee-members.index') }}">{{ __('dpc.committee.account.list_title') }}</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.reservation-categories.*') ? 'active' : '' }}"
                        href="{{ route('admin.reservation-categories.index') }}">{{ __('ui.layouts.admin.nav.reservation_categories') }}</a>
                     <a class="list-group-item list-group-item-action {{ request()->routeIs('admin.dpc-types.*') ? 'active' : '' }}"

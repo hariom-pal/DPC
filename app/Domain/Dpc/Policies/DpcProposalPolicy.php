@@ -9,6 +9,7 @@ use App\Domain\Authentication\Models\User;
 use App\Domain\Dpc\Enums\DpcProposalStatus;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\PreDpc\Models\PreDpcProposal;
+use App\Domain\Proceeding\Services\CalculationGate;
 use App\Domain\Proceeding\Services\CommitteeSittingService;
 use App\Enums\Role;
 
@@ -147,6 +148,15 @@ class DpcProposalPolicy
     {
         return $proposal->status === DpcProposalStatus::Approved
             && app(CommitteeSittingService::class)->isSeatedOn($proposal, $user);
+    }
+
+    /**
+     * Press Calculate (2026-11-18): the DPC Chairman alone, once every member has
+     * agreed, and again only after the data changed — see CalculationGate.
+     */
+    public function calculate(User $user, DpcProposal $proposal): bool
+    {
+        return app(CalculationGate::class)->mayCalculate($proposal, $user);
     }
 
     public function submit(User $user, DpcProposal $proposal): bool

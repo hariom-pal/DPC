@@ -8,6 +8,8 @@
                             'manageLabel' => 'Manage Committee',
                         ])
                     </div>
+                    @error('committee_account')<div class="alert alert-danger py-2 mt-2">{{ $message }}</div>@enderror
+                    @error('reset')<div class="alert alert-danger py-2 mt-2">{{ $message }}</div>@enderror
                     <div class="table-responsive mt-2">
                         <table class="table table-sm align-middle mb-0">
                             <thead><tr><th>{{ __('ui.name') }}</th><th>{{ __('ui.designation') }}</th><th>{{ __('ui.mobile') }}</th><th>{{ __('ui.email') }}</th><th>{{ __('dpc.committee.attributes_heading') }}</th><th>{{ __('ui.capacity') }}</th></tr></thead>
@@ -63,6 +65,29 @@
                                                    href="{{ route('admin.committee-members.replace.form', [$proposal, $member]) }}">
                                                     {{ __('dpc.committee.replace_member') }}
                                                 </a>
+                                            @endif
+                                            {{-- The member's login (2026-11-18), the Administrator's: its state,
+                                                 and Create Login / Link Account or a reset the member completes. --}}
+                                            @if (auth()->user()?->hasRole(\App\Enums\Role::Admin->value))
+                                                <div class="mt-1" data-member-account="{{ $member->id }}">
+                                                    @if ($member->user)
+                                                        <span class="badge text-bg-success">{{ __('dpc.committee.account.linked') }}</span>
+                                                        @if ($member->user->activeAssignment?->department)
+                                                            <span class="text-muted">{{ $member->user->activeAssignment->department->name }}</span>
+                                                        @endif
+                                                        <form method="POST" class="d-inline" action="{{ route('admin.committee-members.reset-password', [$proposal, $member]) }}"
+                                                              data-confirm="{{ __('dpc.committee.account.reset_confirm') }}">
+                                                            @csrf
+                                                            <button class="btn btn-link btn-sm p-0 align-baseline" data-member-reset="{{ $member->id }}">{{ __('admin.users.index.reset_password') }}</button>
+                                                        </form>
+                                                    @else
+                                                        <span class="badge text-bg-warning">{{ __('dpc.committee.account.none') }}</span>
+                                                        <form method="POST" class="d-inline" action="{{ route('admin.committee-members.account', [$proposal, $member]) }}">
+                                                            @csrf
+                                                            <button class="btn btn-link btn-sm p-0 align-baseline" data-member-create-login="{{ $member->id }}">{{ __('dpc.committee.account.create') }}</button>
+                                                        </form>
+                                                    @endif
+                                                </div>
                                             @endif
                                         </td>
                                     </tr>

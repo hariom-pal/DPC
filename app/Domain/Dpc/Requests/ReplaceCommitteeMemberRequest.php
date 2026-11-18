@@ -58,8 +58,9 @@ class ReplaceCommitteeMemberRequest extends FormRequest
             'designation' => ['nullable', 'string', 'max:255'],
             // The same two shapes the composition form enforces (2026-09-06):
             // ten digits starting 6-9, and a government address.
-            'mobile' => ['nullable', 'string', 'regex:/^[6-9]\\d{9}$/'],
-            'email' => ['nullable', 'email', 'max:255', OfficialEmail::RULE],
+            // The member's login and recovery channels (2026-11-18).
+            'mobile' => ['required_without:user_id', 'nullable', 'string', 'regex:/^[6-9]\\d{9}$/'],
+            'email' => ['required_without:user_id', 'nullable', 'email', 'max:255', OfficialEmail::RULE],
         ];
 
         foreach (DpcCommitteeMember::ATTRIBUTE_COLUMNS as $column) {
@@ -77,6 +78,8 @@ class ReplaceCommitteeMemberRequest extends FormRequest
         return [
             'reason.required' => __('dpc.committee.validation.replacement_reason_required'),
             'name.required_without' => __('dpc.committee.validation.name_required'),
+            'mobile.required_without' => __('dpc.committee.account.mobile_required'),
+            'email.required_without' => __('dpc.committee.account.email_required'),
             'mobile.regex' => __('dpc.committee.validation.mobile_shape'),
             'email.regex' => __('dpc.committee.validation.email_domain'),
         ];

@@ -109,13 +109,15 @@ class SaveDpcCommitteeRequest extends FormRequest
              | Still `nullable`: a member seated from an existing account takes that
              | account's mobile, and an account may have none.
              */
-            'members.*.mobile' => ['nullable', 'string', 'regex:/^[6-9]\\d{9}$/'],
+            // Both are the member's login and recovery channels (2026-11-18): required
+            // unless an existing account was chosen, whose own are used.
+            'members.*.mobile' => ['required_without:members.*.user_id', 'nullable', 'string', 'regex:/^[6-9]\\d{9}$/'],
 
             /*
              | A government address: anything under `gov.in` or `nic.in`
              | (OfficialEmail), and nothing else.
              */
-            'members.*.email' => ['nullable', 'email', 'max:255', OfficialEmail::RULE],
+            'members.*.email' => ['required_without:members.*.user_id', 'nullable', 'email', 'max:255', OfficialEmail::RULE],
 
             /*
              | Item 9: the Authorized Officer may only seat ordinary members. The
@@ -149,6 +151,8 @@ class SaveDpcCommitteeRequest extends FormRequest
             'members.*.name.required_without' => __('dpc.committee.validation.name_required'),
             'members.*.designation_id.required_without' => __('dpc.committee.validation_designation_required'),
             'members.*.mobile.regex' => __('dpc.committee.validation.mobile_shape'),
+            'members.*.mobile.required_without' => __('dpc.committee.account.mobile_required'),
+            'members.*.email.required_without' => __('dpc.committee.account.email_required'),
             'members.*.email.regex' => __('dpc.committee.validation.email_domain'),
         ];
     }

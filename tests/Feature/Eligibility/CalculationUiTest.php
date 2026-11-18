@@ -8,18 +8,22 @@ use App\Domain\Authentication\Models\User;
 use App\Domain\Department\Models\Department;
 use App\Domain\Dpc\Enums\PreviousDpcBasis;
 use App\Domain\Dpc\Enums\ProposalVerificationItem;
+use App\Domain\Dpc\Models\DpcCommitteeDecision;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Services\DpcCommitteeService;
 use App\Domain\Dpc\Services\DpcProposalService;
 use App\Domain\Dpc\Services\ProposalVerificationService;
 use App\Domain\Eligibility\Models\DpcCalculationRun;
+use App\Domain\Eligibility\Services\DpcCalculationService;
 use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\ReservationCategory;
 use App\Domain\Master\Models\VacancyType;
+use App\Domain\Proceeding\Services\CalculationGate;
 use App\Enums\Role;
 use Database\Seeders\LookupMasterSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\AgreesAsCommittee;
 use Tests\Concerns\CompletesDpcProposals;
 use Tests\Concerns\RaisesDpcProposals;
 use Tests\Concerns\SanctionsVacancies;
@@ -34,6 +38,7 @@ use Tests\TestCase;
  */
 class CalculationUiTest extends TestCase
 {
+    use AgreesAsCommittee;
     use CompletesDpcProposals;
     use RaisesDpcProposals;
     use RefreshDatabase;
@@ -78,7 +83,7 @@ class CalculationUiTest extends TestCase
         $this->seatAccountOnCommittee($this->proposal, $this->ao);
     }
 
-    private function seedChart(): void
+    private function seedChart(bool $withCommittee = true): void
     {
         $service = app(DpcProposalService::class);
 
@@ -130,6 +135,11 @@ class CalculationUiTest extends TestCase
             $officer(4, 'US4', [2013 => 'ख', 2014 => 'ख', 2015 => 'ख', 2016 => 'ख', 2017 => 'ख']),      // 10 NE
             $officer(5, 'US5', [2013 => 'ख', 2014 => 'ख', 2015 => 'ख', 2016 => 'ख', 2017 => 'ख']),      // 10 NE
         ]);
+
+        // The committee sits on it, the AO presiding, every member agreed (2026-11-18).
+        if ($withCommittee) {
+            $this->everyMemberAgrees($this->proposal, $this->ao);
+        }
     }
 
     private function calculate(): DpcCalculationRun
@@ -212,7 +222,7 @@ class CalculationUiTest extends TestCase
         // The Commission calculates after submission, when the proposal itself
         // is no longer editable. Gating this on `update` would make the engine
         // unusable at exactly the point it is needed.
-        $this->seedChart();
+        $this->seedChart(withCommittee: false);
         // The CGPSC Chairman's seat is placed by the service, so the fixture
         // supplies only the ordinary members the size rule asks for.
         // The required combination between them (business, 2026-09-06): a member
@@ -255,6 +265,12 @@ class CalculationUiTest extends TestCase
         $this->actingAs($this->ao)->post(route('dpc-proposals.submit', $this->proposal));
         $this->assertSame('submitted', $this->proposal->fresh()->status->value);
 
+        // Submitted, still with the department: not yet the committee's to calculate
+        // (2026-11-18). Approved and agreed by every member, it is.
+        $this->actingAs($this->ao)->post(route('dpc-proposals.calculate', $this->proposal))
+            ->assertSessionHasErrors('calculate');
+        $this->everyMemberAgrees($this->proposal->fresh(), $this->ao);
+
         $this->actingAs($this->ao)
             ->post(route('dpc-proposals.calculate', $this->proposal))
             ->assertSessionHasNoErrors();
@@ -268,7 +284,9 @@ class CalculationUiTest extends TestCase
     {
         $this->seedChart();
         $first = $this->calculate();
-        $second = $this->calculate();
+        // A second press is refused without a change (2026-11-18); the history still
+        // lists every run, however made.
+        $second = app(DpcCalculationService::class)->calculate($this->proposal->fresh(), $this->ao);
 
         $this->actingAs($this->ao)->get(route('dpc-proposals.calculations.index', $this->proposal))
             ->assertOk()
@@ -460,6 +478,7 @@ class CalculationUiTest extends TestCase
             ],
         ]]);
 
+        $this->everyMemberAgrees($this->proposal->fresh(), $this->ao);
         $run = $this->calculate();
 
         $this->assertTrue($run->has_pending_decisions);
@@ -506,23 +525,25 @@ class CalculationUiTest extends TestCase
     {
         // A calculation writes rows no code path can ever delete. Without a
         // limit, holding the button down grows the evidence tables without
-        // bound and buries the run the Commission acted on.
+        // bound and buries the run the Commission acted on. Since 2026-11-18 a
+        // second press is refused anyway until the data changes; the limit still
+        // stands in front of the controller.
         $this->seedChart();
 
         $max = (int) config('dpc.rate_limiting.calculate.max_attempts');
 
-        for ($attempt = 0; $attempt < $max; $attempt++) {
-            $this->actingAs($this->ao)
-                ->post(route('dpc-proposals.calculate', $this->proposal))
-                ->assertSessionHasNoErrors();
+        $this->actingAs($this->ao)->post(route('dpc-proposals.calculate', $this->proposal))->assertSessionHasNoErrors();
+        for ($attempt = 1; $attempt < $max; $attempt++) {
+            $this->actingAs($this->ao)->post(route('dpc-proposals.calculate', $this->proposal))
+                ->assertSessionHasErrors(['calculate' => __('dpc.calculation_gate.already_calculated')]);
         }
 
         $this->actingAs($this->ao)
             ->from(route('dpc-proposals.show', $this->proposal))
             ->post(route('dpc-proposals.calculate', $this->proposal))
-            ->assertSessionHasErrors('calculate');
+            ->assertSessionHasErrors(['calculate' => __('Too many calculations in a short time. Please wait a minute before recalculating.')]);
 
-        $this->assertSame($max, DpcCalculationRun::query()->count());
+        $this->assertSame(1, DpcCalculationRun::query()->count());
     }
 
     public function test_the_calculate_limit_is_per_proposal_not_per_user(): void
@@ -542,6 +563,7 @@ class CalculationUiTest extends TestCase
         );
         $other = DpcProposal::query()->latest('id')->firstOrFail();
         $this->seatAccountOnCommittee($other, $this->ao);
+        $this->everyMemberAgrees($other, $this->ao);
 
         // The second proposal has no chart, so the business error proves the
         // request reached the controller rather than the throttle.
@@ -554,5 +576,62 @@ class CalculationUiTest extends TestCase
             'This proposal has no evaluation chart entries, so there is nothing to calculate.',
             session('errors')->first('calculate'),
         );
+    }
+
+    // ------------------------------------------- who calculates, and when (2026-11-18)
+
+    /** Calculate waits for every member's Agree, and is the DPC Chairman's alone. */
+    public function test_calculate_waits_for_every_member_and_is_the_dpc_chairmans_alone(): void
+    {
+        $this->seedChart();
+        $member = User::factory()->create(['name' => 'Second Member']);
+        $this->seatAccountOnCommittee($this->proposal, $member);
+        DpcCommitteeDecision::query()->delete();
+
+        // Nobody has agreed: no button, and the POST is refused.
+        $this->actingAs($this->ao)->get(route('sitting.show', $this->proposal))->assertOk()
+            ->assertDontSee('id="committee-calculate"', false)->assertSee(__('dpc.calculation_gate.awaiting_agreement'));
+        $this->post(route('dpc-proposals.calculate', $this->proposal))->assertSessionHasErrors(['calculate' => __('dpc.calculation_gate.awaiting_agreement')]);
+
+        // The Chairman alone agreeing is not enough.
+        $agree = fn (User $user) => DpcCommitteeDecision::query()->create([
+            'dpc_proposal_id' => $this->proposal->id, 'user_id' => $user->id, 'member_name' => $user->name, 'decision' => 'agreed', 'decided_at' => now(),
+        ]);
+        $agree($this->ao);
+        $this->post(route('dpc-proposals.calculate', $this->proposal))->assertSessionHasErrors(['calculate' => __('dpc.calculation_gate.awaiting_agreement')]);
+
+        // Every member agreed: the DPC Chairman has the button; the other member does not.
+        $agree($member);
+        $this->actingAs($member)->get(route('sitting.show', $this->proposal))->assertDontSee('id="committee-calculate"', false)->assertSee(__('dpc.calculation_gate.only_dpc_chairman'));
+        $this->post(route('dpc-proposals.calculate', $this->proposal))->assertSessionHasErrors(['calculate' => __('dpc.calculation_gate.only_dpc_chairman')]);
+        $this->assertSame(0, DpcCalculationRun::query()->count());
+
+        $this->actingAs($this->ao)->get(route('sitting.show', $this->proposal))->assertSee('id="committee-calculate"', false);
+        $this->post(route('dpc-proposals.calculate', $this->proposal))->assertSessionHasNoErrors();
+        $run = DpcCalculationRun::query()->sole();
+
+        // Calculated: every member sees the result; the button is gone.
+        $this->actingAs($member)->get(route('dpc-proposals.calculations.show', [$this->proposal, $run->uuid]))->assertOk();
+        $this->actingAs($this->ao)->get(route('sitting.show', $this->proposal))
+            ->assertDontSee('id="committee-calculate"', false)->assertSee(__('dpc.calculation_gate.already_calculated'));
+    }
+
+    /** A return to the AO, resubmitted and agreed to afresh, opens Calculate again. */
+    public function test_a_resubmitted_dpc_agreed_afresh_may_be_calculated_again(): void
+    {
+        $this->seedChart();
+        $this->actingAs($this->ao)->post(route('dpc-proposals.calculate', $this->proposal))->assertSessionHasNoErrors();
+        $gate = app(CalculationGate::class);
+        $this->assertFalse($gate->mayCalculate($this->proposal->fresh(), $this->ao));
+
+        // A member returned it; the AO corrected and resubmitted.
+        DpcCommitteeDecision::query()->create([
+            'dpc_proposal_id' => $this->proposal->id, 'user_id' => $this->ao->id, 'member_name' => 'AO', 'decision' => 'returned',
+            'sections' => ['cr'], 'decided_at' => now(), 'resubmitted_at' => now()->addSecond(),
+        ]);
+        $this->assertFalse($gate->mayCalculate($this->proposal->fresh(), $this->ao), 'Not before every member agrees again.');
+
+        $this->everyMemberAgrees($this->proposal->fresh());
+        $this->assertTrue($gate->mayCalculate($this->proposal->fresh(), $this->ao));
     }
 }
