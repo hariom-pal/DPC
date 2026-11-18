@@ -17,6 +17,7 @@ use App\Domain\Proceeding\Models\DpcCandidateReview;
 use App\Domain\Proceeding\Services\CalculationGate;
 use App\Domain\Proceeding\Services\ChairmanSittingEdit;
 use App\Domain\Proceeding\Services\CommitteeSittingService;
+use App\Domain\Proceeding\Services\SealedCoverService;
 use App\Domain\Shared\Models\ActivityTimeline;
 use App\Enums\Role;
 use Illuminate\Http\UploadedFile;
@@ -198,17 +199,61 @@ class ChairmanSittingEditTest extends TestCase
         $this->assertEveryRouteRefused($this->memberTwo, $this->row());
     }
 
-    public function test_the_cgpsc_chairman_account_never_edits(): void
+    public function test_the_cgpsc_chairman_role_alone_gives_no_edit(): void
     {
         $this->atTheSitting();
+        $this->assertTrue($this->chairman->hasRole(Role::Chairman->value));
 
-        // Not allotted: no.
+        // The DPC is allotted to somebody else: the CGPSC Chairman's role is not enough.
+        $this->assertFalse(app(ChairmanSittingEdit::class)->mayEdit($this->proposal->fresh(), $this->chairman));
+        $this->assertEveryRouteRefused($this->chairman, $this->row());
+    }
+
+    public function test_the_cgpsc_chairman_who_allotted_the_dpc_to_themselves_edits_as_its_dpc_chairman(): void
+    {
+        // Allotted to themselves (2026-11-18); then their own Accept.
+        $this->chairman->forceFill(['must_change_password' => false, 'email_verified_at' => now()])->save();
+        $this->seatAccountOnCommittee($this->proposal, $this->chairman);
+        // As a fixture: the sitting is already scheduled, so the earlier allotment is
+        // superseded directly — the state a self-allotment leaves behind.
+        $earlier = DpcAllotment::query()->where('dpc_proposal_id', $this->proposal->id)->current()->firstOrFail();
+        $mine = $earlier->replicate(['uuid']);
+        $mine->allotted_to = $this->chairman->id;
+        $mine->save();
+        $earlier->forceFill(['superseded_by_id' => $mine->id])->save();
+        $this->assertTrue(app(SealedCoverService::class)->isDpcChairman($this->proposal->fresh(), $this->chairman));
+
+        $this->atTheSitting();
+        // Not before their own Accept: the decisions recorded before are set aside (the fixture agreed for every seat).
+        DpcCommitteeDecision::query()->where('dpc_proposal_id', $this->proposal->id)->delete();
         $this->assertEveryRouteRefused($this->chairman, $this->row());
 
-        // Even the current allottee, once holding the CGPSC Chairman's role: no.
-        $this->memberOne->assignRole(Role::Chairman->value);
-        $this->assertFalse(app(ChairmanSittingEdit::class)->mayEdit($this->proposal->fresh(), $this->memberOne->fresh()));
-        $this->assertEveryRouteRefused($this->memberOne->fresh(), $this->row());
+        DpcCommitteeDecision::query()->create(['dpc_proposal_id' => $this->proposal->id, 'user_id' => $this->chairman->id, 'member_name' => $this->chairman->name, 'decision' => DpcCommitteeDecision::AGREED, 'decided_at' => now()]);
+        $this->everyMemberOksEveryCandidate($this->proposal);
+
+        foreach ($this->recordRoutes($this->row(2)) as [$method, $url, $payload]) {
+            $status = $this->actingAs($this->chairman)->{$method}($url, $payload)->getStatusCode();
+            $this->assertContains($status, [200, 302], strtoupper($method).' '.$url.' answered '.$status);
+        }
+        $this->put(route('dpc-proposals.employees.basic', [$this->proposal, $this->row()]), self::BASIC)->assertSessionHasNoErrors();
+
+        // Audited as theirs; only the edited candidates' OKs voided.
+        $this->assertGreaterThan(0, ActivityTimeline::query()->where('event', ChairmanSittingEdit::EVENT)->where('causer_id', $this->chairman->id)->count());
+        $this->assertSame(0, DpcCandidateReview::query()->where('dpc_evaluation_row_id', $this->row()->id)->whereNull('invalidated_at')->count());
+
+        // The former allottee no longer edits.
+        $this->assertEveryRouteRefused($this->memberOne, $this->row());
+
+        // Another DPC's candidate: no.
+        $other = $this->proposal->replicate(['uuid', 'dpc_code']);
+        $other->dpc_code = 'DPC-2026-HE-0098';
+        $other->save();
+        $this->seedOneOfficer($other, 98, 'Other DPC officer', $this->urCategoryId(), [2025 => 'क']);
+        $this->assertEveryRouteRefused($this->chairman, $this->row(98, $other), $other);
+
+        // The proceeding approved: editing closes.
+        DB::table('dpc_proceedings')->where('id', $this->proceeding->id)->update(['status' => DpcProceedingStatus::ResultApproved->value]);
+        $this->assertEveryRouteRefused($this->chairman, $this->row());
     }
 
     public function test_only_the_current_allottee_not_a_seat_flag_or_a_former_allottee(): void

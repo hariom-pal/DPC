@@ -12,7 +12,6 @@ use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Proceeding\Models\DpcProceeding;
 use App\Domain\Shared\Models\ActivityTimeline;
 use App\Domain\Shared\Services\ActivityTimelineService;
-use App\Enums\Role;
 use Illuminate\Support\Carbon;
 
 /**
@@ -53,11 +52,12 @@ final class ChairmanSittingEdit
     /**
      * Whether this user, as the DPC Chairman, may edit now: the DPC's current
      * allottee only — not a committee seat's flag (the fallback for a DPC never
-     * allotted), and never the CGPSC Chairman's own account, which allots.
+     * allotted). The CGPSC Chairman edits as anybody else does: when they allotted
+     * the DPC to themselves (2026-11-18), never by their role alone.
      */
     public function mayEdit(DpcProposal $proposal, ?User $user): bool
     {
-        if ($user === null || $user->hasRole(Role::Chairman->value)) {
+        if ($user === null) {
             return false;
         }
 
