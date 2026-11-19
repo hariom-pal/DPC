@@ -170,10 +170,12 @@ final class PromotionHierarchyServiceTest extends TestCase
 
     private function post(ServiceClass $class, ?int $level, ?int $gradePay): DepartmentPost
     {
-        $post = new DepartmentPost([
-            'name_en' => 'Under Secretary',
-            'class_level' => $class->value,
-        ]);
+        // Assigned, not mass-assigned: `name_en` is no attribute of a post, and once any
+        // feature test has booted the application in this process the model refuses
+        // to discard it silently (AppServiceProvider) — the test then failed only when
+        // run after one.
+        $post = new DepartmentPost;
+        $post->name = 'Under Secretary';
         $post->class_level = $class->value;
 
         $scale = new PayScale(['level' => $level, 'grade_pay' => $gradePay]);

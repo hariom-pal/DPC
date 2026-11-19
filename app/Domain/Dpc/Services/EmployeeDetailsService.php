@@ -192,6 +192,12 @@ class EmployeeDetailsService
             'integrity_departmental_view' => $view,
         ], $actor);
 
+        // Edited to "put up": a reason it was missing no longer stands (2026-11-19) — an
+        // "Appointed in this year" chosen by mistake stops limiting the years asked for.
+        if ($putUp) {
+            $this->withdrawGaps($row, DpcEvaluationRecordGap::KIND_CR, $year, $actor);
+        }
+
         return $record;
     }
 
@@ -358,9 +364,27 @@ class EmployeeDetailsService
     {
         $this->assertEditable($row);
 
-        $row->crGrades()->where('year', $year)->delete();
+        DB::transaction(function () use ($row, $year, $actor): void {
+            $row->crGrades()->where('year', $year)->delete();
+            // The year's reason for a missing CR goes with it — "Appointed in this year"
+            // chosen by mistake no longer limits the years asked for (2026-11-19). The
+            // withdrawal is on the timeline.
+            $this->withdrawGaps($row, DpcEvaluationRecordGap::KIND_CR, $year, $actor);
+        });
 
         $this->log($row, 'cr_year_removed', "CR {$year} removed", ['year' => $year], $actor);
+    }
+
+    /** Withdraw a year's missing-record reasons of one kind, each on the timeline. */
+    private function withdrawGaps(DpcEvaluationRow $row, string $kind, int $year, User $actor): void
+    {
+        $gaps = $row->recordGaps()->where('kind', $kind)->where('year', $year)->get();
+
+        foreach ($gaps as $gap) {
+            app(RecordGapService::class)->withdraw($gap, $actor);
+        }
+
+        $row->unsetRelation('recordGaps');
     }
 
     /**
@@ -497,6 +521,11 @@ class EmployeeDetailsService
             'late_decision' => $decision,
         ], $actor);
 
+        // Edited to "submitted": its missing reason no longer stands (2026-11-19).
+        if ($submitted) {
+            $this->withdrawGaps($row, DpcEvaluationRecordGap::KIND_PROPERTY, $year, $actor);
+        }
+
         return $record;
     }
 
@@ -504,7 +533,10 @@ class EmployeeDetailsService
     {
         $this->assertEditable($row);
 
-        $row->propertyFlags()->where('year', $year)->delete();
+        DB::transaction(function () use ($row, $year, $actor): void {
+            $row->propertyFlags()->where('year', $year)->delete();
+            $this->withdrawGaps($row, DpcEvaluationRecordGap::KIND_PROPERTY, $year, $actor);
+        });
 
         $this->log($row, 'property_year_removed', "Property File {$year} removed", ['year' => $year], $actor);
     }

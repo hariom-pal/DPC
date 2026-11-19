@@ -14,6 +14,7 @@ use App\Domain\Eligibility\Models\DpcCalculationResult;
 use App\Domain\Eligibility\Models\DpcCalculationRun;
 use App\Domain\Eligibility\RuleSet;
 use App\Domain\Eligibility\Services\DpcCalculationService;
+use App\Domain\Eligibility\Services\ExplainCalculationService;
 use App\Domain\Master\Models\CrGradeValue;
 use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\PromotionCrRule;
@@ -242,6 +243,37 @@ class ClassMasterRuleCalculationTest extends TestCase
         $this->assertFalse($two->is_eligible);
         $this->assertSame(RemarkCode::NotEligible->value, $two->remark);
         $this->assertSame(35, $two->verdict['required_score']);
+    }
+
+    /**
+     * 2026-11-19, end to end: appointed in 2022 under a rule that says the appointment
+     * year is Fit — 2023 to 2025 graded (क, 7 each) and the two years the officer cannot
+     * have each counted at their average (7): 35, the qualifying total. The explanation
+     * says so, the parts add up, and no CR row is created for the filled years.
+     */
+    public function test_an_appointed_officer_s_missing_years_are_counted_at_the_average(): void
+    {
+        $this->rule(total: 35)->forceFill(['appointed_year_is_fit' => true])->save();
+        $rows = $this->chart([$this->officer(1, [2023 => 'क', 2024 => 'क', 2025 => 'क'])]);
+        $rows[1]->recordGaps()->create([
+            'kind' => DpcEvaluationRecordGap::KIND_CR, 'year' => 2022,
+            'record_reason_id' => RecordReason::query()->where('code', 'newly_appointed')->firstOrFail()->id,
+            'disk' => 'local', 'path' => 'gaps/appointment.pdf', 'original_name' => 'appointment.pdf',
+            'size_bytes' => 1024, 'sha256' => str_repeat('b', 64),
+        ]);
+        $crRows = $rows[1]->crGrades()->count();
+
+        $result = $this->resultFor($this->calculate(), 1);
+
+        $this->assertSame(35, $result->score_breakdown['total']);
+        $this->assertSame(2, $result->score_breakdown['average_filled_years']);
+        $this->assertSame(7, $result->score_breakdown['average_fill_mark']);
+        $this->assertSame([2025, 2024, 2023], $result->score_breakdown['years_used']);
+        $this->assertTrue($result->is_eligible);
+        $this->assertSame($crRows, $rows[1]->crGrades()->count(), 'No CR row is made for a filled year.');
+
+        $explained = implode(' ', app(ExplainCalculationService::class)->explainResult($result));
+        $this->assertStringContainsString('2 CR year(s) the officer cannot have were each counted at 7 points', $explained);
     }
 
     public function test_a_year_below_its_minimum_is_not_eligible_whatever_the_total(): void

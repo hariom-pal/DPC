@@ -7,6 +7,7 @@ namespace Tests\Feature\Dpc;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Department\Models\Department;
 use App\Domain\Dpc\Enums\EvaluationDocumentKind;
+use App\Domain\Dpc\Models\DpcEvaluationCrGrade;
 use App\Domain\Dpc\Models\DpcEvaluationRecordGap;
 use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\Dpc\Models\DpcProposal;
@@ -21,6 +22,7 @@ use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\IntegrityOption;
 use App\Domain\Master\Models\RecordReason;
 use App\Domain\Master\Services\PromotionCrRules;
+use App\Domain\Shared\Models\ActivityTimeline;
 use App\Enums\Role;
 use Database\Seeders\LookupMasterSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
@@ -93,6 +95,24 @@ class EmployeeDetailsUnfitTest extends TestCase
             'year' => $year, 'put_up' => '1', 'has_grading' => '1', 'authorities' => ['reporter', 'reviewer', 'accepting'], 'grade' => 'क',
             'integrity_option_id' => $this->integrity('certified_good'), ...$extra,
         ]);
+    }
+
+    /**
+     * The years the CR form's own year list offers (not any other list on the page).
+     *
+     * @return list<int>
+     */
+    private function crOptions(): array
+    {
+        $html = (string) $this->actingAs($this->ao)->get($this->route('show'))->assertOk()->getContent();
+
+        if (! preg_match('/<select[^>]*id="cr-year"[^>]*>(.*?)<\/select>/s', $html, $select)) {
+            return [];
+        }
+
+        preg_match_all('/<option value="(\d{4})"/', $select[1], $years);
+
+        return array_map('intval', $years[1]);
     }
 
     private function unfit(): array
@@ -443,6 +463,133 @@ class EmployeeDetailsUnfitTest extends TestCase
         }
 
         $this->assertGreaterThan(0, $tried, 'Some reason applies to a Property File.');
+    }
+
+    /**
+     * 2026-11-19: "Appointed in this year" chosen by mistake and the CR year then
+     * removed — the reason goes with it (on the timeline), so nothing is limited by it
+     * any more and the older years are asked for again; the year comes back to the list.
+     */
+    public function test_removing_a_year_recorded_appointed_by_mistake_lifts_the_limit(): void
+    {
+        $service = app(EmployeeDetailsService::class);
+        $last = $this->dpcYear - 1;
+        $appointed = RecordReason::query()->where('code', 'newly_appointed')->value('id');
+
+        $this->saveCr($last)->assertSessionHasNoErrors();
+        $this->actingAs($this->ao)->post($this->route('cr.save'), [
+            'year' => $last - 1, 'put_up' => '0', 'missing_reason_id' => $appointed, 'missing_document' => $this->pdf(),
+        ])->assertSessionHasNoErrors();
+        $this->assertSame([$last, $last - 1], $service->crYearWindow($this->row->fresh()), 'Limited by the appointment.');
+        $this->saveCr($last - 2)->assertSessionHasErrors();
+
+        // Removed: the reason is withdrawn, the trail kept.
+        $this->delete($this->route('cr.remove', [$last - 1]))->assertSessionHasNoErrors();
+        $row = $this->row->fresh();
+        $this->assertNull($row->appointedYear());
+        $this->assertSame(0, DpcEvaluationRecordGap::query()->where('dpc_evaluation_row_id', $row->id)->count());
+        $this->assertSame(1, ActivityTimeline::query()->where('event', 'dpc_proposal.record_gap_withdrawn')->count());
+
+        // The five years again, the removed year offered again, and an older year saves.
+        $this->assertSame(range($last, $last - 4), $service->crYearWindow($row));
+        $this->assertSame([$last - 1, $last - 2, $last - 3, $last - 4], $this->crOptions());
+        $this->saveCr($last - 2)->assertSessionHasNoErrors();
+        $this->assertEmpty($this->unfit(), 'No longer Unfit for the appointment.');
+    }
+
+    /** The same mistake corrected with Edit: another reason, or the CR found (2026-11-19). */
+    public function test_editing_a_year_recorded_appointed_by_mistake_lifts_the_limit(): void
+    {
+        $service = app(EmployeeDetailsService::class);
+        $last = $this->dpcYear - 1;
+        $appointed = RecordReason::query()->where('code', 'newly_appointed')->value('id');
+        $other = RecordReason::query()->where('code', 'long_leave')->value('id');
+        $this->saveCr($last)->assertSessionHasNoErrors();
+        $markAppointed = fn () => $this->actingAs($this->ao)->post($this->route('cr.save'), [
+            'year' => $last - 1, 'put_up' => '0', 'missing_reason_id' => $appointed, 'missing_document' => $this->pdf(),
+        ])->assertSessionHasNoErrors();
+
+        // Edited to another reason: still missing, replaced by an older year, no limit.
+        $markAppointed();
+        $this->assertSame([$last, $last - 1], $service->crYearWindow($this->row->fresh()));
+        $this->post($this->route('cr.save'), ['year' => $last - 1, 'put_up' => '0', 'missing_reason_id' => $other, 'missing_document' => $this->pdf()])->assertSessionHasNoErrors();
+        $this->assertNull($this->row->fresh()->appointedYear());
+        $this->assertSame(range($last, $last - 5), $service->crYearWindow($this->row->fresh()));
+
+        // Edited to "put up" (the CR was found): its reason is withdrawn.
+        $markAppointed();
+        $this->saveCr($last - 1)->assertSessionHasNoErrors();
+        $this->assertSame(0, DpcEvaluationRecordGap::query()->where('dpc_evaluation_row_id', $this->row->id)->where('year', $last - 1)->count());
+        $this->assertNull($this->row->fresh()->appointedYear());
+        $this->assertSame(range($last, $last - 4), $service->crYearWindow($this->row->fresh()));
+    }
+
+    /**
+     * Years keep being offered until five are counted, or the year of appointment is
+     * reached — then no more (2026-11-19).
+     */
+    public function test_years_are_offered_until_five_are_counted_or_the_appointment_is_reached(): void
+    {
+        $last = $this->dpcYear - 1;
+        $reason = RecordReason::query()->where('code', 'long_leave')->value('id');
+
+        // Five counted with one missing in between: six years asked, then nothing more.
+        $this->saveCr($last)->assertSessionHasNoErrors();
+        $this->actingAs($this->ao)->post($this->route('cr.save'), ['year' => $last - 1, 'put_up' => '0', 'missing_reason_id' => $reason, 'missing_document' => $this->pdf()])->assertSessionHasNoErrors();
+        foreach ([2, 3, 4, 5] as $back) {
+            $this->saveCr($last - $back)->assertSessionHasNoErrors();
+        }
+        $this->assertSame([], $this->crOptions());
+        $this->actingAs($this->ao)->get($this->route('show'))->assertSee('id="cr-years-complete"', false);
+        $this->saveCr($last - 6)->assertSessionHasErrors();
+
+        // Appointed three years back: missing before it is not replaced — nothing older is offered.
+        DpcEvaluationCrGrade::query()->where('dpc_evaluation_row_id', $this->row->id)->where('year', '<=', $last - 2)->delete();
+        $this->actingAs($this->ao)->post($this->route('cr.save'), ['year' => $last - 3, 'put_up' => '0', 'missing_reason_id' => RecordReason::query()->where('code', 'newly_appointed')->value('id'), 'missing_document' => $this->pdf()])->assertSessionHasNoErrors();
+        $this->assertSame([$last - 2], $this->crOptions());
+    }
+
+    /** CRs missing year after year: one older year for each, never stopping at five (2026-11-19). */
+    public function test_cr_missing_year_after_year_keeps_reaching_back(): void
+    {
+        $service = app(EmployeeDetailsService::class);
+        $last = $this->dpcYear - 1;
+        $reason = RecordReason::query()->where('code', 'long_leave')->value('id');
+        $this->saveCr($last)->assertSessionHasNoErrors();
+
+        for ($year = $last - 1; $year >= $last - 8; $year--) {
+            // Each year is offered on the screen before it is recorded missing.
+            $this->assertContains($year, $this->crOptions());
+            $this->actingAs($this->ao)->post($this->route('cr.save'), [
+                'year' => $year, 'put_up' => '0', 'missing_reason_id' => $reason, 'missing_document' => $this->pdf(),
+            ])->assertSessionHasNoErrors();
+        }
+
+        // Eight missing after the last year: 1 + 8 + four still to count.
+        $this->assertSame(range($last, $last - 12), $service->crYearWindow($this->row->fresh()));
+        $this->assertSame(range($last - 9, $last - 12), $this->crOptions());
+    }
+
+    /** A year removed — graded, or a Property File — is offered again (2026-11-19). */
+    public function test_a_removed_year_is_offered_again(): void
+    {
+        $last = $this->dpcYear - 1;
+        $this->saveCr($last - 1)->assertSessionHasNoErrors();
+        $this->assertNotContains($last - 1, $this->crOptions());
+
+        $this->actingAs($this->ao)->delete($this->route('cr.remove', [$last - 1]))->assertSessionHasNoErrors();
+        $this->assertContains($last - 1, $this->crOptions());
+
+        // A Property File recorded missing and removed: its reason goes too.
+        $rule = app(PromotionCrRules::class)->ruleForProposal($this->proposal);
+        $rule->years()->update(['property_mandatory' => true]);
+        $this->post($this->route('property.save'), [
+            'year' => $last - 1, 'submitted' => '0', 'missing_reason_id' => RecordReason::query()->get()->first(fn ($r) => $r->appliesTo('property') && ! $r->requires_remarks && ! $r->requiresSecondDocument())?->id,
+            'missing_document' => $this->pdf(),
+        ])->assertSessionHasNoErrors();
+        $this->assertSame(1, DpcEvaluationRecordGap::query()->where('kind', DpcEvaluationRecordGap::KIND_PROPERTY)->count());
+        $this->delete($this->route('property.remove', [$last - 1]))->assertSessionHasNoErrors();
+        $this->assertSame(0, DpcEvaluationRecordGap::query()->where('kind', DpcEvaluationRecordGap::KIND_PROPERTY)->count());
     }
 
     public function test_appointed_in_this_year_asks_for_the_appointment_letter_and_makes_the_officer_unfit(): void

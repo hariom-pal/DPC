@@ -6,6 +6,7 @@ namespace Tests\Unit\Eligibility;
 
 use App\Domain\Eligibility\Services\ScoringService;
 use App\Domain\Eligibility\ValueObjects\OfficerRecord;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Tests\Concerns\BuildsRuleSets;
 
@@ -67,6 +68,56 @@ class ScoringServiceTest extends TestCase
         // No graded year to average: nothing filled.
         $score = $this->scoring->score($appointed([], 2024), $this->ruleSet());
         $this->assertSame([0, 0], [$score->averageFilledYears, $score->total]);
+    }
+
+    /**
+     * TC73–TC80: one to five graded years for an appointed officer.
+     *
+     * @return array<string, array{array<int, int>, int, int|null, int}>
+     */
+    public static function appointedAverages(): array
+    {
+        return [
+            'TC73 one graded (9): four filled at 9' => [[2025 => 9], 4, 9, 45],
+            'TC74 two graded (9, 7): average 8, three filled' => [[2025 => 9, 2024 => 7], 3, 8, 40],
+            'TC75/TC79 three graded (9, 7, 7): 7.67 → 7' => [[2025 => 9, 2024 => 7, 2023 => 7], 2, 7, 37],
+            'TC76 four graded (9, 7, 7, 7): 7.5 → 7' => [[2025 => 9, 2024 => 7, 2023 => 7, 2022 => 7], 1, 7, 37],
+            'TC80 exact average (7, 7, 7)' => [[2025 => 7, 2024 => 7, 2023 => 7], 2, 7, 35],
+            'TC77 all five graded: nothing filled' => [[2025 => 9, 2024 => 7, 2023 => 7, 2022 => 7, 2021 => 5], 0, null, 35],
+        ];
+    }
+
+    /** @param array<int, int> $points */
+    #[DataProvider('appointedAverages')]
+    public function test_the_average_fill_for_one_to_five_graded_years(array $points, int $filled, ?int $mark, int $total): void
+    {
+        $officer = new OfficerRecord(name: 'Appointed', crGrades: array_map(fn (): string => 'क', $points), crPoints: $points, appointedYear: 2020);
+        $score = $this->scoring->score($officer, $this->ruleSet());
+
+        $this->assertSame([$filled, $mark, $total], [$score->averageFilledYears, $score->averageFillMark, $score->total]);
+        $this->assertSame(array_keys($points), $score->yearsUsed, 'TC84: only real CR years are years used.');
+        $this->assertSame($score->total, $score->baseTotal + $score->tribalAreaBonus, 'TC85: the parts add up to the total.');
+    }
+
+    /** TC81/TC82: the tribal bonus is the officer's own; the average and the filled years carry none. */
+    public function test_the_tribal_bonus_is_not_averaged_nor_added_to_filled_years(): void
+    {
+        $officer = new OfficerRecord(name: 'Appointed', crGrades: [2025 => 'क', 2024 => 'क', 2023 => 'क'], tribalAreaServiceYears: 3,
+            crPoints: [2025 => 9, 2024 => 7, 2023 => 7], appointedYear: 2022);
+        $score = $this->scoring->score($officer, $this->ruleSet(['tribalBonus' => 1]));
+
+        $this->assertSame(7, $score->averageFillMark, 'The average of the grades as given.');
+        $this->assertSame(37, $score->baseTotal);
+        $this->assertSame(1, $score->tribalAreaBonus, 'Once, as without a fill.');
+        $this->assertSame(38, $score->total);
+    }
+
+    /** TC90: the same record scores the same, every time. */
+    public function test_scoring_is_repeatable(): void
+    {
+        $officer = new OfficerRecord(name: 'Appointed', crGrades: [2025 => 'क', 2024 => 'क'], crPoints: [2025 => 9, 2024 => 6], appointedYear: 2023);
+
+        $this->assertEquals($this->scoring->score($officer, $this->ruleSet())->toArray(), $this->scoring->score($officer, $this->ruleSet())->toArray());
     }
 
     public function test_each_grade_converts_to_its_configured_mark(): void
