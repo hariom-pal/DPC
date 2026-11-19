@@ -56,7 +56,11 @@ trait DeclaresAMissingRecord
             return;
         }
 
-        if (! $this->needsMissingJustification($kind, $declaredMissing)) {
+        // A new reason and document on a year already justified replace its justification
+        // (2026-11-19): checked as the first one is, never left to fail on saving.
+        $replacing = $declaredMissing && $this->filled('missing_reason_id') && $this->hasFile('missing_document');
+
+        if (! $replacing && ! $this->needsMissingJustification($kind, $declaredMissing)) {
             return;
         }
 

@@ -23,8 +23,10 @@ class ScoringService
     {
         [$yearsUsed, $marksByYear, $yearsWithoutGrade] = $this->selectScoringWindow($officer, $rules);
 
-        $baseTotal = array_sum($marksByYear);
+        [$filled, $fillMark] = $this->averageFill($officer, $rules, $marksByYear);
+        $baseTotal = array_sum($marksByYear) + $filled * (int) $fillMark;
 
+        // On the officer's own CRs only: a filled year earns no tribal bonus.
         [$bonus, $bonusYears, $bonusByYear] = $this->tribalBonus($officer, $rules, $marksByYear);
 
         return new ScoreBreakdown(
@@ -38,7 +40,31 @@ class ScoringService
             tribalBonusYears: $bonusYears,
             // Each tribal year's bonus beside that year's CR points (2026-11-01).
             tribalBonusByYear: $bonusByYear,
+            averageFilledYears: $filled,
+            averageFillMark: $fillMark,
         );
+    }
+
+    /**
+     * An officer appointed inside the window (2026-11-19) has fewer CR years than the
+     * rule scores over — none exists before the appointment. Each missing year is
+     * filled with the average of the graded years' own points (the grades as given,
+     * no tribal bonus), the decimals dropped (7.67 → 7, 6.5 → 6). The filled years
+     * count towards the total only: no year-wise minimum, no tribal bonus, no super
+     * seat is judged on them. Nothing is filled without a graded year to average.
+     *
+     * @param  array<int, int>  $marksByYear
+     * @return array{0: int, 1: int|null} years filled, the mark each carries
+     */
+    private function averageFill(OfficerRecord $officer, RuleSet $rules, array $marksByYear): array
+    {
+        $short = $rules->scoringYears - count($marksByYear);
+
+        if ($officer->appointedYear === null || $short <= 0 || $marksByYear === []) {
+            return [0, null];
+        }
+
+        return [$short, intdiv(array_sum($marksByYear), count($marksByYear))];
     }
 
     /**
@@ -167,6 +193,11 @@ class ScoringService
         $ungraded = [];
 
         foreach ($officer->crGrades as $year => $grade) {
+            // Nothing before the year of appointment counts, whatever is on record (2026-11-19).
+            if ($officer->appointedYear !== null && (int) $year < $officer->appointedYear) {
+                continue;
+            }
+
             // Under a Class Master rule a year's points come from its CRs, so a year
             // of several CRs scores their average even where no single grade has it.
             $mark = $officer->crPoints[$year] ?? $rules->markFor($grade);

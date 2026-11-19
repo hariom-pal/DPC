@@ -335,15 +335,16 @@ class EmployeeDetailsUnfitTest extends TestCase
         $this->assertSame([$last, $last - 1, $last - 2], app(EmployeeDetailsService::class)->propertyYearWindow($row));
         $this->assertSame($last - 2, OfficerRecord::fromEvaluationRow($row)->appointedYear);
 
-        // The two CRs (क 7 + क 7 = 14) against the full qualifying marks of 14: met.
+        // The two CRs (क 7 + क 7 = 14) and the third year filled with their average
+        // (7, 2026-11-19): 21 against the full qualifying marks of 14 — met.
         $check = app(PromotionRuleCheck::class)->check($row, $this->proposal->fresh());
         $this->assertSame([], array_filter($check['findings'], fn (string $f): bool => str_contains($f, (string) ($last - 3))), 'Nothing older is a finding.');
-        $this->assertNotContains(__('dpc.employee_details.rule.total_below', ['total' => 14, 'required' => 14]), $check['findings']);
+        $this->assertSame(21, $check['total']);
 
-        // Full marks, not reduced: 15 is not met by two CRs.
-        $rule->forceFill(['qualifying_total' => 15])->save();
+        // Full marks, not reduced: 22 is not met.
+        $rule->forceFill(['qualifying_total' => 22])->save();
         $check = app(PromotionRuleCheck::class)->check($row->fresh(), $this->proposal->fresh());
-        $this->assertContains(__('dpc.employee_details.rule.total_below', ['total' => 14, 'required' => 15]), $check['findings']);
+        $this->assertContains(__('dpc.employee_details.rule.total_below', ['total' => 21, 'required' => 22]), $check['findings']);
 
         // Without the rule's Yes, the same record makes the officer Unfit, as before.
         $rule->forceFill(['appointed_year_is_fit' => false])->save();
@@ -378,6 +379,70 @@ class EmployeeDetailsUnfitTest extends TestCase
 
         // Still Unfit: the rule did not say Yes.
         $this->assertNotEmpty($this->unfit());
+    }
+
+    /**
+     * 2026-11-19: a CR recorded missing without remarks never ends in a server error —
+     * whatever the reason, first time or again on the same year: either it is saved, or
+     * the form says what is missing.
+     */
+    public function test_a_missing_cr_without_remarks_is_refused_on_the_form_never_a_server_error(): void
+    {
+        $year = $this->dpcYear - 2;
+
+        foreach (RecordReason::query()->get() as $reason) {
+            if (! $reason->appliesTo(DpcEvaluationRecordGap::KIND_CR)) {
+                continue;
+            }
+
+            $payload = ['year' => $year, 'put_up' => '0', 'missing_reason_id' => $reason->id, 'missing_document' => $this->pdf(),
+                ...($reason->requiresSecondDocument() ? ['missing_second_document' => $this->pdf('second.pdf')] : [])];
+
+            $first = $this->actingAs($this->ao)->post($this->route('cr.save'), $payload);
+            $this->assertSame(302, $first->getStatusCode(), $reason->code.' (first time)');
+            if ($reason->requires_remarks) {
+                $first->assertSessionHasErrors('missing_remarks');
+            }
+
+            // Saved once with its remarks, then saved again without: still no server error.
+            $this->actingAs($this->ao)->post($this->route('cr.save'), [...$payload, 'missing_document' => $this->pdf(), 'missing_remarks' => 'Recorded.']);
+            $again = $this->actingAs($this->ao)->post($this->route('cr.save'), [...$payload, 'missing_document' => $this->pdf()]);
+            $this->assertSame(302, $again->getStatusCode(), $reason->code.' (again, without remarks)');
+            DpcEvaluationRecordGap::query()->where('dpc_evaluation_row_id', $this->row->id)->delete();
+        }
+    }
+
+    /** The same for a Property File recorded missing (2026-11-19). */
+    public function test_a_missing_property_file_without_remarks_is_refused_on_the_form_never_a_server_error(): void
+    {
+        $rule = app(PromotionCrRules::class)->ruleForProposal($this->proposal);
+        $rule->years()->update(['property_mandatory' => true]);
+        $year = $this->dpcYear - 2;
+        $this->assertContains($year, app(EmployeeDetailsService::class)->rulePropertyYears($this->row->fresh()));
+        $tried = 0;
+
+        foreach (RecordReason::query()->get() as $reason) {
+            if (! $reason->appliesTo(DpcEvaluationRecordGap::KIND_PROPERTY)) {
+                continue;
+            }
+
+            $tried++;
+            $payload = ['year' => $year, 'submitted' => '0', 'missing_reason_id' => $reason->id, 'missing_document' => $this->pdf(),
+                ...($reason->requiresSecondDocument() ? ['missing_second_document' => $this->pdf('second.pdf')] : [])];
+
+            $first = $this->actingAs($this->ao)->post($this->route('property.save'), $payload);
+            $this->assertSame(302, $first->getStatusCode(), $reason->code.' (first time)');
+            if ($reason->requires_remarks) {
+                $first->assertSessionHasErrors('missing_remarks');
+            }
+
+            $this->actingAs($this->ao)->post($this->route('property.save'), [...$payload, 'missing_document' => $this->pdf(), 'missing_remarks' => 'Recorded.']);
+            $again = $this->actingAs($this->ao)->post($this->route('property.save'), [...$payload, 'missing_document' => $this->pdf()]);
+            $this->assertSame(302, $again->getStatusCode(), $reason->code.' (again, without remarks)');
+            DpcEvaluationRecordGap::query()->where('dpc_evaluation_row_id', $this->row->id)->delete();
+        }
+
+        $this->assertGreaterThan(0, $tried, 'Some reason applies to a Property File.');
     }
 
     public function test_appointed_in_this_year_asks_for_the_appointment_letter_and_makes_the_officer_unfit(): void
@@ -478,6 +543,8 @@ class EmployeeDetailsUnfitTest extends TestCase
             'year' => $last - 2, 'put_up' => '0', 'missing_reason_id' => RecordReason::query()->where('code', 'long_leave')->value('id'), 'missing_document' => $this->pdf(),
         ])->assertSessionHasNoErrors();
         $this->assertSame(range($last, $last - 5), $service->crYearWindow($this->row->fresh()));
+        // …and the screen's year list offers it (2026-11-19).
+        $this->get($this->route('show'))->assertOk()->assertSee('<option value="'.($last - 5).'"', false);
         $this->post($this->route('cr.save'), ['year' => $last - 3, 'put_up' => '1', 'has_grading' => '0'])->assertSessionHasNoErrors();
         $this->assertSame(range($last, $last - 6), $service->crYearWindow($this->row->fresh()));
 

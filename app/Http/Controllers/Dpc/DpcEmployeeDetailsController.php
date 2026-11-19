@@ -424,11 +424,16 @@ class DpcEmployeeDetailsController extends Controller
 
         $second = $request->file('missing_second_document');
 
-        app(RecordGapService::class)->record(
-            $row, $kind, $request->integer('year'), $reason,
-            $request->filled('missing_remarks') ? (string) $request->input('missing_remarks') : null,
-            $document, $request->user(), $second instanceof UploadedFile ? $second : null,
-        );
+        // What the form did not catch is said on the form, never a server error (2026-11-19).
+        try {
+            app(RecordGapService::class)->record(
+                $row, $kind, $request->integer('year'), $reason,
+                $request->filled('missing_remarks') ? (string) $request->input('missing_remarks') : null,
+                $document, $request->user(), $second instanceof UploadedFile ? $second : null,
+            );
+        } catch (\RuntimeException $e) {
+            throw new WorkflowException($e->getMessage());
+        }
     }
 
     /** The proposal's readers, and the DPC Chairman while they may edit it at the sitting. */

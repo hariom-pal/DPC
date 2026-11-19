@@ -31,6 +31,10 @@ final class ScoreBreakdown
         public readonly array $tribalBonusYears = [],
         /** @var array<int, int> The bonus added to each such year's CR points (2026-11-01). */
         public readonly array $tribalBonusByYear = [],
+        /** CR years an officer appointed inside the window cannot have, each filled with the average below (2026-11-19). */
+        public readonly int $averageFilledYears = 0,
+        /** The whole-number average of the graded years' own points (no tribal bonus) the filled years carry. */
+        public readonly ?int $averageFillMark = null,
     ) {}
 
     /**
@@ -74,6 +78,7 @@ final class ScoreBreakdown
             'scoring_years_required' => $this->scoringYearsRequired,
             'years_without_grade' => $this->yearsWithoutGrade,
             'incomplete_window' => $this->hasIncompleteWindow(),
-        ] + ($this->tribalBonusYears === [] ? [] : ['tribal_bonus_years' => $this->tribalBonusYears, 'tribal_bonus_by_year' => $this->tribalBonusByYear]);
+        ] + ($this->tribalBonusYears === [] ? [] : ['tribal_bonus_years' => $this->tribalBonusYears, 'tribal_bonus_by_year' => $this->tribalBonusByYear])
+            + ($this->averageFilledYears === 0 ? [] : ['average_filled_years' => $this->averageFilledYears, 'average_fill_mark' => $this->averageFillMark]);
     }
 }

@@ -319,7 +319,8 @@ class EmployeeDetailsService
     /** The promotion rule's CR count (2026-11-18: the rule decides, no fixed five); five only for a DPC without a rule. */
     public function crSlots(DpcProposal $proposal): int
     {
-        return (int) ($this->promotionRules->ruleForProposal($proposal)->cr_years ?? config('dpc.merit.required_cr_count', 5));
+        // At least one, whatever a stored rule says, so no window or chart runs backwards.
+        return max(1, (int) ($this->promotionRules->ruleForProposal($proposal)->cr_years ?? config('dpc.merit.required_cr_count', 5)));
     }
 
     /**

@@ -63,6 +63,11 @@ class ExplainCalculationService
                 .'. These were not scored as zero.';
         }
 
+        if (! empty($score['average_filled_years'])) {
+            $lines[] = 'Appointed inside the window: '.$score['average_filled_years'].' CR year(s) the officer cannot have were each counted at '
+                .$score['average_fill_mark'].' points, the average of the graded years (decimals dropped), in the total only.';
+        }
+
         if (! empty($score['incomplete_window'])) {
             $lines[] = 'Fewer graded CR years were available than the '.$score['scoring_years_required']
                 .' the rules score over.';

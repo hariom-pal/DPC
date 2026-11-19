@@ -72,6 +72,8 @@ class ResetTransactionalDataCommand extends Command
         // Employee-wise documents (CR, IPR, PH undertaking …). Before the rows and
         // the proposals they reference.
         'dpc_evaluation_documents',
+        // Each member's OK on a candidate's record (2026-11-18): before the rows it cites.
+        'dpc_candidate_reviews',
 
         'dpc_evaluation_rows',
 
@@ -120,6 +122,11 @@ class ResetTransactionalDataCommand extends Command
         // sitting — as transactional as the sitting itself, and meaningless without
         // the proceeding it hangs off.
         'dpc_candidate_calls',
+        // The sitting's meeting and the DPC Chairman's Accept / Reject (2026-11-18),
+        // and the stage reminders sent on a DPC (2026-11-17).
+        'dpc_sitting_meetings',
+        'dpc_committee_decisions',
+        'dpc_stage_reminders',
         // Rule 4.3: promotion orders, before the proceedings and proposals they cite.
         'dpc_promotion_orders',
         // Sealed covers opened (2026-11-05), after the orders that cite them.
@@ -185,6 +192,8 @@ class ResetTransactionalDataCommand extends Command
      * @var list<string>
      */
     private const PRESERVED = [
+        // The Administrator's stage timelines (2026-11-17): configuration, not cases.
+        'workflow_stage_timelines',
         // People and access.
         'users',
         // The employee database (2026-11-02): kept for future reference.

@@ -32,6 +32,43 @@ class ScoringServiceTest extends TestCase
         return new OfficerRecord(name: 'Test Officer', crGrades: $crGrades, tribalAreaServiceYears: $tribalYears);
     }
 
+    /**
+     * 2026-11-19: appointed inside the window, the CR years the officer cannot have are
+     * each filled with the whole-number average of the graded years — in the total only.
+     */
+    public function test_an_officer_appointed_inside_the_window_has_the_missing_years_filled_with_the_floored_average(): void
+    {
+        $appointed = fn (array $points, ?int $year = 2022): OfficerRecord => new OfficerRecord(
+            name: 'Appointed', crGrades: array_map(fn (): string => 'क', $points), crPoints: $points, appointedYear: $year,
+        );
+
+        // 9, 7, 7: average 7.67 → 7; two years filled: 23 + 14 = 37.
+        $score = $this->scoring->score($appointed([2025 => 9, 2024 => 7, 2023 => 7]), $this->ruleSet());
+        $this->assertSame([2025, 2024, 2023], $score->yearsUsed, 'The filled years are not CR years.');
+        $this->assertSame(2, $score->averageFilledYears);
+        $this->assertSame(7, $score->averageFillMark);
+        $this->assertSame(37, $score->baseTotal);
+        $this->assertSame(37, $score->total);
+        $this->assertSame(7, $score->toArray()['average_fill_mark']);
+
+        // 9, 7, 5, 5: average 6.5 → 6; one year filled: 26 + 6 = 32.
+        $score = $this->scoring->score($appointed([2025 => 9, 2024 => 7, 2023 => 5, 2022 => 5], 2021), $this->ruleSet());
+        $this->assertSame([1, 6, 32], [$score->averageFilledYears, $score->averageFillMark, $score->total]);
+
+        // A graded year before the appointment on record is not counted, nor averaged.
+        $score = $this->scoring->score($appointed([2025 => 9, 2024 => 7, 2023 => 7, 2020 => 1]), $this->ruleSet());
+        $this->assertSame([2025, 2024, 2023], $score->yearsUsed);
+        $this->assertSame(37, $score->total);
+
+        // Not appointed: nothing filled (the window is simply short).
+        $score = $this->scoring->score($appointed([2025 => 9, 2024 => 7, 2023 => 7], null), $this->ruleSet());
+        $this->assertSame([0, 23], [$score->averageFilledYears, $score->total]);
+
+        // No graded year to average: nothing filled.
+        $score = $this->scoring->score($appointed([], 2024), $this->ruleSet());
+        $this->assertSame([0, 0], [$score->averageFilledYears, $score->total]);
+    }
+
     public function test_each_grade_converts_to_its_configured_mark(): void
     {
         $score = $this->scoring->score(
