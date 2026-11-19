@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Domain\Dpc\Services\DpcStageService;
+use App\Domain\PreDpc\Services\PreDpcPendingService;
 use App\Domain\Shared\Services\DashboardSummaryService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
@@ -25,6 +26,8 @@ class DashboardController extends Controller
             // MoM of 16 November 2026, point 8.
             'pendingWith' => app(DpcStageService::class)->pendingWith($user),
             'pendingAt' => app(DpcStageService::class)->pendingAt($user),
+            // The Pre-DPC and its Vacancy Management record, one task (2026-11-19).
+            'pendingPreDpc' => app(PreDpcPendingService::class)->pendingWith($user),
         ]);
     }
 }

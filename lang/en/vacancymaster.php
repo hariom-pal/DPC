@@ -348,6 +348,9 @@ return [
         'year_out_of_range' => 'The Vacancy Year must be between :from and :to.',
     ],
     'timeline' => [
+        'submitted_with_pre_dpc' => 'Sent to the AH with Pre-DPC :number',
+        'approved_with_pre_dpc' => 'Finalized on the AH\'s approval of Pre-DPC :number',
+        'returned_with_pre_dpc' => 'Returned to the AO with Pre-DPC :number',
         'section_unlocked' => 'Section ":section" unlocked for the AO (revision :revision).',
         'revision_submitted' => 'Revision :revision submitted to the AH for approval.',
         'revision_approved' => 'Revision :revision approved by the AH and finalized.',
@@ -566,5 +569,17 @@ return [
         'no_pre_dpc_hint' => 'Vacancy Management opens from an approved Pre-DPC of this post and year.',
         'proceed' => 'Proceed with Vacancy Management for the Post: :post',
         'proceed_short' => 'Vacancy Management',
+    ],
+    'combined' => [
+        'not_prepared' => 'Prepare the Vacancy Management record for this post and DPC Year :year first: it goes to the AH with the Pre-DPC.',
+        'already_pending' => 'The Vacancy Management record of this post and year is already with the AH.',
+        'revision_open' => 'A section revision of the Vacancy Management record is open: finish it first.',
+        'not_ready' => 'The Vacancy Management record is not complete, or no longer a draft: it cannot go with the Pre-DPC.',
+        'changed' => 'The Vacancy Management record changed while it was being signed: submit again.',
+        'changed_since_signed' => 'The Vacancy Management record no longer matches what the AO signed: return the Pre-DPC for it to be signed again.',
+        'decided_on_pre_dpc' => 'This record went to the AH with its Pre-DPC: approve or return it there, with the Pre-DPC.',
+        'finalize_with_pre_dpc' => 'This record goes to the AH with Pre-DPC :number: submit the Pre-DPC, and both are approved together.',
+        'pending_banner' => 'Sent to the AH with Pre-DPC :number on :at — approved or returned with it.',
+        'returned_banner' => 'Returned with Pre-DPC :number on :at: :remarks',
     ],
 ];

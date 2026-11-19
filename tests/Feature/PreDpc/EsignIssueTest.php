@@ -48,6 +48,8 @@ class EsignIssueTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        // Not about the Vacancy Management record that goes with a submission (CombinedPreDpcVacancyTest).
+        config(['dpc.pre_dpc_submission.with_vacancy' => false]);
         $this->seed([RolesAndPermissionsSeeder::class, DesignationSeeder::class]);
 
         $this->department = Department::query()->create(['code' => 'SE', 'name' => 'School Education', 'status' => 'active']);

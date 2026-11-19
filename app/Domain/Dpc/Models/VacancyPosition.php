@@ -49,6 +49,9 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property int|null $promotion_vacancy
  * @property int|null $direct_vacancy
  * @property array<string, mixed>|null $breakdown
+ * @property int|null $submitted_with_pre_dpc_id
+ * @property array<string, mixed>|null $submission_snapshot
+ * @property string|null $submission_sha256
  * @property int|null $sanctioned_strength_id
  * @property int|null $created_by
  * @property int|null $finalized_by
@@ -125,6 +128,7 @@ class VacancyPosition extends Model implements Auditable
             'unlocked_sections' => 'array',
             'submitted_at' => 'datetime',
             'returned_at' => 'datetime',
+            'submission_snapshot' => 'array',
         ];
     }
 
@@ -142,6 +146,12 @@ class VacancyPosition extends Model implements Auditable
      * A revision opened section by section by the AH (2026-11-13): only its
      * unlocked sections may be edited, and it is finalized by the AH's approval.
      */
+    /** Sent to the AH with its Pre-DPC and awaiting that decision (2026-11-19). */
+    public function isPendingWithPreDpc(): bool
+    {
+        return $this->isPendingApproval() && $this->submitted_with_pre_dpc_id !== null;
+    }
+
     public function isSectionRevision(): bool
     {
         return $this->supersedes_id !== null && is_array($this->unlocked_sections);

@@ -53,6 +53,8 @@ class PreDpcExerciseTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        // Not about the Vacancy Management record that goes with a submission (CombinedPreDpcVacancyTest).
+        config(['dpc.pre_dpc_submission.with_vacancy' => false]);
         $this->seed(RolesAndPermissionsSeeder::class);
         $this->department = Department::query()->create(['code' => 'HED', 'name' => 'Higher Education Department', 'status' => 'active']);
         $this->ao = User::factory()->assignedTo($this->department, Role::AuthorizedOfficer)->create();

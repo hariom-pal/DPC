@@ -128,4 +128,13 @@ return [
         'pay_scale_no_entry_pay' => 'The pay scale :scale has no entry pay in the Pay Scale master.',
         'pay_scale_not_higher' => 'A promotion is only to a higher pay scale: :from (:from_scale) cannot be promoted to :to (:to_scale).',
     ],
+    'pending' => [
+        'title' => 'Pre-DPC and Vacancy Management — pending with you',
+        'lead' => 'The Pre-DPC and its Vacancy Management record go to the Administrative Head together, under one eSign, and are approved or returned together.',
+        'ao_prepare' => 'Prepare the Pre-DPC and its Vacancy Management record, then submit both with one eSign.',
+        'ao_returned' => 'Returned with its Vacancy Management record: correct and submit both again. Remarks: :remarks',
+        'ah_decide' => 'Approve or return the Pre-DPC and its Vacancy Management record together (one eSign).',
+        'vacancy' => 'Vacancy record',
+        'vacancy_none' => 'Not prepared',
+    ],
 ];

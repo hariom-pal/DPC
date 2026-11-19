@@ -408,7 +408,17 @@ class DemoMasterSeeder extends Seeder
                 // Only the allotted AO submits and the allotted AH approves (2026-10-27).
                 app(ProposalAllotmentService::class)->allot($proposal, $ao, $ah, null);
 
-                DemoClock::at('2026-01-08 15:45', fn () => $preDpc->submit($proposal, $ao, DemoActor::request()));
+                // The demonstration's orders are history dated January 2026 — approved
+                // before the Vacancy record went with the submission (2026-11-19), and
+                // without one: submitted as they were then, the setting restored after.
+                $withVacancy = config('dpc.pre_dpc_submission.with_vacancy');
+                config(['dpc.pre_dpc_submission.with_vacancy' => false]);
+
+                try {
+                    DemoClock::at('2026-01-08 15:45', fn () => $preDpc->submit($proposal, $ao, DemoActor::request()));
+                } finally {
+                    config(['dpc.pre_dpc_submission.with_vacancy' => $withVacancy]);
+                }
 
                 DemoActor::as($ah, fn () => DemoClock::at(
                     '2026-01-15 11:30',

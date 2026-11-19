@@ -19,6 +19,31 @@
 
     {{-- MoM of 16 November 2026, point 8: what is with this user now, with its
          deadline, and this user's DPCs waiting on somebody else. --}}
+    {{-- The Pre-DPC and its Vacancy Management record: one task, one eSign (2026-11-19). --}}
+    @if ($pendingPreDpc !== [])
+        <div class="card border-0 shadow-sm mb-3" id="pending-pre-dpc">
+            <div class="card-body">
+                <h2 class="h6 mb-1">{{ __('predpc.pending.title') }}</h2>
+                <p class="small text-muted mb-2">{{ __('predpc.pending.lead') }}</p>
+                <ul class="list-group list-group-flush">
+                    @foreach ($pendingPreDpc as $entry)
+                        <li class="list-group-item px-0 d-flex flex-wrap justify-content-between gap-2" data-pending-pre-dpc="{{ $entry['proposal']->uuid }}">
+                            <div>
+                                <a href="{{ route('pre-dpc.show', $entry['proposal']) }}" class="fw-semibold">{{ $entry['proposal']->pre_dpc_number }}</a>
+                                · {{ $entry['proposal']->promotionToPost?->name ?? '—' }} · {{ $entry['proposal']->dpc_year ?? '—' }}
+                                <div class="small">{{ $entry['task'] }}</div>
+                            </div>
+                            <div class="small text-end">
+                                {{ __('predpc.pending.vacancy') }}:
+                                <span class="badge {{ $entry['vacancy'] === null ? 'text-bg-danger' : ($entry['vacancy']->status->value === 'finalized' ? 'text-bg-success' : ($entry['vacancy']->status->value === 'pending_approval' ? 'text-bg-info' : 'text-bg-warning')) }}" data-pending-vacancy="{{ $entry['vacancy']?->status->value ?? 'none' }}">{{ $entry['vacancy']?->status->label() ?? __('predpc.pending.vacancy_none') }}</span>
+                            </div>
+                        </li>
+                    @endforeach
+                </ul>
+            </div>
+        </div>
+    @endif
+
     @include('partials.pending-dpcs', ['entries' => $pendingWith, 'id' => 'pending-with-you', 'title' => __('dpc.stage.pending_with_you'), 'lead' => __('dpc.stage.pending_with_you_lead'), 'mine' => true])
     @include('partials.pending-dpcs', ['entries' => $pendingAt, 'id' => 'pending-at-me', 'title' => __('dpc.stage.pending_at_me'), 'lead' => __('dpc.stage.pending_at_me_lead'), 'mine' => false])
 

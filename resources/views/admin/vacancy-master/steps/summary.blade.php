@@ -79,6 +79,10 @@
                     <span class="small text-muted ms-2">{{ __('vacancymaster.finalize_blocked') }}</span>
                 @endunless
             </form>
+        @elseif ($editable && $position->preDpcProposal !== null && $position->preDpcProposal->status->value !== 'approved')
+            {{-- Goes to the AH with its Pre-DPC, under one eSign (2026-11-19). --}}
+            <p class="small mb-0" id="finalize-with-pre-dpc">{{ __('vacancymaster.combined.finalize_with_pre_dpc', ['number' => $position->preDpcProposal->pre_dpc_number]) }}
+                <a href="{{ route('pre-dpc.show', $position->preDpcProposal) }}">{{ $position->preDpcProposal->pre_dpc_number }}</a></p>
         @elseif ($editable)
             <form method="POST" action="{{ route($records.'.finalize', [$department, $year, $post]) }}" data-confirm="{{ __('vacancymaster.finalize_confirm') }}">
                 @csrf

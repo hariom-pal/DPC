@@ -189,15 +189,24 @@ class PreDpcProposalService
                 $def = $this->engine->assertAllowed('pre_dpc', 'submit', $from, $actor);
                 $this->assertCurrentOfficer($actor, $locked, Role::AuthorizedOfficer);
 
+                // The Vacancy Management record goes with it, its figures in the same
+                // signed document (2026-11-19).
+                $vacancy = $this->vacancySubmission($locked);
+
                 $signature = $this->signatures->signVerified(
                     $actor,
                     $locked,
-                    $this->renderDocument($locked)."\n\nDeclaration:\n".config('dpc.declarations.pre_dpc_submit.hi')."\n".config('dpc.declarations.pre_dpc_submit.en'),
+                    $this->renderDocument($locked, $vacancy)."\n\nDeclaration:\n".config('dpc.declarations.pre_dpc_submit.hi')."\n".config('dpc.declarations.pre_dpc_submit.en'),
                     "pre-dpc-{$locked->pre_dpc_number}-v{$locked->version}-submission.txt",
-                    ['action' => 'submit'],
+                    ['action' => 'submit', 'vacancy_sha256' => $vacancy['sha256'] ?? null],
                 );
 
                 $locked->forceFill(['status' => PreDpcStatus::Submitted->value, 'submitted_at' => now(), 'declaration_accepted_at' => now(), 'prepared_by' => $actor->id])->save();
+
+                if ($vacancy !== null) {
+                    $this->vacancies()->submitWithPreDpc($locked, $vacancy, $actor);
+                }
+
                 $this->engine->record($locked, 'pre_dpc', 'submit', $from, $def, $actor, $request, null, $signature->id, $locked->department_id);
             });
         });
@@ -218,12 +227,15 @@ class PreDpcProposalService
             $def = $this->engine->assertAllowed('pre_dpc', 'approve', $from, $actor);
             $this->assertCurrentOfficer($actor, $locked, Role::AdministrativeHead);
 
+            // The record the AO sent with it, as signed — refused if it changed since (2026-11-19).
+            $vacancy = $this->vacancies()->verifiedSubmission($locked);
+
             $signature = $this->signatures->signVerified(
                 $actor,
                 $locked,
-                $this->renderDocument($locked),
+                $this->renderDocument($locked, $vacancy),
                 "pre-dpc-{$locked->pre_dpc_number}-v{$locked->version}.txt",
-                ['action' => 'approve'],
+                ['action' => 'approve', 'vacancy_sha256' => $vacancy['sha256'] ?? null],
             );
 
             $this->supersedeIncumbent($locked);
@@ -237,6 +249,8 @@ class PreDpcProposalService
             ])->save();
 
             $this->projectToMasters($locked);
+            // One Approve: the record is finalized with it.
+            $this->vacancies()->approveWithPreDpc($locked, $actor);
             $this->engine->record($locked, 'pre_dpc', 'approve', $from, $def, $actor, $request, null, $signature->id, $locked->department_id);
         }));
     }
@@ -253,15 +267,20 @@ class PreDpcProposalService
             $def = $this->engine->assertAllowed('pre_dpc', 'return', $from, $actor);
             $this->assertCurrentOfficer($actor, $locked, Role::AdministrativeHead);
 
+            $pending = $this->vacancies()->pendingWithPreDpc($locked);
+            $vacancy = $pending === null ? null : $this->vacancies()->submissionFigures($pending);
+
             $signature = $this->signatures->signVerified(
                 $actor,
                 $locked,
-                $this->renderDocument($locked)."\n\nReturned for correction:\n".$remarks,
+                $this->renderDocument($locked, $vacancy)."\n\nReturned for correction:\n".$remarks,
                 "pre-dpc-{$locked->pre_dpc_number}-v{$locked->version}-return.txt",
                 ['action' => 'return'],
             );
 
             $locked->forceFill(['status' => PreDpcStatus::Returned->value, 'returned_at' => now(), 'return_remarks' => $remarks])->save();
+            // One Return: the record goes back with it, with the same remarks (2026-11-19).
+            $this->vacancies()->returnWithPreDpc($locked, $remarks, $actor);
             $this->engine->record($locked, 'pre_dpc', 'return', $from, $def, $actor, $request, $remarks, $signature->id, $locked->department_id);
         }));
     }
@@ -598,7 +617,13 @@ class PreDpcProposalService
      */
     public function assertComplete(PreDpcProposal $proposal): void
     {
-        $this->guardComplete($proposal);
+        // The order itself: the Vacancy Management record is the allotted AO's to
+        // prepare, and goes with the submission (2026-11-19), not with the allotment.
+        $blockers = $this->submitBlockers($proposal, withVacancyRecord: false);
+
+        if ($blockers !== []) {
+            throw new WorkflowException($blockers[0]);
+        }
     }
 
     private function guardComplete(PreDpcProposal $proposal): void
@@ -626,7 +651,7 @@ class PreDpcProposalService
      *
      * @return list<string>
      */
-    public function submitBlockers(PreDpcProposal $proposal): array
+    public function submitBlockers(PreDpcProposal $proposal, bool $withVacancyRecord = true): array
     {
         $blockers = [];
 
@@ -646,7 +671,46 @@ class PreDpcProposalService
             $blockers[] = 'The Adyatan Vibhagiy Bharti Niyam and its Publish Date are required before submitting.';
         }
 
-        return [...$blockers, ...$this->vacancyBlockers($proposal)];
+        // The Vacancy Management record goes to the AH with it (2026-11-19).
+        // Asked of a submission only: once submitted, the record is with the AH too.
+        $combined = $withVacancyRecord && $this->vacancyGoesWithSubmission() && in_array($proposal->status, [PreDpcStatus::Draft, PreDpcStatus::Returned], true)
+            ? $this->vacancies()->submissionBlockers($proposal)
+            : [];
+
+        return [...$blockers, ...$this->vacancyBlockers($proposal), ...$combined];
+    }
+
+    /** Whether the Vacancy Management record is submitted with the Pre-DPC (2026-11-19; on unless configured off). */
+    public function vacancyGoesWithSubmission(): bool
+    {
+        return (bool) config('dpc.pre_dpc_submission.with_vacancy', true);
+    }
+
+    /**
+     * The record's figures and hash to sign with the submission, or null when nothing
+     * goes with it (configured off, or the record was finalized before).
+     *
+     * @return array{figures: array<string, mixed>, sha256: string}|null
+     */
+    private function vacancySubmission(PreDpcProposal $proposal): ?array
+    {
+        if (! $this->vacancyGoesWithSubmission()) {
+            return null;
+        }
+
+        $blockers = $this->vacancies()->submissionBlockers($proposal);
+        if ($blockers !== []) {
+            throw new WorkflowException($blockers[0]);
+        }
+
+        $position = $this->vacancies()->recordForPreDpc($proposal);
+
+        return $position === null || ! $position->isDraft() ? null : $this->vacancies()->submissionFigures($position);
+    }
+
+    private function vacancies(): VacancyMasterService
+    {
+        return app(VacancyMasterService::class);
     }
 
     /**
@@ -692,7 +756,10 @@ class PreDpcProposalService
         }
     }
 
-    private function renderDocument(PreDpcProposal $proposal): string
+    /**
+     * @param  array{figures: array<string, mixed>, sha256: string}|null  $vacancy  the Vacancy Management figures signed with it (2026-11-19)
+     */
+    private function renderDocument(PreDpcProposal $proposal, ?array $vacancy = null): string
     {
         $proposal->loadMissing(
             'promotionToPost',
@@ -732,6 +799,12 @@ class PreDpcProposalService
                 $source->experience_unit->value,
                 $source->qualificationLabel() ?? '—',
             );
+        }
+
+        if ($vacancy !== null) {
+            $lines[] = '';
+            $lines[] = $this->vacancies()->renderSubmissionFigures($vacancy['figures']);
+            $lines[] = 'Vacancy figures SHA-256: '.$vacancy['sha256'];
         }
 
         return implode("\n", $lines);

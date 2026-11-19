@@ -178,6 +178,10 @@ class ReadyDpcSeeder extends Seeder
             // the DPC the AO raises from it inherits the allotment.
             app(ProposalAllotmentService::class)->allot($proposal, $ao, $ah, null);
 
+            // Its Vacancy Management record is prepared with it and goes to the AH with
+            // it, under one eSign; the AH's approval finalizes both (2026-11-19).
+            $this->preparedVacancy($department, $to, $ao, finalize: false);
+
             $service->submit($proposal, $ao, DemoActor::request());
 
             DemoActor::as($ah, fn () => $service->approve($proposal->refresh(), $ah, DemoActor::request()));
@@ -194,9 +198,15 @@ class ReadyDpcSeeder extends Seeder
             return;
         }
 
+        $this->preparedVacancy($department, $to, $ao, finalize: true);
+    }
+
+    /** Sanctioned 10, working 7: the record, finalized by the AO where its Pre-DPC was approved before. */
+    private function preparedVacancy(Department $department, DepartmentPost $to, User $ao, bool $finalize): void
+    {
         $service = app(VacancyMasterService::class);
 
-        DemoActor::as($ao, function () use ($service, $department, $to, $ao): void {
+        DemoActor::as($ao, function () use ($service, $department, $to, $ao, $finalize): void {
             $position = $service->openDraft($department, $to, self::YEAR, $ao);
 
             $service->saveSanctionedStrength($position, [
@@ -214,7 +224,9 @@ class ReadyDpcSeeder extends Seeder
                 'order_date' => self::EFFECTIVE_FROM,
             ], $this->order('working-strength-order.pdf'), $ao);
 
-            $service->finalize($position->refresh(), $ao);
+            if ($finalize) {
+                $service->finalize($position->refresh(), $ao);
+            }
         });
     }
 

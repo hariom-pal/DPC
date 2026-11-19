@@ -123,6 +123,17 @@
             <div class="alert alert-info small">{{ __('vacancymaster.revision_reason_label') }}: {{ $position->revision_reason }}</div>
         @endif
 
+        {{-- Sent to the AH with its Pre-DPC, or returned with it (2026-11-19). --}}
+        @if ($position->isPendingWithPreDpc())
+            <div class="alert alert-info small" id="combined-pending">
+                {{ __('vacancymaster.combined.pending_banner', ['number' => $position->preDpcProposal?->pre_dpc_number ?? '—', 'at' => $position->submitted_at?->format('d-m-Y H:i') ?? '—']) }}
+            </div>
+        @elseif ($isDraft && $position->submitted_with_pre_dpc_id !== null && $position->return_remarks)
+            <div class="alert alert-danger small" id="combined-returned">
+                {{ __('vacancymaster.combined.returned_banner', ['number' => $position->preDpcProposal?->pre_dpc_number ?? '—', 'at' => $position->returned_at?->format('d-m-Y H:i') ?? '—', 'remarks' => $position->return_remarks]) }}
+            </div>
+        @endif
+
         @if ($position->isSectionRevision() && ($isDraft || $isPending))
             @php
                 $unlockedNames = collect($position->unlocked_sections)->map(fn ($key) => __('vacancymaster.sections.'.$key))->implode(', ');

@@ -305,18 +305,8 @@ class FreshInstallToPromotionOrderTest extends TestCase
             return [$aoReady, $ahReady, $deptAdmin, $preDpc, $from, $to];
         });
 
-        $preDpc = $this->step('3 AO reviews and submits the Pre-DPC with eSign, AH approves with eSign; Recruitment Rule created', function () use ($ao, $ah, $preDpc, $to): PreDpcProposal {
-            $this->actingAs($ao)->get(route('pre-dpc.edit', $preDpc))->assertOk();
-            $this->ok($this->actingAs($ao)->post(route('pre-dpc.submit', $preDpc), ['declaration' => '1']));
-            $this->ok($this->actingAs($ah)->post(route('pre-dpc.approve', $preDpc)));
-            $this->assertSame('approved', $preDpc->fresh()->status->value);
-            $this->assertSame(100.0, (float) RecruitmentRule::query()->where('post_id', $to->id)->sole()->promotion_recruitment_pct);
-
-            return $preDpc->fresh();
-        });
-
-        $this->step('4 Vacancy Management from the Pre-DPC: 8 sanctioned, 5 + 1 working, total 3', function () use ($ao, $department, $to, $preDpc): void {
-            // The button on the approved Pre-DPC opens the record for its post and year.
+        $this->step('3 Vacancy Management prepared with the Pre-DPC: 8 sanctioned, 5 + 1 working, total 3', function () use ($ao, $department, $to, $preDpc): void {
+            // The button on the Pre-DPC opens the record for its post and year, while it is a draft.
             $this->ok($this->actingAs($ao)->post(route('vacancy-management.pre-dpc', $preDpc)));
             $params = [$department, 2026, $to];
 
@@ -338,11 +328,24 @@ class FreshInstallToPromotionOrderTest extends TestCase
                 'kind' => 'deputation', 'officer_name' => 'Smt. E. Away', 'employee_number' => 'PHE/W/5', 'deputation_from' => '2026-03-01', 'promotion_made' => '0',
             ]));
 
-            $this->ok($this->actingAs($ao)->post(route('vacancy-records.finalize', $params)));
+            $this->assertSame('draft', VacancyPosition::query()->sole()->status->value, 'Prepared, not finalized: it goes to the AH with the Pre-DPC (2026-11-19).');
+        });
+
+        $preDpc = $this->step('4 AO submits the Pre-DPC and its Vacancy record with one eSign, AH approves both with one eSign; Recruitment Rule created', function () use ($ao, $ah, $preDpc, $to): PreDpcProposal {
+            $this->actingAs($ao)->get(route('pre-dpc.edit', $preDpc))->assertOk();
+            $this->ok($this->actingAs($ao)->post(route('pre-dpc.submit', $preDpc), ['declaration' => '1']));
+            $this->assertSame('pending_approval', VacancyPosition::query()->sole()->status->value);
+            $this->ok($this->actingAs($ah)->post(route('pre-dpc.approve', $preDpc)));
+            $this->assertSame('approved', $preDpc->fresh()->status->value);
+            $this->assertSame(100.0, (float) RecruitmentRule::query()->where('post_id', $to->id)->sole()->promotion_recruitment_pct);
+
             $position = VacancyPosition::query()->sole();
+            $this->assertSame('finalized', $position->status->value);
             // A = 8 − 6 = 2, B1 = 1: total 3, all of it promotion (the Pre-DPC's 100%).
             $this->assertSame([2, 1, 3], [$position->breakdown['clear_vacancy'], $position->breakdown['deputation_in_vacancy'], $position->breakdown['total_vacancy']]);
             $this->assertSame(3, (int) $position->promotion_vacancy);
+
+            return $preDpc->fresh();
         });
 
         $proposal = $this->step('5.1 DPC Proposal', function () use ($ao, $preDpc): DpcProposal {

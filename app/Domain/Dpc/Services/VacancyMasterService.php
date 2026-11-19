@@ -903,6 +903,13 @@ class VacancyMasterService
     {
         $this->assertDraft($position);
 
+        // A record whose Pre-DPC is not yet approved goes to the AH with it (2026-11-19);
+        // one whose Pre-DPC was approved before keeps the AO's finalize.
+        $position->loadMissing('preDpcProposal');
+        if ($position->preDpcProposal !== null && $position->preDpcProposal->status !== PreDpcStatus::Approved) {
+            throw new WorkflowException(__('vacancymaster.combined.finalize_with_pre_dpc', ['number' => $position->preDpcProposal->pre_dpc_number]));
+        }
+
         if ($position->isSectionRevision()) {
             throw new WorkflowException(__('vacancymaster.errors.revision_needs_approval'));
         }
@@ -1132,6 +1139,11 @@ class VacancyMasterService
             throw new WorkflowException(__('vacancymaster.errors.not_pending_approval'));
         }
 
+        // Sent with its Pre-DPC: decided there, by one Approve (2026-11-19).
+        if ($position->isPendingWithPreDpc()) {
+            throw new WorkflowException(__('vacancymaster.combined.decided_on_pre_dpc'));
+        }
+
         $previous = $position->supersedes_id;
         $finalized = $this->freeze($position, $actor, VacancyPositionStatus::PendingApproval);
         $updated = [];
@@ -1164,6 +1176,10 @@ class VacancyMasterService
     {
         if (! $position->isPendingApproval()) {
             throw new WorkflowException(__('vacancymaster.errors.not_pending_approval'));
+        }
+
+        if ($position->isPendingWithPreDpc()) {
+            throw new WorkflowException(__('vacancymaster.combined.decided_on_pre_dpc'));
         }
 
         if (trim($remarks) === '') {
@@ -1646,6 +1662,243 @@ class VacancyMasterService
             'size_bytes' => $file->getSize() ?: 0,
             'sha256' => hash('sha256', $contents),
         ];
+    }
+
+    // ------------------------------------------------ with the Pre-DPC (2026-11-19)
+
+    /**
+     * The Vacancy Management record of a Pre-DPC's post and DPC year — the one it
+     * goes to the AH with.
+     */
+    public function recordForPreDpc(PreDpcProposal $preDpc): ?VacancyPosition
+    {
+        $post = $preDpc->promotionToPost?->name;
+
+        return $post === null || $preDpc->dpc_year === null ? null : $this->current($preDpc->department_id, $post, (int) $preDpc->dpc_year);
+    }
+
+    /**
+     * What stops the Pre-DPC going to the AH with its Vacancy Management record: none
+     * prepared, one incomplete, or one already with the AH. A record already finalized
+     * (an amended Pre-DPC) goes with nothing — it was approved before.
+     *
+     * @return list<string>
+     */
+    public function submissionBlockers(PreDpcProposal $preDpc): array
+    {
+        $position = $this->recordForPreDpc($preDpc);
+
+        if ($position === null) {
+            return [(string) __('vacancymaster.combined.not_prepared', ['year' => $preDpc->dpc_year ?? '—'])];
+        }
+
+        if ($position->status === VacancyPositionStatus::Finalized) {
+            return [];
+        }
+
+        if ($position->isPendingApproval()) {
+            return [(string) __('vacancymaster.combined.already_pending')];
+        }
+
+        if ($position->isSectionRevision()) {
+            return [(string) __('vacancymaster.combined.revision_open')];
+        }
+
+        return array_map(
+            fn (array $issue): string => (string) __('vacancymaster.issues.'.$issue['key'], $issue['params']),
+            $this->issuesBeforeApproval($position),
+        );
+    }
+
+    /**
+     * The figures the AO signs with the Pre-DPC, and their hash: sanctioned, working,
+     * A / B1 / B2 / C, the vacancies available and the promotion quota, and the rows
+     * behind them. The same for the same data, whatever the Pre-DPC's status.
+     *
+     * @return array{figures: array<string, mixed>, sha256: string}
+     */
+    public function submissionFigures(VacancyPosition $position): array
+    {
+        $b = $this->breakdown($position->fresh() ?? $position);
+        $figures = [
+            'vacancy_position_id' => $position->id,
+            'post' => $position->post_name,
+            'vacancy_year' => $position->vacancy_year,
+            'sanctioned' => $b['sanctioned'],
+            'working' => $b['working']['total'] ?? null,
+            'a_clear' => $b['clear_vacancy'],
+            'b1_deputation_in' => $b['deputation_in_vacancy'],
+            'b2_deputation_out' => $b['deputation_out_vacancy'],
+            'c_anticipated' => $b['anticipated_vacancy'],
+            'available' => $b['total_vacancy'],
+            'promotion_percentage' => $b['promotion_percentage'],
+            'promotion_quota' => $b['final_quota']['promotion_vacancy'] ?? null,
+            'direct_quota' => $b['final_quota']['direct_vacancy'] ?? null,
+            'sanctioned_order' => $b['sanctioned_order'],
+            'working_document' => $b['working']['document_sha256'] ?? null,
+            'entries' => array_map(fn (array $entry): array => [
+                'uuid' => $entry['uuid'], 'kind' => $entry['kind'], 'count' => $entry['count'], 'counted' => $entry['counted'],
+                'eligibility' => $entry['eligibility'], 'document_sha256' => $entry['document_sha256'],
+            ], $b['entries']),
+        ];
+
+        return ['figures' => $figures, 'sha256' => hash('sha256', (string) json_encode($figures))];
+    }
+
+    /**
+     * The figures as the signed document prints them.
+     *
+     * @param  array<string, mixed>  $figures
+     */
+    public function renderSubmissionFigures(array $figures): string
+    {
+        return implode("\n", [
+            'VACANCY MANAGEMENT — '.$figures['post'].', Vacancy Year '.$figures['vacancy_year'],
+            'Sanctioned Posts: '.($figures['sanctioned'] ?? '—'),
+            'Working Strength: '.($figures['working'] ?? '—'),
+            'Category A (clear vacancy): '.($figures['a_clear'] ?? '—'),
+            'Category B1 (deputation ending): '.($figures['b1_deputation_in'] ?? '—'),
+            'Category B2 (deputation out): '.($figures['b2_deputation_out'] ?? '—'),
+            'Category C (anticipated): '.($figures['c_anticipated'] ?? '—'),
+            'Available Vacancies: '.($figures['available'] ?? '—'),
+            'Promotion Quota: '.($figures['promotion_quota'] ?? '—').' ('.($figures['promotion_percentage'] ?? '—').'%), Direct: '.($figures['direct_quota'] ?? '—'),
+        ]);
+    }
+
+    /**
+     * The AO's submission of the Pre-DPC carries its record to the AH (2026-11-19):
+     * pending approval, with the figures signed and their hash. Called inside the
+     * Pre-DPC's transaction, after its lock. Null where the record was finalized before.
+     *
+     * @param  array{figures: array<string, mixed>, sha256: string}  $signed  what the AO signed
+     */
+    public function submitWithPreDpc(PreDpcProposal $preDpc, array $signed, User $actor): ?VacancyPosition
+    {
+        $position = $this->recordForPreDpc($preDpc);
+
+        if ($position === null || $position->status === VacancyPositionStatus::Finalized) {
+            return null;
+        }
+
+        $locked = VacancyPosition::query()->whereKey($position->id)->lockForUpdate()->firstOrFail();
+
+        if (! $locked->isDraft() || $locked->isSectionRevision() || $this->issuesBeforeApproval($locked) !== []) {
+            throw new WorkflowException((string) __('vacancymaster.combined.not_ready'));
+        }
+
+        if ($this->submissionFigures($locked)['sha256'] !== $signed['sha256']) {
+            throw new WorkflowException((string) __('vacancymaster.combined.changed'));
+        }
+
+        $locked->forceFill([
+            'status' => VacancyPositionStatus::PendingApproval->value,
+            'pre_dpc_proposal_id' => $preDpc->id,
+            'submitted_with_pre_dpc_id' => $preDpc->id,
+            'submitted_by' => $actor->id,
+            'submitted_at' => now(),
+            'submission_snapshot' => $signed['figures'],
+            'submission_sha256' => $signed['sha256'],
+            'return_remarks' => null,
+            'returned_at' => null,
+        ])->save();
+
+        $this->record('vacancy_position.submitted_with_pre_dpc', $locked, __('vacancymaster.timeline.submitted_with_pre_dpc', [
+            'number' => $preDpc->pre_dpc_number,
+        ]), ['pre_dpc_proposal_id' => $preDpc->id, 'submission_sha256' => $signed['sha256']], $actor);
+
+        return $locked;
+    }
+
+    /** The record that went to the AH with this Pre-DPC and awaits its decision. */
+    public function pendingWithPreDpc(PreDpcProposal $preDpc): ?VacancyPosition
+    {
+        return VacancyPosition::query()
+            ->where('submitted_with_pre_dpc_id', $preDpc->id)
+            ->where('status', VacancyPositionStatus::PendingApproval->value)
+            ->latest('id')
+            ->first();
+    }
+
+    /**
+     * What the AH signs and decides: the figures as the AO signed them, refused when
+     * the record no longer gives the same (the AO's signature is not on these).
+     *
+     * @return array{figures: array<string, mixed>, sha256: string}|null
+     */
+    public function verifiedSubmission(PreDpcProposal $preDpc): ?array
+    {
+        $position = $this->pendingWithPreDpc($preDpc);
+
+        if ($position === null) {
+            return null;
+        }
+
+        $now = $this->submissionFigures($position);
+
+        if ($position->submission_sha256 === null || ! hash_equals($position->submission_sha256, $now['sha256'])) {
+            throw new WorkflowException((string) __('vacancymaster.combined.changed_since_signed'));
+        }
+
+        return $now;
+    }
+
+    /**
+     * The AH's approval of the Pre-DPC finalizes its record (2026-11-19). Called inside
+     * the Pre-DPC's transaction, once the Pre-DPC is approved.
+     */
+    public function approveWithPreDpc(PreDpcProposal $preDpc, User $actor): ?VacancyPosition
+    {
+        $position = $this->pendingWithPreDpc($preDpc);
+
+        if ($position === null) {
+            return null;
+        }
+
+        $this->verifiedSubmission($preDpc);
+        $finalized = $this->freeze($position, $actor, VacancyPositionStatus::PendingApproval);
+
+        $this->record('vacancy_position.approved_with_pre_dpc', $finalized, __('vacancymaster.timeline.approved_with_pre_dpc', [
+            'number' => $preDpc->pre_dpc_number,
+        ]), ['pre_dpc_proposal_id' => $preDpc->id, 'submission_sha256' => $position->submission_sha256], $actor);
+
+        return $finalized;
+    }
+
+    /** The AH's return of the Pre-DPC returns its record, with the same remarks (2026-11-19). */
+    public function returnWithPreDpc(PreDpcProposal $preDpc, string $remarks, User $actor): ?VacancyPosition
+    {
+        $position = $this->pendingWithPreDpc($preDpc);
+
+        if ($position === null) {
+            return null;
+        }
+
+        $locked = VacancyPosition::query()->whereKey($position->id)->lockForUpdate()->firstOrFail();
+        $locked->forceFill([
+            'status' => VacancyPositionStatus::Draft->value,
+            'return_remarks' => trim($remarks),
+            'returned_at' => now(),
+        ])->save();
+
+        $this->record('vacancy_position.returned_with_pre_dpc', $locked, __('vacancymaster.timeline.returned_with_pre_dpc', [
+            'number' => $preDpc->pre_dpc_number,
+        ]), ['pre_dpc_proposal_id' => $preDpc->id, 'remarks' => trim($remarks)], $actor);
+
+        return $locked;
+    }
+
+    /**
+     * Everything that stops the record, except that its Pre-DPC is not yet approved —
+     * the two are decided together.
+     *
+     * @return list<array{key: string, params: array<string, mixed>}>
+     */
+    private function issuesBeforeApproval(VacancyPosition $position): array
+    {
+        return array_values(array_filter(
+            $this->breakdown($position->fresh() ?? $position)['issues'],
+            fn (array $issue): bool => $issue['key'] !== 'pre_dpc_not_approved',
+        ));
     }
 
     /**

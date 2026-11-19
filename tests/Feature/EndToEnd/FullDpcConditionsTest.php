@@ -80,6 +80,15 @@ class FullDpcConditionsTest extends TestCase
 
     private int $pdfSerial = 0;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // These conditions finalize the Vacancy record after the Pre-DPC's approval (the
+        // path kept for a Pre-DPC approved before 2026-11-19); the combined submission
+        // is CombinedPreDpcVacancyTest's and FreshInstallToPromotionOrderTest's.
+        config(['dpc.pre_dpc_submission.with_vacancy' => false]);
+    }
+
     private function step(string $name, callable $body): mixed
     {
         try {
