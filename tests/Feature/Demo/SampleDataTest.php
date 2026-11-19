@@ -114,9 +114,9 @@ class SampleDataTest extends TestCase
         $base = $this->calculate($proposal->refresh(), $ao);
 
         $this->assertSame(
-            ['main' => 4, 'waiting' => 3, 'none' => 3],
+            ['main' => 4, 'waiting' => 2, 'none' => 4],
             $this->countsOf($base),
-            'Main 4 - Waiting 3 - Not eligible 3.',
+            'Main 4 - Waiting 2 (a main list of one to seven waits two, 2026-11-18) - the rest on neither list.',
         );
 
         // Points on the Eligible CR Grades (9/7/5/3/1) under the PPT's rules as Class
@@ -129,7 +129,8 @@ class SampleDataTest extends TestCase
                 4 => ['Smt. Kavita Bhaskar', 'SC', 35, 'EL', 'main'],
                 5 => ['Shri Prakash Kumar Yadav', 'OBC', 31, 'EL', 'waiting'],
                 6 => ['Shri Naresh Kumar Markam', 'ST', 31, 'EL', 'waiting'],
-                7 => ['Smt. Anjali Shrivastava', 'UR', 33, 'EL', 'waiting'],
+                // Eligible, but third on the waiting list: a main list of four waits two (2026-11-18).
+                7 => ['Smt. Anjali Shrivastava', 'UR', 33, 'EL', 'none'],
                 8 => ['Shri Suresh Kumar Sahu', 'OBC', 19, 'NE', 'none'],
                 9 => ['Shri Dinesh Kumar Kashyap', 'SC', 29, 'NE', 'none'],
                 10 => ['Smt. Priya Dubey', 'UR', 35, 'NE', 'none'],
@@ -170,7 +171,7 @@ class SampleDataTest extends TestCase
         $unjustified = $this->calculate($proposal->refresh(), $ao);
 
         $this->assertSame('NE', $unjustified->results()->where('sn', 4)->firstOrFail()->status()->value);
-        $this->assertSame(['main' => 3, 'waiting' => 3, 'none' => 4], $this->countsOf($unjustified));
+        $this->assertSame(['main' => 3, 'waiting' => 2, 'none' => 5], $this->countsOf($unjustified));
 
         app(RecordGapService::class)->record(
             $proposal->refresh()->evaluationRows()->where('sn', 4)->firstOrFail(),
@@ -197,7 +198,7 @@ class SampleDataTest extends TestCase
         );
 
         $this->assertSame(
-            ['main' => 3, 'waiting' => 3, 'none' => 4],
+            ['main' => 3, 'waiting' => 2, 'none' => 5],
             $this->countsOf($held),
             'Serial 4 is not eligible on merit, and CIR alone reserves no seat (2026-11-05), so Serial 4 stays off the Main List.',
         );
