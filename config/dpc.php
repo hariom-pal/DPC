@@ -1658,6 +1658,11 @@ return [
         'base_url' => env('DPC_MEETING_BASE_URL'),
     ],
 
+    // Department Post Mapping (2026-11-19): every new mapping takes effect from this date.
+    'post_mapping' => [
+        'effective_from' => env('DPC_POST_MAPPING_EFFECTIVE_FROM', '2026-01-01'),
+    ],
+
     'merit' => [
         // The Waiting List's size (2026-11-18): DpcCalculationService::waitingListSize.
         'waiting_list' => [

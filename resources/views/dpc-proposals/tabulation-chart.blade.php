@@ -37,20 +37,22 @@
             <span class="badge text-bg-light border">{{ __('dpc.tabulation.legend_csv') }}</span>
             <span class="badge text-bg-info">{{ __('dpc.tabulation.legend_portal') }}</span>
             <span class="d-inline-flex align-items-center gap-1"><x-fit-mark :fit="true" /><x-fit-mark :fit="false" /></span>
-            <span class="text-muted">{{ __('dpc.tabulation.legend_tribal') }} · {{ __('dpc.tabulation.legend_pf') }} · {{ __('dpc.tabulation.legend_replaced') }}</span>
+            <span class="text-muted"><span class="tab-swatch cell-substituted"></span> {{ __('dpc.tabulation.legend_substituted') }} · {{ __('dpc.tabulation.legend_tribal') }} · {{ __('dpc.tabulation.legend_pf') }}</span>
         </div>
         <a href="{{ route('dpc-proposals.tabulation-chart.download', $proposal) }}" class="btn btn-success btn-sm" id="tabulation-download">{{ __('dpc.tabulation.download_chart') }}</a>
     </div>
 
-    {{-- 2026-11-18: CR 1 to CR 5 (and PF 1 to PF 5) across the header with each one's
-         year beneath, every cell on one line; Fit and Unfit by colour alone. --}}
+    {{-- 2026-11-19: CR 1, CR 2, … across the header; each cell its own year above its
+         grade, in the order the officer's CR window takes them — a year not counted (NG /
+         Missing) in its own column, the older year counted in its place after it, both
+         yellow. Fit and Unfit by colour alone. PF 1 to PF 5 keep their years. --}}
     <div class="card border-0 shadow-sm mb-3">
         <div class="table-responsive">
             <table class="table table-sm table-bordered align-middle mb-0" id="tabulation-chart">
                 <thead>
                     <tr>
                         <th colspan="8" class="table-light text-center">{{ __('dpc.tabulation.group_csv') }}</th>
-                        <th colspan="{{ count($crYears) + count($propertyYears) + 5 }}" class="table-info text-center">{{ __('dpc.tabulation.group_portal') }}</th>
+                        <th colspan="{{ $crColumns + count($propertyYears) + 5 }}" class="table-info text-center">{{ __('dpc.tabulation.group_portal') }}</th>
                     </tr>
                     <tr>
                         <th class="table-light sticky-col sticky-sn">{{ __('dpc.employee_details.seniority_no') }}</th>
@@ -61,9 +63,9 @@
                         <th class="table-light">{{ __('ui.category') }}</th>
                         <th class="table-light">{{ __('dpc.employee_details.current_post') }}</th>
                         <th class="table-light">{{ __('dpc.tabulation.qualification') }}</th>
-                        @foreach ($crYears as $year)
-                            <th class="table-info" data-cr-column="{{ $loop->iteration }}">{{ __('dpc.tabulation.cr_n', ['n' => $loop->iteration]) }}<span class="tab-year">{{ $year }}</span></th>
-                        @endforeach
+                        @for ($n = 1; $n <= $crColumns; $n++)
+                            <th class="table-info" data-cr-column="{{ $n }}">{{ __('dpc.tabulation.cr_n', ['n' => $n]) }}</th>
+                        @endfor
                         @foreach ($propertyYears as $year)
                             <th class="table-info" title="{{ __('dpc.tabulation.property_full', ['n' => $loop->iteration]) }}">{{ __('dpc.tabulation.property_n', ['n' => $loop->iteration]) }}<span class="tab-year">{{ $year }}</span></th>
                         @endforeach
@@ -85,37 +87,34 @@
                             <td class="table-light">{{ $row->reservationCategory?->code ?? '—' }}</td>
                             <td class="table-light">{{ $row->promotion_from_post ?? '—' }}</td>
                             <td class="table-light">{{ $row->qualification ?? '—' }}</td>
-                            @foreach ($crYears as $year)
+                            @for ($n = 0; $n < $crColumns; $n++)
                                 @php
-                                    $cr = $row->crGrades->firstWhere('year', $year);
-                                    $crFit = ($cr !== null && $cr->put_up !== false && $cr->has_grading !== false) ? $cr->integrityFit() : null;
+                                    $cell = $crCells[$row->id][$n] ?? null;
+                                    $cr = $cell === null ? null : $row->crGrades->firstWhere('year', $cell['year']);
+                                    $graded = $cr !== null && $cr->put_up !== false && $cr->has_grading !== false;
+                                    $crFit = $graded ? $cr->integrityFit() : null;
+                                    $substituted = $cell !== null && $cell['state'] !== 'counted';
+                                    $cellClass = $substituted ? 'cell-substituted' : ($crFit === null ? '' : ($crFit ? 'cell-fit' : 'cell-unfit'));
                                 @endphp
-                                <td class="{{ $crFit === null ? '' : ($crFit ? 'cell-fit' : 'cell-unfit') }}" @if ($cr?->integrityOption) title="{{ $cr->integrityOption->label() }}" @endif @if ($crFit !== null) data-fit="{{ $crFit ? 'fit' : 'unfit' }}" @endif>
-                                    @if ($cr === null)
+                                <td class="{{ $cellClass }}" @if ($cell) data-cr-cell="{{ $cell['year'] }}" data-cr-state="{{ $cell['state'] }}" @endif @if ($cr?->integrityOption) title="{{ $cr->integrityOption->label() }}" @endif @if ($crFit !== null) data-fit="{{ $crFit ? 'fit' : 'unfit' }}" @endif>
+                                    @if ($cell === null)
                                         —
-                                    @elseif ($cr->put_up === false || $cr->has_grading === false)
-                                        <span class="{{ $cr->put_up === false ? 'text-danger' : '' }}">{{ $cr->put_up === false ? __('dpc.tabulation.missing') : __('dpc.tabulation.no_grading') }}</span>
-                                        {{-- The older year counted in its place, as the calculation takes it (2026-11-18). --}}
-                                        @if (array_key_exists($year, $replacements[$row->id] ?? []))
-                                            @php
-                                                $instead = $replacements[$row->id][$year];
-                                                $insteadCr = $instead === null ? null : $row->crGrades->firstWhere('year', $instead);
-                                            @endphp
-                                            <div class="tab-replaced" data-replaced-year="{{ $year }}" data-replaced-by="{{ $instead ?? 'none' }}" @if ($insteadCr?->integrityOption) title="{{ $insteadCr->integrityOption->label() }}" @endif>
-                                                @if ($instead === null)
-                                                    {{ __('dpc.tabulation.no_older_cr') }}
-                                                @else
-                                                    {{ __('dpc.tabulation.replaced_by', ['year' => $instead]) }} <strong>{{ $insteadCr?->grade ?? '—' }}</strong>
-                                                    @if (($insteadFit = $insteadCr?->integrityFit()) !== null)<x-fit-mark :fit="$insteadFit" />@endif
-                                                @endif
-                                            </div>
-                                        @endif
                                     @else
-                                        <strong>{{ $cr->grade ?? '—' }}</strong>
-                                        @if ($cr->tribal_area === true)<span class="badge text-bg-info ms-1" title="{{ __('dpc.employee_details.cr.tribal_yes') }}">{{ __('dpc.tabulation.tribal_short') }}</span>@endif
+                                        <span class="tab-cell-year">{{ $cell['year'] }}</span>
+                                        @if ($cr === null)
+                                            —
+                                        @elseif ($cr->put_up === false)
+                                            <span class="text-danger">({{ __('dpc.tabulation.missing') }})</span>
+                                        @elseif ($cr->has_grading === false)
+                                            ({{ __('dpc.tabulation.ng_short') }})
+                                        @else
+                                            <strong>{{ $cr->grade ?? '—' }}</strong>@if ($cr->tribal_area === true) <span class="badge text-bg-info" title="{{ __('dpc.employee_details.cr.tribal_yes') }}">{{ __('dpc.tabulation.tribal_short') }}</span>@endif
+                                            {{-- On yellow, the Integrity is the dot. --}}
+                                            @if ($substituted && $crFit !== null)<x-fit-mark :fit="$crFit" />@endif
+                                        @endif
                                     @endif
                                 </td>
-                            @endforeach
+                            @endfor
                             @foreach ($propertyYears as $year)
                                 @php
                                     $property = $row->propertyFlags->firstWhere('year', $year);

@@ -200,6 +200,7 @@ return [
             'go_document' => 'Government Order (PDF)',
             'go_number' => 'Government Order / Circular Number',
             'hint_effective_from' => 'The date this mapping takes effect. Defaults to today.',
+            'hint_effective_from_fixed' => 'Every new mapping takes effect from :date.',
             'hint_go_document' => 'PDF, up to 10 MB. The file is hashed on receipt so it can be shown to be the one that was uploaded.',
             'hint_post_name' => 'Chosen from the Designation master. Add a rank there first if it is missing.',
             'hint_promotion_duration' => 'The qualifying service an officer must have on this post before being considered for promotion out of it.',

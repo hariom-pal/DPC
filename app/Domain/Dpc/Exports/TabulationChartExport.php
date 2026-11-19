@@ -24,24 +24,23 @@ final class TabulationChartExport extends DefaultValueBinder implements FromView
     private const FORMULA_LEADS = ['=', '+', '-', '@', "\t", "\r"];
 
     /**
-     * @param  list<int>  $crYears
      * @param  list<int>  $propertyYears
-     * @param  array<int, array<int, int|null>>  $replacements  row id => [skipped year => year counted instead]
+     * @param  array<int, list<array{year: int, state: string}>>  $crCells  row id => its CR years in window order
      */
     public function __construct(
         private readonly DpcProposal $proposal,
-        private readonly array $crYears,
         private readonly array $propertyYears,
-        private readonly array $replacements = [],
+        private readonly int $crColumns,
+        private readonly array $crCells,
     ) {}
 
     public function view(): View
     {
         return view('dpc-proposals.tabulation-chart-export', [
             'proposal' => $this->proposal,
-            'crYears' => $this->crYears,
             'propertyYears' => $this->propertyYears,
-            'replacements' => $this->replacements,
+            'crColumns' => $this->crColumns,
+            'crCells' => $this->crCells,
         ]);
     }
 

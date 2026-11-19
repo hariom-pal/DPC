@@ -653,4 +653,6 @@ details > summary.card-header { cursor: pointer; }
 #tabulation-chart .sticky-sn { left: 0; min-width: 2.5rem; }
 #tabulation-chart .sticky-name { left: 2.5rem; }
 #tabulation-chart .tab-grounds { white-space: normal; min-width: 14rem; text-align: left; }
-#tabulation-chart .tab-replaced { font-size: .7rem; color: #0a58ca; white-space: nowrap; margin-top: .1rem; }
+.cell-substituted { background-color: #fff3cd !important; }
+#tabulation-chart .tab-cell-year { display: block; font-size: .7rem; color: #495057; }
+.tab-swatch { display: inline-block; width: .9rem; height: .9rem; border: 1px solid rgba(0, 0, 0, .2); vertical-align: middle; }

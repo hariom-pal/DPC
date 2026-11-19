@@ -122,6 +122,21 @@ class DepartmentPostMappingTest extends TestCase
         $this->assertTrue($post->isInForce());
     }
 
+    /** 2026-11-19: a new mapping takes effect from 01-01-2026, whatever the form sends; the form shows it fixed. */
+    public function test_a_new_mapping_takes_effect_from_the_fixed_date(): void
+    {
+        $this->actingAs($this->admin)->get(route('admin.department-posts.create'))->assertOk()
+            ->assertSee('value="2026-01-01" required', false)
+            ->assertSee(__('admin.department_posts.form.hint_effective_from_fixed', ['date' => '01-01-2026']));
+
+        $this->post(route('admin.department-posts.store'), $this->payload(['effective_from' => '2026-07-15']))->assertSessionHasNoErrors();
+        $this->assertSame('01-01-2026', DepartmentPost::query()->latest('id')->firstOrFail()->effective_from?->format('d-m-Y'));
+
+        // Without one at all: the same.
+        $this->post(route('admin.department-posts.store'), $this->payload(['name' => 'Deputy Director', 'effective_from' => null]))->assertSessionHasNoErrors();
+        $this->assertSame('01-01-2026', DepartmentPost::query()->latest('id')->firstOrFail()->effective_from?->format('d-m-Y'));
+    }
+
     /** The post's retirement age (2026-11-04), from 50 to 75 years, optional. */
     public function test_a_mapping_records_its_retirement_age(): void
     {

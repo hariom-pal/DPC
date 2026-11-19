@@ -157,11 +157,13 @@
                 <div class="row">
                     <div class="col-md-3 mb-3">
                         <label class="form-label" for="effective_from">{{ __('admin.department_posts.form.effective_from') }} <span class="text-danger">*</span></label>
+                        {{-- A new mapping: the fixed date, not chosen (2026-11-19). --}}
                         <input type="date" class="form-control @error('effective_from') is-invalid @enderror"
                                id="effective_from" name="effective_from"
-                               value="{{ old('effective_from', $post->effective_from?->format('Y-m-d')) }}" required>
+                               value="{{ $post->exists ? old('effective_from', $post->effective_from?->format('Y-m-d')) : config('dpc.post_mapping.effective_from', '2026-01-01') }}" required
+                               @unless ($post->exists) readonly @endunless>
                         @error('effective_from')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                        <div class="form-text">{{ __('admin.department_posts.form.hint_effective_from') }}</div>
+                        <div class="form-text">{{ $post->exists ? __('admin.department_posts.form.hint_effective_from') : __('admin.department_posts.form.hint_effective_from_fixed', ['date' => \Illuminate\Support\Carbon::parse(config('dpc.post_mapping.effective_from', '2026-01-01'))->format('d-m-Y')]) }}</div>
                     </div>
                 </div>
 

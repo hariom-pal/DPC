@@ -283,8 +283,8 @@
                     </tr></thead>
                     <tbody>
                         @forelse ($crYears as $cr)
-                            <tr data-cr-year="{{ $cr->year }}">
-                                <td>{{ $cr->year }}</td>
+                            <tr data-cr-year="{{ $cr->year }}" @class(['text-body-secondary' => $row->isBeforeAppointment((int) $cr->year)])>
+                                <td>{{ $cr->year }}@if ($row->isBeforeAppointment((int) $cr->year))<div><span class="badge text-bg-secondary" data-before-appointment="{{ $cr->year }}">{{ __('dpc.employee_details.cr.before_appointment_badge') }}</span></div>@endif</td>
                                 <td>
                                     {{ $cr->put_up === null ? __('dpc.employee_details.not_answered') : ($cr->put_up ? __('ui.yes') : __('ui.no')) }}
                                     {{-- Why it is missing, in the table (2026-11-14). --}}

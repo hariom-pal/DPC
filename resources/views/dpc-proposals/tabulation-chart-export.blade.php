@@ -2,11 +2,11 @@
 <table>
     <thead>
         <tr>
-            <th colspan="{{ 8 + count($crYears) + count($propertyYears) + 5 }}" style="font-weight: bold; font-size: 13px;">{{ __('dpc.tabulation.title') }} — {{ $proposal->citation() }}</th>
+            <th colspan="{{ 8 + $crColumns + count($propertyYears) + 5 }}" style="font-weight: bold; font-size: 13px;">{{ __('dpc.tabulation.title') }} — {{ $proposal->citation() }}</th>
         </tr>
         <tr>
             <th colspan="8" style="font-weight: bold; background-color: #E9ECEF; text-align: center;">{{ __('dpc.tabulation.group_csv') }}</th>
-            <th colspan="{{ count($crYears) + count($propertyYears) + 5 }}" style="font-weight: bold; background-color: #CFF4FC; text-align: center;">{{ __('dpc.tabulation.group_portal') }}</th>
+            <th colspan="{{ $crColumns + count($propertyYears) + 5 }}" style="font-weight: bold; background-color: #CFF4FC; text-align: center;">{{ __('dpc.tabulation.group_portal') }}</th>
         </tr>
         <tr>
             <th rowspan="2" style="font-weight: bold; background-color: #E9ECEF;">{{ __('dpc.employee_details.seniority_no') }}</th>
@@ -17,9 +17,9 @@
             <th rowspan="2" style="font-weight: bold; background-color: #E9ECEF;">{{ __('ui.category') }}</th>
             <th rowspan="2" style="font-weight: bold; background-color: #E9ECEF;">{{ __('dpc.employee_details.current_post') }}</th>
             <th rowspan="2" style="font-weight: bold; background-color: #E9ECEF;">{{ __('dpc.tabulation.qualification') }}</th>
-            @foreach ($crYears as $year)
-                <th style="font-weight: bold; background-color: #CFF4FC; text-align: center;">{{ __('dpc.tabulation.cr_n', ['n' => $loop->iteration]) }}</th>
-            @endforeach
+            @for ($n = 1; $n <= $crColumns; $n++)
+                <th rowspan="2" style="font-weight: bold; background-color: #CFF4FC; text-align: center;">{{ __('dpc.tabulation.cr_n', ['n' => $n]) }}</th>
+            @endfor
             @foreach ($propertyYears as $year)
                 <th style="font-weight: bold; background-color: #CFF4FC; text-align: center;">{{ __('dpc.tabulation.property_full', ['n' => $loop->iteration]) }}</th>
             @endforeach
@@ -30,9 +30,6 @@
             <th rowspan="2" style="font-weight: bold; background-color: #CFF4FC;">{{ __('dpc.tabulation.documents') }}</th>
         </tr>
         <tr>
-            @foreach ($crYears as $year)
-                <th style="background-color: #CFF4FC; text-align: center;">{{ $year }}</th>
-            @endforeach
             @foreach ($propertyYears as $year)
                 <th style="background-color: #CFF4FC; text-align: center;">{{ $year }}</th>
             @endforeach
@@ -49,21 +46,32 @@
                 <td>{{ $row->reservationCategory?->code ?? '—' }}</td>
                 <td>{{ $row->promotion_from_post ?? '—' }}</td>
                 <td>{{ $row->qualification ?? '—' }}</td>
-                @foreach ($crYears as $year)
+                {{-- Each cell its own year and grade, in the CR window's order (2026-11-19). --}}
+                @for ($n = 0; $n < $crColumns; $n++)
                     @php
-                        $cr = $row->crGrades->firstWhere('year', $year);
+                        $cell = $crCells[$row->id][$n] ?? null;
+                        $cr = $cell === null ? null : $row->crGrades->firstWhere('year', $cell['year']);
                         $crFit = ($cr !== null && $cr->put_up !== false && $cr->has_grading !== false) ? $cr->integrityFit() : null;
+                        $substituted = $cell !== null && $cell['state'] !== 'counted';
+                        $fill = $substituted ? 'background-color: #FFEB9C;' : ($crFit === null ? '' : ($crFit ? 'background-color: #C6EFCE;' : 'background-color: #FFC7CE;'));
                     @endphp
-                    <td style="text-align: center; {{ $crFit === null ? '' : ($crFit ? 'background-color: #C6EFCE;' : 'background-color: #FFC7CE;') }}">
-                        @if ($cr === null)
+                    <td style="text-align: center; {{ $fill }}">
+                        @if ($cell === null)
                             —
-                        @elseif ($cr->put_up === false || $cr->has_grading === false)
-                            {{ $cr->put_up === false ? __('dpc.tabulation.missing') : __('dpc.tabulation.no_grading') }}@if (array_key_exists($year, $replacements[$row->id] ?? [])) — @if ($replacements[$row->id][$year] === null){{ __('dpc.tabulation.no_older_cr') }}@else{{ __('dpc.tabulation.replaced_by', ['year' => $replacements[$row->id][$year]]) }} {{ $row->crGrades->firstWhere('year', $replacements[$row->id][$year])?->grade ?? '—' }}@if ($insteadOption = $row->crGrades->firstWhere('year', $replacements[$row->id][$year])?->integrityOption) ({{ $insteadOption->label() }})@endif @endif @endif
                         @else
-                            {{ $cr->grade ?? '—' }}@if ($cr->tribal_area === true) ({{ __('dpc.tabulation.tribal_short') }})@endif
+                            {{ $cell['year'] }}:
+                            @if ($cr === null)
+                                —
+                            @elseif ($cr->put_up === false)
+                                ({{ __('dpc.tabulation.missing') }})
+                            @elseif ($cr->has_grading === false)
+                                ({{ __('dpc.tabulation.ng_short') }})
+                            @else
+                                {{ $cr->grade ?? '—' }}@if ($cr->tribal_area === true) ({{ __('dpc.tabulation.tribal_short') }})@endif @if ($substituted && $cr->integrityOption) [{{ $cr->integrityOption->label() }}]@endif
+                            @endif
                         @endif
                     </td>
-                @endforeach
+                @endfor
                 @foreach ($propertyYears as $year)
                     @php
                         $property = $row->propertyFlags->firstWhere('year', $year);
@@ -89,4 +97,5 @@
 </table>
 <table>
     <tr><td>{{ __('dpc.tabulation.legend_tribal') }}</td></tr>
+    <tr><td style="background-color: #FFEB9C;">{{ __('dpc.tabulation.legend_substituted') }}</td></tr>
 </table>

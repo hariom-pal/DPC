@@ -113,6 +113,11 @@ class EmployeeDetailsService
         $this->assertEditable($row);
         $this->assertYear($row, $year);
 
+        // No CR exists before the year the officer was appointed (2026-11-19): a new one is refused.
+        if ($row->isBeforeAppointment($year) && ! $row->crGrades()->where('year', $year)->exists()) {
+            throw new WorkflowException(__('dpc.employee_details.cr.before_appointment', ['year' => (int) $row->appointedYear()]));
+        }
+
         $dpcYear = (int) ($row->proposal->dpc_year ?: $row->proposal->proposal_date->year);
         if ($year >= $dpcYear) {
             throw new WorkflowException(__('dpc.employee_details.cr.year_before_dpc_year', ['year' => $dpcYear - 1]));
@@ -337,7 +342,8 @@ class EmployeeDetailsService
         $count = max(1, $rule === null ? (int) config('dpc.merit.property_return_years', 5) : (int) $rule->property_years);
         $first = $last - $count + 1;
 
-        if ($row->appointedYearIsFit()) {
+        // None before the year recorded "appointed in this year", whatever the rule (2026-11-19).
+        if ($row->appointedYear() !== null) {
             $first = max($first, (int) $row->appointedYear());
         }
 

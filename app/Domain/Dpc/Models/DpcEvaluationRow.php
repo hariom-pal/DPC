@@ -250,23 +250,27 @@ class DpcEvaluationRow extends Model
     }
 
     /**
-     * The earliest year anything is asked for: the year of joining the service, or —
-     * where the rule says so — the year recorded "appointed in this year" (2026-11-18).
+     * The earliest year anything is asked for: the year of joining the service, or the
+     * year recorded "appointed in this year" when that is later.
+     *
+     * Whatever the rule says (2026-11-19): no CR or Property File exists before the year
+     * an officer was appointed, so none is asked for. The rule decides only whether
+     * that year leaves the officer Fit or Unfit (appointedYearIsFit()).
      */
     public function serviceFloorYear(): ?int
     {
         $joined = $this->date_of_joining_service?->year;
+        $appointed = $this->appointedYear();
 
-        return $this->appointedYearIsFit() ? max($joined ?? 0, (int) $this->appointedYear()) : $joined;
+        return $appointed === null ? $joined : max($joined ?? 0, $appointed);
     }
 
-    /**
-     * Whether a year is before the one the officer was appointed in, under a rule
-     * that says such years are not asked for (2026-11-18).
-     */
+    /** Whether a year is before the one recorded "appointed in this year" (2026-11-19: whatever the rule says). */
     public function isBeforeAppointment(int $year): bool
     {
-        return $this->appointedYearIsFit() && $year < (int) $this->appointedYear();
+        $appointed = $this->appointedYear();
+
+        return $appointed !== null && $year < $appointed;
     }
 
     /**

@@ -1097,11 +1097,10 @@ class EmployeeDetailsTest extends TestCase
         $download = $this->get(route('dpc-proposals.originals.download', [$this->proposal, $batch]))->assertOk();
         $this->assertStringContainsString('seniority-original.csv', (string) $download->headers->get('content-disposition'));
 
-        // 2026-11-18: CR 1 to CR 5 across the header, each year beneath; and an Excel download.
-        $dpcYear = (int) ($this->proposal->dpc_year ?: $this->proposal->proposal_date->year);
+        // CR 1, CR 2, … across the header (2026-11-19: each cell its own year), and an Excel download.
         $this->get(route('dpc-proposals.tabulation-chart', $this->proposal))
             ->assertSee('data-cr-column="1"', false)
-            ->assertSeeInOrder([__('dpc.tabulation.cr_n', ['n' => 1]), (string) ($dpcYear - 1), __('dpc.tabulation.cr_n', ['n' => 5]), (string) ($dpcYear - 5)])
+            ->assertSeeInOrder([__('dpc.tabulation.cr_n', ['n' => 1]), __('dpc.tabulation.cr_n', ['n' => 2])])
             ->assertSee(route('dpc-proposals.tabulation-chart.download', $this->proposal), false);
         $workbook = $this->get(route('dpc-proposals.tabulation-chart.download', $this->proposal))->assertOk();
         $this->assertStringContainsString('.xlsx', (string) $workbook->headers->get('content-disposition'));

@@ -42,6 +42,12 @@ class DepartmentPostRequest extends FormRequest
      */
     protected function prepareForValidation(): void
     {
+        // A new mapping takes effect from the fixed date (2026-11-19: 01-01-2026), not
+        // one chosen each time; an existing mapping keeps its own.
+        if ($this->route('post') === null) {
+            $this->merge(['effective_from' => (string) config('dpc.post_mapping.effective_from', '2026-01-01')]);
+        }
+
         $id = $this->input('designation_id');
 
         if (! is_numeric($id)) {

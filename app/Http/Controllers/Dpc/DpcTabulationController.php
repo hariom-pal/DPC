@@ -39,9 +39,8 @@ class DpcTabulationController extends Controller
         return view('dpc-proposals.tabulation-chart', [
             'proposal' => $dpcProposal,
             'originals' => $this->originals($dpcProposal),
-            'crYears' => $years,
             'propertyYears' => $years,
-            'replacements' => $this->replacements($dpcProposal, $years),
+            ...$this->crCells($dpcProposal, $years),
         ]);
     }
 
@@ -52,7 +51,9 @@ class DpcTabulationController extends Controller
         $years = $this->prepare($dpcProposal);
         $name = 'tabulation-chart-'.Str::slug((string) ($dpcProposal->dpc_code ?: $dpcProposal->id)).'-'.now()->format('Ymd-His').'.xlsx';
 
-        return Excel::download(new TabulationChartExport($dpcProposal, $years, $years, $this->replacements($dpcProposal, $years)), $name);
+        $cr = $this->crCells($dpcProposal, $years);
+
+        return Excel::download(new TabulationChartExport($dpcProposal, $years, $cr['crColumns'], $cr['crCells']), $name);
     }
 
     /**
@@ -70,32 +71,38 @@ class DpcTabulationController extends Controller
     }
 
     /**
-     * For each officer, each CR year on the chart that does not count (missing, or put
-     * up without a grading) and the older year counted in its place — the officer's own
-     * CR window, as the rule check and the calculation take it (2026-11-18). Null where
-     * no older year is left (the year before the DPC year is never replaced).
+     * Each officer's CR years in the order their CR window takes them (2026-11-19): the
+     * years counted, a middle year not counted (missing, or no grading) in its own
+     * column, and the older year counted in its place after — so a row with a skipped
+     * year runs one column longer. As the rule check and the calculation take it.
      *
-     * @param  list<int>  $years  the chart's CR years, latest first
-     * @return array<int, array<int, int|null>> row id => [skipped year => year counted instead]
+     * @param  list<int>  $years  the rule's CR years, latest first
+     * @return array{crColumns: int, crCells: array<int, list<array{year: int, state: 'counted'|'skipped'|'replacement'}>>}
      */
-    private function replacements(DpcProposal $proposal, array $years): array
+    private function crCells(DpcProposal $proposal, array $years): array
     {
         $slots = count($years);
-        $replacements = [];
+        $oldest = $years === [] ? 0 : min($years);
+        $cells = [];
 
         foreach ($proposal->evaluationRows as $row) {
             $row->setRelation('proposal', $proposal);
             $window = $this->details->crWindow($row, $row->crGrades, $slots);
-            // The older years the window reached for, latest first, pair with the skipped chart years in order.
-            $extra = array_values(array_diff($window->counted, $years));
-            $skipped = array_values(array_intersect($window->skipped, $years));
 
-            foreach ($skipped as $i => $year) {
-                $replacements[$row->id][$year] = $extra[$i] ?? null;
-            }
+            $cells[$row->id] = array_map(fn (int $year): array => [
+                'year' => $year,
+                'state' => match (true) {
+                    in_array($year, $window->skipped, true) => 'skipped',
+                    $year < $oldest => 'replacement',
+                    default => 'counted',
+                },
+            ], $window->years);
         }
 
-        return $replacements;
+        return [
+            'crColumns' => max($slots, ...array_map('count', $cells ?: [[]])),
+            'crCells' => $cells,
+        ];
     }
 
     public function original(DpcProposal $dpcProposal, ImportBatch $importBatch): StreamedResponse

@@ -350,6 +350,36 @@ class EmployeeDetailsUnfitTest extends TestCase
         $this->assertCount(1, $this->row->fresh()->unfitReasons());
     }
 
+    /**
+     * 2026-11-19: whatever the rule says, nothing before the year recorded "appointed in
+     * this year" is asked for — no CR or Property File exists before it. The rule decides
+     * only Fit or Unfit: without its Yes the officer is still Unfit.
+     */
+    public function test_without_the_rules_yes_appointed_in_this_year_still_asks_no_older_year(): void
+    {
+        $rule = app(PromotionCrRules::class)->ruleForProposal($this->proposal);
+        $rule->forceFill(['cr_years' => 5, 'appointed_year_is_fit' => false])->save();
+        $last = $this->dpcYear - 1;
+        $reason = RecordReason::query()->where('code', 'newly_appointed')->sole();
+
+        $this->saveCr($last)->assertSessionHasNoErrors();
+        $this->post($this->route('cr.save'), [
+            'year' => $last - 1, 'put_up' => '0', 'missing_reason_id' => $reason->id, 'missing_document' => $this->pdf(),
+        ])->assertSessionHasNoErrors();
+        $row = $this->row->fresh();
+
+        $this->assertSame([$last, $last - 1], app(EmployeeDetailsService::class)->crYearWindow($row), 'No CR year before the appointment.');
+        $this->assertSame([$last, $last - 1], app(EmployeeDetailsService::class)->propertyYearWindow($row), 'No Property File year before it either.');
+        $this->assertNotContains(__('dpc.employee_details.missing.cr_reason', ['year' => $last - 2]), app(EmployeeDetailsService::class)->status($row)['sections']['cr']);
+
+        // A CR before the appointment is refused.
+        $this->saveCr($last - 2)->assertSessionHasErrors();
+        $this->assertFalse($row->crGrades()->where('year', $last - 2)->exists());
+
+        // Still Unfit: the rule did not say Yes.
+        $this->assertNotEmpty($this->unfit());
+    }
+
     public function test_appointed_in_this_year_asks_for_the_appointment_letter_and_makes_the_officer_unfit(): void
     {
         $reason = RecordReason::query()->where('code', 'newly_appointed')->sole();
