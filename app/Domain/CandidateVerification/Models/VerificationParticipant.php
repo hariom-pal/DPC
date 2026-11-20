@@ -94,4 +94,18 @@ class VerificationParticipant extends Model
     {
         return $this->submitted_at !== null;
     }
+
+    /**
+     * A section's decision as the candidate reads it: a grievance is "drafted" until
+     * the final eSigned submission, "submitted" after it (2026-11-20).
+     */
+    public function decisionLabel(?string $decision): string
+    {
+        $key = $decision ?? 'none';
+        if ($key === 'grievance' && $this->hasSubmitted()) {
+            $key = 'grievance_submitted';
+        }
+
+        return (string) __('candidate.verification.decision.'.$key);
+    }
 }

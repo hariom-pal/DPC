@@ -64,7 +64,7 @@ return [
         'remember_me_on_this_device' => 'इस उपकरण पर मुझे स्मरण रखें',
         'signing_in' => 'लॉग इन किया जा रहा है',
         'trouble_signing_in_contact_your_department_s_nod' => 'लॉग इन में कठिनाई? अपने विभाग के नोडल अधिकारी से संपर्क करें।',
-        'view_your_own_data' => 'स्वयं का डाटा देखें',
+        'view_your_own_data' => 'अपने अभिलेख का सत्यापन करें अथवा शिकायत दर्ज करें',
     ],
     'register' => [
         'aadhaar' => 'आधार क्र.',

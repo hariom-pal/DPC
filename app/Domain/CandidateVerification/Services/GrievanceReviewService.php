@@ -166,7 +166,7 @@ final class GrievanceReviewService
                 'reason' => 'corrected_after_grievance',
                 'dpc_grievance_id' => $grievance->id,
                 'snapshot' => ['record' => $record, 'grievance' => $grievance->uuid],
-                'sha256' => hash('sha256', (string) json_encode($record)),
+                'sha256' => VerificationSnapshot::hashOf($record),
                 'created_by' => $ao->id,
             ]);
 

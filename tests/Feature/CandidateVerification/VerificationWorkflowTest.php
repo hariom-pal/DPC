@@ -167,6 +167,10 @@ class VerificationWorkflowTest extends TestCase
 
         // The signed submission stays; the corrected record is a new version; the candidate is told.
         $this->assertSame(['signed_submission', 'corrected_after_grievance'], VerificationSnapshot::query()->where('dpc_verification_participant_id', $this->participant(1)->id)->orderBy('version')->pluck('reason')->all());
+        // Each version's hash checks against the copy the database holds.
+        foreach (VerificationSnapshot::query()->where('dpc_verification_participant_id', $this->participant(1)->id)->get() as $version) {
+            $this->assertSame($version->sha256, VerificationSnapshot::hashOf($version->version === 1 ? $version->snapshot : (array) $version->snapshot['record']));
+        }
         $this->assertNotNull($this->participant(1)->snapshot_sha256);
         $this->assertSame(1, VerificationNotification::query()->where('kind', 'record_corrected')->where('channel', 'sms')->count());
 

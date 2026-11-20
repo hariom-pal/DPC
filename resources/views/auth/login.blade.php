@@ -73,10 +73,11 @@
                         <hr class="my-4">
 
                         {{-- S49/S50. An officer under consideration has no account
-                             here and will otherwise try to log in with one. --}}
+                             here and will otherwise try to log in with one: Candidate
+                             Verification, in Self-Inspection's place (user, 2026-11-20). --}}
                         <p class="text-center text-body-secondary small mb-0">
 {{ __('authui.login.officer_under_consideration') }}
-                            <a href="{{ route('self-inspection.landing') }}" class="fw-semibold">{{ __('authui.login.view_your_own_data') }}</a>
+                            <a href="{{ route('candidate-verification.login') }}" class="fw-semibold">{{ __('authui.login.view_your_own_data') }}</a>
                         </p>
                     </div>
 

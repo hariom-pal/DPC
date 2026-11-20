@@ -35,6 +35,9 @@ use Illuminate\Support\Str;
  */
 final class CandidateVerificationService
 {
+    /** The eSign's action in signature_attempts: its column holds 20 characters on MySQL. */
+    public const SIGN_ACTION = 'candidate_verify';
+
     public function __construct(
         private readonly CandidateRecordView $view,
         private readonly CandidateAccounts $accounts,
@@ -207,7 +210,7 @@ final class CandidateVerificationService
             'undertaking' => (string) __('candidate.grievance.undertaking', [], 'en'),
             'record' => $this->view->all($row),
         ];
-        $sha = hash('sha256', (string) json_encode($snapshot));
+        $sha = VerificationSnapshot::hashOf($snapshot);
 
         $lines = [
             'CANDIDATE VERIFICATION — '.$snapshot['dpc'],
@@ -257,7 +260,7 @@ final class CandidateVerificationService
                 }
 
                 $signable = $this->signable($locked);
-                $signature = $this->signatures->signVerified($signer, $locked, $signable['document'], 'candidate-verification-'.$locked->uuid.'.txt', ['action' => 'candidate_verification']);
+                $signature = $this->signatures->signVerified($signer, $locked, $signable['document'], 'candidate-verification-'.$locked->uuid.'.txt', ['action' => self::SIGN_ACTION]);
                 $hasGrievance = in_array(VerificationDecision::GRIEVANCE, $signable['snapshot']['decisions'], true);
 
                 $locked->forceFill([
@@ -284,7 +287,7 @@ final class CandidateVerificationService
                 return $locked;
             });
         } catch (SignatureVerificationFailed $e) {
-            app(SignatureAttemptLog::class)->record($signer, $participant, 'candidate_verification', $e->reason, $e->assertedName);
+            app(SignatureAttemptLog::class)->record($signer, $participant, self::SIGN_ACTION, $e->reason, $e->assertedName);
 
             throw new WorkflowException($e->getMessage());
         }

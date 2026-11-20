@@ -9,7 +9,7 @@
             <a href="{{ route('candidate-verification.section', [$participant->uuid, $step->value]) }}"
                class="badge {{ $class }} text-decoration-none p-2 {{ isset($section) && $section === $step ? 'border border-2 border-primary' : '' }}"
                data-progress="{{ $step->value }}" data-decision="{{ $decided ?? 'none' }}">
-                {{ $loop->iteration }}. {{ $step->label() }} — {{ __('candidate.verification.decision.'.($decided ?? 'none')) }}
+                {{ $loop->iteration }}. {{ $step->label() }} — {{ $participant->decisionLabel($decided) }}
             </a>
         </li>
     @endforeach

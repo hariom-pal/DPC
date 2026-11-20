@@ -16,6 +16,7 @@ use App\Domain\CandidateVerification\Services\CandidateVerificationService;
 use App\Domain\CandidateVerification\Services\VerificationNotifier;
 use App\Domain\Shared\Workflow\WorkflowException;
 use App\Domain\Signature\Models\Signature;
+use App\Domain\Signature\Models\SignatureAttempt;
 use App\Integrations\Contracts\SmsSender;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -46,6 +47,20 @@ class CandidatePortalTest extends TestCase
     }
 
     // ---------------------------------------------------------------- sign-in
+
+    public function test_the_home_page_leads_a_candidate_to_the_verification_sign_in(): void
+    {
+        // In the Self-Inspection tile's place (user, 2026-11-20).
+        $this->get('/')->assertOk()
+            ->assertSee(route('candidate-verification.login'), false)
+            ->assertSee(__('landing.quick_actions.candidate_verification.title'))
+            ->assertDontSee(route('self-inspection.landing').'"', false);
+
+        // …and the staff sign-in page, for an officer who would try to log in there.
+        $this->get(route('login'))->assertOk()
+            ->assertSee(route('candidate-verification.login'), false)
+            ->assertDontSee(route('self-inspection.landing').'"', false);
+    }
 
     public function test_a_registered_mobile_and_its_otp_sign_in_and_others_learn_nothing(): void
     {
@@ -204,10 +219,14 @@ class CandidatePortalTest extends TestCase
         $this->assertSame(ParticipantStatus::GrievanceSubmitted, $participant->status);
         $this->assertNotNull($participant->signature_id);
         $this->assertSame(64, strlen((string) $participant->snapshot_sha256));
-        $this->assertSame(hash('sha256', (string) json_encode($participant->submitted_snapshot)), $participant->snapshot_sha256);
+        // Reproducible from the stored copy, on MySQL too (its JSON column reorders keys).
+        $this->assertSame(VerificationSnapshot::hashOf((array) $participant->fresh()->submitted_snapshot), $participant->snapshot_sha256);
         $this->assertSame(['submitted'], Grievance::query()->pluck('status')->map(fn ($s) => $s->value)->unique()->values()->all());
         $this->assertSame(1, Signature::query()->where('signable_type', $participant->getMorphClass())->count(), 'One eSign, not one a section.');
         $this->assertSame(1, VerificationSnapshot::query()->where('dpc_verification_participant_id', $participant->id)->count());
+        // Logged under an action that fits signature_attempts.action (20 on MySQL; SQLite
+        // does not enforce it, and the longer name failed every real eSign).
+        $this->assertSame(['candidate_verify'], SignatureAttempt::query()->where('signable_type', $participant->getMorphClass())->pluck('action')->unique()->values()->all());
 
         // The signed document carries the decisions, the grievances with their PDF hashes, and the undertaking.
         $signature = Signature::query()->where('signable_type', $participant->getMorphClass())->sole();
@@ -246,6 +265,10 @@ class CandidatePortalTest extends TestCase
         $this->post(route('candidate-verification.esign.submit', $uuid), ['decision' => 'sign', 'name' => 'Somebody Else'])->assertSessionHasErrors('verification');
         $this->assertFalse($this->participant(1)->hasSubmitted());
         $this->assertSame(0, Signature::query()->where('signable_type', $this->participant(1)->getMorphClass())->count());
+        // The refused name is logged, under an action that fits signature_attempts.action
+        // (string 20: on MySQL the longer name failed here too, before the refusal was shown).
+        $this->assertSame([['action' => 'candidate_verify', 'outcome' => 'name_mismatch']], SignatureAttempt::query()->where('signable_type', $this->participant(1)->getMorphClass())->get(['action', 'outcome'])->toArray());
+        $this->assertLessThanOrEqual(20, strlen(CandidateVerificationService::SIGN_ACTION));
 
         // A stale or replayed eSign step (no pending request): refused.
         Carbon::setTestNow(now()->addMinutes(2)); // past the rate limit these steps share
@@ -255,6 +278,27 @@ class CandidatePortalTest extends TestCase
         // Without the declaration or the consent: refused.
         Carbon::setTestNow(now()->addMinutes(2));
         $this->post(route('candidate-verification.submit', $uuid), ['consent' => '1'])->assertSessionHasErrors('declaration');
+    }
+
+    public function test_a_grievance_reads_drafted_until_the_final_submission_and_submitted_after_it(): void
+    {
+        $this->signIn(1);
+        $uuid = $this->participant(1)->uuid;
+        $this->grievance($uuid, 'cr')->assertSessionHasNoErrors();
+        $drafted = __('candidate.verification.decision.grievance');
+        $submitted = __('candidate.verification.decision.grievance_submitted');
+
+        $this->get(route('candidate-verification.review', $uuid))->assertOk()->assertSee($drafted)->assertDontSee($submitted);
+
+        foreach (['seniority', 'integrity', 'ipr'] as $section) {
+            $this->post(route('candidate-verification.agree', [$uuid, $section]))->assertSessionHasNoErrors();
+        }
+        $this->post(route('candidate-verification.submit', $uuid), ['declaration' => '1', 'consent' => '1'])->assertRedirect(route('candidate-verification.esign', $uuid));
+        $this->post(route('candidate-verification.esign.submit', $uuid), ['decision' => 'sign', 'name' => $this->row(1)->name])->assertSessionHasNoErrors();
+        $this->assertTrue($this->participant(1)->hasSubmitted());
+
+        $this->get(route('candidate-verification.review', $uuid))->assertOk()->assertSee($submitted)->assertDontSee($drafted);
+        $this->get(route('candidate-verification.section', [$uuid, 'cr']))->assertOk()->assertSee($submitted)->assertDontSee($drafted);
     }
 
     public function test_after_the_deadline_nothing_is_submitted(): void

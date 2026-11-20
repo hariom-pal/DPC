@@ -66,7 +66,7 @@ return [
         'remember_me_on_this_device' => 'Remember me on this device',
         'signing_in' => 'Signing in',
         'trouble_signing_in_contact_your_department_s_nod' => 'Trouble signing in? Contact your department\'s nodal officer.',
-        'view_your_own_data' => 'View your own data',
+        'view_your_own_data' => 'Verify your record or raise a grievance',
     ],
     'register' => [
         'aadhaar' => 'Aadhaar No.',

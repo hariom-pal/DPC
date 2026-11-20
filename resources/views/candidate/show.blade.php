@@ -95,10 +95,9 @@
             <a href="{{ route('my-dpc.index') }}" class="btn btn-link mt-2">{{ __('candidate.show.back') }}</a>
         </div>
     </div>
-    {{-- Suggestion 8. A candidate can see their DPC here and the data recorded
-         about them on Self-Inspection, and had no way to know the other screen
-         existed. Linked rather than merged: Self-Inspection deliberately works
-         without an account, and that property is worth more than one screen. --}}
+    {{-- Suggestion 8. A candidate sees their DPC here and verifies the data recorded
+         about them on Candidate Verification (mobile + OTP, no account), which took
+         Self-Inspection's place in this link (user, 2026-11-20). --}}
     <div class="row justify-content-center">
         <div class="col-lg-9">
             <div class="alert alert-light border small d-flex gap-2 align-items-start">
@@ -106,7 +105,7 @@
                 <div>
                     <strong class="d-block mb-1">{{ __('candidate.show.your_data_heading') }}</strong>
                     {!! __('candidate.show.your_data_lead', [
-                        'link' => '<a href="'.e(route('self-inspection.landing')).'">'
+                        'link' => '<a href="'.e(route('candidate-verification.login')).'">'
                             .e(__('candidate.show.your_data_link')).'</a>',
                     ]) !!}
                 </div>

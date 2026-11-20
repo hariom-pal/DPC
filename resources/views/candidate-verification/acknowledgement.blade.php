@@ -20,7 +20,7 @@
     <table>
         <tr><th>{{ __('candidate.verification.review.section') }}</th><th>{{ __('candidate.verification.review.decision') }}</th></tr>
         @foreach (($snapshot['decisions'] ?? []) as $section => $decision)
-            <tr><td>{{ \App\Domain\CandidateVerification\Enums\VerificationSection::from($section)->label() }}</td><td>{{ __('candidate.verification.decision.'.($decision ?? 'none')) }}</td></tr>
+            <tr><td>{{ \App\Domain\CandidateVerification\Enums\VerificationSection::from($section)->label() }}</td><td>{{ $participant->decisionLabel($decision) }}</td></tr>
         @endforeach
     </table>
     @if (! empty($snapshot['grievances']))

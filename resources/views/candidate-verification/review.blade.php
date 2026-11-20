@@ -21,7 +21,7 @@
                     <tr data-review="{{ $step->value }}">
                         <td>{{ $step->label() }}</td>
                         <td>
-                            {{ __('candidate.verification.decision.'.($decisions[$step->value] ?? 'none')) }}
+                            {{ $participant->decisionLabel($decisions[$step->value] ?? null) }}
                             @if ($g)
                                 <div class="text-body-secondary">{{ __('candidate.grievance.categories.'.$g->category) }}@if ($g->related_year) · {{ $g->related_year }}@endif — {{ $g->remark }}</div>
                                 <div><a href="{{ route('candidate-verification.grievance.document', [$participant->uuid, $step->value]) }}">{{ $g->original_name }}</a>

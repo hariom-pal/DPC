@@ -101,13 +101,14 @@
                 // the language file: a route is not a translatable string, and a
                 // translator editing one would break the page.
                 //
-                // S49. Self-Inspection is the officer's only way in — they have
-                // no account — so a screen nobody can reach is a screen that was
-                // not delivered.
+                // An officer on a DPC's Seniority List verifies their own record
+                // here with their mobile and an OTP — no account, so a screen
+                // nobody can reach is a screen that was not delivered (S49). It
+                // took the Self-Inspection tile's place (user, 2026-11-20).
                 $quickActions = [
                     'department' => ['login', route('login')],
                     'administrator' => ['admin', route('login')],
-                    'self_inspection' => ['eye', route('self-inspection.landing')],
+                    'candidate_verification' => ['shield', route('candidate-verification.login')],
                     'manual' => ['book', '#manual'],
                     'reports' => ['chart', auth()->check() ? route('dashboard') : route('login')],
                     'help_desk' => ['help', '#help-desk'],

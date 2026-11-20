@@ -42,8 +42,8 @@ return [
         'the_result_of_this_dpc_has_not_been_declared_yet' => 'The result of this DPC has not been declared yet. It appears here once the Commission
                             publishes its proceedings.',
         'your_data_heading' => 'The data your department recorded about you',
-        'your_data_lead' => 'This screen shows the exercise and where it has reached. To check the particulars your department recorded — your dates, category, qualification and year-by-year entries — use :link. If any of it is wrong, raise it with your department in person.',
-        'your_data_link' => 'Self-Inspection',
+        'your_data_lead' => 'This screen shows the exercise and where it has reached. To verify the particulars your department recorded — your seniority, dates, CR, integrity and property returns — use :link with your registered mobile and OTP while your DPC\'s verification is open, and raise a grievance there if any of it is wrong.',
+        'your_data_link' => 'Candidate Verification',
         'your_entry_is_not_available_on_this_proposal' => 'Your entry is not available on this proposal.',
     ],
     'timeline' => [
@@ -106,6 +106,7 @@ return [
         'decision' => [
             'agreed' => 'Agreed',
             'grievance' => 'Grievance drafted',
+            'grievance_submitted' => 'Grievance submitted',
             'none' => 'Not yet decided',
         ],
         'actions' => [

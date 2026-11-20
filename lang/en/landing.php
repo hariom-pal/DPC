@@ -71,9 +71,9 @@ return [
             'title' => 'CGPSC Administrator Login',
             'text' => 'Commission administrators — master data and approvals.',
         ],
-        'self_inspection' => [
-            'title' => 'Self-Inspection',
-            'text' => 'Officers under consideration — view the data your department recorded.',
+        'candidate_verification' => [
+            'title' => 'Candidate Verification',
+            'text' => 'Officers on a DPC\'s Seniority List — sign in with your mobile and OTP to verify your record or raise a grievance.',
         ],
         'manual' => [
             'title' => 'User Manual',
