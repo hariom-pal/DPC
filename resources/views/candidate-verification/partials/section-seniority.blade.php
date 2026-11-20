@@ -29,7 +29,7 @@
 <p class="small text-body-secondary">{{ __('candidate.verification.fields.list_note') }}</p>
 <div class="table-responsive">
     <table class="table table-sm small" id="seniority-list">
-        <thead><tr><th>{{ __('candidate.verification.fields.sn') }}</th><th>{{ __('candidate.verification.fields.officer') }}</th><th>{{ __('candidate.verification.fields.category') }}</th><th>{{ __('candidate.verification.fields.current_post') }}</th></tr></thead>
+        <thead><tr><th>{{ __('candidate.verification.fields.sn') }}</th><th>{{ __('candidate.verification.fields.officer') }}</th><th>{{ __('candidate.verification.fields.category') }}</th><th>{{ __('candidate.verification.fields.current_post') }}</th><th>{{ __('candidate.verification.fields.date_of_joining_service') }}</th><th>{{ __('candidate.verification.fields.date_of_joining_current_post') }}</th><th>{{ __('candidate.verification.fields.dob') }}</th></tr></thead>
         <tbody>
             @foreach ($data['list'] as $line)
                 <tr @class(['table-primary' => $line['is_self']])>
@@ -37,6 +37,9 @@
                     <td>{{ $line['name'] }}@if ($line['is_self']) <span class="badge text-bg-primary">{{ __('candidate.verification.fields.you') }}</span>@endif</td>
                     <td>{{ $line['category'] ?? '—' }}</td>
                     <td>{{ $line['current_post'] ?? '—' }}</td>
+                    <td>{{ $line['date_of_joining_service'] ?? '—' }}</td>
+                    <td>{{ $line['date_of_joining_current_post'] ?? '—' }}</td>
+                    <td>{{ $line['dob'] ?? '—' }}</td>
                 </tr>
             @endforeach
         </tbody>

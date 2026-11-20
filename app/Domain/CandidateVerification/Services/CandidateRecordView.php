@@ -86,12 +86,17 @@ final class CandidateRecordView
                 'promotion_post' => $proposal->promotionToPost?->name,
                 'seniority_list_size' => $list->count(),
             ],
-            // The list as published: no date of birth, mobile, CR, Integrity or Property File of anybody.
+            // Every officer's basic details (2026-11-20, spec item 5): the joining dates with
+            // the name, category and post. A date of birth only on the candidate's own row;
+            // nobody's mobile, CR, Integrity or Property File.
             'list' => $list->map(fn (DpcEvaluationRow $other): array => [
                 'sn' => $other->sn,
                 'name' => $other->name,
                 'category' => $other->reservationCategory?->code,
                 'current_post' => $other->promotion_from_post,
+                'date_of_joining_service' => $other->date_of_joining_service?->format('d-m-Y'),
+                'date_of_joining_current_post' => $other->date_of_posting_on_promotion_from_post?->format('d-m-Y'),
+                'dob' => $other->id === $row->id ? $other->dob->format('d-m-Y') : null,
                 'is_self' => $other->id === $row->id,
             ])->values()->all(),
         ];

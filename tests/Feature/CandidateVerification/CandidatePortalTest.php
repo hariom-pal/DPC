@@ -135,7 +135,7 @@ class CandidatePortalTest extends TestCase
         $other = $this->row(2);
         $row->forceFill(['date_of_joining_service' => '2001-07-01', 'date_of_posting_on_promotion_from_post' => '2015-03-02', 'promotion_from_post' => 'Under Secretary'])->save();
         $row = $row->fresh();
-        $other->forceFill(['dob' => '1972-05-14'])->save();
+        $other->forceFill(['dob' => '1972-05-14', 'date_of_joining_service' => '1998-11-03', 'date_of_posting_on_promotion_from_post' => '2012-06-18'])->save();
         $other = $other->fresh();
         $this->signIn(1);
         $uuid = $this->participant(1)->uuid;
@@ -151,8 +151,11 @@ class CandidatePortalTest extends TestCase
         // No source for these: shown as not recorded, never invented.
         $this->assertMatchesRegularExpression('/data-field="gender">\s*<span class="text-body-secondary">'.preg_quote(__('candidate.verification.fields.unavailable'), '/').'/u', $html);
 
-        // The list carries the other officer's name, not their date of birth or mobile.
+        // The list carries every officer's basic details — name and both joining dates —
+        // but not another officer's date of birth or mobile (spec item 5).
         $this->assertStringContainsString($other->name, $html);
+        $this->assertStringContainsString('03-11-1998', $html);
+        $this->assertStringContainsString('18-06-2012', $html);
         $this->assertStringNotContainsString($other->dob->format('d-m-Y'), $html);
         $this->assertStringNotContainsString($this->mobileOf(2), $html);
 

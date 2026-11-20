@@ -121,7 +121,7 @@ return [
             'from_post' => 'Promotion from',
             'promotion_post' => 'Promotion to',
             'list' => 'Seniority List',
-            'list_note' => 'The Seniority List as approved: other officers\' personal and confidential details are not shown.',
+            'list_note' => 'The Seniority List as approved, with every officer\'s basic details. Other officers\' date of birth, mobile number and confidential records (CR, Integrity, IPR) are not shown.',
             'sn' => 'S.N.',
             'officer' => 'Officer',
             'current_post' => 'Current post',
