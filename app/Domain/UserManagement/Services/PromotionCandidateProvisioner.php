@@ -13,7 +13,6 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
-use RuntimeException;
 
 /**
  * Give every officer on a Seniority List a login (change item 17).
@@ -252,71 +251,6 @@ class PromotionCandidateProvisioner
         }
 
         return $assignment->department_id !== $proposal->department_id;
-    }
-
-    /**
-     * Issue a fresh temporary password for a candidate named on this proposal.
-     *
-     * **Why the department does this and not the officer themselves.** A candidate
-     * account has no mobile number and no e-mail — a Seniority List carries
-     * neither — so there is no channel to send a one-time code to, and a
-     * self-service reset has nothing to authenticate against except the three facts
-     * printed on the list itself. Those facts are already accepted for *reading*
-     * one's own data (BD-19), and reading is not the same as taking over an
-     * account. So the reset stays with the department, which is where credential
-     * handover already sits.
-     *
-     * **The guard is the Seniority List, not the role.** The employee number must
-     * appear on *this* proposal's list, so an Authorized Officer can reissue for the
-     * officers their own department has named and for nobody else. Checking the role
-     * instead would let any department reset any candidate in the portal.
-     *
-     * Returns the new password so the screen can show it once; it is stored only as
-     * a hash.
-     */
-    public function reissuePassword(DpcProposal $proposal, string $employeeNumber, User $actor): string
-    {
-        $employeeNumber = trim($employeeNumber);
-
-        $onThisList = $proposal->seniorityEntries()
-            ->where('employee_number', $employeeNumber)
-            ->exists();
-
-        if ($employeeNumber === '' || ! $onThisList) {
-            throw new RuntimeException(
-                'That Employee ID is not on this proposal\'s Seniority List. A password is reissued only for '
-                .'an officer the proposal itself names.'
-            );
-        }
-
-        $candidate = User::query()->where('employee_number', $employeeNumber)->first();
-
-        if ($candidate === null) {
-            throw new RuntimeException(
-                'No account holds that Employee ID yet. Saving the Seniority List is what creates one.'
-            );
-        }
-
-        $password = Str::password(10, symbols: false);
-
-        DB::transaction(function () use ($candidate, $password): void {
-            $candidate->forceFill([
-                'password' => Hash::make($password),
-                // Reissued means temporary: the officer sets their own on first use.
-                'must_change_password' => true,
-            ])->save();
-        });
-
-        // The employee number, never the password — a timeline entry is permanent
-        // and readable by every administrator.
-        $this->timeline->record(
-            'dpc_proposal.candidate_password_reissued',
-            $proposal,
-            sprintf('Temporary password reissued for employee number %s by %s.', $employeeNumber, $actor->name),
-            ['employee_number' => $employeeNumber],
-        );
-
-        return $password;
     }
 
     /**

@@ -6,16 +6,10 @@ namespace Tests\Feature\Candidate;
 
 use App\Domain\Authentication\Models\User;
 use App\Domain\Department\Models\Department;
-use App\Domain\Dpc\Enums\CommitteeCapacity;
-use App\Domain\Dpc\Models\DpcCommitteeMember;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Services\DpcProposalService;
-use App\Domain\Eligibility\Enums\ListType;
-use App\Domain\Eligibility\Models\DpcCalculationResult;
-use App\Domain\Eligibility\Models\DpcCalculationRun;
 use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\Master\Models\ReservationCategory;
-use App\Domain\Shared\Services\ActivityTimelineService;
 use App\Domain\UserManagement\Services\PromotionCandidateProvisioner;
 use App\Enums\MasterStatus;
 use App\Enums\Role;
@@ -277,36 +271,20 @@ class PromotionCandidateTest extends TestCase
         )->assertSessionHas('candidateAccounts', fn (array $accounts): bool => $accounts['conflicts'] === ['1024']);
     }
 
-    /**
-     * The temporary passwords reach the screen.
-     *
-     * **Nowhere else can produce them.** A password is generated, hashed and
-     * forgotten, so a caller that drops the provisioning result creates accounts
-     * nobody can sign in to — which is what happened between item 17 shipping and
-     * 2026-08-25, and made the candidate login unusable in production while every
-     * test passed.
-     */
-    public function test_the_temporary_passwords_are_shown_once_to_the_officer(): void
+    public function test_no_password_is_shown_or_handed_over(): void
     {
         $this->actingAs($this->ao)->put(
             route('dpc-proposals.seniority-list.update', $this->proposal),
             ['seniority_list_as_on' => $this->proposal->seniorityReferenceDate()->toDateString(), 'entries' => [$this->entry(1, 'Shri A. Officer', 'EMP-001')]],
-        )->assertSessionHas('candidateAccounts', function (array $accounts): bool {
-            return array_keys($accounts['created']) === ['EMP-001']
-                && $accounts['created']['EMP-001'] !== '';
-        });
+        )->assertSessionHas('candidateAccounts', fn (array $accounts): bool => array_keys($accounts['created']) === ['EMP-001']);
 
         $password = session('candidateAccounts')['created']['EMP-001'];
 
-        // And the panel actually renders them, once.
+        // The account is made (the candidate's eSign signer on the Candidate Portal);
+        // its password is never shown — a candidate does not sign in with one.
         $this->actingAs($this->ao)->get(route('dpc-proposals.show', $this->proposal))
             ->assertOk()
-            ->assertSee('EMP-001')
-            ->assertSee($password);
-
-        // A refresh does not: the value was flashed, not stored.
-        $this->actingAs($this->ao)->get(route('dpc-proposals.show', $this->proposal))
-            ->assertOk()
+            ->assertSee(__('dpc.seniority_list.accounts.created_count', ['count' => 1]))
             ->assertDontSee($password);
     }
 
@@ -343,32 +321,19 @@ class PromotionCandidateTest extends TestCase
         $this->assertFalse($this->ao->hasRole(Role::PromotionCandidate->value));
     }
 
-    public function test_a_candidate_can_sign_in_with_their_employee_number(): void
+    public function test_a_candidate_never_signs_in_here_with_a_password(): void
     {
-        // A candidate account has no e-mail or mobile to challenge; its password-only
-        // sign-in exists only while the project owner keeps it switched on (2026-10-27).
-        config(['dpc.auth.candidate_password_only' => true]);
-
+        // One login for a candidate since 2026-11-20: the Candidate Portal (mobile, OTP,
+        // eSign). The account stays — it is their eSign signer there.
         $candidate = $this->provisionedCandidate('EMP-001');
-
-        // The account has no email and no mobile, which is why the employee number
-        // is a login identifier at all.
-        $this->assertNull($candidate->email);
-        $this->assertNull($candidate->mobile);
-
-        // The password is only ever returned once, at creation, so the test resets
-        // it rather than trying to recover it.
         $candidate->forceFill(['password' => bcrypt('known-password'), 'must_change_password' => false])->save();
+        auth()->logout();
 
         $this->post(route('login.store'), ['login' => 'EMP-001', 'password' => 'known-password'])
-            ->assertRedirect();
-
-        $this->assertAuthenticatedAs($candidate->fresh());
+            ->assertRedirect(route('login'))
+            ->assertSessionHasErrors(['login' => __('authui.login.candidate_use_portal')]);
+        $this->assertGuest();
     }
-
-    // ------------------------------------------------------------------
-    // What the candidate may see
-    // ------------------------------------------------------------------
 
     private function provisionedCandidate(string $employeeNumber): User
     {
@@ -388,309 +353,5 @@ class PromotionCandidateTest extends TestCase
         $candidate->forceFill(['must_change_password' => false])->save();
 
         return $candidate->refresh();
-    }
-
-    private function forwardProposal(): void
-    {
-        $this->proposal->forceFill(['forwarded_at' => now()])->save();
-    }
-
-    public function test_a_candidate_sees_their_own_dpc_once_it_has_been_filed(): void
-    {
-        $candidate = $this->provisionedCandidate('EMP-001');
-        $this->forwardProposal();
-
-        $this->actingAs($candidate)->get(route('my-dpc.index'))
-            ->assertOk()
-            ->assertSee($this->proposal->dpc_code)
-            ->assertSee('Deputy Secretary');
-    }
-
-    public function test_a_draft_proposal_is_not_visible_to_the_candidate(): void
-    {
-        $candidate = $this->provisionedCandidate('EMP-001');
-
-        // Not forwarded: still the department's working paper.
-        $this->actingAs($candidate)->get(route('my-dpc.index'))
-            ->assertOk()
-            ->assertDontSee($this->proposal->dpc_code);
-
-        $this->actingAs($candidate)->get(route('my-dpc.show', $this->proposal->uuid))->assertNotFound();
-    }
-
-    public function test_a_candidate_sees_their_own_entry_and_their_own_status(): void
-    {
-        $candidate = $this->provisionedCandidate('EMP-001');
-        $this->forwardProposal();
-
-        $this->actingAs($candidate)->get(route('my-dpc.show', $this->proposal->uuid))
-            ->assertOk()
-            ->assertSee('Shri A. Officer')
-            ->assertSee('EMP-001');
-    }
-
-    public function test_a_candidate_never_sees_another_candidate(): void
-    {
-        $this->saveSeniorityList([
-            $this->entry(1, 'Shri A. Officer', 'EMP-001'),
-            $this->entry(2, 'Smt. B. Officer', 'EMP-002'),
-        ]);
-        $this->forwardProposal();
-
-        $candidate = User::query()->where('employee_number', 'EMP-001')->sole();
-        $candidate->forceFill(['must_change_password' => false])->save();
-
-        $this->actingAs($candidate)->get(route('my-dpc.show', $this->proposal->uuid))
-            ->assertOk()
-            ->assertSee('Shri A. Officer')
-            ->assertDontSee('Smt. B. Officer')
-            ->assertDontSee('EMP-002');
-    }
-
-    public function test_a_candidate_cannot_see_another_officers_dpc(): void
-    {
-        $candidate = $this->provisionedCandidate('EMP-001');
-        $this->forwardProposal();
-
-        // A second exercise the candidate is not named on.
-        $other = $this->raiseDpc(
-            $this->ao,
-            $this->departmentPost('Section Officer', 4),
-            $this->departmentPost('Joint Secretary'),
-        );
-        $other->forceFill(['forwarded_at' => now()])->save();
-
-        // A 404, not a 403: a 403 would confirm the proposal exists.
-        $this->actingAs($candidate)->get(route('my-dpc.show', $other->uuid))->assertNotFound();
-    }
-
-    /**
-     * The forbidden list, checked as a list.
-     */
-    public function test_a_candidate_is_refused_every_departmental_and_commission_screen(): void
-    {
-        $candidate = $this->provisionedCandidate('EMP-001');
-        $this->forwardProposal();
-
-        $screens = [
-            route('dpc-proposals.index'),
-            route('dpc-proposals.show', $this->proposal),
-            route('dpc-proposals.committee', $this->proposal),
-            route('dpc-proposals.seniority-list', $this->proposal),
-            route('dpc-proposals.evaluation-chart', $this->proposal),
-            route('dpc-proposals.working-officers', $this->proposal),
-            route('dpc-proposals.calculations.index', $this->proposal),
-            route('pre-dpc.index'),
-            route('cgpsc.allotments.index'),
-            route('admin.dashboard'),
-
-            // The Commission Members master was withdrawn on 2026-08-26 (item 5).
-            // The CGPSC Chairman screen replaced it as the Administrator's
-            // committee-facing master, so that is the one to keep out of reach.
-            route('admin.cgpsc-chairman.index'),
-        ];
-
-        foreach ($screens as $screen) {
-            $response = $this->actingAs($candidate)->get($screen);
-
-            $this->assertContains(
-                $response->getStatusCode(),
-                [403, 404],
-                "A Promotion Candidate reached {$screen} with a ".$response->getStatusCode().'.',
-            );
-        }
-    }
-
-    public function test_the_result_is_not_stated_before_it_is_published(): void
-    {
-        $candidate = $this->provisionedCandidate('EMP-001');
-        $this->forwardProposal();
-
-        $this->actingAs($candidate)->get(route('my-dpc.show', $this->proposal->uuid))
-            ->assertOk()
-            ->assertSee('has not been declared yet');
-    }
-
-    public function test_the_timeline_shows_progress_without_internal_remarks(): void
-    {
-        $candidate = $this->provisionedCandidate('EMP-001');
-        $this->forwardProposal();
-
-        // A return remark is the Administrative Head's instruction to the officer;
-        // it is internal and routinely names other officers' data.
-        app(ActivityTimelineService::class)->record(
-            'dpc_proposal.return',
-            $this->proposal,
-            'Correct the CR entries for Smt. B. Officer',
-        );
-
-        $this->actingAs($candidate)->get(route('my-dpc.show', $this->proposal->uuid))
-            ->assertOk()
-            ->assertSee('returned to the Authorized Officer for correction')
-            ->assertDontSee('Smt. B. Officer');
-    }
-
-    /**
-     * The other two forbidden categories, pinned the same way.
-     *
-     * **Why this exists when the controller cannot leak them.** `show()` loads the
-     * proposal, the candidate's own entry, a whitelisted timeline and the published
-     * result — it never touches `dpc_committee_members` or a calculation result, so
-     * on today's code this test cannot fail. That is precisely the argument for
-     * having it: the register forbids five things by name, three of them were
-     * already pinned by a rendered assertion, and the two that were not were the
-     * two nobody would notice becoming visible. A `with()` added for a status badge,
-     * or a shared partial pulled into this view, is all it would take.
-     *
-     * The committee and the marks are created here rather than mocked, so the page
-     * is rendered against a DPC that genuinely holds both.
-     */
-    public function test_a_candidate_sees_neither_the_committee_nor_anybody_s_marks(): void
-    {
-        $this->saveSeniorityList([
-            $this->entry(1, 'Shri A. Officer', 'EMP-001'),
-            $this->entry(2, 'Smt. B. Officer', 'EMP-002'),
-        ]);
-        $this->forwardProposal();
-
-        DpcCommitteeMember::query()->create([
-            'dpc_proposal_id' => $this->proposal->id,
-            'name' => 'Hon. Committee Chairman',
-            'designation' => 'Principal Secretary',
-            'capacity' => CommitteeCapacity::CgpscChairman->value,
-            'sort_order' => 1,
-
-            // Serving, so `committeeMembers` sees it — the point of the test is
-            // that a candidate is not shown the committee, and a row the relation
-            // filtered out would make the assertion pass for the wrong reason.
-            'active_flag' => 1,
-        ]);
-
-        // The provenance columns are all NOT NULL on purpose — a stored
-        // calculation must be explainable — so a fixture has to supply them.
-        $run = DpcCalculationRun::query()->create([
-            'dpc_proposal_id' => $this->proposal->id,
-            'rule_version' => 'test',
-            'configuration_snapshot' => [],
-            'proposal_version' => str_repeat('0', 64),
-            'application_version' => 'test',
-            'git_commit_hash' => 'test',
-            'zone' => [],
-            'executed_at' => now(),
-        ]);
-
-        foreach ([
-            ['sn' => 1, 'name' => 'Shri A. Officer', 'employee' => 'EMP-001', 'total' => '71.50'],
-            ['sn' => 2, 'name' => 'Smt. B. Officer', 'employee' => 'EMP-002', 'total' => '83.25'],
-        ] as $result) {
-            DpcCalculationResult::query()->create([
-                'dpc_calculation_run_id' => $run->id,
-                'sn' => $result['sn'],
-                'officer_name' => $result['name'],
-                'employee_number' => $result['employee'],
-                'reservation_category_code' => 'UR',
-                'score_breakdown' => ['total' => $result['total']],
-                'verdict' => ['eligible' => true],
-                'super_seat' => ['applies' => false],
-                'remark' => 'RECOMMENDED',
-                'list_type' => ListType::Main->value,
-            ]);
-        }
-
-        $candidate = User::query()->where('employee_number', 'EMP-001')->sole();
-        $candidate->forceFill(['must_change_password' => false])->save();
-
-        $this->actingAs($candidate)->get(route('my-dpc.show', $this->proposal->uuid))
-            ->assertOk()
-            // The committee, in either of the two ways it could surface.
-            ->assertDontSee('Hon. Committee Chairman')
-            ->assertDontSee('Principal Secretary')
-            // Any officer's score, including the candidate's own — item 17 lists
-            // other officers' marks as forbidden and is silent on a candidate's
-            // own, so the portal shows neither (BD-25).
-            ->assertDontSee('83.25')
-            ->assertDontSee('71.50');
-    }
-
-    // ------------------------------------------------------------------
-    // Reissuing a lost password (suggestion 4)
-    // ------------------------------------------------------------------
-
-    public function test_the_department_reissues_a_candidate_s_password_and_sees_it_once(): void
-    {
-        $candidate = $this->provisionedCandidate('EMP-001');
-        $before = $candidate->password;
-
-        $this->actingAs($this->ao)->post(
-            route('dpc-proposals.candidates.reissue-password', $this->proposal),
-            ['employee_number' => 'EMP-001'],
-        )->assertRedirect()->assertSessionHas('candidateAccounts', function (array $accounts): bool {
-            return array_keys($accounts['created']) === ['EMP-001'];
-        });
-
-        $candidate->refresh();
-        $this->assertNotSame($before, $candidate->password, 'The stored hash must change.');
-        $this->assertTrue($candidate->must_change_password, 'A reissued password is temporary.');
-
-        $this->assertDatabaseHas('activity_timelines', [
-            'event' => 'dpc_proposal.candidate_password_reissued',
-            'subject_id' => $this->proposal->id,
-        ]);
-    }
-
-    /**
-     * The guard is the Seniority List, not the role.
-     *
-     * Checking the role instead would let any department reset any candidate in the
-     * portal — the officers of one department are not another department's to touch.
-     */
-    public function test_a_department_cannot_reissue_for_an_officer_it_has_not_named(): void
-    {
-        $this->provisionedCandidate('EMP-001');
-
-        // An account that exists, but on nobody's list here.
-        $stranger = User::factory()->create(['employee_number' => 'EMP-999']);
-        $stranger->assignRole(Role::PromotionCandidate->value);
-        $before = $stranger->password;
-
-        $this->actingAs($this->ao)->post(
-            route('dpc-proposals.candidates.reissue-password', $this->proposal),
-            ['employee_number' => 'EMP-999'],
-        )->assertSessionHasErrors('employee_number');
-
-        $this->assertSame($before, $stranger->fresh()?->password);
-    }
-
-    public function test_a_candidate_cannot_reissue_anybody_s_password(): void
-    {
-        $candidate = $this->provisionedCandidate('EMP-001');
-
-        $this->actingAs($candidate)->post(
-            route('dpc-proposals.candidates.reissue-password', $this->proposal),
-            ['employee_number' => 'EMP-001'],
-        )->assertForbidden();
-    }
-
-    public function test_reissuing_is_refused_once_the_proposal_has_left_the_department(): void
-    {
-        $this->provisionedCandidate('EMP-001');
-        $this->proposal->forceFill(['status' => 'submitted'])->save();
-
-        $this->actingAs($this->ao)->post(
-            route('dpc-proposals.candidates.reissue-password', $this->proposal),
-            ['employee_number' => 'EMP-001'],
-        )->assertForbidden();
-    }
-
-    public function test_the_candidate_scoping_is_empty_for_an_account_with_no_employee_number(): void
-    {
-        $stranger = User::factory()->assignedTo($this->department, Role::PromotionCandidate)->create();
-        $stranger->forceFill(['must_change_password' => false])->save();
-
-        $this->assertSame(0, PromotionCandidateProvisioner::entriesFor($stranger)->count());
-
-        $this->actingAs($stranger)->get(route('my-dpc.index'))
-            ->assertOk()
-            ->assertSee('not currently named in any DPC');
     }
 }

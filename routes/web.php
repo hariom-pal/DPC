@@ -50,7 +50,6 @@ use App\Http\Controllers\Auth\ProfileController;
 use App\Http\Controllers\Auth\RegistrationController;
 use App\Http\Controllers\Auth\RoleSwitchController;
 use App\Http\Controllers\Auth\VerificationController;
-use App\Http\Controllers\Candidate\CandidateDpcController;
 use App\Http\Controllers\Candidate\CandidateVerificationController;
 use App\Http\Controllers\Cgpsc\AllotmentController;
 use App\Http\Controllers\Cgpsc\CirculationConsentController;
@@ -88,7 +87,6 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PreDpc\PreDpcProposalController;
 use App\Http\Controllers\Proceeding\CommitteeSittingController;
 use App\Http\Controllers\ReportController;
-use App\Http\Controllers\SelfInspection\SelfInspectionController;
 use App\Http\Middleware\EnsureAccountReady;
 use App\Http\Middleware\EnsureCanWorkAnAllotment;
 use Illuminate\Support\Facades\Route;
@@ -155,28 +153,6 @@ Route::post('/verify', [VerificationController::class, 'store'])->middleware('th
 Route::post('/verify/resend', [VerificationController::class, 'resend'])->middleware('throttle:registration')->name('verify.resend');
 
 /*
- | Self-Inspection & Assessment (PPT S49–S51) — M10.
- |
- | Deliberately outside `auth`. An individual under consideration has no account
- | in this system: they exist as a row in the officer chart their department
- | filed, which is why S50 identifies them by facts rather than by credentials
- | (BD-19, expressed as `dpc.self_inspection.authentication.driver`).
- |
- | S51 has two buttons — CLOSE and PRINT — and no objection route, because the
- | deck has none: it sends the officer to the department in person and states the
- | Commission will consider no representation (BD-20).
- */
-Route::prefix('self-inspection')->name('self-inspection.')->group(function (): void {
-    Route::get('/', [SelfInspectionController::class, 'landing'])->name('landing');
-    Route::get('/identify', [SelfInspectionController::class, 'create'])->name('identify');
-    Route::post('/identify', [SelfInspectionController::class, 'store'])
-        ->middleware('throttle:self-inspection')->name('identify.store');
-    Route::get('/record', [SelfInspectionController::class, 'show'])->name('show');
-    Route::get('/record/print', [SelfInspectionController::class, 'print'])->name('print');
-    Route::post('/close', [SelfInspectionController::class, 'close'])->name('close');
-});
-
-/*
  | Candidate Verification & Grievance (2026-11-19). Outside the staff session, like
  | Self-Inspection: a candidate signs in with their registered mobile and an OTP, and
  | reaches only their own verifications (CandidateSession); every other UUID is a 404.
@@ -188,8 +164,11 @@ Route::prefix('candidate-verification')->name('candidate-verification.')->group(
     Route::post('/verify', [CandidateVerificationController::class, 'verify'])->middleware('throttle:otp-verify')->name('verify');
     Route::get('/identify', [CandidateVerificationController::class, 'identifyForm'])->name('identify');
     Route::post('/identify', [CandidateVerificationController::class, 'identify'])->middleware('throttle:otp-verify')->name('identify.store');
+    Route::get('/sign-in', [CandidateVerificationController::class, 'signInForm'])->name('sign-in');
+    Route::post('/sign-in', [CandidateVerificationController::class, 'signIn'])->middleware('throttle:otp-verify')->name('sign-in.store');
     Route::post('/logout', [CandidateVerificationController::class, 'logout'])->name('logout');
     Route::get('/dashboard', [CandidateVerificationController::class, 'dashboard'])->name('dashboard');
+    Route::get('/record/{row}/section/{section}', [CandidateVerificationController::class, 'record'])->whereNumber('row')->name('record');
     Route::get('/{participant}/section/{section}', [CandidateVerificationController::class, 'section'])->name('section');
     Route::post('/{participant}/section/{section}/agree', [CandidateVerificationController::class, 'agree'])->name('agree');
     Route::get('/{participant}/section/{section}/grievance', [CandidateVerificationController::class, 'grievanceForm'])->name('grievance');
@@ -437,28 +416,6 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
                     ->name('dpc-import-templates.download-for');
             });
 
-        /*
-         | The Promotion Candidate's own DPC (change item 17).
-         |
-         | **Two routes, and that is the whole surface.** The register lists exactly
-         | what a candidate may see — own DPC, own status, timeline, notifications,
-         | the published result — and forbids everything else by name. Notifications
-         | are the shared screen every role uses; the rest is these two.
-         |
-         | `{dpcProposal}` is deliberately **not** route-model-bound. Binding would
-         | resolve any proposal by UUID and leave the scoping to a policy; the
-         | controller instead resolves it only from the set of proposals the
-         | candidate is named on, so an unrelated UUID is a 404 rather than a
-         | guarded 403.
-         */
-        Route::middleware('role:'.Role::PromotionCandidate->value)
-            ->prefix('my-dpc')
-            ->name('my-dpc.')
-            ->group(function (): void {
-                Route::get('/', [CandidateDpcController::class, 'index'])->name('index');
-                Route::get('/{dpcProposal}', [CandidateDpcController::class, 'show'])->name('show');
-            });
-
         // Pre-DPC Proposal workflow (department Authorized Officer / Administrative Head;
         // the Department Admin fills in and reads its department's, 2026-10-28 —
         // every action is the policy's to allow).
@@ -580,17 +537,6 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
                 Route::get('/{dpcProposal}/seniority-list', [DpcProposalController::class, 'seniorityList'])->name('seniority-list');
                 Route::put('/{dpcProposal}/seniority-list', [DpcProposalController::class, 'updateSeniorityList'])->name('seniority-list.update');
 
-                /*
-                 | Suggestion 4. A candidate account has no mobile and no e-mail — a
-                 | Seniority List carries neither — so a reset has no channel to send
-                 | a code on. The department reissues instead, which is where
-                 | credential handover already sits, and the guard is the proposal's
-                 | own list rather than a role.
-                 */
-                Route::post(
-                    '/{dpcProposal}/candidates/reissue-password',
-                    [DpcProposalController::class, 'reissueCandidatePassword'],
-                )->name('candidates.reissue-password');
                 // AH review walkthrough (M4 Phase 7, PPT S21–S25) — ends in the single approval.
                 Route::get('/{dpcProposal}/review/{step?}', [DpcProposalController::class, 'review'])
                     ->whereNumber('step')

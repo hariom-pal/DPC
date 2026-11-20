@@ -426,14 +426,6 @@ return [
             'active_review' => 'सक्रिय पुनर्विलोकन',
             'superseded_review' => 'अधिक्रमित पुनर्विलोकन',
         ],
-        'self_inspection_factor' => [
-            'name' => 'नाम (आपके विभाग द्वारा दर्ज)',
-            'dob' => 'जन्म तिथि',
-            'date_of_posting_on_promotion_to_post' => 'पदोन्नति वाले पद पर कार्यभार ग्रहण की तिथि',
-            'date_of_posting_on_promotion_from_post' => 'पोषक पद पर कार्यभार ग्रहण की तिथि',
-            'date_of_joining_service' => 'सेवा में कार्यभार ग्रहण की तिथि',
-            'employee_number' => 'कर्मचारी आईडी',
-        ],
     ],
     // जो लेबल पहले व्यू में सीधे अंग्रेज़ी में लिखे थे (2026-10-31)।
     'screen' => [

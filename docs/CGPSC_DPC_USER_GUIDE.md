@@ -33,8 +33,7 @@ A **Departmental Promotion Committee (DPC)** decides which officers are promoted
 | **Chairman, CGPSC** | The Commission's Chairman | Allots a forwarded DPC to a Member |
 | **Member, CGPSC** | A Member of the Commission | Accepts an allotted DPC, fixes the date, conducts the sitting, approves the result |
 | **CGPSC Administrator** | Commission IT/administration | Maintains master data, creates Chairman/Member accounts, reads the audit trail |
-| **Promotion Candidate** | An officer on a Seniority List | Sees the DPC they are being considered in, its stage, and their own final result once it is published. Sees nothing about any other officer |
-| **Officer under consideration** | Any officer whose name is on a chart | Views their own data before the committee sits, through Self-Inspection. **Needs no account** |
+| **Candidate** | An officer on a Seniority List | Signs in to the **Candidate Portal** with their registered mobile, an OTP and eSign. Sees every DPC they are on, its stage and their own published result; verifies their record and, once per DPC, accepts it or raises grievances under one eSign. Sees no other officer's confidential details |
 
 **There is one Administrator, and it belongs to the Commission.** "CGPSC Administrator" is the only administrator role in the portal; there is no departmental administrator, and a department's own two roles are the AO and the AH above.
 
@@ -54,9 +53,7 @@ Go to the portal address and choose **Login**.
 
 **An OTP at the important moments.** When you do something legally significant — approving and signing a proposal, signing a result — the portal sends a one-time password and asks for it. This is your signature, and it is recorded as evidence that you intended the action.
 
-**A Promotion Candidate does log in here** — with the employee number their department recorded on the Seniority List. See §9a.
-
-**An officer who has no account at all** uses Self-Inspection instead. See §9.
+**A candidate does not log in here.** Officers on a Seniority List use the **Candidate Portal** (mobile, OTP and eSign). See §9.
 
 **The bell in the top bar** shows how many notifications are waiting. Click it for the latest few, or **See all** for everything. Every role has this.
 
@@ -402,80 +399,37 @@ On approval it **supersedes** the DPC it corrects. Both timelines record it, the
 
 ---
 
-## 9. For an officer under consideration — Self-Inspection
+## 9. For a candidate — the Candidate Portal
 
-**You do not need an account.** From the portal's front page, choose **Self-Inspection**, or on the login page follow *"An officer under consideration for promotion?"*
+**One portal, one login.** From the portal's front page choose **Candidate Portal**, or on the login page follow *"An officer under consideration for promotion? Sign in to the Candidate Portal"*. A candidate does not sign in on the staff login page.
 
-### What it is for
+### Signing in
 
-Before the committee sits, you may **check the data your department recorded about you** — and raise a correction if it is wrong. That is the whole purpose.
+1. Enter the **mobile number your department recorded on the Seniority List**, and the **OTP** sent to it. The screen answers the same whether or not the number is registered.
+2. If more than one officer is registered on that number, enter your **Employee ID**.
+3. **Sign with eSign.** The name on your eSign certificate must match the name your department recorded; only then does the portal open.
 
-### How to open it
+Your session ends after a period without use (30 minutes by default).
 
-**View my data**, then confirm three facts your department recorded. The screen labels them:
+### What you see
 
-- **Name (as recorded by your department)**
-- **Date of Joining Service**
-- **Date of Birth**
+**Every DPC you are on**, once its Administrative Head has approved it — current ones and concluded ones — each with:
 
-All three must match exactly. If they do not, the portal will not tell you which one was wrong — that is deliberate, so nobody can look an officer up by guessing one field at a time.
+- its **stage**, and
+- **your result** (promoted or not), once the Commission has **published** the proceedings, and not before. No mark, rank or other officer's result is ever shown.
 
-> **Details not matching?** They must match **your department's record**, which may differ from your own papers — and that difference is itself worth raising with them.
+Four sections of your own record: **Seniority, Basic & DPC Details**; **Confidential Report (CR)** — years, grades, missing / NG, average and the calculation; **Integrity**; **IPR / Property Filing**. The Seniority List shows other officers' S.N., name, category and post only — never their date of birth, mobile, CR, Integrity or IPR.
 
-Attempts are limited and **every attempt is recorded**.
+### Verifying a DPC (while its verification is open)
 
-### What you will see
+After the AH approves a DPC, you are told by SMS and e-mail. Until the deadline the Administrator set (Workflow Stage Timelines):
 
-Your own row: name, date of birth, qualification, date of joining service, category, and **year by year** your loyalty declarations, immovable-property returns and CR grades — plus any note. A dash (**—**) means your department recorded nothing for that year, which is different from recording "no".
+- each section: **I Agree & Next**, or **Raise Grievance** (remark, supporting PDF and undertaking);
+- review, then **one final submission under one eSign**. After it — or after the deadline — that DPC is **read only** for you.
 
-**Two buttons:** **PRINT** (a clean copy you can take with you) and **CLOSE**.
+**After the deadline:** with no grievance, the DPC goes to the Secretary; with grievances, to the AH, who decides each one or opens only your section for the AO to correct, then decides it. The DPC goes to the Secretary once every grievance is decided. You are told of the decision by SMS / e-mail. A candidate who does not respond is marked **No response**, and the DPC goes on.
 
-### What you will not see
-
-**No marks, no remarks, and no promotion decision.** Those are produced by the committee, which has not met. This screen shows what your department supplied — nothing more.
-
-### If the data is wrong
-
-**Go to your department in person**, on or before the date shown in the notice.
-
-**The Commission does not consider representations about departmental data** — they are filed without action. Your department holds the record and only your department can correct it. Do this **before** the committee sits; afterwards the data it considered cannot be changed.
-
-If no date is shown, the sitting has not been scheduled yet. Raise it as soon as you can.
-
----
-
-## 9a. For a Promotion Candidate — following your own DPC
-
-**You have an account, and it was created for you.** Every officer named on a Seniority List gets one: the login is the **employee number** your department recorded, and the password is issued to you. If you already had an account here for any other reason, that account is reused — the portal never creates a second one for the same person.
-
-**Menu: My DPC**
-
-### What you can see
-
-| | |
-|---|---|
-| **Your own DPC** | The exercise you are being considered in — the promotion, the department, the DPC Year |
-| **Its status** | Where it has reached, in plain words |
-| **Its timeline** | Filed, submitted, approved, forwarded, allotted, sitting scheduled, result approved, documents published |
-| **Notifications** | The bell, as every role has |
-| **Your final result** | Once the Commission has **published** the proceedings — and not one moment before |
-
-### What you cannot see, and why
-
-| | |
-|---|---|
-| **Any other officer** | Not their name, not their marks, not their position. Another officer's assessment is not yours to read |
-| **The committee** | Who sat on it is not a candidate's business while the DPC is live |
-| **The evaluation chart** | Marks, grades and gradings for anybody, including yourself, before publication |
-| **Internal remarks** | Anything the department or the Commission wrote for itself |
-
-**Your result appears when the document does.** Not when the Commission approves the result, and not when the document is generated — when it is **published to your department**. Until then the portal will tell you the stage and nothing more, which is the honest answer.
-
-**To check the particulars recorded about you** — your dates, category, qualification and year-by-year entries — follow the Self-Inspection link on this screen. It is the same screen §9 describes, and it needs no account.
-
-**If any of it is wrong**, that is a matter for your **department**, in person — the same rule as §9. The Commission does not consider representations about departmental data.
-
-**If you have lost your password**, ask the department that named you on the Seniority List. There is no self-service reset: the list records no mobile number or e-mail, so the portal has no way to send you a code. Your Authorized Officer can issue a new temporary password from the Seniority List screen and hand it to you.
+**You cannot change any departmental record yourself.**
 
 ---
 
@@ -802,7 +756,7 @@ Committee members are reached by SMS and e-mail as well as in the portal.
 | Understand "provisional" | An unsettled rule could have changed the result. It cannot be published until the Commission settles it |
 | Resolve a held (`CIR`) promotion | **Circulation DPC**, attaching the record that was missing |
 | Correct a wrong result | **Raise Review DPC** from the concluded DPC |
-| Check my own data as an officer | Front page → **Self-Inspection** (no account needed) |
+| Check my own data as an officer | Front page → **Candidate Portal** (mobile, OTP, eSign) |
 
 ---
 
@@ -835,8 +789,8 @@ Only one approval is recorded. The portal takes a lock and refuses the second �
 **Can a signed document be altered?**
 No. It is fingerprinted when signed and **Verify** re-checks the fingerprint. Even a superseded document keeps its original bytes — the `SUPERSEDED` stamp is applied when it is delivered, not stored into it.
 
-**Is my data safe on the Self-Inspection screen?**
-You see only your own row, and only while a proposal including you is under consideration. Every attempt to open it is recorded. It shows no marks and no decision.
+**Is my data safe on the Candidate Portal?**
+You see only your own record (and the Seniority List's names, categories and posts). Sign-in needs your registered mobile, an OTP and your eSign; every attempt is recorded.
 
 **Why did I not get an SMS?**
 The Government SMS gateway is not yet connected. **Use the bell in the portal** — the in-app list is complete and does not depend on it.
@@ -852,7 +806,7 @@ About 25 minutes, covering the whole process. Run `demo:seed` first; it prints e
 
 | # | As | Do | Point out |
 |---|---|---|---|
-| 1 | — | Open the front page | Six roles; **Self-Inspection** needs no account |
+| 1 | — | Open the front page | The roles' logins and the **Candidate Portal** |
 | 2 | AO | Pre-DPC → open the approved proposal | Posts and feeders from **lists**, not typed |
 | 3 | AO | DPC Proposals → open one → the five sections | Every section marked complete |
 | 4 | AO | Evaluation Chart → **Download a blank template** | The exact columns; the commonest cause of a rejected upload, removed |
@@ -865,7 +819,7 @@ About 25 minutes, covering the whole process. Run `demo:seed` first; it prints e
 | 11 | Member | Find an officer marked `CIR` | Held, not dropped |
 | 12 | Member | **APPROVE BY CGPSC** → generate → sign → publish | Then **Verify** the document |
 | 13 | AO | Circulation DPC → the seeded one | The Commission's signature is the operative act |
-| 14 | — | Self-Inspection with the three printed facts | Own data only; no marks; **CLOSE** and **PRINT** |
+| 14 | — | Candidate Portal: mobile, OTP (fixed code on UAT), eSign (simulator) | Own record; every DPC; accept or grievance under one eSign |
 | 15 | Any | The **bell** | Notifications without any gateway |
 | 16 | Any | **Reports** | Counted from signed results, never recalculated |
 | 17 | Admin | **Audit trail** | Three records; read-only; export |
@@ -888,8 +842,8 @@ About 25 minutes, covering the whole process. Run `demo:seed` first; it prints e
 | *"Open Workspace"* missing on a DPC allotted to you | It was re-allotted, or the date has not arrived | Check Schedules |
 | Calculation reported out of date | The chart changed since | **CALCULATE** again |
 | No OTP arrived | The SMS gateway is not connected yet | Contact the Commission; in development the code is written to the application log |
-| Self-Inspection will not accept my details | They must match your **department's** record exactly | Check with your department — the difference is itself worth raising |
-| *"Too many attempts"* on Self-Inspection | Rate limit | Wait and try again; contact your department if the details are right |
+| The Candidate Portal says the eSign name does not match | The name on the certificate must match your **department's** record | Check with your department |
+| *"Too many attempts"* on the Candidate Portal | Rate limit | Wait a minute and try again |
 | A document shows **SUPERSEDED** | A Review DPC has corrected that DPC | Use the Review's promotion list. Both remain available |
 
 **Still stuck?** Departmental users: your nodal officer. Commission users: CGPSC administration. Officers under consideration: **your own department** — they hold your record, and only they can correct it.

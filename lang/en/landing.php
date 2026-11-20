@@ -72,8 +72,8 @@ return [
             'text' => 'Commission administrators — master data and approvals.',
         ],
         'candidate_verification' => [
-            'title' => 'Candidate Verification',
-            'text' => 'Officers on a DPC\'s Seniority List — sign in with your mobile and OTP to verify your record or raise a grievance.',
+            'title' => 'Candidate Portal',
+            'text' => 'Officers on a DPC\'s Seniority List — sign in with your mobile, OTP and eSign to see your DPCs, accept your record or raise a grievance.',
         ],
         'manual' => [
             'title' => 'User Manual',

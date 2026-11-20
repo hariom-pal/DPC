@@ -7,8 +7,15 @@
         <div>
             <strong>{{ __('candidate.verification.title') }}</strong> —
             {{ __('candidate.verification.dashboard.deadline') }}: {{ $verificationCycle->deadline_at->format('d-m-Y') }} ·
-            {{ __('candidate.grievance.review.summary', ['submitted' => $verificationCycle->participants()->whereNotNull('submitted_at')->count(), 'total' => $verificationCycle->participant_count, 'grievances' => $verificationCycle->grievances()->where('status', '!=', 'draft')->count(), 'no_response' => $verificationCycle->participants()->where('status', 'no_response')->count()]) }}
+            @if ($verificationCycle->status === \App\Domain\CandidateVerification\Enums\CycleStatus::Open)
+                {{-- The period runs: no grievance shown, nor how many (2026-11-20). --}}
+                {{ __('candidate.grievance.review.summary_open', ['submitted' => $verificationCycle->participants()->whereNotNull('submitted_at')->count(), 'total' => $verificationCycle->participant_count]) }}
+            @else
+                {{ __('candidate.grievance.review.summary', ['submitted' => $verificationCycle->participants()->whereNotNull('submitted_at')->count(), 'total' => $verificationCycle->participant_count, 'grievances' => $verificationCycle->grievances()->where('status', '!=', 'draft')->count(), 'no_response' => $verificationCycle->participants()->where('status', 'no_response')->count()]) }}
+            @endif
         </div>
-        <a class="btn btn-sm btn-outline-primary" href="{{ route('dpc-proposals.grievances.index', $proposal) }}" id="grievances-link">{{ __('candidate.grievance.review.heading') }}</a>
+        @if ($verificationCycle->status !== \App\Domain\CandidateVerification\Enums\CycleStatus::Open)
+            <a class="btn btn-sm btn-outline-primary" href="{{ route('dpc-proposals.grievances.index', $proposal) }}" id="grievances-link">{{ __('candidate.grievance.review.heading') }}</a>
+        @endif
     </div>
 @endif

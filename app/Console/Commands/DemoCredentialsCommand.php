@@ -310,8 +310,8 @@ class DemoCredentialsCommand extends Command
     private function emptyRoleNote(Role $role): string
     {
         if ($role === Role::Individual) {
-            return 'No accounts, and none is needed: an officer under consideration reaches Self-Inspection '
-                .'**without signing in**, so nothing in the portal is gated on this role. It is kept for the '
+            return 'No accounts, and none is needed: an officer under consideration reaches the Candidate Portal '
+                .'with their mobile, an OTP and eSign, so nothing in the portal is gated on this role. It is kept for the '
                 .'audit trail of accounts that once held it.';
         }
 

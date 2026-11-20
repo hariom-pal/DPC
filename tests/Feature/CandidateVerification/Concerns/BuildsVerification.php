@@ -97,7 +97,9 @@ trait BuildsVerification
     {
         auth()->logout();
         $this->post(route('candidate-verification.code.send'), ['mobile' => $this->mobileOf($sn)])->assertRedirect(route('candidate-verification.code'));
-        $this->post(route('candidate-verification.verify'), ['code' => '123456'])->assertRedirect(route('candidate-verification.dashboard'));
+        $this->post(route('candidate-verification.verify'), ['code' => '123456'])->assertRedirect(route('candidate-verification.sign-in'));
+        // The sign-in's eSign: the simulator, with the name the department recorded.
+        $this->post(route('candidate-verification.sign-in.store'), ['decision' => 'sign', 'name' => $this->row($sn)->name])->assertRedirect(route('candidate-verification.dashboard'));
     }
 
     protected function pdf(string $name = 'evidence.pdf', int $kb = 20): UploadedFile

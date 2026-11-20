@@ -1197,6 +1197,7 @@ return [
         'changes_removed_with_details' => 'These officers are not in this file, and their recorded CR / Property File / PH / document details will be detached from the proposal: :officers. The documents stay on record.',
         'preview_row' => 'Seniority No :number · Employee ID :employee · :post · appointed :appointed',
         'accounts' => [
+            'created_count' => 'Candidate accounts created: :count. Candidates sign in on the Candidate Portal with their mobile, OTP and eSign — no password is issued.',
             'conflicts' => 'Employee ID :numbers is already held by an officer posted to another department. Nothing was created, and no posting was changed — the portal cannot tell a transferred officer from two officers each numbered by their own department. Ask the Administrator to confirm which it is.',
             'conflicts_heading' => 'Needs the CGPSC Administrator',
             'created_heading' => 'Hand these over to the officers named',

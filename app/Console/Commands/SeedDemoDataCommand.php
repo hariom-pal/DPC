@@ -7,12 +7,8 @@ namespace App\Console\Commands;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Circulation\Models\DpcCirculation;
 use App\Domain\Department\Models\Department;
-use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Review\Models\DpcReviewLink;
-use App\Domain\SelfInspection\Enums\SelfInspectionFactor;
-use App\Domain\SelfInspection\Services\SelfInspectionAccessGuard;
-use Carbon\CarbonInterface;
 use Database\Seeders\Demo\DemoAccountSeeder;
 use Database\Seeders\DemoSeeder;
 use Illuminate\Console\Command;
@@ -81,7 +77,6 @@ class SeedDemoDataCommand extends Command
 
         $this->table(['Record', 'Identifier'], $this->identifiers());
 
-        $this->selfInspectionCheatSheet();
         $this->newScreens();
     }
 
@@ -102,48 +97,8 @@ class SeedDemoDataCommand extends Command
             ['Notifications', 'every role, from the bell in the header', route('notifications.index')],
             ['Audit trail', 'CGPSC Admin', route('admin.audit-trail.index')],
             ['Upload templates', 'AO / AH, from the dashboard', route('dpc-import-templates.index')],
-            ['Self-Inspection', 'the officer — no account', route('self-inspection.landing')],
+            ['Candidate Portal', 'the officer — mobile, OTP and eSign', route('candidate-verification.login')],
         ]);
-    }
-
-    /**
-     * Self-Inspection (S49–S51) has no account to hand out, so the demo needs the
-     * three facts that open it instead.
-     *
-     * Read from the seeded chart rather than written down here: the officer this
-     * prints is the officer the screen will actually admit, and a cheat sheet that
-     * has drifted from the data is worse than none.
-     */
-    private function selfInspectionCheatSheet(): void
-    {
-        $factors = SelfInspectionFactor::configured();
-
-        $row = app(SelfInspectionAccessGuard::class)->inspectableRows()->first();
-
-        $this->newLine();
-        $this->line('  <options=bold>Self-Inspection (S49–S51)</> — '.route('self-inspection.landing'));
-
-        if (! $row instanceof DpcEvaluationRow) {
-            $this->warn('  No proposal is currently open to self-inspection, so the screen has nothing to show.');
-            $this->line('  It opens for proposals in: '
-                .implode(', ', (array) config('dpc.self_inspection.visible_proposal_statuses', [])));
-
-            return;
-        }
-
-        $rows = [];
-
-        foreach ($factors as $factor) {
-            $value = $row->{$factor->value};
-
-            $rows[] = [
-                $factor->label(),
-                $value instanceof CarbonInterface ? $value->format('Y-m-d') : (string) $value,
-            ];
-        }
-
-        $this->line('  There is no account — the officer proves who they are with these:');
-        $this->table(['Field', 'Value'], $rows);
     }
 
     /**

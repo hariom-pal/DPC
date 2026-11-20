@@ -57,7 +57,7 @@ return [
         'subject_rescheduled' => 'ODPC Portal — :dpc has been re-scheduled',
         'sms_scheduled' => 'ODPC: :dpc is scheduled for :date at :time. :instructions',
         'sms_rescheduled' => 'ODPC: :dpc has been MOVED to :date at :time. Please note the new date. :instructions',
-        'joining_instructions' => 'Please attend on time. Committee members should sign in to the e-DPC Portal to take up the sitting; officers under consideration need not attend and may check their own record through Self-Inspection. Do not share this message.',
+        'joining_instructions' => 'Please attend on time. Committee members should sign in to the e-DPC Portal to take up the sitting; officers under consideration need not attend and may check their own record on the Candidate Portal. Do not share this message.',
     ],
     'candidate_verification' => [
         'opened' => [

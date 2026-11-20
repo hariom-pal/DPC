@@ -243,66 +243,11 @@
             </div>
         </div>
     </template>
-    {{-- Promotion Candidate accounts for the officers on this list (item 17).
-
-         Here rather than on a screen of its own: the person who needs it is
-         standing on the list when an officer says they cannot sign in. A candidate
-         account has no mobile and no e-mail, so there is no self-service reset to
-         send a code on — the department reissues, which is where credential
-         handover already sits. --}}
-    @if ($proposal->seniorityEntries->isNotEmpty() && $proposal->status->isEditable())
-        <div class="card border-0 shadow-sm mt-3">
-            <div class="card-body">
-                <h2 class="h6 mb-1">{{ __('dpc.seniority_list.accounts.heading') }}</h2>
-                <p class="small text-body-secondary mb-3">{{ __('dpc.seniority_list.accounts.reissue_lead') }}</p>
-
-                @include('dpc-proposals.sections._candidate-accounts')
-
-                <div class="table-responsive">
-                    <table class="table table-sm align-middle mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th>{{ __('ui.sn') }}</th>
-                                <th>{{ __('ui.name') }}</th>
-                                <th>{{ __('dpc.seniority_list.accounts.employee_number') }}</th>
-                                <th class="text-end">{{ __('ui.action') }}</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach ($proposal->seniorityEntries->sortBy('seniority_number') as $entry)
-                                <tr>
-                                    <td>{{ $entry->seniority_number }}</td>
-                                    <td>{{ $entry->name }}</td>
-                                    <td>
-                                        @if ($entry->employee_number)
-                                            <code>{{ $entry->employee_number }}</code>
-                                        @else
-                                            <span class="text-body-secondary">—</span>
-                                        @endif
-                                    </td>
-                                    <td class="text-end">
-                                        @if ($entry->employee_number)
-                                            <form method="POST" class="d-inline"
-                                                  action="{{ route('dpc-proposals.candidates.reissue-password', $proposal) }}"
-                                                  data-confirm="{{ __('dpc.seniority_list.accounts.reissue_confirm') }}">
-                                                @csrf
-                                                <input type="hidden" name="employee_number" value="{{ $entry->employee_number }}">
-                                                <button class="btn btn-outline-secondary btn-sm">
-                                                    {{ __('dpc.seniority_list.accounts.reissue') }}
-                                                </button>
-                                            </form>
-                                        @else
-                                            <span class="small text-body-secondary">{{ __('dpc.seniority_list.accounts.no_number') }}</span>
-                                        @endif
-                                    </td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    @endif
+    {{-- Promotion Candidate accounts for the officers on this list (item 17): what
+         saving the list did. Since 2026-11-20 a candidate never signs in with a
+         password — they use the Candidate Portal (mobile, OTP, eSign), where this
+         account is their eSign signer — so no password is shown or reissued. --}}
+    @include('dpc-proposals.sections._candidate-accounts')
 @endsection
 
 @push('scripts')

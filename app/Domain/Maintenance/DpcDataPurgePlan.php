@@ -63,7 +63,6 @@ final class DpcDataPurgePlan
         'dpc_evaluation_property_flags' => 'Property returns per year',
         'dpc_evaluation_record_gaps' => 'Missing-record justifications',
         'dpc_evaluation_documents' => 'Employee-wise documents',
-        'self_inspection_accesses' => 'Self-inspection access log',
 
         // Calculation, Commission, sitting and after.
         'dpc_calculation_runs' => 'Calculation runs',

@@ -164,15 +164,6 @@ return [
     ],
 
     /*
-    | A Promotion Candidate's read-only account with no reachable e-mail or mobile
-    | may sign in with its password alone only while this is on. Off by default:
-    | switching it on is a security decision for the project owner (2026-10-27).
-    */
-    'auth' => [
-        'candidate_password_only' => filter_var(env('DPC_CANDIDATE_PASSWORD_ONLY', false), FILTER_VALIDATE_BOOL),
-    ],
-
-    /*
     |--------------------------------------------------------------------------
     | SMS
     |--------------------------------------------------------------------------
@@ -1375,178 +1366,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Self-Inspection & Assessment (M10 — PPT S49–S51)
+    | Self-Inspection — withdrawn (2026-11-20)
     |--------------------------------------------------------------------------
     |
-    | S49: *"विभागीय अधिकारीयों व कर्मचारियों को स्वयं के डाटा अवलोकन की सुविधा"* —
-    | the facility for a departmental officer to **view their own data** before
-    | the DPC sits. S51 shows that data, a deadline notice, and exactly two
-    | buttons: CLOSE and PRINT.
-    |
-    | **Every judgement this screen needs is a configuration value here**, so a
-    | business ruling is applied by editing configuration rather than code
-    | (AD-3, AD-19). Two of them stand in for open questions and are named as
-    | such below.
+    | Self-Inspection was removed: an officer under consideration uses the
+    | Candidate Portal (mobile + OTP + eSign). Only its rate limiter remains, under
+    | its old name, because AppServiceProvider (which a deployed copy may carry
+    | local changes to) defines the "self-inspection" limiter from it, and the
+    | Candidate Portal's OTP request uses that limiter.
     |
     */
-
     'self_inspection' => [
-
-        'enabled' => (bool) env('DPC_SELF_INSPECTION_ENABLED', true),
-
-        /*
-        | BD-19 — how does an individual officer authenticate?
-        |
-        | S50 uses Aadhaar No. + Aadhaar OTP. Q1 replaced Aadhaar project-wide
-        | with identifier + password and OTP step-up — but that deviation
-        | assumed a **registered user**, and an individual under consideration
-        | is not one: they exist only as a row in an officer snapshot, and
-        | **none of the three ten-field snapshots carries a mobile or an
-        | email**, so there is no channel to send an OTP to.
-        |
-        | The three answers BD-19 chooses between are the three drivers here,
-        | so the ruling is a configuration change:
-        |
-        |   `identity_factors` — the officer proves who they are with facts only
-        |                        they and their department hold. **Default, and
-        |                        the only one buildable from what exists.**
-        |   `otp`              — requires a contact channel on the officer
-        |                        record. Selecting it today returns a
-        |                        structured *Pending Business Decision (BD-19)*
-        |                        rather than pretending a channel exists.
-        |   `account`          — the department provisions an Individual
-        |                        account. A new workflow, in neither deck; also
-        |                        refused as pending until ruled.
-        */
-        'authentication' => [
-            /*
-             | **`otp` since 2026-09-07** (business instruction: *"Self-Inspection is
-             | still not with mobile number and OTP — the candidate should be able to
-             | see their own record"*).
-             |
-             | It was `identity_factors` for one reason, recorded on the driver enum:
-             | no officer snapshot carried a contact channel. The Seniority List now
-             | carries a mobile number, so the officer can prove they *hold* the
-             | number their department recorded — a stronger claim than reciting
-             | three facts that circulate on the seniority list itself, which is what
-             | S50 always intended.
-             |
-             | `identity_factors` remains implemented and one setting away, for a
-             | department whose lists carry no numbers yet.
-             */
-            'driver' => env('DPC_SELF_INSPECTION_AUTH_DRIVER', 'otp'),
-
-            /*
-            | Which facts must all match for `identity_factors`.
-            |
-            | S50 asks for **two** — name as on the Aadhaar card, and date of
-            | joining the promotion to post. This defaults to **three**, adding date
-            | of birth, because the screen it opens shows year-wise CR grades,
-            | reservation category and immovable-property compliance. Two
-            | factors from a document that circulates as a seniority list is
-            | thinner than any other actor's login in this system.
-            |
-            | Reducing this to the PPT's two is a configuration change. It is
-            | deliberately not the default.
-            |
-            | Available: name, dob, date_of_posting_on_promotion_to_post,
-            | date_of_posting_on_promotion_from_post, date_of_joining_service,
-            | employee_number.
-            */
-            /*
-             | **The third factor changed on 2026-09-06, and it was a data fault
-             | rather than a preference.**
-             |
-             | It was `date_of_posting_on_promotion_to_post` — the date the officer
-             | was posted to the post they are being *considered for*. Business put
-             | the objection plainly: *"why does this field come at all? If the
-             | promotion is yet to happen, this will never exist."* They are right.
-             | A candidate on a seniority list has not been posted to the promotion
-             | post, so the column is blank for almost every one of them — and a
-             | blank factor is one nobody can answer, which is why Self-Inspection
-             | could match no officer until a demo file was filled with the feeder
-             | date in that column. That put the right value in the wrong box.
-             |
-             | `date_of_posting_on_promotion_from_post` is the date the officer took
-             | charge of the post they hold **now**. Every candidate has one, the
-             | department knows it, the officer knows it, and S17 already carries it
-             | as `DATE OF POSTING ON US`. It is the qualifying-service date the
-             | whole eligibility calculation turns on.
-             |
-             | The other column is still accepted by the importer and still stored:
-             | on an S16 working list it is meaningful, because an officer may
-             | already be officiating in the promotion post.
-             */
-            'factors' => array_values(array_filter(array_map(
-                'trim',
-                explode(',', (string) env(
-                    'DPC_SELF_INSPECTION_FACTORS',
-                    'name,date_of_posting_on_promotion_from_post,dob',
-                )),
-            ))),
-        ],
-
-        /*
-        | Which proposals an officer may inspect their row on.
-        |
-        | `submitted` and `approved` only: the point of the screen is to catch a
-        | data error *before* the committee sits, and a draft is still being
-        | edited — showing it would present figures the department has not
-        | finished entering as the figures under consideration. `cancelled` and
-        | `returned` are excluded for the same reason from the other end.
-        */
-        'visible_proposal_statuses' => array_values(array_filter(array_map(
-            'trim',
-            explode(',', (string) env('DPC_SELF_INSPECTION_STATUSES', 'submitted,pending_secretary,approved')),
-        ))),
-
-        /*
-        | Close the screen once the sitting has produced a result.
-        |
-        | After that, correcting the chart is no longer what the officer is
-        | being invited to do — the route is a Review DPC (M8), which is the
-        | department's to raise. Configurable because it is a policy about when
-        | inspection stops being useful, not a rule from the deck.
-        */
-        'close_after_result' => (bool) env('DPC_SELF_INSPECTION_CLOSE_AFTER_RESULT', true),
-
-        /*
-        | The date in S51's notice: *"...दिनांक 25 जून 2026 या उसके पूर्व विभाग में
-        | स्वयं उपस्थित होकर समाधान करवा लेवें..."*
-        |
-        | The deck shows a date but says nothing about where it comes from.
-        | Rather than invent one, it is derived:
-        |
-        |   `days_before_sitting` — N days before the scheduled DPC date.
-        |                           **Default.** The only basis the data
-        |                           supports today.
-        |   `none`                — show the notice with **no date**. Its
-        |                           substance is unconditional; only the
-        |                           deadline is derived.
-        |
-        | **When no basis can be resolved — no sitting scheduled yet — the
-        | notice is shown without a date rather than with a guessed one.** The
-        | officer is still told to raise a correction with the department in
-        | person, which is the part the deck actually states.
-        */
-        'objection_deadline' => [
-            'basis' => env('DPC_SELF_INSPECTION_DEADLINE_BASIS', 'days_before_sitting'),
-            'days_before_sitting' => (int) env('DPC_SELF_INSPECTION_DEADLINE_DAYS', 15),
-        ],
-
-        /*
-        | Brute-force protection, keyed on the claimed identity and the caller's
-        | IP. Lower than the login limiter: an officer types their own name and
-        | two dates, and gets them right.
-        */
         'rate_limit' => [
             'max_attempts' => (int) env('DPC_SELF_INSPECTION_RATE_MAX', 5),
             'decay_seconds' => (int) env('DPC_SELF_INSPECTION_RATE_DECAY', 300),
         ],
-
-        // How long a matched session stays open before the officer must
-        // identify themselves again.
-        'session_lifetime_minutes' => (int) env('DPC_SELF_INSPECTION_SESSION_MINUTES', 20),
     ],
 
     /*

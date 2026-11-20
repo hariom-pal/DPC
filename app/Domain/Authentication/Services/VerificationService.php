@@ -9,7 +9,6 @@ use App\Domain\Authentication\Exceptions\OtpThrottled;
 use App\Domain\Authentication\Models\User;
 use App\Enums\OtpChannel;
 use App\Enums\OtpPurpose;
-use App\Enums\Role;
 
 /**
  * The OTP challenge of every sign-in (Phase 1, 2026-10-27; mobile only 2026-10-28).
@@ -30,17 +29,6 @@ class VerificationService
     public function canChallenge(User $user): bool
     {
         return $this->channels($user) !== [];
-    }
-
-    /**
-     * An account the portal cannot reach by any channel, allowed to sign in with
-     * its password alone: a Promotion Candidate and nothing else — the account a
-     * Seniority List creates for an officer to read their own DPC, which carries an
-     * employee number and often no e-mail or mobile. Every such sign-in is logged.
-     */
-    public function mayProceedWithoutChallenge(User $user): bool
-    {
-        return $user->grantedRoleNames() === [Role::PromotionCandidate->value];
     }
 
     /**

@@ -50,16 +50,17 @@ class CandidatePortalTest extends TestCase
 
     public function test_the_home_page_leads_a_candidate_to_the_verification_sign_in(): void
     {
-        // In the Self-Inspection tile's place (user, 2026-11-20).
+        // In the Self-Inspection tile's place (user, 2026-11-20); Self-Inspection is gone.
         $this->get('/')->assertOk()
             ->assertSee(route('candidate-verification.login'), false)
             ->assertSee(__('landing.quick_actions.candidate_verification.title'))
-            ->assertDontSee(route('self-inspection.landing').'"', false);
+            ->assertDontSee(url('self-inspection').'"', false);
+        $this->get('/self-inspection')->assertNotFound();
 
         // …and the staff sign-in page, for an officer who would try to log in there.
         $this->get(route('login'))->assertOk()
             ->assertSee(route('candidate-verification.login'), false)
-            ->assertDontSee(route('self-inspection.landing').'"', false);
+            ->assertDontSee(url('self-inspection').'"', false);
     }
 
     public function test_a_registered_mobile_and_its_otp_sign_in_and_others_learn_nothing(): void
@@ -78,9 +79,11 @@ class CandidatePortalTest extends TestCase
         // Asked again at once: the cooldown.
         $this->post(route('candidate-verification.code.send'), ['mobile' => $this->mobileOf(1)])->assertSessionHas('status', __('candidate.verification.login.wait'));
 
-        // A wrong code fails; the right one signs in to the officer's own DPC only.
+        // A wrong code fails; the right one leads to the eSign, which opens the officer's own DPC only.
         $this->post(route('candidate-verification.verify'), ['code' => '000000'])->assertSessionHasErrors('code');
-        $this->post(route('candidate-verification.verify'), ['code' => '123456'])->assertRedirect(route('candidate-verification.dashboard'));
+        $this->post(route('candidate-verification.verify'), ['code' => '123456'])->assertRedirect(route('candidate-verification.sign-in'));
+        $this->get(route('candidate-verification.dashboard'))->assertRedirect(route('candidate-verification.login'));
+        $this->post(route('candidate-verification.sign-in.store'), ['decision' => 'sign', 'name' => $this->row(1)->name])->assertRedirect(route('candidate-verification.dashboard'));
         $this->get(route('candidate-verification.dashboard'))->assertOk()
             ->assertSee('data-participant="'.$this->participant(1)->uuid.'"', false)
             ->assertDontSee('data-participant="'.$this->participant(2)->uuid.'"', false);
@@ -110,7 +113,8 @@ class CandidatePortalTest extends TestCase
         $this->get(route('candidate-verification.dashboard'))->assertRedirect(route('candidate-verification.login'));
 
         $this->post(route('candidate-verification.identify.store'), ['employee_number' => 'NOBODY'])->assertSessionHasErrors('employee_number');
-        $this->post(route('candidate-verification.identify.store'), ['employee_number' => strtolower((string) $this->row(2)->employee_number)])->assertRedirect(route('candidate-verification.dashboard'));
+        $this->post(route('candidate-verification.identify.store'), ['employee_number' => strtolower((string) $this->row(2)->employee_number)])->assertRedirect(route('candidate-verification.sign-in'));
+        $this->post(route('candidate-verification.sign-in.store'), ['decision' => 'sign', 'name' => $this->row(2)->name])->assertRedirect(route('candidate-verification.dashboard'));
         $this->get(route('candidate-verification.dashboard'))
             ->assertSee('data-participant="'.$this->participant(2)->uuid.'"', false)
             ->assertDontSee('data-participant="'.$this->participant(1)->uuid.'"', false);
@@ -261,6 +265,7 @@ class CandidatePortalTest extends TestCase
         $this->post(route('candidate-verification.esign.submit', $uuid), ['decision' => 'cancel'])->assertSessionHasErrors('verification');
         $this->assertFalse($this->participant(1)->hasSubmitted());
 
+        Carbon::setTestNow(now()->addMinutes(2)); // past the rate limit the sign-in steps share
         $this->post(route('candidate-verification.submit', $uuid), ['declaration' => '1', 'consent' => '1']);
         $this->post(route('candidate-verification.esign.submit', $uuid), ['decision' => 'sign', 'name' => 'Somebody Else'])->assertSessionHasErrors('verification');
         $this->assertFalse($this->participant(1)->hasSubmitted());

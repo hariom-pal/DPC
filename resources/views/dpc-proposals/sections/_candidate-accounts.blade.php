@@ -1,13 +1,12 @@
 {{--
     What provisioning did when this Seniority List was saved (change item 17).
 
-    **Shown once, because the passwords exist nowhere else.** A temporary password
-    is generated, hashed and forgotten; this panel is the only moment it is
-    readable. Between item 17 shipping and 2026-08-25 the provisioning result was
-    discarded by the controller, so accounts were created that no officer could
-    ever sign in to — the feature looked delivered and was not.
+    Since 2026-11-20 the account is the candidate's eSign signer on the Candidate
+    Portal, never a password login: the temporary password is generated, hashed and
+    never shown. What the department must act on is still shown — an officer with
+    no Employee ID, or an Employee ID held elsewhere, has no account to sign with.
 
-    Rendered from a flashed value, so a refresh does not redisplay credentials.
+    Rendered from a flashed value.
 --}}
 @php($accounts = session('candidateAccounts'))
 
@@ -18,29 +17,7 @@
             <p class="small text-body-secondary mb-3">{{ __('dpc.seniority_list.accounts.lead') }}</p>
 
             @if ($accounts['created'] !== [])
-                <div class="alert alert-success py-2 small">
-                    <strong class="d-block mb-1">{{ __('dpc.seniority_list.accounts.created_heading') }}</strong>
-                    {{ __('dpc.seniority_list.accounts.created_note') }}
-                </div>
-
-                <div class="table-responsive">
-                    <table class="table table-sm align-middle">
-                        <thead class="table-light">
-                            <tr>
-                                <th>{{ __('dpc.seniority_list.accounts.employee_number') }}</th>
-                                <th>{{ __('dpc.seniority_list.accounts.temporary_password') }}</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach ($accounts['created'] as $employeeNumber => $password)
-                                <tr>
-                                    <td><code>{{ $employeeNumber }}</code></td>
-                                    <td><code>{{ $password }}</code></td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
+                <p class="small text-body-secondary mb-2">{{ __('dpc.seniority_list.accounts.created_count', ['count' => count($accounts['created'])]) }}</p>
             @endif
 
             @if ($accounts['reused'] !== [])

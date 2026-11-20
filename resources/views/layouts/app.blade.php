@@ -48,11 +48,6 @@
                              including the frozen ones. --}}
                         @include('partials.notification-bell')
                         <a class="btn btn-sm btn-outline-light" href="{{ route('dashboard') }}">{{ __('ui.dashboard_link') }}</a>
-                        {{-- Change item 17: the candidate's own DPC, and the only
-                             departmental screen their role reaches. --}}
-                        @role(\App\Enums\Role::PromotionCandidate->value)
-                            <a class="btn btn-sm btn-outline-light" href="{{ route('my-dpc.index') }}">{{ __('ui.my_promotion') }}</a>
-                        @endrole
                         @if (app(\App\Domain\UserManagement\Services\DepartmentUserAuthority::class)->isDepartmentAdmin(auth()->user()))
                             {{-- The Department Admin's menu, in the order the business set
                                  (2026-11-04): Post Mapping, Create New Pre-DPC, User

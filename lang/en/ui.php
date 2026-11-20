@@ -436,14 +436,6 @@ return [
             'active_review' => 'Active Review',
             'superseded_review' => 'Superseded Review',
         ],
-        'self_inspection_factor' => [
-            'name' => 'Name (as recorded by your department)',
-            'dob' => 'Date of Birth',
-            'date_of_posting_on_promotion_to_post' => 'Date of Joining Promotion To Post',
-            'date_of_posting_on_promotion_from_post' => 'Date of Joining Promotion From Post',
-            'date_of_joining_service' => 'Date of Joining Service',
-            'employee_number' => 'Employee ID',
-        ],
     ],
     // Labels that were written in English in the views (2026-10-31).
     'screen' => [

@@ -12,9 +12,12 @@ use App\Domain\CandidateVerification\Models\Grievance;
 use App\Domain\CandidateVerification\Models\VerificationParticipant;
 use App\Domain\CandidateVerification\Models\VerificationSnapshot;
 use App\Domain\CandidateVerification\Services\CandidateAuthenticator;
+use App\Domain\CandidateVerification\Services\CandidateOutcome;
 use App\Domain\CandidateVerification\Services\CandidateRecordView;
 use App\Domain\CandidateVerification\Services\CandidateSession;
+use App\Domain\CandidateVerification\Services\CandidateSignIn;
 use App\Domain\CandidateVerification\Services\CandidateVerificationService;
+use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\Shared\Workflow\WorkflowException;
 use App\Enums\Feature;
 use App\Http\Controllers\Controller;
@@ -54,7 +57,7 @@ class CandidateVerificationController extends Controller
 
     public function login(Request $request): View|RedirectResponse
     {
-        if ($this->session->participants($request) !== null) {
+        if ($this->session->rows($request) !== null) {
             return redirect()->route('candidate-verification.dashboard');
         }
 
@@ -103,9 +106,10 @@ class CandidateVerificationController extends Controller
         $request->session()->forget(self::MOBILE);
 
         if (count($groups) === 1) {
-            $this->session->start($request, array_values($groups)[0]);
+            // The officer is known: their eSign checks the name before the portal opens.
+            $this->session->awaitSignature($request, array_values($groups)[0]);
 
-            return redirect()->route('candidate-verification.dashboard');
+            return redirect()->route('candidate-verification.sign-in');
         }
 
         // A shared mobile: the Employee ID decides, never the first officer found.
@@ -116,14 +120,14 @@ class CandidateVerificationController extends Controller
 
     public function identifyForm(Request $request): View|RedirectResponse
     {
-        return $this->session->pendingParticipants($request) === null
+        return $this->session->pendingRows($request) === null
             ? redirect()->route('candidate-verification.login')
             : view('candidate-verification.identify');
     }
 
     public function identify(Request $request, SecurityLog $security): RedirectResponse
     {
-        $pending = $this->session->pendingParticipants($request);
+        $pending = $this->session->pendingRows($request);
         if ($pending === null) {
             return redirect()->route('candidate-verification.login')->withErrors(['mobile' => __('candidate.verification.login.expired')]);
         }
@@ -137,7 +141,66 @@ class CandidateVerificationController extends Controller
             return back()->withErrors(['employee_number' => __('candidate.verification.login.identify_failed')]);
         }
 
-        $this->session->start($request, $chosen);
+        $this->session->awaitSignature($request, $chosen);
+
+        return redirect()->route('candidate-verification.sign-in');
+    }
+
+    /**
+     * The sign-in's eSign (2026-11-20): the name on the certificate is checked against
+     * the candidate's account before the portal opens. The simulator's screen outside
+     * production while CSC DigiSign is off; the provider itself otherwise.
+     */
+    public function signInForm(Request $request, CandidateSignIn $signIn): View|RedirectResponse
+    {
+        $rows = $this->session->signatureRows($request);
+        if ($rows === null) {
+            return redirect()->route('candidate-verification.login')->withErrors(['mobile' => __('candidate.verification.login.expired')]);
+        }
+
+        if (! $this->simulated()) {
+            return $this->completeSignIn($request, $signIn, $rows);
+        }
+
+        return view('candidate-verification.sign-in', [
+            'name' => (string) DpcEvaluationRow::query()->whereIn('id', $rows)->value('name'),
+        ]);
+    }
+
+    public function signIn(Request $request, CandidateSignIn $signIn): RedirectResponse
+    {
+        abort_unless($this->simulated(), 404);
+        $rows = $this->session->signatureRows($request);
+        if ($rows === null) {
+            return redirect()->route('candidate-verification.login')->withErrors(['mobile' => __('candidate.verification.login.expired')]);
+        }
+
+        if ($request->input('decision') !== 'sign') {
+            $this->session->end($request);
+
+            return redirect()->route('candidate-verification.login')->withErrors(['mobile' => __('candidate.verification.login.esign_cancelled')]);
+        }
+
+        $name = trim((string) $request->validate(['name' => ['required', 'string', 'max:255']])['name']);
+        app()->instance(MockSignatureProvider::SIMULATED_NAME, $name);
+
+        try {
+            return $this->completeSignIn($request, $signIn, $rows);
+        } finally {
+            app()->forgetInstance(MockSignatureProvider::SIMULATED_NAME);
+        }
+    }
+
+    /** @param list<int> $rows */
+    private function completeSignIn(Request $request, CandidateSignIn $signIn, array $rows): RedirectResponse
+    {
+        try {
+            $signIn->sign($rows);
+        } catch (WorkflowException $e) {
+            return redirect()->route('candidate-verification.sign-in')->withErrors(['name' => $e->getMessage()]);
+        }
+
+        $this->session->start($request, $rows);
 
         return redirect()->route('candidate-verification.dashboard');
     }
@@ -152,16 +215,38 @@ class CandidateVerificationController extends Controller
 
     // ----------------------------------------------------------- the candidate's own
 
-    public function dashboard(Request $request): View|RedirectResponse
+    public function dashboard(Request $request, CandidateOutcome $outcome): View|RedirectResponse
     {
+        $rows = $this->session->rows($request);
         $participants = $this->session->participants($request);
-        if ($participants === null) {
+        if ($rows === null || $participants === null) {
             return $this->expired();
         }
 
+        // Every DPC of theirs the portal shows — open, under review or concluded —
+        // with its verification where there is one, its stage and, once published, the result.
         return view('candidate-verification.dashboard', [
-            'participants' => $participants,
+            'rows' => $rows,
+            'participants' => $participants->keyBy('dpc_evaluation_row_id'),
             'decisions' => $participants->mapWithKeys(fn (VerificationParticipant $p): array => [$p->id => $this->verification->decisions($p)]),
+            'stages' => $rows->mapWithKeys(fn (DpcEvaluationRow $row): array => [$row->id => $outcome->stage($row)]),
+            'results' => $rows->mapWithKeys(fn (DpcEvaluationRow $row): array => [$row->id => $outcome->result($row)]),
+        ]);
+    }
+
+    /** A DPC of the candidate's with no verification of theirs (an older one): read only. */
+    public function record(Request $request, int $row, string $section): View|RedirectResponse
+    {
+        if ($this->session->rows($request) === null) {
+            return $this->expired();
+        }
+        $own = $this->session->row($request, $row) ?? throw new NotFoundHttpException;
+        $section = $this->sectionOf($section);
+
+        return view('candidate-verification.record', [
+            'row' => $own,
+            'section' => $section,
+            'data' => $this->view->section($own, $section),
         ]);
     }
 
@@ -208,6 +293,12 @@ class CandidateVerificationController extends Controller
             return $this->expired();
         }
         $section = $this->sectionOf($section);
+
+        // Only while the candidate may still act: after their submission or the deadline
+        // the grievance screen is gone, and the section reads only (2026-11-20).
+        if (! CandidateOutcome::actionable($own)) {
+            return redirect()->route('candidate-verification.section', [$own->uuid, $section->value]);
+        }
 
         return view('candidate-verification.grievance', [
             'participant' => $own,

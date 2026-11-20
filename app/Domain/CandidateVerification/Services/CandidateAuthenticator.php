@@ -6,16 +6,18 @@ namespace App\Domain\CandidateVerification\Services;
 
 use App\Domain\Authentication\Services\OtpService;
 use App\Domain\Authentication\Services\SecurityLog;
-use App\Domain\CandidateVerification\Models\VerificationParticipant;
+use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Enums\OtpChannel;
 use App\Enums\OtpPurpose;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 
 /**
- * Candidate sign-in by registered mobile number and OTP (2026-11-19), on the
- * application's own OTP service (expiry, resend cooldown, hourly limit, attempts; the
- * code is stored hashed and never logged) and the SMS gateway behind it.
+ * Candidate sign-in to the Candidate Portal (2026-11-19; one portal since 2026-11-20):
+ * the registered mobile number and an OTP, on the application's own OTP service
+ * (expiry, resend cooldown, hourly limit, attempts; the code is stored hashed and
+ * never logged) — then the candidate's eSign, which checks their name, before the
+ * portal opens (the controller's step).
  *
  * The screen answers the same whether or not the number is registered, so it tells no
  * one which numbers exist; a number that is not is recorded as a failed attempt. A
@@ -37,17 +39,18 @@ final class CandidateAuthenticator
     }
 
     /**
-     * Every verification the mobile is registered on, any DPC.
+     * Every Seniority List row the mobile is registered on, on a DPC the portal shows
+     * (CandidateSession::VISIBLE): any DPC, open or long concluded.
      *
-     * @return Collection<int, VerificationParticipant>
+     * @return Collection<int, DpcEvaluationRow>
      */
-    public function participantsFor(string $mobile): Collection
+    public function rowsFor(string $mobile): Collection
     {
-        return VerificationParticipant::query()
-            ->whereHas('row', fn ($q) => $q->where('mobile', 'like', '%'.substr($mobile, -4)))
-            ->with('row')
+        return DpcEvaluationRow::query()
+            ->where('mobile', 'like', '%'.substr($mobile, -4))
+            ->whereHas('proposal', fn ($q) => $q->whereIn('status', CandidateSession::VISIBLE))
             ->get()
-            ->filter(fn (VerificationParticipant $p): bool => self::normaliseMobile((string) $p->row->mobile) === $mobile)
+            ->filter(fn (DpcEvaluationRow $row): bool => self::normaliseMobile((string) $row->mobile) === $mobile)
             ->values()
             ->toBase();
     }
@@ -60,7 +63,7 @@ final class CandidateAuthenticator
     {
         $normalised = self::normaliseMobile($mobile);
 
-        if ($normalised === null || $this->participantsFor($normalised)->isEmpty()) {
+        if ($normalised === null || $this->rowsFor($normalised)->isEmpty()) {
             $this->security->record('candidate_verification.unknown_mobile', null, $request, ['mobile_tail' => $normalised === null ? null : substr($normalised, -4)]);
 
             return;
@@ -70,10 +73,10 @@ final class CandidateAuthenticator
     }
 
     /**
-     * The verifications a correct code opens, grouped by officer: one group signs in,
-     * several ask for the Employee ID. Null when the code fails.
+     * The rows a correct code opens, grouped by officer: one group goes on to the
+     * eSign, several ask for the Employee ID first. Null when the code fails.
      *
-     * @return array<string, list<int>>|null identity => participant ids
+     * @return array<string, list<int>>|null identity => row ids
      */
     public function verify(string $mobile, string $code, Request $request): ?array
     {
@@ -86,8 +89,8 @@ final class CandidateAuthenticator
         }
 
         $groups = [];
-        foreach ($this->participantsFor($normalised) as $participant) {
-            $groups[self::identity($participant)][] = $participant->id;
+        foreach ($this->rowsFor($normalised) as $row) {
+            $groups[self::identity($row)][] = (int) $row->id;
         }
 
         return $groups;
@@ -96,23 +99,23 @@ final class CandidateAuthenticator
     /**
      * The officer among several on one mobile whose Employee ID was typed.
      *
-     * @param  list<int>  $participantIds
+     * @param  list<int>  $rowIds
      * @return list<int>
      */
-    public function choose(array $participantIds, string $employeeNumber): array
+    public function choose(array $rowIds, string $employeeNumber): array
     {
         $wanted = 'employee:'.mb_strtoupper(trim($employeeNumber));
 
-        return VerificationParticipant::query()->whereIn('id', $participantIds)->with('row')->get()
-            ->filter(fn (VerificationParticipant $p): bool => trim($employeeNumber) !== '' && self::identity($p) === $wanted)
+        return DpcEvaluationRow::query()->whereIn('id', $rowIds)->get()
+            ->filter(fn (DpcEvaluationRow $row): bool => trim($employeeNumber) !== '' && self::identity($row) === $wanted)
             ->pluck('id')->map(fn ($id): int => (int) $id)->values()->all();
     }
 
     /** One officer: their Employee ID, or — with none — only their own Seniority List row. */
-    public static function identity(VerificationParticipant $participant): string
+    public static function identity(DpcEvaluationRow $row): string
     {
-        $employee = trim((string) $participant->row->employee_number);
+        $employee = trim((string) $row->employee_number);
 
-        return $employee === '' ? 'row:'.$participant->dpc_evaluation_row_id : 'employee:'.mb_strtoupper($employee);
+        return $employee === '' ? 'row:'.$row->id : 'employee:'.mb_strtoupper($employee);
     }
 }

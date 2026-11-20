@@ -9,6 +9,7 @@ use App\Domain\Authentication\Exceptions\OtpThrottled;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Identity\Services\IdentityVerificationService;
 use App\Enums\OtpPurpose;
+use App\Enums\Role;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -32,7 +33,6 @@ class SignInFlow
     public function __construct(
         private readonly IdentityVerificationService $identity,
         private readonly VerificationService $verification,
-        private readonly SessionSignIn $signIn,
         private readonly SecurityLog $log,
     ) {}
 
@@ -50,6 +50,18 @@ class SignInFlow
 
     public function begin(Request $request, User $user): RedirectResponse
     {
+        /*
+         | A Promotion Candidate and nothing else signs in on the Candidate Portal —
+         | mobile, OTP and eSign — never here with a password (2026-11-20): the
+         | candidate has one login. The account stays; it is the candidate's eSign
+         | signer there.
+         */
+        if ($this->candidateOnly($user)) {
+            $this->log->record('login.refused_candidate_portal', $user, $request);
+
+            throw ValidationException::withMessages(['login' => __('authui.login.candidate_use_portal')])->redirectTo(route('login'));
+        }
+
         $request->session()->put(self::PENDING_KEY, [
             'user_id' => $user->id,
             'purpose' => OtpPurpose::Login->value,
@@ -83,22 +95,15 @@ class SignInFlow
         return $user instanceof User && $user->is_active ? $user : null;
     }
 
+    private function candidateOnly(User $user): bool
+    {
+        return $user->grantedRoleNames() === [Role::PromotionCandidate->value];
+    }
+
     private function challenge(Request $request, User $user): RedirectResponse
     {
-        /*
-         | An account the portal cannot reach by any channel cannot be challenged.
-         | It is refused — except, while `dpc.auth.candidate_password_only` is
-         | switched on (it is off by default and must be approved to be switched on),
-         | a Promotion Candidate's read-only account.
-         */
+        // An account the portal cannot reach by any channel cannot be challenged: refused.
         if (! $this->verification->canChallenge($user)) {
-            if ((bool) config('dpc.auth.candidate_password_only', false) && $this->verification->mayProceedWithoutChallenge($user)) {
-                $request->session()->forget(self::PENDING_KEY);
-                $this->signIn->complete($request, $user, 'no_channel_candidate');
-
-                return redirect()->intended(route('dashboard'));
-            }
-
             $request->session()->forget(self::PENDING_KEY);
             $this->log->record('login.refused_no_channel', $user, $request);
 

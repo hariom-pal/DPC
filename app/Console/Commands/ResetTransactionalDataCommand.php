@@ -174,7 +174,6 @@ class ResetTransactionalDataCommand extends Command
         'signatures',
         'audits',
         'user_notifications',
-        'self_inspection_accesses',
 
         // Issued numbers: a fresh installation starts at 0001 again.
         'dpc_id_sequences',

@@ -34,7 +34,6 @@ use App\Domain\Master\Models\ReservationCategory;
 use App\Domain\PreDpc\Models\PreDpcProposal;
 use App\Domain\Shared\Workflow\WorkflowException;
 use App\Domain\Shared\Workflow\WorkflowTransition;
-use App\Domain\UserManagement\Services\PromotionCandidateProvisioner;
 use App\Enums\MasterStatus;
 use App\Http\Controllers\Controller;
 use Illuminate\Contracts\View\View;
@@ -73,7 +72,6 @@ class DpcProposalController extends Controller
         private readonly CommitteeRuleResolver $committeeRules,
         private readonly CommitteeMemberDirectory $directory,
         private readonly CgpscChairmanService $chairmen,
-        private readonly PromotionCandidateProvisioner $candidateAccounts,
         private readonly ProposalVerificationService $verification,
         private readonly ProposalAllotmentService $allotments,
     ) {}
@@ -399,51 +397,12 @@ class DpcProposalController extends Controller
             $request->filled('seniority_list_as_on') ? Carbon::parse((string) $request->validated('seniority_list_as_on')) : null,
         );
 
-        /*
-         | Flashed, not shown inline: saving redirects, and the temporary passwords
-         | are recoverable from nowhere else. An account created and never handed
-         | over is an officer who cannot sign in, which is how item 17's login went
-         | unusable in production until 2026-08-25.
-         */
+        // Flashed: what saving did to the candidates' accounts (their eSign signers on
+        // the Candidate Portal) — officers it could not create one for need the department.
         return redirect()
             ->route('dpc-proposals.show', $dpcProposal)
             ->with('status', __('dpc.seniority_list.saved'))
             ->with('candidateAccounts', $this->service->lastCandidateProvisioning());
-    }
-
-    /**
-     * Reissue a Promotion Candidate's temporary password (suggestion 4).
-     *
-     * Gated by `update` on the *proposal*, so the department that named the officer
-     * is the department that can reissue for them — and once the proposal is
-     * submitted, nobody can, which is the same rule as every other section.
-     */
-    public function reissueCandidatePassword(Request $request, DpcProposal $dpcProposal): RedirectResponse
-    {
-        $this->authorize('update', $dpcProposal);
-
-        $validated = $request->validate([
-            'employee_number' => ['required', 'string', 'max:60'],
-        ]);
-
-        try {
-            $password = $this->candidateAccounts->reissuePassword(
-                $dpcProposal,
-                $validated['employee_number'],
-                $request->user(),
-            );
-        } catch (RuntimeException $e) {
-            return back()->withErrors(['employee_number' => $e->getMessage()]);
-        }
-
-        // Flashed in the same shape the provisioning panel already renders, so one
-        // partial shows a new account and a reissued one alike.
-        return back()->with('candidateAccounts', [
-            'created' => [$validated['employee_number'] => $password],
-            'reused' => [],
-            'skipped' => [],
-            'conflicts' => [],
-        ]);
     }
 
     public function evaluationChart(Request $request, DpcProposal $dpcProposal): View

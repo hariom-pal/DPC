@@ -86,26 +86,6 @@ class SecurityHeadersTest extends TestCase
     }
 
     /**
-     * The first screen written after the policy existed, and the pattern the rest
-     * of the application was brought round to.
-     *
-     * It was the only CSP-clean view for a while and this test was what said so.
-     * Since TD-29 closed, **every** view is clean and
-     * {@see ViewsAreCspCleanTest} enforces that across the
-     * whole of `resources/views`. This case is kept because it names the pattern —
-     * behaviour in a file, nothing inline — on the screen it started on.
-     */
-    public function test_the_self_inspection_print_view_uses_no_inline_script(): void
-    {
-        $view = (string) file_get_contents(resource_path('views/self-inspection/print.blade.php'));
-
-        $this->assertStringNotContainsString('onclick=', $view);
-        $this->assertStringNotContainsString('<script>', $view);
-        $this->assertStringContainsString('self-inspection-print.js', $view);
-        $this->assertFileExists(public_path('js/self-inspection-print.js'));
-    }
-
-    /**
      * Inline styles are needed — several views set element widths inline, the
      * report bars among them — and inline scripts are not. An inline-script
      * allowance is what turns a reflected string into executable code.

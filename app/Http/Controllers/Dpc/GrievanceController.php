@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Dpc;
 
+use App\Domain\CandidateVerification\Enums\CycleStatus;
 use App\Domain\CandidateVerification\Enums\GrievanceDecision;
 use App\Domain\CandidateVerification\Enums\GrievanceStatus;
 use App\Domain\CandidateVerification\Enums\VerificationSection;
@@ -36,6 +37,9 @@ class GrievanceController extends Controller
     {
         $this->authorize('view', $dpcProposal);
         $cycle = VerificationCycle::query()->where('dpc_proposal_id', $dpcProposal->id)->first();
+        // Nothing of the grievances while the candidates' period runs (2026-11-20): every
+        // candidate has until the deadline, and the AH sees them all together after it.
+        abort_if($cycle === null || $cycle->status === CycleStatus::Open, 404);
 
         $filters = $request->validate([
             'section' => ['nullable', Rule::enum(VerificationSection::class)],
@@ -43,7 +47,7 @@ class GrievanceController extends Controller
             'candidate' => ['nullable', 'string', 'max:120'],
         ]);
 
-        $grievances = $cycle === null ? collect() : Grievance::query()
+        $grievances = Grievance::query()
             ->where('dpc_verification_cycle_id', $cycle->id)
             ->where('status', '!=', GrievanceStatus::Draft->value)
             ->when($filters['section'] ?? null, fn ($q, $s) => $q->where('section', $s))
@@ -58,14 +62,14 @@ class GrievanceController extends Controller
             'cycle' => $cycle,
             'grievances' => $grievances,
             'filters' => $filters,
-            'counts' => $cycle === null ? [] : [
+            'counts' => [
                 'submitted' => $cycle->participants()->whereNotNull('submitted_at')->count(),
                 'no_response' => $cycle->participants()->where('status', 'no_response')->count(),
                 'grievances' => Grievance::query()->where('dpc_verification_cycle_id', $cycle->id)->where('status', '!=', GrievanceStatus::Draft->value)->count(),
             ],
-            'notifications' => $cycle === null ? [] : VerificationNotification::query()->where('dpc_verification_cycle_id', $cycle->id)
+            'notifications' => VerificationNotification::query()->where('dpc_verification_cycle_id', $cycle->id)
                 ->selectRaw('status, count(*) as n')->groupBy('status')->pluck('n', 'status')->all(),
-            'corrections' => $cycle === null ? collect() : GrievanceCorrection::query()->where('status', GrievanceCorrection::OPEN)
+            'corrections' => GrievanceCorrection::query()->where('status', GrievanceCorrection::OPEN)
                 ->whereHas('grievance', fn ($q) => $q->where('dpc_verification_cycle_id', $cycle->id))->with('grievance.participant.row')->get(),
         ]);
     }
@@ -119,7 +123,7 @@ class GrievanceController extends Controller
     {
         $this->authorize('view', $dpcProposal);
         $this->assertBelongs($dpcProposal, $grievance);
-        abort_if($grievance->status === GrievanceStatus::Draft || ! Storage::disk($grievance->disk)->exists($grievance->path), 404);
+        abort_if($grievance->cycle->status === CycleStatus::Open || $grievance->status === GrievanceStatus::Draft || ! Storage::disk($grievance->disk)->exists($grievance->path), 404);
 
         return Storage::disk($grievance->disk)->download($grievance->path, $grievance->original_name);
     }

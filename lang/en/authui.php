@@ -66,7 +66,8 @@ return [
         'remember_me_on_this_device' => 'Remember me on this device',
         'signing_in' => 'Signing in',
         'trouble_signing_in_contact_your_department_s_nod' => 'Trouble signing in? Contact your department\'s nodal officer.',
-        'view_your_own_data' => 'Verify your record or raise a grievance',
+        'view_your_own_data' => 'Sign in to the Candidate Portal',
+        'candidate_use_portal' => 'Candidates sign in on the Candidate Portal with their mobile number, OTP and eSign, not here.',
     ],
     'register' => [
         'aadhaar' => 'Aadhaar No.',

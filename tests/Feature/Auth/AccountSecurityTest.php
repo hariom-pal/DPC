@@ -156,16 +156,11 @@ class AccountSecurityTest extends TestCase
         $candidate = User::factory()->create(['email' => null, 'mobile' => null, 'employee_number' => 'EMP-10', 'must_change_password' => false]);
         $candidate->assignRole(Role::PromotionCandidate->value);
 
-        // Off by default: the candidate is refused like anyone else …
-        $this->post(route('login.store'), ['login' => 'EMP-10', 'password' => 'password'])->assertSessionHasErrors('login');
+        // A candidate never signs in here (2026-11-20): the Candidate Portal is their one login.
+        $this->post(route('login.store'), ['login' => 'EMP-10', 'password' => 'password'])
+            ->assertSessionHasErrors(['login' => __('authui.login.candidate_use_portal')]);
         $this->assertGuest();
-
-        // … and signs in with the password alone only while the owner switches it on.
-        config(['dpc.auth.candidate_password_only' => true]);
-
-        $this->post(route('login.store'), ['login' => 'EMP-10', 'password' => 'password'])->assertRedirect(route('dashboard'));
-        $this->assertAuthenticatedAs($candidate);
-        $this->assertDatabaseHas('security_events', ['user_id' => $candidate->id, 'event' => 'login.succeeded']);
+        $this->assertDatabaseHas('security_events', ['user_id' => $candidate->id, 'event' => 'login.refused_candidate_portal']);
     }
 
     // -------------------------------------------------------- deactivation

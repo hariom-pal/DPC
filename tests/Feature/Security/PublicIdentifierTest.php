@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Tests\Feature\Security;
 
 use App\Domain\Authentication\Models\User;
+use App\Domain\CandidateVerification\Models\VerificationCycle;
 use App\Domain\Department\Models\Department;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Master\Models\DepartmentPost;
 use App\Domain\PreDpc\Models\PreDpcProposal;
-use App\Domain\SelfInspection\Models\SelfInspectionAccess;
 use App\Domain\Shared\Workflow\WorkflowTransition;
 use App\Enums\Role;
 use Database\Seeders\LookupMasterSeeder;
@@ -108,7 +108,7 @@ class PublicIdentifierTest extends TestCase
         // Evidence rows and per-user access records are reached through their
         // parent aggregate, never addressed directly. If something arrives here
         // that ought to have a screen of its own, that is the thing to notice.
-        $this->assertContains(SelfInspectionAccess::class, $unrouted);
+        $this->assertContains(VerificationCycle::class, $unrouted);
     }
 
     /**

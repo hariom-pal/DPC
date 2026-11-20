@@ -49,7 +49,7 @@ final class PublicHeaderTest extends TestCase
      */
     public function test_no_public_page_links_to_registration(): void
     {
-        foreach (['/', route('login'), route('self-inspection.landing')] as $page) {
+        foreach (['/', route('login'), route('candidate-verification.login')] as $page) {
             $this->get($page)
                 ->assertOk()
                 ->assertDontSee('href="'.route('register').'"', false)

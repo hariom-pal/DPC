@@ -92,7 +92,6 @@ final class UatCleanupPlan
         'signatures' => 'Digital signatures (and their stored copies)',
         'audits' => 'Model audit trail of the test period',
         'user_notifications' => 'In-app notifications',
-        'self_inspection_accesses' => 'Self-inspection access log',
         'dpc_id_sequences' => 'Issued DPC / Pre-DPC numbers, so numbering restarts',
 
         // Transient authentication and queue state.
