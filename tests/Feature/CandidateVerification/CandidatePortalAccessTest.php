@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\CandidateVerification;
 
+use App\Domain\Authentication\Models\OtpVerification;
 use App\Domain\Authentication\Models\User;
 use App\Domain\CandidateVerification\Models\Grievance;
 use App\Domain\CandidateVerification\Services\CandidateSignIn;
@@ -46,6 +47,32 @@ class CandidatePortalAccessTest extends TestCase
         auth()->logout();
         $this->post(route('candidate-verification.code.send'), ['mobile' => $this->mobileOf($sn)]);
         $this->post(route('candidate-verification.verify'), ['code' => '123456'])->assertRedirect(route('candidate-verification.sign-in'));
+    }
+
+    public function test_the_otp_screen_resends_a_code_and_lets_the_number_be_changed(): void
+    {
+        $this->approveByAh()->assertSessionHasNoErrors();
+        auth()->logout();
+        $this->post(route('candidate-verification.code.send'), ['mobile' => $this->mobileOf(1)]);
+        $this->get(route('candidate-verification.code'))->assertOk()
+            ->assertSee(__('candidate.verification.login.sent_to', ['tail' => substr($this->mobileOf(1), -4)]))
+            ->assertSee(route('candidate-verification.code.resend'), false)
+            ->assertSee(__('candidate.verification.login.change_number'));
+
+        // At once: the cooldown, no second code.
+        $this->post(route('candidate-verification.code.resend'))->assertRedirect(route('candidate-verification.code'))
+            ->assertSessionHas('status', __('candidate.verification.login.wait'));
+        $this->assertSame(1, OtpVerification::query()->count());
+
+        // After it: a new code, which signs in.
+        Carbon::setTestNow(now()->addMinutes(2));
+        $this->post(route('candidate-verification.code.resend'))->assertSessionHas('status', __('candidate.verification.login.sent'));
+        $this->assertSame(2, OtpVerification::query()->count());
+        $this->post(route('candidate-verification.verify'), ['code' => '123456'])->assertRedirect(route('candidate-verification.sign-in'));
+
+        // Without a number entered first: back to the start.
+        $this->app['session.store']->flush();
+        $this->post(route('candidate-verification.code.resend'))->assertRedirect(route('candidate-verification.login'));
     }
 
     public function test_the_portal_opens_only_after_the_esign_matches_the_name(): void
@@ -102,6 +129,8 @@ class CandidatePortalAccessTest extends TestCase
             ->assertDontSee('data-participant=', false)
             ->assertSee(route('candidate-verification.record', [$own->id, 'seniority']), false)
             ->assertSee(__('candidate.verification.dashboard.read_only'))
+            ->assertSee(__('candidate.verification.dashboard.group_other'))
+            ->assertDontSee(__('candidate.verification.dashboard.group_open'))
             ->assertSee($this->proposal->fresh()->status->label());
 
         foreach (['seniority', 'cr', 'integrity', 'ipr'] as $section) {

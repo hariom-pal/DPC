@@ -91,7 +91,28 @@ class CandidateVerificationController extends Controller
             return redirect()->route('candidate-verification.login');
         }
 
-        return view('candidate-verification.code');
+        $mobile = (string) $request->session()->get(self::MOBILE, '');
+
+        return view('candidate-verification.code', ['tail' => $mobile === '' ? null : substr($mobile, -4)]);
+    }
+
+    /** A new code to the number already entered (2026-11-20); the same answers as the first request. */
+    public function resendCode(Request $request): RedirectResponse
+    {
+        $mobile = (string) $request->session()->get(self::MOBILE, '');
+        if ($mobile === '') {
+            return redirect()->route('candidate-verification.login');
+        }
+
+        try {
+            $this->auth->requestCode($mobile, $request);
+        } catch (OtpThrottled) {
+            return redirect()->route('candidate-verification.code')->with('status', __('candidate.verification.login.wait'));
+        } catch (OtpDeliveryFailed) {
+            return redirect()->route('candidate-verification.code')->withErrors(['code' => __('candidate.verification.login.unavailable')]);
+        }
+
+        return redirect()->route('candidate-verification.code')->with('status', __('candidate.verification.login.sent'));
     }
 
     public function verify(Request $request): RedirectResponse

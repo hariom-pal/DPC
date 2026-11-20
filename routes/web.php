@@ -161,6 +161,7 @@ Route::prefix('candidate-verification')->name('candidate-verification.')->group(
     Route::get('/', [CandidateVerificationController::class, 'login'])->name('login');
     Route::post('/code', [CandidateVerificationController::class, 'sendCode'])->middleware('throttle:self-inspection')->name('code.send');
     Route::get('/code', [CandidateVerificationController::class, 'codeForm'])->name('code');
+    Route::post('/code/resend', [CandidateVerificationController::class, 'resendCode'])->middleware('throttle:self-inspection')->name('code.resend');
     Route::post('/verify', [CandidateVerificationController::class, 'verify'])->middleware('throttle:otp-verify')->name('verify');
     Route::get('/identify', [CandidateVerificationController::class, 'identifyForm'])->name('identify');
     Route::post('/identify', [CandidateVerificationController::class, 'identify'])->middleware('throttle:otp-verify')->name('identify.store');

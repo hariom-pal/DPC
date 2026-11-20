@@ -3,7 +3,19 @@
 @section('content')
     @include('candidate-verification.partials.shell-start', ['signedIn' => true])
     <h2 class="h6 mb-3">{{ __('candidate.verification.dashboard.heading') }}</h2>
-    @forelse ($rows as $row)
+    @php
+        // Two groups (2026-11-20): the DPCs whose verification is open now, and every
+        // other DPC of the candidate's — under review, with the Commission or concluded — read only.
+        [$openRows, $otherRows] = $rows->partition(fn ($row) => $participants->get($row->id)?->cycle?->acceptsSubmissions() === true);
+    @endphp
+    @if ($rows->isEmpty())
+        <div class="gov-card p-3">{{ __('candidate.verification.dashboard.none') }}</div>
+    @endif
+    @foreach ([['open', $openRows], ['other', $otherRows]] as [$group, $groupRows])
+    @if ($groupRows->isNotEmpty())
+    <h3 class="h6 text-body-secondary mt-3 mb-2" id="dpc-group-{{ $group }}">{{ __('candidate.verification.dashboard.group_'.$group) }} ({{ $groupRows->count() }})</h3>
+    @endif
+    @foreach ($groupRows as $row)
         @php
             $participant = $participants->get($row->id);
             $cycle = $participant?->cycle;
@@ -46,8 +58,7 @@
                 <div class="small text-body-secondary mt-1">{{ __('candidate.verification.dashboard.read_only') }}</div>
             @endif
         </div>
-    @empty
-        <div class="gov-card p-3">{{ __('candidate.verification.dashboard.none') }}</div>
-    @endforelse
+    @endforeach
+    @endforeach
     @include('candidate-verification.partials.shell-end')
 @endsection
