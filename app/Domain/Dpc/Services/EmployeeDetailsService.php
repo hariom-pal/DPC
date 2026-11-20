@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Dpc\Services;
 
 use App\Domain\Authentication\Models\User;
+use App\Domain\CandidateVerification\Services\GrievanceReviewService;
 use App\Domain\Dpc\Enums\DpcProposalStatus;
 use App\Domain\Dpc\Enums\EvaluationDocumentKind;
 use App\Domain\Dpc\Enums\PhReservationOutcome;
@@ -1423,7 +1424,10 @@ class EmployeeDetailsService
 
         // The DPC Chairman's own edits at the sitting (2026-11-18): who may is the
         // policy's to decide (DpcProposalPolicy::editAtSitting); this is the state.
-        if (! $proposal->status->isEditable() && ! app(ChairmanSittingEdit::class)->windowOpen($proposal)) {
+        // …and the officer the AH opened for an AO correction after a grievance (2026-11-19).
+        $grievanceCorrection = $proposal->status === DpcProposalStatus::GrievanceReview && app(GrievanceReviewService::class)->correctionOpen($row);
+
+        if (! $proposal->status->isEditable() && ! app(ChairmanSittingEdit::class)->windowOpen($proposal) && ! $grievanceCorrection) {
             throw new WorkflowException(__('dpc.employee_details.not_editable'));
         }
     }

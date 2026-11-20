@@ -6,6 +6,7 @@ namespace App\Domain\Dpc\Policies;
 
 use App\Domain\Allotment\Services\ProposalAllotmentService;
 use App\Domain\Authentication\Models\User;
+use App\Domain\CandidateVerification\Services\GrievanceReviewService;
 use App\Domain\Dpc\Enums\DpcProposalStatus;
 use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\Dpc\Models\DpcProposal;
@@ -145,6 +146,14 @@ class DpcProposalPolicy
         // The DPC Chairman, at the sitting itself: every section of every candidate (2026-11-18).
         if ($this->editAtSitting($user, $proposal)) {
             return true;
+        }
+
+        // A candidate's grievance (2026-11-19): only the officer and the section the AH
+        // opened, by the DPC's AO, while that correction is open. Documents go with it.
+        if ($proposal->status === DpcProposalStatus::GrievanceReview) {
+            return $row !== null
+                && $this->allotments->isAllotted($user, $proposal, Role::AuthorizedOfficer)
+                && app(GrievanceReviewService::class)->correctionOpen($row, $section === 'documents' ? null : $section);
         }
 
         $sections = $proposal->committeeReturnSections();

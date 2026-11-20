@@ -111,6 +111,7 @@
 
             @include('dpc-proposals._next-process')
             @include('dpc-proposals._committee-return')
+            @include('dpc-proposals.sections._candidate-verification')
 
             {{-- MoM of 16 November 2026, point 9: the AH and every authority after. --}}
             @can('viewRecords', $proposal)

@@ -7,6 +7,7 @@ namespace App\Domain\Dpc\Services;
 use App\Domain\Allotment\Services\ProposalAllotmentService;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Authentication\Services\SecurityLog;
+use App\Domain\CandidateVerification\Services\VerificationCycleService;
 use App\Domain\Dpc\Enums\DpcProposalStatus;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Models\DpcWorkingOfficer;
@@ -727,6 +728,9 @@ class DpcProposalService
             throw new WorkflowException(__('dpc.employee_details.ph.claims_pending', ['count' => $claims]));
         }
 
+        // The candidates' verification needs its days set before anything is signed (2026-11-19).
+        app(VerificationCycleService::class)->assertCanOpen($proposal);
+
         try {
             DB::transaction(function () use ($proposal, $actor, $request): void {
                 $this->approveSigned($proposal, $actor, $request);
@@ -750,7 +754,12 @@ class DpcProposalService
     {
         $locked = $this->lock($proposal);
         $from = $locked->status->value;
-        $def = $this->engine->assertAllowed('dpc_proposal', 'approve', $from, $actor);
+        // The candidates verify their records before the Secretary sees the DPC — once
+        // per DPC (2026-11-19); otherwise, and on a later approval, straight to the Secretary.
+        $verification = app(VerificationCycleService::class);
+        $opensVerification = $verification->opensOn($locked);
+        $event = $opensVerification ? 'approve_to_verification' : 'approve';
+        $def = $this->engine->assertAllowed('dpc_proposal', $event, $from, $actor);
 
         if (! $this->allotments->isAllotted($actor, $locked, Role::AdministrativeHead)) {
             throw new WorkflowException((string) __('esign.errors.not_current_officer'));
@@ -772,7 +781,7 @@ class DpcProposalService
         // The AH's approval sends the DPC to the Secretary, CGPSC, not yet to the
         // Chairman (2026-11-14): it is forwarded when the Secretary approves it.
         $locked->forceFill([
-            'status' => DpcProposalStatus::PendingSecretary->value,
+            'status' => ($opensVerification ? DpcProposalStatus::CandidateVerification : DpcProposalStatus::PendingSecretary)->value,
             'approved_by' => $actor->id,
             'approved_at' => now(),
             'signature_id' => $signature->id,
@@ -784,9 +793,14 @@ class DpcProposalService
 
         $this->revisions->recordApproval($locked);
 
+        if ($opensVerification) {
+            $verification->open($locked, $actor);
+        }
+
         $this->engine->record(
-            $locked, 'dpc_proposal', 'approve', $from, $def, $actor, $request, null, $signature->id, $locked->department_id,
-            notifyUserIds: $this->activeUserIdsWithRole(Role::Secretary),
+            $locked, 'dpc_proposal', $event, $from, $def, $actor, $request, null, $signature->id, $locked->department_id,
+            // The Secretary hears of it once the verification lets it through.
+            notifyUserIds: $opensVerification ? [] : $this->activeUserIdsWithRole(Role::Secretary),
         );
     }
 

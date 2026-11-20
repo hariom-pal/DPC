@@ -15,6 +15,15 @@ enum DpcProposalStatus: string
     case Approved = 'approved';
     case Cancelled = 'cancelled';
 
+    /**
+     * Approved by the AH, with its candidates verifying their own records and raising
+     * any grievance before the Secretary sees it (2026-11-19). Short: the column holds 20.
+     */
+    case CandidateVerification = 'candidate_verify';
+
+    /** Grievances submitted in the verification: with the AH until each is resolved (2026-11-19). */
+    case GrievanceReview = 'grievance_review';
+
     public function label(): string
     {
         return __("ui.enum.proposal_status.{$this->value}");
@@ -62,6 +71,8 @@ enum DpcProposalStatus: string
             self::Returned => 'text-bg-warning',
             self::Approved => 'text-bg-success',
             self::Cancelled => 'text-bg-dark',
+            self::CandidateVerification => 'text-bg-info',
+            self::GrievanceReview => 'text-bg-warning',
         };
     }
 }

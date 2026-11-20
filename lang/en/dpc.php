@@ -500,6 +500,7 @@ return [
         'secretary' => ['label' => 'Secretary, CGPSC', 'action' => 'Approve the DPC, or return it'],
         'chairman' => ['label' => 'Chairman, CGPSC', 'action' => 'Allot the DPC to its committee'],
         'committee' => ['label' => 'DPC Committee', 'action' => 'Evaluate the result and decide'],
+        'candidate_verification' => ['label' => 'Candidate Verification & Grievance Submission', 'action' => 'The candidates verify their own records and may raise grievances until the deadline'],
         'returned_by' => [
             'ah' => 'the Administrative Head',
             'secretary' => 'the Secretary, CGPSC',

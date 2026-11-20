@@ -59,4 +59,34 @@ return [
         'sms_rescheduled' => 'ODPC: :dpc has been MOVED to :date at :time. Please note the new date. :instructions',
         'joining_instructions' => 'Please attend on time. Committee members should sign in to the e-DPC Portal to take up the sitting; officers under consideration need not attend and may check their own record through Self-Inspection. Do not share this message.',
     ],
+    'candidate_verification' => [
+        'opened' => [
+            'subject' => 'ODPC: verify your record for :dpc by :deadline',
+            'message' => 'ODPC: your record for :dpc is ready for your verification. Sign in at :url with your registered mobile number and OTP, check each section, and agree or raise a grievance by :deadline. One final submission only.',
+        ],
+        'grievance_review' => [
+            'subject' => 'ODPC: :count candidate grievance(s) on :dpc to review',
+            'message' => 'ODPC: the candidate verification of :dpc has closed with :count grievance(s). Review and decide each at :url.',
+        ],
+        'correction_assigned' => [
+            'subject' => 'ODPC: correction assigned on :dpc',
+            'message' => 'ODPC: the Administrative Head has opened :section of :candidate on :dpc for your correction. Correct it and submit it back at :url.',
+        ],
+        'correction_submitted' => [
+            'subject' => 'ODPC: correction submitted on :dpc',
+            'message' => 'ODPC: the Authorized Officer has submitted the correction of :section of :candidate on :dpc. Review it and decide the grievance at :url.',
+        ],
+        'grievance_resolved' => [
+            'subject' => 'ODPC: your grievance on :dpc is decided',
+            'message' => 'ODPC: the Administrative Head has decided your grievance on :section of :dpc. See the decision at :url.',
+        ],
+        'record_corrected' => [
+            'subject' => 'ODPC: your record on :dpc was corrected',
+            'message' => 'ODPC: :section of your record on :dpc was corrected after your grievance. See the corrected information at :url.',
+        ],
+        'secretary_ready' => [
+            'subject' => 'ODPC: :dpc is verified and with you',
+            'message' => 'ODPC: the candidate verification of :dpc is complete, with no grievance outstanding. It is with you at :url.',
+        ],
+    ],
 ];

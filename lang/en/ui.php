@@ -414,12 +414,16 @@ return [
             'returned' => 'Returned',
             'approved' => 'Approved',
             'cancelled' => 'Cancelled',
+            'candidate_verify' => 'Candidate verification',
+            'grievance_review' => 'Grievance review (AH)',
         ],
         'proposal_lock' => [
             'submitted' => 'This proposal has been submitted for approval, so its sections are now read-only. The Administrative Head must return it for correction before the Seniority List or any other section can be uploaded or changed again.',
             'pending_secretary' => 'This proposal has been approved by the Administrative Head and is pending with the Secretary, CGPSC, so its sections are read-only. If the Secretary returns it, it comes back to the Authorized Officer for correction.',
             'approved' => 'This proposal has been approved, digitally signed, and forwarded to CGPSC, so its sections are permanently read-only. A correction at this stage is a Review DPC, not an edit.',
             'cancelled' => 'This proposal was cancelled, so its sections are read-only. Start a new proposal to upload a fresh Seniority List.',
+            'candidate_verify' => 'This proposal was approved by the Administrative Head and its candidates are verifying their own records until the verification deadline, so its sections are read-only.',
+            'grievance_review' => 'The candidates\' grievances are with the Administrative Head. Only a candidate\'s section the Administrative Head opens for correction can be changed, by the Authorized Officer.',
         ],
         'calculation_status' => [
             'draft' => 'Draft',

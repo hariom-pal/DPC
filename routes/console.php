@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Console\Commands\CandidateVerificationDeadlinesCommand;
 use App\Console\Commands\DpcStageDeadlinesCommand;
 use App\Console\Commands\ProcessAssignmentRequestsCommand;
 use App\Console\Commands\ReturnExpiredAllotmentsCommand;
@@ -57,6 +58,14 @@ Schedule::command(DpcStageDeadlinesCommand::class)
     ->withoutOverlapping()
     ->onOneServer()
     ->description('E-mail DPC stage deadline reminders; escalate an overdue Secretary stage to the Chairman');
+
+// Candidate Verification & Grievance (2026-11-19): a verification past its deadline
+// is closed and its DPC routed on within minutes. Idempotent.
+Schedule::command(CandidateVerificationDeadlinesCommand::class)
+    ->everyTenMinutes()
+    ->withoutOverlapping()
+    ->onOneServer()
+    ->description('Close candidate verifications past their deadline and route each DPC on');
 
 // Transfers and additional charges take effect on their date, and additional
 // charges end on theirs (Phases 7–8, 2026-10-27). Idempotent.

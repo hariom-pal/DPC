@@ -11,6 +11,7 @@ use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Eligibility\RuleSet;
 use App\Domain\Eligibility\Services\ScoringService;
 use App\Domain\Eligibility\ValueObjects\OfficerRecord;
+use App\Domain\Eligibility\ValueObjects\ScoreBreakdown;
 use App\Domain\Master\Models\PromotionCrRule;
 use App\Domain\Master\Services\PromotionCrRules;
 
@@ -38,6 +39,27 @@ final class PromotionRuleCheck
         private readonly PromotionCrRules $rules,
         private readonly ScoringService $scoring,
     ) {}
+
+    /**
+     * The officer's CR score exactly as check() and the DPC calculation take it, or
+     * null without a promotion rule (candidate verification, 2026-11-19).
+     */
+    public function score(DpcEvaluationRow $row, DpcProposal $proposal): ?ScoreBreakdown
+    {
+        $rule = $this->rules->ruleForProposal($proposal);
+        if ($rule === null) {
+            return null;
+        }
+
+        $year = (int) ($proposal->dpc_year ?: $proposal->proposal_date->year);
+        $from = PromotionCrRules::classCode($proposal->promotionFromPost?->class_level);
+        $to = PromotionCrRules::classCode($proposal->promotionToPost?->class_level);
+        $points = $this->pointsCache[$year] ??= $this->rules->pointsForYear($year);
+        $ruleSet = RuleSet::forPromotionRule(RuleSet::fromConfig(), $rule, $points, $year, $from.'-'.$to);
+        $row->loadMissing(['crGrades', 'propertyFlags', 'loyaltyFlags']);
+
+        return $this->scoring->score(OfficerRecord::fromEvaluationRow($row, null, $points), $ruleSet);
+    }
 
     /**
      * @return array{

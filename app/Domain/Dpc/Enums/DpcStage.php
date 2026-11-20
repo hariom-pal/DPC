@@ -19,6 +19,14 @@ enum DpcStage: string
     case Chairman = 'chairman';
     case Committee = 'committee';
 
+    /**
+     * Candidate Verification & Grievance Submission (2026-11-19): after the AH's approval,
+     * the candidates verify their own records and may raise grievances, until the
+     * deadline the Administrator's days give. Its expiry is the verification's own
+     * routing (dpc:candidate-verification-deadlines), never a cancel or a forward.
+     */
+    case CandidateVerification = 'candidate_verification';
+
     public function label(): string
     {
         return (string) __('dpc.stage.'.$this->value.'.label');
@@ -44,7 +52,7 @@ enum DpcStage: string
         return match ($this) {
             self::Ah, self::Secretary => ['notify', 'cancel', 'forward'],
             self::Ao, self::Chairman => ['notify', 'cancel'],
-            self::Committee => ['notify'],
+            self::Committee, self::CandidateVerification => ['notify'],
         };
     }
 
@@ -53,7 +61,8 @@ enum DpcStage: string
     {
         return match ($this) {
             self::Ao => self::Ah,
-            self::Ah => self::Secretary,
+            self::Ah => config('dpc.candidate_verification.enabled', true) ? self::CandidateVerification : self::Secretary,
+            self::CandidateVerification => self::Secretary,
             self::Secretary => self::Chairman,
             self::Chairman => self::Committee,
             self::Committee => null,

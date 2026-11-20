@@ -34,6 +34,9 @@
         <env name="DPC_RESERVATION_CATEGORY_WISE" value="true"/>
         <!-- The suite's fixtures build the Working Officers chart; the Vacancy Management source has its own tests. -->
         <env name="DPC_VACANCY_SOURCE" value="chart"/>
+        <!-- Candidate verification (2026-11-19) is on in production; the suites that are not about it
+             approve DPCs straight to the Secretary, and tests/Feature/CandidateVerification turn it on. -->
+        <env name="DPC_CANDIDATE_VERIFICATION" value="false"/>
         <env name="DPC_OTP_FIXED_ENABLED" value="true"/>
         <env name="DPC_OTP_FIXED_CODE" value="123456"/>
         <!-- Pinned: a developer .env may switch it on; tests that need it set it themselves. -->

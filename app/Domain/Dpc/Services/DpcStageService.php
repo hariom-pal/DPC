@@ -6,6 +6,10 @@ namespace App\Domain\Dpc\Services;
 
 use App\Domain\Allotment\Services\ProposalAllotmentService;
 use App\Domain\Authentication\Models\User;
+use App\Domain\CandidateVerification\Enums\GrievanceStatus;
+use App\Domain\CandidateVerification\Models\Grievance;
+use App\Domain\CandidateVerification\Models\GrievanceCorrection;
+use App\Domain\CandidateVerification\Models\VerificationCycle;
 use App\Domain\Cgpsc\Models\DpcAllotment;
 use App\Domain\Dpc\Enums\DpcProposalStatus;
 use App\Domain\Dpc\Enums\DpcStage;
@@ -40,6 +44,8 @@ final class DpcStageService
         DpcProposalStatus::Submitted,
         DpcProposalStatus::PendingSecretary,
         DpcProposalStatus::Approved,
+        DpcProposalStatus::CandidateVerification,
+        DpcProposalStatus::GrievanceReview,
     ];
 
     public function __construct(private readonly ProposalAllotmentService $allotments) {}
@@ -51,6 +57,9 @@ final class DpcStageService
             DpcProposalStatus::Submitted => DpcStage::Ah,
             DpcProposalStatus::PendingSecretary => DpcStage::Secretary,
             DpcProposalStatus::Approved => $this->approvedStage($proposal),
+            // 2026-11-19: the candidates' verification, then the AH's review of their grievances.
+            DpcProposalStatus::CandidateVerification => DpcStage::CandidateVerification,
+            DpcProposalStatus::GrievanceReview => DpcStage::Ah,
             default => null,
         };
     }
@@ -73,6 +82,11 @@ final class DpcStageService
         $days = WorkflowStageTimeline::daysFor($stage);
         $due = $days === null ? null : $entered->copy()->addDays($days);
 
+        // The verification's own deadline, fixed when it opened (2026-11-19).
+        if ($stage === DpcStage::CandidateVerification && ($cycle = VerificationCycle::query()->where('dpc_proposal_id', $proposal->id)->first()) !== null) {
+            [$entered, $days, $due] = [$cycle->approved_at, $cycle->duration_days, $cycle->deadline_at];
+        }
+
         return [
             'stage' => $stage,
             'entered_at' => $entered,
@@ -92,7 +106,13 @@ final class DpcStageService
     {
         $ids = match ($stage) {
             DpcStage::Ao => array_filter([$this->allotments->current($proposal)?->ao_user_id]),
-            DpcStage::Ah => array_filter([$this->allotments->current($proposal)?->ah_user_id]),
+            DpcStage::Ah => array_filter([
+                $this->allotments->current($proposal)?->ah_user_id,
+                // A grievance correction the AH opened is the AO's move too (2026-11-19).
+                $proposal->status === DpcProposalStatus::GrievanceReview && $this->correctionsOpen($proposal) > 0 ? $this->allotments->current($proposal)?->ao_user_id : null,
+            ]),
+            // The candidates', who hold no portal role; the DPC's officers follow it.
+            DpcStage::CandidateVerification => [],
             DpcStage::Secretary => $this->roleUserIds(Role::Secretary),
             DpcStage::Chairman => $this->roleUserIds(Role::Chairman),
             DpcStage::Committee => array_merge(
@@ -168,8 +188,19 @@ final class DpcStageService
             return [(string) __('dpc.stage.items.open_sections')];
         }
 
+        if ($proposal->status === DpcProposalStatus::GrievanceReview) {
+            $cycle = VerificationCycle::query()->where('dpc_proposal_id', $proposal->id)->first();
+            $open = $cycle === null ? 0 : Grievance::query()->where('dpc_verification_cycle_id', $cycle->id)->whereIn('status', [GrievanceStatus::Submitted->value, GrievanceStatus::ReturnedFromAo->value])->count();
+
+            return array_values(array_filter([
+                $open > 0 ? (string) __('candidate.stage.grievances_to_decide', ['count' => $open]) : null,
+                ($corrections = $this->correctionsOpen($proposal)) > 0 ? (string) __('candidate.stage.corrections_with_ao', ['count' => $corrections]) : null,
+            ]));
+        }
+
         return match ($stage) {
             DpcStage::Ao => $this->aoItems($proposal, $details),
+            DpcStage::CandidateVerification => $this->verificationItems($proposal),
             DpcStage::Ah => array_values(array_filter([
                 ($documents = $details->documentsAwaitingHead($proposal)) > 0 ? (string) __('dpc.stage.items.documents', ['count' => $documents]) : null,
                 ($claims = $details->phClaimsAwaitingHead($proposal)) > 0 ? (string) __('dpc.stage.items.ph_claims', ['count' => $claims]) : null,
@@ -184,6 +215,25 @@ final class DpcStageService
                 ($okPending = count(app(CalculationGate::class)->pendingMembers($proposal))) > 0 ? (string) __('dpc.stage.items.member_ok', ['count' => $okPending]) : null,
             ])),
         };
+    }
+
+    /** @return list<string> */
+    private function verificationItems(DpcProposal $proposal): array
+    {
+        $cycle = VerificationCycle::query()->where('dpc_proposal_id', $proposal->id)->first();
+        if ($cycle === null) {
+            return [];
+        }
+
+        $submitted = $cycle->participants()->whereNotNull('submitted_at')->count();
+
+        return [(string) __('candidate.stage.verifying', ['date' => $cycle->deadline_at->format('d-m-Y'), 'submitted' => $submitted, 'total' => $cycle->participant_count])];
+    }
+
+    private function correctionsOpen(DpcProposal $proposal): int
+    {
+        return GrievanceCorrection::query()->where('status', GrievanceCorrection::OPEN)
+            ->whereHas('grievance.cycle', fn ($q) => $q->where('dpc_proposal_id', $proposal->id))->count();
     }
 
     /**

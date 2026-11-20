@@ -12,4 +12,7 @@ enum OtpPurpose: string
     case ContactChange = 'contact_change';
     // Forgot password: the owner proves the account's e-mail and mobile (2026-11-03).
     case PasswordReset = 'password_reset';
+    // A candidate signing in to verify their own DPC record (2026-11-19): kept apart from
+    // staff sign-in codes on the same mobile number.
+    case CandidateVerification = 'candidate_verification';
 }

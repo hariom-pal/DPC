@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Console\Commands;
 
 use App\Domain\Authentication\Models\User;
+use App\Domain\CandidateVerification\Services\VerificationCycleService;
 use App\Domain\Dpc\Enums\DpcProposalStatus;
 use App\Domain\Dpc\Enums\DpcStage;
 use App\Domain\Dpc\Models\DpcProposal;
@@ -152,12 +153,19 @@ class DpcStageDeadlinesCommand extends Command
     {
         [$from, $to, $event] = match (true) {
             $action === WorkflowStageTimeline::CANCEL => [null, DpcProposalStatus::Cancelled, 'auto_cancel'],
+            // The candidates verify their records before the Secretary sees it (2026-11-19).
+            $stage === DpcStage::Ah && app(VerificationCycleService::class)->opensOn($proposal) => [DpcProposalStatus::Submitted, DpcProposalStatus::CandidateVerification, 'ah_auto_forward'],
             $stage === DpcStage::Ah => [DpcProposalStatus::Submitted, DpcProposalStatus::PendingSecretary, 'ah_auto_forward'],
             $stage === DpcStage::Secretary => [DpcProposalStatus::PendingSecretary, DpcProposalStatus::Approved, 'secretary_escalated'],
             default => [null, null, null],
         };
 
         if ($to === null) {
+            return false;
+        }
+
+        // No days set for the verification: it cannot open, and is never skipped — no forward.
+        if ($to === DpcProposalStatus::CandidateVerification && WorkflowStageTimeline::daysFor(DpcStage::CandidateVerification) === null) {
             return false;
         }
 
@@ -190,6 +198,10 @@ class DpcStageDeadlinesCommand extends Command
                 app(DpcRevisionService::class)->recordApproval($locked);
             }
 
+            if ($to === DpcProposalStatus::CandidateVerification) {
+                app(VerificationCycleService::class)->open($locked, null);
+            }
+
             WorkflowTransition::query()->create([
                 'workflow' => 'dpc_proposal',
                 'subject_type' => $locked->getMorphClass(),
@@ -213,7 +225,12 @@ class DpcStageDeadlinesCommand extends Command
         }
 
         try {
-            $roles = $event === 'ah_auto_forward' ? [Role::Secretary] : [Role::Chairman, Role::Secretary];
+            $roles = match (true) {
+                // The verification lets the Secretary know when it lets the DPC through.
+                $done['to'] === DpcProposalStatus::CandidateVerification->value => [],
+                $event === 'ah_auto_forward' => [Role::Secretary],
+                default => [Role::Chairman, Role::Secretary],
+            };
             $tell = User::role(array_map(fn (Role $role): string => $role->value, $roles))->where('is_active', true)->pluck('id')->map(fn ($id): int => (int) $id)->all();
             WorkflowTransitioned::dispatch('dpc_proposal', $event, $done['to'], $done['proposal']->department_id, ['authorized_officer', 'administrative_head'], $remarks, $tell);
         } catch (Throwable $e) {

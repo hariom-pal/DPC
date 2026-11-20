@@ -53,6 +53,16 @@ class ResetTransactionalDataCommand extends Command
         'import_rows',
         'import_batches',
 
+        // Candidate verification and grievances (2026-11-19): before the chart rows,
+        // the signatures and the proposals they cite.
+        'dpc_verification_notifications',
+        'dpc_verification_snapshots',
+        'dpc_grievance_corrections',
+        'dpc_grievances',
+        'dpc_verification_decisions',
+        'dpc_verification_participants',
+        'dpc_verification_cycles',
+
         // Evaluation chart and its per-year children.
         'dpc_evaluation_cr_grades',
         'dpc_evaluation_loyalty_flags',
@@ -301,6 +311,8 @@ class ResetTransactionalDataCommand extends Command
         // The supporting documents behind a missing record (item 19). Uploaded as
         // part of a DPC, so they go when the DPC's data goes.
         'private/record-gaps',
+        // Candidates' grievance documents (2026-11-19), with the DPC's data.
+        'private/candidate-grievances',
         'private/employee-documents',
 
         // Rule 1.1 previous-DPC minutes, and Vacancy Master orders.

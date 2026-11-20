@@ -680,6 +680,12 @@ return [
                 // The AO takes the DPC back to correct it, until CGPSC approves the result
                 // (MoM of 12 November 2026); the AH approves it again.
                 'recall' => ['from' => ['submitted', 'approved'], 'to' => 'returned', 'role' => 'authorized_officer', 'signature' => false, 'notify' => ['administrative_head']],
+                // Candidate Verification & Grievance (2026-11-19): the AH's approval opens the
+                // candidates' verification instead of going straight to the Secretary; the
+                // deadline routes it on (automatic, recorded by the deadline command), and
+                // the AH sends it to the Secretary once every grievance is resolved.
+                'approve_to_verification' => ['from' => ['submitted'], 'to' => 'candidate_verify', 'role' => 'administrative_head', 'signature' => true, 'notify' => ['authorized_officer']],
+                'grievances_resolved' => ['from' => ['grievance_review'], 'to' => 'pending_secretary', 'role' => 'administrative_head', 'signature' => false, 'notify' => ['authorized_officer']],
             ],
         ],
     ],
@@ -1662,6 +1668,34 @@ return [
     // eSign, and are approved or returned together (2026-11-19).
     'pre_dpc_submission' => [
         'with_vacancy' => (bool) env('DPC_PRE_DPC_SUBMIT_WITH_VACANCY', true),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Candidate Verification & Grievance (2026-11-19)
+    |--------------------------------------------------------------------------
+    |
+    | After the AH approves a DPC, every officer on its Seniority List verifies their
+    | own record — four sections — and may raise grievances, in one final eSigned
+    | submission, until the deadline the Administrator's days for the stage give
+    | (Workflow Stage Timelines). The deadline is the end of that calendar day in the
+    | application's timezone. Off, the AH's approval goes straight to the Secretary.
+    |
+    */
+    'candidate_verification' => [
+        'enabled' => (bool) env('DPC_CANDIDATE_VERIFICATION', true),
+        // A candidate's session after the OTP, in minutes of inactivity.
+        'session_minutes' => (int) env('DPC_CANDIDATE_SESSION_MINUTES', 30),
+        // Grievance documents: private, PDF only.
+        'documents_disk' => env('DPC_CANDIDATE_DOCUMENTS_DISK', 'local'),
+        'max_document_kb' => (int) env('DPC_CANDIDATE_MAX_DOCUMENT_KB', 5120),
+        // What a grievance may be about, section by section.
+        'categories' => [
+            'seniority' => ['seniority_position', 'date_of_birth', 'date_of_joining', 'post_or_designation', 'category', 'other'],
+            'cr' => ['cr_grade', 'cr_missing', 'cr_not_graded', 'appointed_year', 'cr_score', 'other'],
+            'integrity' => ['integrity_status', 'departmental_view', 'other'],
+            'ipr' => ['filing_status', 'filing_missing', 'filing_late', 'other'],
+        ],
     ],
 
     // Department Post Mapping (2026-11-19): every new mapping takes effect from this date.

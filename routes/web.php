@@ -51,6 +51,7 @@ use App\Http\Controllers\Auth\RegistrationController;
 use App\Http\Controllers\Auth\RoleSwitchController;
 use App\Http\Controllers\Auth\VerificationController;
 use App\Http\Controllers\Candidate\CandidateDpcController;
+use App\Http\Controllers\Candidate\CandidateVerificationController;
 use App\Http\Controllers\Cgpsc\AllotmentController;
 use App\Http\Controllers\Cgpsc\CirculationConsentController;
 use App\Http\Controllers\Cgpsc\CirculationDocumentController;
@@ -78,6 +79,7 @@ use App\Http\Controllers\Dpc\DpcProposalController;
 use App\Http\Controllers\Dpc\DpcProposalVerificationController;
 use App\Http\Controllers\Dpc\DpcRecordGapController;
 use App\Http\Controllers\Dpc\DpcTabulationController;
+use App\Http\Controllers\Dpc\GrievanceController;
 use App\Http\Controllers\Dpc\ImportTemplateController;
 use App\Http\Controllers\Dpc\ReviewProposalController;
 use App\Http\Controllers\EsignController;
@@ -172,6 +174,33 @@ Route::prefix('self-inspection')->name('self-inspection.')->group(function (): v
     Route::get('/record', [SelfInspectionController::class, 'show'])->name('show');
     Route::get('/record/print', [SelfInspectionController::class, 'print'])->name('print');
     Route::post('/close', [SelfInspectionController::class, 'close'])->name('close');
+});
+
+/*
+ | Candidate Verification & Grievance (2026-11-19). Outside the staff session, like
+ | Self-Inspection: a candidate signs in with their registered mobile and an OTP, and
+ | reaches only their own verifications (CandidateSession); every other UUID is a 404.
+ */
+Route::prefix('candidate-verification')->name('candidate-verification.')->group(function (): void {
+    Route::get('/', [CandidateVerificationController::class, 'login'])->name('login');
+    Route::post('/code', [CandidateVerificationController::class, 'sendCode'])->middleware('throttle:self-inspection')->name('code.send');
+    Route::get('/code', [CandidateVerificationController::class, 'codeForm'])->name('code');
+    Route::post('/verify', [CandidateVerificationController::class, 'verify'])->middleware('throttle:otp-verify')->name('verify');
+    Route::get('/identify', [CandidateVerificationController::class, 'identifyForm'])->name('identify');
+    Route::post('/identify', [CandidateVerificationController::class, 'identify'])->middleware('throttle:otp-verify')->name('identify.store');
+    Route::post('/logout', [CandidateVerificationController::class, 'logout'])->name('logout');
+    Route::get('/dashboard', [CandidateVerificationController::class, 'dashboard'])->name('dashboard');
+    Route::get('/{participant}/section/{section}', [CandidateVerificationController::class, 'section'])->name('section');
+    Route::post('/{participant}/section/{section}/agree', [CandidateVerificationController::class, 'agree'])->name('agree');
+    Route::get('/{participant}/section/{section}/grievance', [CandidateVerificationController::class, 'grievanceForm'])->name('grievance');
+    Route::post('/{participant}/section/{section}/grievance', [CandidateVerificationController::class, 'saveGrievance'])->name('grievance.save');
+    Route::delete('/{participant}/section/{section}/grievance', [CandidateVerificationController::class, 'removeGrievance'])->name('grievance.remove');
+    Route::get('/{participant}/section/{section}/grievance/document', [CandidateVerificationController::class, 'document'])->name('grievance.document');
+    Route::get('/{participant}/review', [CandidateVerificationController::class, 'review'])->name('review');
+    Route::post('/{participant}/submit', [CandidateVerificationController::class, 'submit'])->middleware('throttle:otp-verify')->name('submit');
+    Route::get('/{participant}/esign', [CandidateVerificationController::class, 'esignForm'])->name('esign');
+    Route::post('/{participant}/esign', [CandidateVerificationController::class, 'esign'])->middleware('throttle:otp-verify')->name('esign.submit');
+    Route::get('/{participant}/acknowledgement', [CandidateVerificationController::class, 'acknowledgement'])->name('acknowledgement');
 });
 
 /*
@@ -669,6 +698,12 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
                 // The Secretary, CGPSC's supporting document of a return (2026-11-14).
                 Route::get('/{dpcProposal}/revisions/{revision}/return-document', [SecretaryController::class, 'returnDocument'])->name('revisions.return-document');
                 Route::post('/{dpcProposal}/cancel', [DpcProposalController::class, 'cancel'])->name('cancel');
+                // The candidates' grievances (2026-11-19): the AH decides, the AO corrects, the Secretary reads.
+                Route::get('/{dpcProposal}/grievances', [GrievanceController::class, 'index'])->name('grievances.index');
+                Route::post('/{dpcProposal}/grievances/{grievance}/resolve', [GrievanceController::class, 'resolve'])->name('grievances.resolve');
+                Route::post('/{dpcProposal}/grievances/{grievance}/send-to-ao', [GrievanceController::class, 'sendToAo'])->name('grievances.send-to-ao');
+                Route::get('/{dpcProposal}/grievances/{grievance}/document', [GrievanceController::class, 'document'])->name('grievances.document');
+                Route::post('/{dpcProposal}/grievance-corrections/{correction}/submit', [GrievanceController::class, 'submitCorrection'])->name('grievances.correction');
             });
 
         /*

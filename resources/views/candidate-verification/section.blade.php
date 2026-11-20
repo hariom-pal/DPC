@@ -1,0 +1,49 @@
+@extends('layouts.portal')
+@section('title', $section->label())
+@section('content')
+    @include('candidate-verification.partials.shell-start', ['signedIn' => true])
+    @include('candidate-verification.partials.progress')
+
+    <div class="gov-card p-3 mb-3" id="section-{{ $section->value }}" data-section="{{ $section->value }}">
+        <h2 class="h6">{{ $section->label() }}</h2>
+        @include('candidate-verification.partials.section-'.$section->value)
+    </div>
+
+    @if ($corrected)
+        <div class="alert alert-info small" id="corrected-notice">
+            <strong>{{ __('candidate.verification.corrected.heading') }}</strong> —
+            {{ __('candidate.verification.corrected.lead', ['date' => $corrected->created_at?->format('d-m-Y')]) }}
+        </div>
+    @endif
+
+    @if ($grievance)
+        <div class="gov-card p-3 mb-3 border-warning" id="grievance-summary">
+            <div class="small"><strong>{{ __('candidate.grievance.category') }}:</strong> {{ __('candidate.grievance.categories.'.$grievance->category) }}@if ($grievance->related_year) · {{ $grievance->related_year }}@endif</div>
+            <div class="small"><strong>{{ __('candidate.grievance.remark') }}:</strong> {{ $grievance->remark }}</div>
+            <div class="small"><strong>{{ __('candidate.grievance.document') }}:</strong>
+                <a href="{{ route('candidate-verification.grievance.document', [$participant->uuid, $section->value]) }}">{{ $grievance->original_name }}</a></div>
+            <div class="small"><span class="badge text-bg-warning">{{ $grievance->status->label() }}</span>
+                @if ($grievance->decision) <span class="badge text-bg-secondary">{{ $grievance->decision->label() }}</span> {{ $grievance->resolution_remark }}@endif</div>
+        </div>
+    @endif
+
+    @if (! $participant->hasSubmitted() && $participant->cycle->acceptsSubmissions())
+        <div class="d-flex flex-wrap gap-2">
+            <form method="POST" action="{{ route('candidate-verification.agree', [$participant->uuid, $section->value]) }}" class="m-0">
+                @csrf
+                <button class="btn btn-success" id="agree-next">{{ __('candidate.verification.actions.agree_next') }}</button>
+            </form>
+            <a class="btn btn-outline-warning" id="raise-grievance" href="{{ route('candidate-verification.grievance', [$participant->uuid, $section->value]) }}">
+                {{ $grievance ? __('candidate.verification.actions.edit_grievance') : __('candidate.verification.actions.raise') }}
+            </a>
+            @if ($grievance)
+                <form method="POST" action="{{ route('candidate-verification.grievance.remove', [$participant->uuid, $section->value]) }}" class="m-0">
+                    @csrf
+                    @method('DELETE')
+                    <button class="btn btn-outline-danger">{{ __('candidate.verification.actions.remove_grievance') }}</button>
+                </form>
+            @endif
+        </div>
+    @endif
+    @include('candidate-verification.partials.shell-end')
+@endsection
