@@ -41,7 +41,16 @@
                          bounces them straight back here. They get their dashboard
                          instead (reported 2026-09-06). --}}
                     <div class="d-flex flex-wrap gap-3 mb-4">
-                        @auth
+                        @php
+                            $candidateIn = ! auth()->check() && app(\App\Domain\CandidateVerification\Services\CandidateSession::class)->signedIn(request());
+                        @endphp
+                        @if ($candidateIn)
+                            {{-- A signed-in candidate: their dashboard, not the department's login (2026-11-20). --}}
+                            <a href="{{ route('candidate-verification.dashboard') }}" class="btn btn-accent btn-lg d-inline-flex align-items-center gap-2" id="candidate-hero-dashboard">
+                                @include('partials.icon', ['name' => 'login', 'size' => 20])
+                                {{ __('candidate.verification.dashboard.link') }}
+                            </a>
+                        @elseauth
                             <a href="{{ route('dashboard') }}" class="btn btn-accent btn-lg d-inline-flex align-items-center gap-2">
                                 @include('partials.icon', ['name' => 'login', 'size' => 20])
                                 {{ __('ui.dashboard_link') }}
@@ -126,6 +135,8 @@
             <div class="row g-3 g-lg-4">
                 @foreach ((array) __('landing.quick_actions') as $key => $action)
                     @continue(auth()->check() && in_array($key, $signedOutOnly, true))
+                    {{-- A signed-in candidate: no department or administrator login, and no reports (they need one). --}}
+                    @continue($candidateIn && in_array($key, ['department', 'administrator', 'reports'], true))
                     <div class="col-sm-6 col-lg-4">
                         <a href="{{ $quickActions[$key][1] }}" class="gov-card p-4 h-100">
                             <div class="gov-icon lg mb-3">@include('partials.icon', ['name' => $quickActions[$key][0], 'size' => 26])</div>
@@ -398,7 +409,9 @@
             <h2 class="h3 text-white mb-2">{{ __('landing.cta.heading') }}</h2>
             <p class="lead mb-4">{{ __('landing.cta.lead') }}</p>
             <div class="d-flex flex-wrap gap-3 justify-content-center">
-                @auth
+                @if ($candidateIn)
+                    <a href="{{ route('candidate-verification.dashboard') }}" class="btn btn-accent btn-lg">{{ __('candidate.verification.dashboard.link') }}</a>
+                @elseauth
                     <a href="{{ route('dashboard') }}" class="btn btn-accent btn-lg">{{ __('ui.dashboard_link') }}</a>
                 @else
                     <a href="{{ route('login') }}" class="btn btn-accent btn-lg">{{ __('ui.department_login') }}</a>

@@ -46,6 +46,18 @@ final class CandidateSession
         $request->session()->put(self::KEY, ['rows' => $rowIds, 'seen' => now()->timestamp]);
     }
 
+    /**
+     * Whether a candidate is signed in on this session, for the public pages' header
+     * (2026-11-20). Reads only: it neither extends the session nor queries anything.
+     */
+    public function signedIn(Request $request): bool
+    {
+        $state = $request->hasSession() ? $request->session()->get(self::KEY) : null;
+        $minutes = max(1, (int) config('dpc.candidate_verification.session_minutes', 30));
+
+        return is_array($state) && isset($state['rows'], $state['seen']) && now()->timestamp - (int) $state['seen'] <= $minutes * 60;
+    }
+
     /** @return Collection<int, DpcEvaluationRow>|null the candidate's own rows, or null when not signed in */
     public function rows(Request $request): ?Collection
     {

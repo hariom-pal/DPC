@@ -121,7 +121,19 @@
                      dashboard itself rather than this layout having to know which
                      role goes where. --}}
                 <ul class="navbar-nav ms-auto align-items-lg-center gap-lg-2 py-2 py-lg-0">
-                    @auth
+                    {{-- A candidate signed in on the Candidate Portal (2026-11-20): their own
+                         dashboard and a way out — never the department's login. --}}
+                    @if (! auth()->check() && app(\App\Domain\CandidateVerification\Services\CandidateSession::class)->signedIn(request()))
+                        <li class="nav-item">
+                            <a class="btn btn-sm btn-accent w-100" href="{{ route('candidate-verification.dashboard') }}" id="candidate-dashboard-link">{{ __('candidate.verification.dashboard.link') }}</a>
+                        </li>
+                        <li class="nav-item">
+                            <form method="POST" action="{{ route('candidate-verification.logout') }}" class="m-0" data-no-busy>
+                                @csrf
+                                <button type="submit" class="btn btn-sm btn-outline-light w-100">{{ __('candidate.verification.login.logout') }}</button>
+                            </form>
+                        </li>
+                    @elseauth
                         <li class="nav-item d-none d-lg-flex align-items-center">
                             <span class="text-white-50 small text-truncate" style="max-width:14rem">{{ auth()->user()->name }}</span>
                         </li>

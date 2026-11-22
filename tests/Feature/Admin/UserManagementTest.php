@@ -194,4 +194,33 @@ class UserManagementTest extends TestCase
             ])
             ->assertSessionHasErrors('email');
     }
+
+    /**
+     * The row actions are icons (2026-11-21), so the list fits the screen and a name or
+     * an e-mail can be selected and copied; each icon keeps its words as its
+     * accessible name and tooltip.
+     */
+    public function test_the_row_actions_are_icons_that_keep_their_words(): void
+    {
+        $admin = $this->admin();
+        $officer = User::factory()->create(['name' => 'Copyable Officer']);
+        $officer->assignRole(Role::AuthorizedOfficer->value);
+
+        $html = (string) $this->actingAs($admin)->get(route('admin.users.index'))->assertOk()->getContent();
+
+        foreach ([
+            'edit' => __('ui.edit'),
+            'assignments' => __('admin.users.index.assignments'),
+            'identity' => __('identity.field_status'),
+            'toggle-active' => __('ui.screen.deactivate'),
+            'reset-password' => __('admin.users.index.reset_password'),
+        ] as $action => $words) {
+            $this->assertMatchesRegularExpression(
+                '#title="'.preg_quote(e($words), '#').'" aria-label="'.preg_quote(e($words), '#').': Copyable Officer" data-user-action="'.$action.'"><svg#',
+                $html,
+                "{$action} is an icon named in words",
+            );
+        }
+        $this->assertStringNotContainsString('>'.e(__('admin.users.index.reset_password')).'</button>', $html);
+    }
 }

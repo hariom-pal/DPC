@@ -42,24 +42,31 @@
                                     <span class="badge text-bg-warning">{{ __('ui.inactive') }}</span>
                                 @endif
                             </td>
+                            {{-- Icon buttons (2026-11-21): five worded buttons made the table wider than
+                                 the screen, and the sideways scroll got in the way of copying a name or an
+                                 e-mail. Each keeps its words as its accessible name and its tooltip. --}}
                             <td class="text-end text-nowrap">
+                                <div class="d-inline-flex gap-1">
                                 @if (in_array($role, \App\Enums\Role::provisionableValues(), true))
-                                    <a href="{{ route('admin.users.edit', $user) }}" class="btn btn-outline-primary btn-sm">{{ __('ui.edit') }}</a>
+                                    <a href="{{ route('admin.users.edit', $user) }}" class="btn btn-outline-primary btn-sm" title="{{ __('ui.edit') }}" aria-label="{{ __('ui.edit') }}: {{ $user->name }}" data-user-action="edit">@include('partials.icon', ['name' => 'pencil', 'size' => 16])</a>
                                 @endif
-                                <a href="{{ route('admin.users.assignments.index', $user) }}" class="btn btn-outline-info btn-sm">{{ __('admin.users.index.assignments') }}</a>
-                                <a href="{{ route('admin.users.identity', $user) }}" class="btn btn-outline-secondary btn-sm">{{ __('identity.field_status') }}</a>
+                                <a href="{{ route('admin.users.assignments.index', $user) }}" class="btn btn-outline-info btn-sm" title="{{ __('admin.users.index.assignments') }}" aria-label="{{ __('admin.users.index.assignments') }}: {{ $user->name }}" data-user-action="assignments">@include('partials.icon', ['name' => 'building', 'size' => 16])</a>
+                                <a href="{{ route('admin.users.identity', $user) }}" class="btn btn-outline-secondary btn-sm" title="{{ __('identity.field_status') }}" aria-label="{{ __('identity.field_status') }}: {{ $user->name }}" data-user-action="identity">@include('partials.icon', ['name' => 'id-card', 'size' => 16])</a>
                                 {{-- The Administrator is never deactivated (2026-11-03). --}}
                                 @unless ($user->is_active && $user->hasRole(\App\Enums\Role::Admin->value))
+                                    {{-- One-line form: a block php here is swallowed by the one-line php above it. --}}
+                                    @php($toggle = $user->is_active ? __('ui.screen.deactivate') : __('ui.screen.activate'))
                                     <form method="POST" action="{{ route('admin.users.toggle-active', $user) }}" class="d-inline">
                                         @csrf
-                                        <button @class(['btn btn-sm', 'btn-outline-danger' => $user->is_active, 'btn-outline-success' => ! $user->is_active])>{{ $user->is_active ? __('ui.screen.deactivate') : __('ui.screen.activate') }}</button>
+                                        <button @class(['btn btn-sm', 'btn-outline-danger' => $user->is_active, 'btn-outline-success' => ! $user->is_active]) title="{{ $toggle }}" aria-label="{{ $toggle }}: {{ $user->name }}" data-user-action="toggle-active">@include('partials.icon', ['name' => 'power', 'size' => 16])</button>
                                     </form>
                                 @endunless
                                 <form method="POST" action="{{ route('admin.users.reset-password', $user) }}" class="d-inline"
                                       data-confirm="{{ __('admin.users.index.issue_a_new_temporary_password') }}">
                                     @csrf
-                                    <button class="btn btn-outline-warning btn-sm">{{ __('admin.users.index.reset_password') }}</button>
+                                    <button class="btn btn-outline-warning btn-sm" title="{{ __('admin.users.index.reset_password') }}" aria-label="{{ __('admin.users.index.reset_password') }}: {{ $user->name }}" data-user-action="reset-password">@include('partials.icon', ['name' => 'key', 'size' => 16])</button>
                                 </form>
+                                </div>
                             </td>
                         </tr>
                     @empty

@@ -59,6 +59,7 @@ return [
             'status' => 'Status',
             'open' => 'Open',
             'progress' => 'Sections',
+            'link' => 'My DPC dashboard',
             'group_open' => 'Verification open — act before the deadline',
             'group_other' => 'Other and earlier DPCs — read only',
             'stage' => 'Stage',

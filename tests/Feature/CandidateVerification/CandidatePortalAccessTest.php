@@ -221,6 +221,32 @@ class CandidatePortalAccessTest extends TestCase
         $this->get(route('candidate-verification.grievance', [$this->participant(2)->uuid, 'cr']))->assertRedirect(route('candidate-verification.section', [$this->participant(2)->uuid, 'cr']));
     }
 
+    public function test_a_signed_in_candidate_is_offered_their_dashboard_never_the_department_login(): void
+    {
+        $this->approveByAh()->assertSessionHasNoErrors();
+
+        // Signed out: the department's login, as before.
+        auth()->logout();
+        $this->get('/')->assertOk()->assertSee(__('ui.department_login'))->assertDontSee('id="candidate-dashboard-link"', false);
+
+        $this->signIn(1);
+        $this->get('/')->assertOk()
+            ->assertSee('id="candidate-dashboard-link"', false)
+            ->assertSee('id="candidate-hero-dashboard"', false)
+            ->assertSee(route('candidate-verification.dashboard'), false)
+            // No way to the department's login (the Process Flow still names that step, as text).
+            ->assertDontSee('href="'.route('login').'"', false)
+            ->assertDontSee(__('landing.quick_actions.administrator.title'));
+        // The header on the portal's own pages too.
+        $this->get(route('candidate-verification.dashboard'))->assertOk()
+            ->assertSee('id="candidate-dashboard-link"', false)
+            ->assertDontSee('href="'.route('login').'"', false);
+
+        // Signed out of the portal: the department's login again.
+        $this->post(route('candidate-verification.logout'));
+        $this->get('/')->assertOk()->assertSee(__('ui.department_login'))->assertDontSee('id="candidate-dashboard-link"', false);
+    }
+
     public function test_a_candidate_account_cannot_sign_in_with_a_password_on_the_staff_login(): void
     {
         $candidate = User::query()->where('employee_number', $this->row(1)->employee_number)->sole();
