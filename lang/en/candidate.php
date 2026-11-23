@@ -212,6 +212,9 @@ return [
             // Every candidate submitted before the deadline (2026-11-22).
             'verification_closed_early' => 'Every candidate submitted the verification by :date, before the deadline, with no grievance: sent to the Secretary, CGPSC.',
             'verification_grievances_early' => 'Every candidate submitted the verification by :date, before the deadline, with :count grievance(s): with the Administrative Head for review.',
+            // 2026-11-23: every grievance decided by the AH while the verification was open.
+            'verification_decided' => 'The candidate verification closed on :date with :count grievance(s), every one already decided by the Administrative Head (:no_response with no response): sent to the Secretary, CGPSC.',
+            'verification_decided_early' => 'Every candidate submitted the verification by :date, before the deadline, with :count grievance(s), every one already decided by the Administrative Head: sent to the Secretary, CGPSC.',
         ],
         'done' => [
             'agreed' => 'Agreed.',
@@ -276,6 +279,8 @@ return [
             'corrections_open' => ':count correction(s) are still with the AO.',
         ],
         'review' => [
+            'queue_open' => 'Verification still open',
+            'still_open' => 'The candidate verification is still open (until :date). Each grievance is shown here as soon as its candidate submits it, and may be decided or sent to the AO now.',
             'heading' => 'Candidate grievances',
             'lead' => 'Decide each grievance on its own: without a correction, or after opening the candidate\'s section for the AO. The DPC goes to the Secretary once every grievance is decided.',
             'candidate' => 'Candidate',

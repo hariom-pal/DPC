@@ -1468,7 +1468,8 @@ class EmployeeDetailsService
         // The DPC Chairman's own edits at the sitting (2026-11-18): who may is the
         // policy's to decide (DpcProposalPolicy::editAtSitting); this is the state.
         // …and the officer the AH opened for an AO correction after a grievance (2026-11-19).
-        $grievanceCorrection = $proposal->status === DpcProposalStatus::GrievanceReview && app(GrievanceReviewService::class)->correctionOpen($row);
+        // While the verification is open too (2026-11-23).
+        $grievanceCorrection = in_array($proposal->status, [DpcProposalStatus::GrievanceReview, DpcProposalStatus::CandidateVerification], true) && app(GrievanceReviewService::class)->correctionOpen($row);
 
         if (! $proposal->status->isEditable() && ! app(ChairmanSittingEdit::class)->windowOpen($proposal) && ! $grievanceCorrection) {
             throw new WorkflowException(__('dpc.employee_details.not_editable'));

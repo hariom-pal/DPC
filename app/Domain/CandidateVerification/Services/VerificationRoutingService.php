@@ -87,8 +87,13 @@ final class VerificationRoutingService
             $noResponse = VerificationParticipant::query()->where('dpc_verification_cycle_id', $locked->id)->whereNull('submitted_at')
                 ->update(['status' => ParticipantStatus::NoResponse->value, 'updated_at' => now()]);
             $grievances = Grievance::query()->where('dpc_verification_cycle_id', $locked->id)->where('status', '!=', GrievanceStatus::Draft->value)->count();
+            // Decided while the verification was open (2026-11-23): only a grievance, or an
+            // AO correction, still open keeps the DPC with the AH.
+            $stillOpen = Grievance::query()->where('dpc_verification_cycle_id', $locked->id)
+                ->whereIn('status', [GrievanceStatus::Submitted->value, GrievanceStatus::SentToAo->value, GrievanceStatus::ReturnedFromAo->value])->count();
+            $allDecided = $grievances > 0 && $stillOpen === 0;
 
-            $toReview = $grievances > 0;
+            $toReview = $stillOpen > 0;
             $locked->forceFill([
                 'status' => ($toReview ? CycleStatus::GrievanceReview : CycleStatus::Completed)->value,
                 'closed_at' => $now,
@@ -101,9 +106,10 @@ final class VerificationRoutingService
             if ($proposal->status === DpcProposalStatus::CandidateVerification) {
                 $to = $toReview ? DpcProposalStatus::GrievanceReview : DpcProposalStatus::PendingSecretary;
                 $event = $toReview ? 'verification_grievances' : 'verification_closed';
+                $text = $allDecided ? 'verification_decided' : $event;
                 $remarks = $early
-                    ? (string) __('candidate.verification.auto.'.$event.'_early', ['date' => $now->format('d-m-Y'), 'count' => $grievances])
-                    : (string) __('candidate.verification.auto.'.$event, ['date' => $locked->deadline_at->format('d-m-Y'), 'count' => $grievances, 'no_response' => $noResponse]);
+                    ? (string) __('candidate.verification.auto.'.$text.'_early', ['date' => $now->format('d-m-Y'), 'count' => $grievances])
+                    : (string) __('candidate.verification.auto.'.$text, ['date' => $locked->deadline_at->format('d-m-Y'), 'count' => $grievances, 'no_response' => $noResponse]);
                 $reason = $early ? 'all_candidates_responded' : 'candidate_verification_deadline';
                 $proposal->forceFill(['status' => $to->value])->save();
 

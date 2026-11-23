@@ -9,6 +9,7 @@ use App\Domain\CandidateVerification\Enums\CycleStatus;
 use App\Domain\CandidateVerification\Enums\GrievanceStatus;
 use App\Domain\CandidateVerification\Enums\VerificationSection;
 use App\Domain\CandidateVerification\Models\Grievance;
+use App\Domain\CandidateVerification\Models\GrievanceCorrection;
 use App\Domain\CandidateVerification\Models\VerificationDecision;
 use App\Domain\CandidateVerification\Services\CandidateRecordView;
 use App\Domain\Department\Models\Department;
@@ -132,6 +133,74 @@ class GrievanceReviewEntryTest extends TestCase
     }
 
     /** One candidate after another: a minute apart, past the portal's OTP throttle. */
+    /**
+     * 2026-11-23: the AH sees each grievance as soon as its candidate submits it, and
+     * acts on it while the verification is still open — to the AO and back, decided.
+     * All decided by the close, the DPC goes straight to the Secretary.
+     */
+    public function test_the_ah_acts_on_a_grievance_while_the_verification_is_open(): void
+    {
+        $this->submitAs(1, ['cr']);
+        $grievance = Grievance::query()->sole();
+        $this->assertSame(CycleStatus::Open, $this->cycle()->status);
+
+        // Another candidate's draft — saved, never submitted with the eSign — is nobody's to see.
+        Carbon::setTestNow(now()->addMinutes(2));
+        $this->signIn(2);
+        $this->grievance($this->participant(2)->uuid, 'cr')->assertSessionHasNoErrors();
+        $draft = Grievance::query()->where('status', GrievanceStatus::Draft->value)->sole();
+        auth()->logout();
+
+        $this->actingAs($this->ah)->get(route('grievances.queue'))->assertOk()
+            ->assertSee('data-grievance-queue="'.$this->proposal->uuid.'"', false)
+            ->assertSee('data-verification-open', false);
+        $this->get(route('dpc-proposals.grievances.index', $this->proposal))->assertOk()
+            ->assertSee('id="verification-still-open"', false)
+            ->assertSee('data-grievance="'.$grievance->uuid.'"', false)
+            ->assertDontSee('data-grievance="'.$draft->uuid.'"', false);
+        $this->get(route('dpc-proposals.grievances.document', [$this->proposal, $draft]))->assertNotFound();
+        $this->post(route('dpc-proposals.grievances.resolve', [$this->proposal, $draft]), ['decision' => 'not_upheld', 'resolution_remark' => 'x'])->assertSessionHasErrors();
+        $this->assertSame(GrievanceStatus::Draft, $draft->fresh()->status);
+
+        // To the AO, who corrects only that candidate's section, and back.
+        $row = $this->row(1);
+        $this->post(route('dpc-proposals.grievances.send-to-ao', [$this->proposal, $grievance]), ['instructions' => 'Check the CR.'])->assertSessionHasNoErrors();
+        $proposal = $this->proposal->fresh();
+        $this->assertTrue($this->ao->can('updateEmployeeSection', [$proposal, 'cr', $row]));
+        $this->assertFalse($this->ao->can('updateEmployeeSection', [$proposal, 'cr', $this->row(2)]), 'Not another candidate.');
+        $correction = GrievanceCorrection::query()->sole();
+        $this->actingAs($this->ao)->post(route('dpc-proposals.grievances.correction', [$proposal, $correction]), ['ao_remarks' => 'Checked.'])->assertSessionHasNoErrors();
+        $this->assertFalse($this->ao->can('updateEmployeeSection', [$this->proposal->fresh(), 'cr', $row]));
+
+        $this->actingAs($this->ah)->post(route('dpc-proposals.grievances.resolve', [$this->proposal, $grievance]), ['decision' => 'not_upheld', 'resolution_remark' => 'The record is right.'])->assertSessionHasNoErrors();
+        $this->assertSame(GrievanceStatus::Resolved, $grievance->fresh()->status);
+        $this->assertSame(DpcProposalStatus::CandidateVerification, $this->proposal->fresh()->status, 'The verification runs on.');
+
+        // Another department's AH cannot act on it.
+        $other = Department::query()->create(['code' => 'PW', 'name' => 'Public Works', 'status' => 'active']);
+        $outsider = User::factory()->assignedTo($other->id, Role::AdministrativeHead)->create();
+        $this->actingAs($outsider)->get(route('dpc-proposals.grievances.index', $this->proposal))->assertForbidden();
+
+        // Closed with every grievance decided: to the Secretary, not back to the AH.
+        Carbon::setTestNow('2026-11-30 00:00:01');
+        $this->artisan('dpc:candidate-verification-deadlines')->assertSuccessful();
+        $this->assertSame(DpcProposalStatus::PendingSecretary, $this->proposal->fresh()->status);
+        $this->assertSame(CycleStatus::Completed, $this->cycle()->status);
+        $this->assertStringContainsString('already decided', (string) WorkflowTransition::query()->where('event', 'verification_closed')->sole()->remarks);
+    }
+
+    public function test_a_grievance_still_open_at_the_close_keeps_the_dpc_with_the_ah(): void
+    {
+        $this->submitAs(1, ['cr', 'ipr']);
+        $first = Grievance::query()->orderBy('id')->first();
+        $this->actingAs($this->ah)->post(route('dpc-proposals.grievances.resolve', [$this->proposal, $first]), ['decision' => 'not_upheld', 'resolution_remark' => 'Right.'])->assertSessionHasNoErrors();
+
+        Carbon::setTestNow('2026-11-30 00:00:01');
+        $this->artisan('dpc:candidate-verification-deadlines')->assertSuccessful();
+        $this->assertSame(DpcProposalStatus::GrievanceReview, $this->proposal->fresh()->status);
+        $this->assertSame(CycleStatus::GrievanceReview, $this->cycle()->status);
+    }
+
     private function submitAs(int $sn, array $grievances = []): void
     {
         Carbon::setTestNow(now()->addMinutes(2));

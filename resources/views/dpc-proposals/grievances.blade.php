@@ -22,6 +22,10 @@
             <div>{{ __('candidate.grievance.review.summary', ['submitted' => $counts['submitted'], 'total' => $cycle->participant_count, 'grievances' => $counts['grievances'], 'no_response' => $counts['no_response']]) }}</div>
             <div>{{ __('candidate.grievance.review.notifications', ['sent' => $notifications['sent'] ?? 0, 'queued' => $notifications['queued'] ?? 0, 'failed' => $notifications['failed'] ?? 0, 'skipped' => $notifications['skipped'] ?? 0]) }}</div>
             <p class="text-muted mb-0 mt-1">{{ __('candidate.grievance.review.lead') }}</p>
+            @if ($cycle->status->value === 'open')
+                {{-- 2026-11-23: each grievance is the AH's as soon as it is submitted. --}}
+                <div class="alert alert-info py-1 px-2 mb-0 mt-2" id="verification-still-open">{{ __('candidate.grievance.review.still_open', ['date' => $cycle->deadline_at->format('d-m-Y H:i')]) }}</div>
+            @endif
         </div></div>
 
         @if ($corrections->isNotEmpty())
@@ -68,7 +72,7 @@
             </div>
             @foreach ($group as $grievance)
             @php
-                $decidable = in_array($grievance->status->value, ['submitted', 'returned_from_ao'], true) && $proposal->status->value === 'grievance_review';
+                $decidable = in_array($grievance->status->value, ['submitted', 'returned_from_ao'], true) && $actionable;
             @endphp
             <div class="border rounded mb-2" data-grievance="{{ $grievance->uuid }}" data-status="{{ $grievance->status->value }}"><div class="p-2 small">
                 <div class="d-flex flex-wrap justify-content-end gap-2">

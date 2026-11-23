@@ -8,14 +8,12 @@
             <strong>{{ __('candidate.verification.title') }}</strong> —
             {{ __('candidate.verification.dashboard.deadline') }}: {{ $verificationCycle->deadline_at->format('d-m-Y') }} ·
             @if ($verificationCycle->status === \App\Domain\CandidateVerification\Enums\CycleStatus::Open)
-                {{-- The period runs: no grievance shown, nor how many (2026-11-20). --}}
+                {{-- The period runs; each grievance is the AH's as it is submitted (2026-11-23). --}}
                 {{ __('candidate.grievance.review.summary_open', ['submitted' => $verificationCycle->participants()->whereNotNull('submitted_at')->count(), 'total' => $verificationCycle->participant_count]) }}
             @else
                 {{ __('candidate.grievance.review.summary', ['submitted' => $verificationCycle->participants()->whereNotNull('submitted_at')->count(), 'total' => $verificationCycle->participant_count, 'grievances' => $verificationCycle->grievances()->where('status', '!=', 'draft')->count(), 'no_response' => $verificationCycle->participants()->where('status', 'no_response')->count()]) }}
             @endif
         </div>
-        @if ($verificationCycle->status !== \App\Domain\CandidateVerification\Enums\CycleStatus::Open)
-            <a class="btn btn-sm btn-outline-primary" href="{{ route('dpc-proposals.grievances.index', $proposal) }}" id="grievances-link">{{ __('candidate.grievance.review.heading') }}</a>
-        @endif
+        <a class="btn btn-sm btn-outline-primary" href="{{ route('dpc-proposals.grievances.index', $proposal) }}" id="grievances-link">{{ __('candidate.grievance.review.heading') }}</a>
     </div>
 @endif

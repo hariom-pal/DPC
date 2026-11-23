@@ -27,7 +27,7 @@
                                 @forelse ($rows as $index => $item)
                                     <tr data-grievance-queue="{{ $item['proposal']->uuid }}">
                                         <td>{{ $index + 1 }}</td>
-                                        <td class="font-monospace">{{ $item['proposal']->citation() }}</td>
+                                        <td class="font-monospace">{{ $item['proposal']->citation() }}@if ($item['open'])<div><span class="badge text-bg-info" data-verification-open>{{ __('candidate.grievance.review.queue_open') }}</span></div>@endif</td>
                                         <td>{{ $item['proposal']->promotionFromPost?->name }}</td>
                                         <td>{{ $item['proposal']->promotionToPost?->name }}</td>
                                         <td class="text-center">{{ $item['candidates'] }}</td>

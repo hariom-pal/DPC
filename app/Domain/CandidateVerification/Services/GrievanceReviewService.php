@@ -46,6 +46,21 @@ final class GrievanceReviewService
         private readonly WorkflowEngine $engine,
     ) {}
 
+    /**
+     * Whether the AH may act on this DPC's grievances now (2026-11-23): in the grievance
+     * review, and — as each is submitted — while the candidate verification is still
+     * open, so the AH need not wait for the deadline.
+     */
+    public function actionable(DpcProposal $proposal): bool
+    {
+        if ($proposal->status === DpcProposalStatus::GrievanceReview) {
+            return true;
+        }
+
+        return $proposal->status === DpcProposalStatus::CandidateVerification
+            && VerificationCycle::query()->where('dpc_proposal_id', $proposal->id)->where('status', CycleStatus::Open->value)->exists();
+    }
+
     /** Whether an AO correction of this officer's Employee Details section is open now. */
     public function correctionOpen(DpcEvaluationRow $row, ?string $employeeSection = null): bool
     {
@@ -146,7 +161,7 @@ final class GrievanceReviewService
             $grievance = $locked->grievance;
             $proposal = $grievance->participant->row->proposal;
 
-            if ($proposal->status !== DpcProposalStatus::GrievanceReview || ! $this->allotments->isAllotted($ao, $proposal, Role::AuthorizedOfficer)) {
+            if (! $this->actionable($proposal) || ! $this->allotments->isAllotted($ao, $proposal, Role::AuthorizedOfficer)) {
                 throw new WorkflowException((string) __('candidate.grievance.errors.not_yours'));
             }
             if ($locked->status !== GrievanceCorrection::OPEN) {
@@ -247,7 +262,7 @@ final class GrievanceReviewService
         $participant = $locked->participant;
         $proposal = $participant->row->proposal;
 
-        if ($proposal->status !== DpcProposalStatus::GrievanceReview || ! $this->allotments->isAllotted($ah, $proposal, Role::AdministrativeHead)) {
+        if (! $this->actionable($proposal) || ! $this->allotments->isAllotted($ah, $proposal, Role::AdministrativeHead)) {
             throw new WorkflowException((string) __('candidate.grievance.errors.not_yours'));
         }
 

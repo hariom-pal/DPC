@@ -43,7 +43,8 @@ class GrievanceController extends Controller
     {
         $user = $request->user();
         $proposals = $allotments->scopeTo(DpcProposal::query(), $user)
-            ->whereIn('id', VerificationCycle::query()->where('status', '!=', CycleStatus::Open->value)->where('grievance_count', '>', 0)->select('dpc_proposal_id'))
+            // Every DPC with a grievance submitted — while the verification is still open too (2026-11-23).
+            ->whereIn('id', VerificationCycle::query()->whereIn('id', Grievance::query()->where('status', '!=', GrievanceStatus::Draft->value)->select('dpc_verification_cycle_id'))->select('dpc_proposal_id'))
             ->with('department', 'promotionFromPost', 'promotionToPost')
             ->get();
 
@@ -62,6 +63,8 @@ class GrievanceController extends Controller
 
             return [
                 'proposal' => $proposal,
+                // Still open (2026-11-23): its grievances come in as each candidate submits.
+                'open' => $cycle?->status === CycleStatus::Open,
                 'candidates' => Grievance::query()->where('dpc_verification_cycle_id', $cycle?->id)->where('status', '!=', GrievanceStatus::Draft->value)->distinct()->count('dpc_verification_participant_id'),
                 'to_decide' => ($byStatus[GrievanceStatus::Submitted->value] ?? 0) + ($byStatus[GrievanceStatus::ReturnedFromAo->value] ?? 0),
                 'with_ao' => $byStatus[GrievanceStatus::SentToAo->value] ?? 0,
@@ -81,7 +84,8 @@ class GrievanceController extends Controller
         $cycle = VerificationCycle::query()->where('dpc_proposal_id', $dpcProposal->id)->first();
         // Nothing of the grievances while the candidates' period runs (2026-11-20): every
         // candidate has until the deadline, and the AH sees them all together after it.
-        abort_if($cycle === null || $cycle->status === CycleStatus::Open, 404);
+        // Open as well (2026-11-23): each grievance is the AH's as soon as it is submitted.
+        abort_if($cycle === null, 404);
 
         $filters = $request->validate([
             'section' => ['nullable', Rule::enum(VerificationSection::class)],
@@ -105,6 +109,8 @@ class GrievanceController extends Controller
         return view('dpc-proposals.grievances', [
             'proposal' => $dpcProposal,
             'cycle' => $cycle,
+            // The AH acts in the review, and while the verification is open (2026-11-23).
+            'actionable' => $this->reviews->actionable($dpcProposal),
             'grievances' => $grievances,
             'filters' => $filters,
             'counts' => [
@@ -168,7 +174,8 @@ class GrievanceController extends Controller
     {
         $this->authorize('view', $dpcProposal);
         $this->assertBelongs($dpcProposal, $grievance);
-        abort_if($grievance->cycle->status === CycleStatus::Open || $grievance->status === GrievanceStatus::Draft || ! Storage::disk($grievance->disk)->exists($grievance->path), 404);
+        // Open as well (2026-11-23); a draft never.
+        abort_if($grievance->status === GrievanceStatus::Draft || ! Storage::disk($grievance->disk)->exists($grievance->path), 404);
 
         return Storage::disk($grievance->disk)->download($grievance->path, $grievance->original_name);
     }

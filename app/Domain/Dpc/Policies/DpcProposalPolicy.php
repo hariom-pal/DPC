@@ -156,6 +156,14 @@ class DpcProposalPolicy
                 && app(GrievanceReviewService::class)->correctionOpen($row, $section === 'documents' ? null : $section);
         }
 
+        // …and while the candidate verification is still open, as the AH acts on each
+        // grievance when it is submitted (2026-11-23): the opened section only.
+        if ($proposal->status === DpcProposalStatus::CandidateVerification) {
+            return $row !== null
+                && $this->allotments->isAllotted($user, $proposal, Role::AuthorizedOfficer)
+                && app(GrievanceReviewService::class)->correctionOpen($row, $section === 'documents' ? null : $section);
+        }
+
         $sections = $proposal->committeeReturnSections();
 
         if ($sections === null) {

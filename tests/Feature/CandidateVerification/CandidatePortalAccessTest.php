@@ -201,13 +201,15 @@ class CandidatePortalAccessTest extends TestCase
         // Submitted: the candidate's grievance screen is gone, the section reads only.
         $this->get(route('candidate-verification.grievance', [$uuid, 'seniority']))->assertRedirect(route('candidate-verification.section', [$uuid, 'seniority']));
 
-        // During the period: the AH sees no grievance, not even how many.
+        // During the period (2026-11-23): the AH sees each grievance as soon as it is submitted.
         auth()->logout();
         $this->actingAs($this->ah)->get(route('dpc-proposals.show', $this->proposal))->assertOk()
-            ->assertDontSee('id="grievances-link"', false)
+            ->assertSee('id="grievances-link"', false)
             ->assertSee(__('candidate.grievance.review.summary_open', ['submitted' => 1, 'total' => $this->cycle()->participant_count]));
-        $this->get(route('dpc-proposals.grievances.index', $this->proposal))->assertNotFound();
-        $this->get(route('dpc-proposals.grievances.document', [$this->proposal, $grievance]))->assertNotFound();
+        $this->get(route('dpc-proposals.grievances.index', $this->proposal))->assertOk()
+            ->assertSee('id="verification-still-open"', false)
+            ->assertSee('data-grievance="'.$grievance->uuid.'"', false);
+        $this->get(route('dpc-proposals.grievances.document', [$this->proposal, $grievance]))->assertOk();
 
         // After the deadline: every grievance, together.
         Carbon::setTestNow($this->cycle()->deadline_at->copy()->addSecond());
