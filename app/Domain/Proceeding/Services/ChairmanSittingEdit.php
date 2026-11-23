@@ -7,6 +7,7 @@ namespace App\Domain\Proceeding\Services;
 use App\Domain\Authentication\Models\User;
 use App\Domain\Cgpsc\Models\DpcAllotment;
 use App\Domain\Dpc\Enums\DpcProposalStatus;
+use App\Domain\Dpc\Models\DpcEvaluationCrGrade;
 use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Proceeding\Models\DpcProceeding;
@@ -26,6 +27,9 @@ use Illuminate\Support\Carbon;
 final class ChairmanSittingEdit
 {
     public const EVENT = 'dpc_sitting.chairman_edit';
+
+    /** A grading the DPC Chairman changed at the sitting, with the reason (2026-11-22). */
+    public const GRADE_EVENT = 'dpc_sitting.chairman_grade_change';
 
     public function __construct(
         private readonly SealedCoverService $covers,
@@ -89,5 +93,79 @@ final class ChairmanSittingEdit
             ->max('occurred_at');
 
         return $at === null ? null : Carbon::parse((string) $at);
+    }
+
+    /**
+     * A CR year's grading changed by the DPC Chairman at the sitting (2026-11-22): the
+     * grading before and after, and the reason they gave, on the DPC's timeline. Nothing
+     * is recorded when the save left the grading as it was.
+     */
+    public function gradingChanged(DpcEvaluationRow $row, int $year, ?DpcEvaluationCrGrade $before, ?DpcEvaluationCrGrade $after, string $reason, User $chairman): void
+    {
+        $from = self::gradingOf($before);
+        $to = self::gradingOf($after);
+        if ($from === $to) {
+            return;
+        }
+
+        $this->timeline->record(self::GRADE_EVENT, $row->proposal, sprintf('%s changed the CR grading of %s for %d from %s to %s: %s', $chairman->name, $row->name, $year, $from, $to, $reason), [
+            'dpc_evaluation_row_id' => $row->id,
+            'year' => $year,
+            'from' => $from,
+            'to' => $to,
+            'reason' => $reason,
+        ], $chairman);
+    }
+
+    /**
+     * The DPC Chairman's grading changes for one candidate, latest first.
+     *
+     * @return list<array{year: int, from: string, to: string, reason: string, by: string|null, at: Carbon}>
+     */
+    public function gradeChanges(DpcEvaluationRow $row): array
+    {
+        $entries = ActivityTimeline::query()
+            ->with('causer')
+            ->where('event', self::GRADE_EVENT)
+            ->where('subject_type', $row->proposal->getMorphClass())
+            ->where('subject_id', $row->dpc_proposal_id)
+            ->latest('occurred_at')->latest('id')
+            ->get();
+
+        $changes = [];
+        foreach ($entries as $entry) {
+            $properties = $entry->properties ?? [];
+            if ((int) ($properties['dpc_evaluation_row_id'] ?? 0) !== $row->id) {
+                continue;
+            }
+            $causer = $entry->causer;
+            $changes[] = [
+                'year' => (int) ($properties['year'] ?? 0),
+                'from' => (string) ($properties['from'] ?? ''),
+                'to' => (string) ($properties['to'] ?? ''),
+                'reason' => (string) ($properties['reason'] ?? ''),
+                'by' => $causer instanceof User ? $causer->name : null,
+                'at' => Carbon::parse((string) $entry->occurred_at),
+            ];
+        }
+
+        return $changes;
+    }
+
+    /** A CR year's grading in words: Missing, NG, or its grades. */
+    private static function gradingOf(?DpcEvaluationCrGrade $cr): string
+    {
+        if ($cr === null) {
+            return '—';
+        }
+        if ($cr->put_up === false) {
+            return 'Missing';
+        }
+        if ($cr->has_grading === false) {
+            return 'NG';
+        }
+        $grades = array_values(array_filter(array_map(fn (array $report): string => (string) ($report['grade'] ?? ''), (array) ($cr->reports ?? []))));
+
+        return $grades !== [] ? implode(', ', $grades) : (string) ($cr->grade ?? '—');
     }
 }

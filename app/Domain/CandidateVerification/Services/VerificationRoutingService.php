@@ -50,14 +50,34 @@ final class VerificationRoutingService
         return $closed;
     }
 
-    public function close(VerificationCycle $cycle, ?Carbon $now = null): bool
+    /**
+     * Every candidate has submitted before the deadline (2026-11-22): nothing is left
+     * to wait for, so the verification closes now, routed as at the deadline — to the
+     * AH when any grievance was raised, to the Secretary when none was.
+     */
+    public function closeWhenAllResponded(VerificationCycle $cycle, ?Carbon $now = null): bool
+    {
+        return $this->close($cycle, $now, early: true);
+    }
+
+    public function close(VerificationCycle $cycle, ?Carbon $now = null, bool $early = false): bool
     {
         $now ??= now();
 
-        $done = DB::transaction(function () use ($cycle, $now): ?array {
+        $done = DB::transaction(function () use ($cycle, $now, $early): ?array {
             /** @var VerificationCycle|null $locked */
             $locked = VerificationCycle::query()->whereKey($cycle->id)->lockForUpdate()->first();
-            if ($locked === null || $locked->status !== CycleStatus::Open || $now->lte($locked->deadline_at)) {
+            if ($locked === null || $locked->status !== CycleStatus::Open) {
+                return null;
+            }
+            if ($early) {
+                $waiting = VerificationParticipant::query()->where('dpc_verification_cycle_id', $locked->id)->whereNull('submitted_at')->exists();
+                $any = VerificationParticipant::query()->where('dpc_verification_cycle_id', $locked->id)->exists();
+                // Past the deadline the scheduler closes it, as the deadline's close.
+                if ($waiting || ! $any || $now->gt($locked->deadline_at)) {
+                    return null;
+                }
+            } elseif ($now->lte($locked->deadline_at)) {
                 return null;
             }
 
@@ -81,17 +101,20 @@ final class VerificationRoutingService
             if ($proposal->status === DpcProposalStatus::CandidateVerification) {
                 $to = $toReview ? DpcProposalStatus::GrievanceReview : DpcProposalStatus::PendingSecretary;
                 $event = $toReview ? 'verification_grievances' : 'verification_closed';
-                $remarks = (string) __('candidate.verification.auto.'.$event, ['date' => $locked->deadline_at->format('d-m-Y'), 'count' => $grievances, 'no_response' => $noResponse]);
+                $remarks = $early
+                    ? (string) __('candidate.verification.auto.'.$event.'_early', ['date' => $now->format('d-m-Y'), 'count' => $grievances])
+                    : (string) __('candidate.verification.auto.'.$event, ['date' => $locked->deadline_at->format('d-m-Y'), 'count' => $grievances, 'no_response' => $noResponse]);
+                $reason = $early ? 'all_candidates_responded' : 'candidate_verification_deadline';
                 $proposal->forceFill(['status' => $to->value])->save();
 
                 WorkflowTransition::query()->create([
                     'workflow' => 'dpc_proposal', 'subject_type' => $proposal->getMorphClass(), 'subject_id' => $proposal->getKey(),
                     'event' => $event, 'from_state' => DpcProposalStatus::CandidateVerification->value, 'to_state' => $to->value,
                     'actor_id' => null, 'remarks' => $remarks,
-                    'meta' => ['automatic' => true, 'reason' => 'candidate_verification_deadline', 'grievances' => $grievances, 'no_response' => $noResponse],
+                    'meta' => ['automatic' => true, 'reason' => $reason, 'grievances' => $grievances, 'no_response' => $noResponse],
                     'occurred_at' => now(),
                 ]);
-                $this->timeline->record('dpc_proposal.'.$event, $proposal, $remarks, ['automatic' => true, 'grievances' => $grievances, 'no_response' => $noResponse]);
+                $this->timeline->record('dpc_proposal.'.$event, $proposal, $remarks, ['automatic' => true, 'reason' => $reason, 'grievances' => $grievances, 'no_response' => $noResponse]);
             }
 
             return ['cycle' => $locked, 'proposal' => $proposal, 'review' => $toReview, 'count' => $grievances];

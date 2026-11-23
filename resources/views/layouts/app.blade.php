@@ -83,6 +83,10 @@
                         @if (auth()->user()->hasAnyRole([\App\Enums\Role::AuthorizedOfficer->value, \App\Enums\Role::AdministrativeHead->value]))
                             <a class="btn btn-sm btn-outline-light" href="{{ route('post-mapping.index') }}">{{ __('ui.layouts.admin.nav.department_posts') }}</a>
                         @endif
+                        {{-- The AH's candidate grievances (2026-11-22). --}}
+                        @if (auth()->user()->hasRole(\App\Enums\Role::AdministrativeHead->value))
+                            <a class="btn btn-sm {{ request()->routeIs('grievances.queue') ? 'btn-light' : 'btn-outline-light' }}" href="{{ route('grievances.queue') }}" data-menu="grievances">{{ __('candidate.grievance.review.nav') }}</a>
+                        @endif
                         {{-- The Secretary, CGPSC's queue (2026-11-14). --}}
                         @if (auth()->user()->hasRole(\App\Enums\Role::Secretary->value))
                             <a class="btn btn-sm {{ request()->routeIs('secretary.*') ? 'btn-light' : 'btn-outline-light' }}" href="{{ route('secretary.index') }}" data-menu="secretary">{{ __('dpc.secretary.nav') }}</a>

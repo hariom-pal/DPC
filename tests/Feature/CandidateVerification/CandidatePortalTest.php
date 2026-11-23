@@ -200,7 +200,7 @@ class CandidatePortalTest extends TestCase
         $this->grievance($uuid, 'cr')->assertRedirect(route('candidate-verification.section', [$uuid, 'integrity']));
         $first = Grievance::query()->sole();
         $this->assertSame(GrievanceStatus::Draft, $first->status);
-        $this->grievance($uuid, 'cr', ['remark' => 'Corrected remark.', 'document' => null])->assertSessionHasNoErrors();
+        $this->grievance($uuid, 'cr', ['grievance' => $first->uuid, 'remark' => 'Corrected remark.', 'document' => null])->assertSessionHasNoErrors();
         $this->assertSame([$first->path, 'Corrected remark.'], [$first->fresh()->path, $first->fresh()->remark]);
         $this->delete(route('candidate-verification.grievance.remove', [$uuid, 'cr']))->assertSessionHasNoErrors();
         $this->assertSame(0, Grievance::query()->count());

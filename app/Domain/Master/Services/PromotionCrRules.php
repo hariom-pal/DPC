@@ -84,18 +84,18 @@ final class PromotionCrRules
     }
 
     /**
-     * The calendar years whose property return the rule makes mandatory
-     * (2026-11-05): within its property years and ticked for the year.
+     * The calendar years whose property return the rule makes mandatory: every one of
+     * its property years before the DPC year (2026-11-22: "a Property File missing for
+     * any year goes to Circulation, with its reason") — the per-year tick no longer
+     * narrows it. Latest first.
      *
      * @return list<int>
      */
     public function mandatoryPropertyYears(PromotionCrRule $rule, int $dpcYear): array
     {
-        return $rule->years
-            ->filter(fn ($year): bool => $year->years_before <= $rule->property_years && $year->property_mandatory)
-            ->map(fn ($year): int => $dpcYear - $year->years_before)
-            ->values()
-            ->all();
+        $count = (int) $rule->property_years;
+
+        return $count < 1 ? [] : range($dpcYear - 1, $dpcYear - $count);
     }
 
     public static function classCode(mixed $level): ?string

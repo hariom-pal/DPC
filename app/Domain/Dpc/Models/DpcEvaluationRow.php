@@ -216,6 +216,31 @@ class DpcEvaluationRow extends Model
     /** The reason code of "appointed in this year" (Record Reason master). */
     public const APPOINTED_REASON = 'newly_appointed';
 
+    /**
+     * Why "appointed in this year" may not be recorded for this year, or null when it
+     * may (2026-11-22): checked against the Date of Joining in Service on the Seniority
+     * List. Joined on 1 January, the year's record is asked for; joined on 2 January or
+     * later of that year, it is "appointed in this year"; any other year, it is not.
+     */
+    public function appointedYearRefusal(int $year): ?string
+    {
+        $joined = $this->date_of_joining_service;
+
+        if ($joined === null) {
+            return (string) __('dpc.employee_details.missing_record.appointed_no_joining_date');
+        }
+
+        if ((int) $joined->year !== $year) {
+            return (string) __('dpc.employee_details.missing_record.appointed_other_year', ['year' => $year, 'date' => $joined->format('d-m-Y')]);
+        }
+
+        if ($joined->month === 1 && $joined->day === 1) {
+            return (string) __('dpc.employee_details.missing_record.appointed_on_first_january', ['year' => $year, 'date' => $joined->format('d-m-Y')]);
+        }
+
+        return null;
+    }
+
     /** @var array{0: bool}|null the promotion rule's answer, asked once per row */
     private ?array $appointedRuleAnswer = null;
 

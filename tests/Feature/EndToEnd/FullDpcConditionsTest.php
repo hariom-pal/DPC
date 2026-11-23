@@ -325,19 +325,23 @@ class FullDpcConditionsTest extends TestCase
     }
 
     /**
-     * 5c. A Property Return the rule leaves optional: missing it asks for no reason
-     * or document and causes neither CIR nor RJ (2026-11-05).
+     * 5c. 2026-11-22: a Property Return missing in ANY year of the rule's Property years
+     * goes to Circulation with its reason — a year the Administrator left unticked is
+     * no longer optional: its reason and document are asked, and the officer is CIR.
      */
-    public function test_5c_optional_property_missing_is_neither_cir_nor_rj(): void
+    public function test_5c_a_property_year_left_unticked_is_still_mandatory_and_cir(): void
     {
         $c = $this->dpc(['no_property' => [3 => 2023], 'optional_property_years' => [2023]]);
         $row = $c['proposal']->evaluationRows()->where('sn', 3)->sole();
-        $this->assertSame(0, $row->recordGaps()->count(), 'No reason or document is asked for an optional year.');
+        $this->assertTrue($row->recordGaps()->where('kind', 'property')->where('year', 2023)->sole()->isJustified(), 'Its reason and document are asked.');
+
+        $check = app(PromotionRuleCheck::class)->check($row->fresh(), $c['proposal']->fresh());
+        $this->assertSame('cir', $check['status']);
+        $this->assertContains(__('dpc.employee_details.rule.property_cir', ['year' => 2023]), $check['holds']);
 
         $proceeding = $this->conclude($c);
-        $this->assertSame(['main', true], [$this->results($proceeding)[3]->list_type->value, (bool) $this->results($proceeding)[3]->is_eligible]);
-        $this->assertSame(0, DpcProceedingHold::query()->where('dpc_proceeding_id', $proceeding->id)->count());
-        $this->assertContains(3, $this->order($c));
+        $this->assertSame('CIR', $this->results($proceeding)[3]->status()->value);
+        $this->assertNotContains(3, $this->order($c), 'Held: off the order.');
     }
 
     /**
@@ -923,10 +927,9 @@ class FullDpcConditionsTest extends TestCase
                         continue; // the Property Return keeps its own five years
                     }
                     if (($o['no_property'][$row->sn] ?? null) === $year) {
-                        // Not submitted: Missing with its reason and document in a year the
-                        // rule makes mandatory; nothing more in an optional one (2026-11-05).
-                        $this->ok($this->actingAs($ao)->post($route('property.save', $row), ['year' => $year, 'submitted' => '0']
-                            + (in_array($year, $o['optional_property_years'], true) ? [] : $missing("mipr{$row->sn}{$year}.pdf"))));
+                        // Not submitted: Missing with its reason and document — in any year of
+                        // the Property window, ticked or not (2026-11-22).
+                        $this->ok($this->actingAs($ao)->post($route('property.save', $row), ['year' => $year, 'submitted' => '0'] + $missing("mipr{$row->sn}{$year}.pdf")));
                     } else {
                         $this->ok($this->actingAs($ao)->post($route('property.save', $row), ['year' => $year, 'submitted' => '1', 'submitted_on' => $year.'-01-15', 'next_increment_date' => ($year + 1).'-07-01']));
                         $this->ok($this->actingAs($ao)->post($route('documents.store', $row), ['verified' => '1', 'kind' => 'property_return', 'year' => $year, 'undertaking' => '1', 'document' => $this->pdf("ipr{$row->sn}{$year}.pdf")]));

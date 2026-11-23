@@ -11,6 +11,7 @@ use App\Domain\Dpc\Models\DpcCommitteeMember;
 use App\Domain\Dpc\Models\DpcEvaluationRecordGap;
 use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\Dpc\Models\DpcProposal;
+use App\Domain\Dpc\Services\PromotionRuleCheck;
 use App\Domain\Master\Models\RecordReason;
 use App\Domain\Proceeding\Enums\DpcProceedingStatus;
 use App\Domain\Proceeding\Models\DpcCandidateReview;
@@ -119,6 +120,56 @@ class ChairmanSittingEditTest extends TestCase
         $this->assertSame(__('dpc.calculation_gate.awaiting_ok'), $gate->refusal($this->proposal->fresh(), $this->memberOne));
         $this->everyMemberOksEveryCandidate($this->proposal);
         $this->assertNull($gate->refusal($this->proposal->fresh(), $this->memberOne));
+    }
+
+    /**
+     * 2026-11-22: the DPC Chairman may change any candidate's grading at the sitting, is
+     * asked why, and the total is worked out on the new grading. The change, with its
+     * reason, is on the timeline, the employee record and the sitting's candidate page.
+     */
+    public function test_the_dpc_chairman_changes_a_grading_with_its_reason_and_the_total_follows(): void
+    {
+        $this->atTheSitting();
+        $row = $this->row(2);
+        $url = route('dpc-proposals.employees.cr.save', [$this->proposal, $row]);
+        $payload = ['year' => 2024, 'put_up' => '1', 'has_grading' => '1', 'authorities' => ['reporter', 'reviewer', 'accepting'], 'grade' => 'क+'];
+        $before = app(PromotionRuleCheck::class)->check($row, $this->proposal)['total'];
+
+        // No reason: refused, and the grading stays as it was.
+        $this->actingAs($this->memberOne)->post($url, $payload)->assertSessionHasErrors('chairman_reason');
+        $this->assertSame('ख', $this->row(2)->crGrades()->where('year', 2024)->value('grade'));
+        $this->assertSame(0, ActivityTimeline::query()->where('event', ChairmanSittingEdit::GRADE_EVENT)->count());
+
+        $this->post($url, $payload + ['chairman_reason' => 'The reviewing authority upgraded it on representation.'])->assertSessionHasNoErrors();
+        $this->assertSame('क+', $this->row(2)->crGrades()->where('year', 2024)->value('grade'));
+
+        $event = ActivityTimeline::query()->where('event', ChairmanSittingEdit::GRADE_EVENT)->sole();
+        $this->assertSame($this->memberOne->id, (int) $event->causer_id);
+        $this->assertSame(['ख', 'क+', 'The reviewing authority upgraded it on representation.'], [$event->properties['from'], $event->properties['to'], $event->properties['reason']]);
+
+        // The new total, on the new grading.
+        $after = app(PromotionRuleCheck::class)->check($this->row(2), $this->proposal)['total'];
+        if ($before !== null) {
+            $this->assertNotSame($before, $after);
+        }
+
+        $this->get(route('dpc-proposals.employees.show', [$this->proposal, $this->row(2), 'cr_year' => 2024]))->assertOk()
+            ->assertSee('id="chairman-reason-field"', false)
+            ->assertSee('data-grade-change-year="2024"', false)
+            ->assertSee('The reviewing authority upgraded it on representation.');
+        $this->get(route('sitting.candidate', [$this->proposal, $this->row(2)]))->assertOk()
+            ->assertSee('data-grade-change-year="2024"', false);
+
+        // Saved again unchanged: no reason asked, nothing new recorded.
+        $this->post($url, $payload)->assertSessionHasNoErrors();
+        $this->assertSame(1, ActivityTimeline::query()->where('event', ChairmanSittingEdit::GRADE_EVENT)->count());
+    }
+
+    public function test_the_department_is_never_asked_for_the_chairmans_reason(): void
+    {
+        $this->assertFalse($this->authorizedOfficer->can('editAtSitting', $this->proposal));
+        $this->actingAs($this->authorizedOfficer)->get(route('dpc-proposals.employees.show', [$this->proposal, $this->row(2), 'cr_year' => 2024]))
+            ->assertDontSee('id="chairman-reason-field"', false);
     }
 
     public function test_every_record_route_admits_the_allotted_dpc_chairman_at_the_sitting(): void

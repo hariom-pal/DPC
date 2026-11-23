@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Dpc;
 
 use App\Domain\Dpc\Exports\TabulationChartExport;
+use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Dpc\Services\EmployeeDetailsService;
 use App\Domain\Import\Enums\ImportBatchStatus;
@@ -63,7 +64,7 @@ class DpcTabulationController extends Controller
      */
     private function prepare(DpcProposal $proposal): array
     {
-        $proposal->load(['evaluationRows' => fn ($query) => $query->orderBy('sn'), 'evaluationRows.reservationCategory', 'evaluationRows.crGrades.integrityOption', 'evaluationRows.propertyFlags', 'evaluationRows.currentDocuments']);
+        $proposal->load(['evaluationRows' => fn ($query) => $query->orderBy('sn'), 'evaluationRows.reservationCategory', 'evaluationRows.crGrades.integrityOption', 'evaluationRows.propertyFlags', 'evaluationRows.currentDocuments', 'evaluationRows.recordGaps.reason']);
         $dpcYear = (int) ($proposal->dpc_year ?: $proposal->proposal_date->year);
 
         // As many as the promotion rule counts (five without a rule), 2026-11-18.
@@ -71,38 +72,63 @@ class DpcTabulationController extends Controller
     }
 
     /**
-     * Each officer's CR years in the order their CR window takes them (2026-11-19): the
-     * years counted, a middle year not counted (missing, or no grading) in its own
-     * column, and the older year counted in its place after — so a row with a skipped
-     * year runs one column longer. As the rule check and the calculation take it.
+     * Each officer's CR cells (2026-11-22): only the years counted that have a CR put up,
+     * latest first, in as many columns as the rule's CR count — a year missing (or not
+     * entered) is not shown, so an officer with three CRs found shows three. A year put
+     * up without a grading shows only where it is counted (the last year); passed over,
+     * it goes with the missing years behind "View missing CR". The older year counted in
+     * place of a skipped one stays yellow.
      *
      * @param  list<int>  $years  the rule's CR years, latest first
-     * @return array{crColumns: int, crCells: array<int, list<array{year: int, state: 'counted'|'skipped'|'replacement'}>>}
+     * @return array{crColumns: int, crCells: array<int, list<array{year: int, state: 'counted'|'replacement'}>>, missingCr: array<int, int>}
      */
     private function crCells(DpcProposal $proposal, array $years): array
     {
         $slots = count($years);
         $oldest = $years === [] ? 0 : min($years);
         $cells = [];
+        $missing = [];
 
         foreach ($proposal->evaluationRows as $row) {
             $row->setRelation('proposal', $proposal);
             $window = $this->details->crWindow($row, $row->crGrades, $slots);
 
+            $shown = array_values(array_filter($window->counted, function (int $year) use ($row): bool {
+                $cr = $row->crGrades->firstWhere('year', $year);
+
+                return $cr !== null && $cr->put_up !== false;
+            }));
+
             $cells[$row->id] = array_map(fn (int $year): array => [
                 'year' => $year,
-                'state' => match (true) {
-                    in_array($year, $window->skipped, true) => 'skipped',
-                    $year < $oldest => 'replacement',
-                    default => 'counted',
-                },
-            ], $window->years);
+                'state' => $year < $oldest ? 'replacement' : 'counted',
+            ], $shown);
+            $missing[$row->id] = count($this->details->missingCrYears($row, $slots));
         }
 
         return [
-            'crColumns' => max($slots, ...array_map('count', $cells ?: [[]])),
+            'crColumns' => max(1, $slots),
             'crCells' => $cells,
+            'missingCr' => $missing,
         ];
+    }
+
+    /**
+     * One officer's missing CR years and the reason recorded for each (2026-11-22), from
+     * the Tabulation Chart's "View missing CR" link, in a tab of its own.
+     */
+    public function missingCr(DpcProposal $dpcProposal, DpcEvaluationRow $evaluationRow): View
+    {
+        $this->authorize('viewRecords', $dpcProposal);
+        $this->prepare($dpcProposal);
+        $evaluationRow->setRelation('proposal', $dpcProposal);
+        $evaluationRow->loadMissing(['crGrades', 'recordGaps.reason']);
+
+        return view('dpc-proposals.tabulation-missing-cr', [
+            'proposal' => $dpcProposal,
+            'row' => $evaluationRow,
+            'missing' => $this->details->missingCrYears($evaluationRow),
+        ]);
     }
 
     public function original(DpcProposal $dpcProposal, ImportBatch $importBatch): StreamedResponse

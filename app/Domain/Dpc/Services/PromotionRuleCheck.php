@@ -154,9 +154,9 @@ final class PromotionRuleCheck
                 $findings[] = (string) __('dpc.employee_details.rule.cr_below_min', ['year' => $calendar, 'points' => $yearPoints, 'min' => $min]);
             }
 
-            $propertyRequirement = $byYear->get($before);
-            // Not a year before the officer's appointment, where the rule says so (2026-11-18).
-            $propertyRequired = $before <= $rule->property_years && (bool) $propertyRequirement?->property_mandatory && ! $row->isBeforeAppointment($calendar);
+            // Every year of the rule's Property window is mandatory (2026-11-22), whatever
+            // the per-year tick; not a year before the officer's appointment (2026-11-18).
+            $propertyRequired = $before >= 1 && $before <= $rule->property_years && ! $row->isBeforeAppointment($calendar);
             $propertyOk = ! $propertyRequired || $row->propertyFlags->firstWhere('year', $calendar)?->flag === true;
 
             if (! $propertyOk) {

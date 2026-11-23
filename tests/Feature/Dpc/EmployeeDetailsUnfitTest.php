@@ -122,6 +122,43 @@ class EmployeeDetailsUnfitTest extends TestCase
 
     // ================================================================ Integrity
 
+    /** The Seniority List's Date of Joining in Service, in the year recorded "appointed in this year" (2026-11-22). */
+    private function joinedIn(int $year): void
+    {
+        $this->row->forceFill(['date_of_joining_service' => $year.'-07-01'])->save();
+    }
+
+    /**
+     * 2026-11-22: "Appointed in this year" only as the Seniority List's Date of Joining in
+     * Service allows — joined on 1 January, the year's record is asked for; joined on
+     * 2 January or later of that year, it may be chosen; any other year, or no date, never.
+     */
+    public function test_appointed_in_this_year_follows_the_date_of_joining_in_service(): void
+    {
+        $year = $this->dpcYear - 1;
+        $appointed = RecordReason::query()->where('code', 'newly_appointed')->value('id');
+        $mark = fn () => $this->actingAs($this->ao)->post($this->route('cr.save'), [
+            'year' => $year, 'put_up' => '0', 'missing_reason_id' => $appointed, 'missing_document' => $this->pdf(),
+        ]);
+
+        $this->row->forceFill(['date_of_joining_service' => null])->save();
+        $mark()->assertSessionHasErrors(['missing_reason_id' => __('dpc.employee_details.missing_record.appointed_no_joining_date')]);
+
+        $this->row->forceFill(['date_of_joining_service' => ($year - 3).'-05-10'])->save();
+        $mark()->assertSessionHasErrors(['missing_reason_id' => __('dpc.employee_details.missing_record.appointed_other_year', ['year' => $year, 'date' => '10-05-'.($year - 3)])]);
+
+        $this->row->forceFill(['date_of_joining_service' => $year.'-01-01'])->save();
+        $mark()->assertSessionHasErrors(['missing_reason_id' => __('dpc.employee_details.missing_record.appointed_on_first_january', ['year' => $year, 'date' => '01-01-'.$year])]);
+        $this->assertSame(0, DpcEvaluationRecordGap::query()->count());
+
+        // The service refuses it too, whoever calls it.
+        $this->assertNotNull($this->row->fresh()->appointedYearRefusal($year));
+
+        $this->row->forceFill(['date_of_joining_service' => $year.'-01-02'])->save();
+        $mark()->assertSessionHasNoErrors();
+        $this->assertSame($year, $this->row->fresh()->appointedYear());
+    }
+
     public function test_the_five_integrity_options_are_seeded_with_their_result(): void
     {
         $this->assertSame(
@@ -345,6 +382,7 @@ class EmployeeDetailsUnfitTest extends TestCase
 
         $this->saveCr($last)->assertSessionHasNoErrors();
         $this->saveCr($last - 1)->assertSessionHasNoErrors();
+        $this->joinedIn($last - 2);
         $this->post($this->route('cr.save'), [
             'year' => $last - 2, 'put_up' => '0', 'missing_reason_id' => $reason->id, 'missing_document' => $this->pdf(),
         ])->assertSessionHasNoErrors();
@@ -384,6 +422,7 @@ class EmployeeDetailsUnfitTest extends TestCase
         $reason = RecordReason::query()->where('code', 'newly_appointed')->sole();
 
         $this->saveCr($last)->assertSessionHasNoErrors();
+        $this->joinedIn($last - 1);
         $this->post($this->route('cr.save'), [
             'year' => $last - 1, 'put_up' => '0', 'missing_reason_id' => $reason->id, 'missing_document' => $this->pdf(),
         ])->assertSessionHasNoErrors();
@@ -477,9 +516,13 @@ class EmployeeDetailsUnfitTest extends TestCase
         $appointed = RecordReason::query()->where('code', 'newly_appointed')->value('id');
 
         $this->saveCr($last)->assertSessionHasNoErrors();
+        // Chosen while the Seniority List said joined that year; the list then corrected (2026-11-22).
+        $joined = $this->row->fresh()->date_of_joining_service;
+        $this->joinedIn($last - 1);
         $this->actingAs($this->ao)->post($this->route('cr.save'), [
             'year' => $last - 1, 'put_up' => '0', 'missing_reason_id' => $appointed, 'missing_document' => $this->pdf(),
         ])->assertSessionHasNoErrors();
+        $this->row->forceFill(['date_of_joining_service' => $joined])->save();
         $this->assertSame([$last, $last - 1], $service->crYearWindow($this->row->fresh()), 'Limited by the appointment.');
         $this->saveCr($last - 2)->assertSessionHasErrors();
 
@@ -505,9 +548,15 @@ class EmployeeDetailsUnfitTest extends TestCase
         $appointed = RecordReason::query()->where('code', 'newly_appointed')->value('id');
         $other = RecordReason::query()->where('code', 'long_leave')->value('id');
         $this->saveCr($last)->assertSessionHasNoErrors();
-        $markAppointed = fn () => $this->actingAs($this->ao)->post($this->route('cr.save'), [
-            'year' => $last - 1, 'put_up' => '0', 'missing_reason_id' => $appointed, 'missing_document' => $this->pdf(),
-        ])->assertSessionHasNoErrors();
+        // Chosen while the Seniority List said joined that year; the list then corrected (2026-11-22).
+        $joined = $this->row->fresh()->date_of_joining_service;
+        $markAppointed = function () use ($last, $appointed, $joined): void {
+            $this->joinedIn($last - 1);
+            $this->actingAs($this->ao)->post($this->route('cr.save'), [
+                'year' => $last - 1, 'put_up' => '0', 'missing_reason_id' => $appointed, 'missing_document' => $this->pdf(),
+            ])->assertSessionHasNoErrors();
+            $this->row->forceFill(['date_of_joining_service' => $joined])->save();
+        };
 
         // Edited to another reason: still missing, replaced by an older year, no limit.
         $markAppointed();
@@ -545,6 +594,7 @@ class EmployeeDetailsUnfitTest extends TestCase
 
         // Appointed three years back: missing before it is not replaced — nothing older is offered.
         DpcEvaluationCrGrade::query()->where('dpc_evaluation_row_id', $this->row->id)->where('year', '<=', $last - 2)->delete();
+        $this->joinedIn($last - 3);
         $this->actingAs($this->ao)->post($this->route('cr.save'), ['year' => $last - 3, 'put_up' => '0', 'missing_reason_id' => RecordReason::query()->where('code', 'newly_appointed')->value('id'), 'missing_document' => $this->pdf()])->assertSessionHasNoErrors();
         $this->assertSame([$last - 2], $this->crOptions());
     }
@@ -603,6 +653,7 @@ class EmployeeDetailsUnfitTest extends TestCase
         $this->assertMatchesRegularExpression('/value="'.$reason->id.'"\s+data-makes-unfit\s+data-document-label="Appointment letter"/', $html, 'The form names the document it asks for.');
 
         // The appointment letter is mandatory (2026-11-16).
+        $this->joinedIn($this->dpcYear - 1);
         $this->actingAs($this->ao)->post($this->route('cr.save'), [
             'year' => $this->dpcYear - 1, 'put_up' => '0', 'missing_reason_id' => $reason->id,
         ])->assertSessionHasErrors('missing_document');
@@ -720,6 +771,10 @@ class EmployeeDetailsUnfitTest extends TestCase
             'year' => $last, 'put_up' => '0', 'missing_reason_id' => $reason, 'missing_document' => $this->pdf(),
         ])->assertSessionHasNoErrors();
         $this->assertSame([], $this->unfit(), 'The latest CR missing is not Unfit.');
+        // Every Property File year is mandatory (2026-11-22): filed, so only the CR is in question.
+        foreach (app(EmployeeDetailsService::class)->propertyYearWindow($this->row->fresh()) as $year) {
+            $this->row->propertyFlags()->updateOrCreate(['year' => $year], ['flag' => true, 'submitted_on' => $year.'-01-10']);
+        }
         $check = app(PromotionRuleCheck::class)->check($this->row->fresh(), $this->proposal->fresh());
         if ($check['status'] !== 'no_rule') {
             $this->assertSame('cir', $check['status']);
@@ -815,8 +870,14 @@ class EmployeeDetailsUnfitTest extends TestCase
         $this->assertSame(range($this->dpcYear - 1, $this->dpcYear - 5), $service->propertyYearWindow($this->row));
 
         $missing = $service->status($this->row->fresh())['sections']['property'];
+        // Under a rule every one of its Property years is mandatory (2026-11-22), so the
+        // five are asked for as the rule's years.
         foreach (range($this->dpcYear - 5, $this->dpcYear - 1) as $year) {
-            $this->assertContains(__('dpc.employee_details.missing.property_window_year', ['year' => $year]), $missing);
+            $this->assertTrue(
+                in_array(__('dpc.employee_details.missing.property_window_year', ['year' => $year]), $missing, true)
+                    || in_array(__('dpc.employee_details.missing.property_rule_year', ['year' => $year]), $missing, true),
+                "Property File {$year} is asked for",
+            );
         }
 
         $this->actingAs($this->ao)->post($this->route('property.save'), [

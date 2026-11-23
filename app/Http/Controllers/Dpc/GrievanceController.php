@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Dpc;
 
+use App\Domain\Allotment\Services\ProposalAllotmentService;
 use App\Domain\CandidateVerification\Enums\CycleStatus;
 use App\Domain\CandidateVerification\Enums\GrievanceDecision;
 use App\Domain\CandidateVerification\Enums\GrievanceStatus;
@@ -33,6 +34,47 @@ class GrievanceController extends Controller
 {
     public function __construct(private readonly GrievanceReviewService $reviews) {}
 
+    /**
+     * The AH's own entry point to the grievances (2026-11-22): every DPC allotted to
+     * them whose candidates raised grievances, with what is still to decide — not only
+     * the link inside each proposal's Candidate Verification section.
+     */
+    public function queue(Request $request, ProposalAllotmentService $allotments): View
+    {
+        $user = $request->user();
+        $proposals = $allotments->scopeTo(DpcProposal::query(), $user)
+            ->whereIn('id', VerificationCycle::query()->where('status', '!=', CycleStatus::Open->value)->where('grievance_count', '>', 0)->select('dpc_proposal_id'))
+            ->with('department', 'promotionFromPost', 'promotionToPost')
+            ->get();
+
+        $cycles = VerificationCycle::query()->whereIn('dpc_proposal_id', $proposals->modelKeys())->get()->keyBy('dpc_proposal_id');
+        $counts = Grievance::query()
+            ->whereIn('dpc_verification_cycle_id', $cycles->modelKeys())
+            ->where('status', '!=', GrievanceStatus::Draft->value)
+            ->selectRaw('dpc_verification_cycle_id, status, count(*) as n')
+            ->groupBy('dpc_verification_cycle_id', 'status')
+            ->get()
+            ->groupBy('dpc_verification_cycle_id');
+
+        $rows = $proposals->map(function (DpcProposal $proposal) use ($cycles, $counts): array {
+            $cycle = $cycles->get($proposal->id);
+            $byStatus = $counts->get($cycle?->id, collect())->mapWithKeys(fn ($r) => [$r->status instanceof GrievanceStatus ? $r->status->value : (string) $r->status => (int) $r->n]);
+
+            return [
+                'proposal' => $proposal,
+                'candidates' => Grievance::query()->where('dpc_verification_cycle_id', $cycle?->id)->where('status', '!=', GrievanceStatus::Draft->value)->distinct()->count('dpc_verification_participant_id'),
+                'to_decide' => ($byStatus[GrievanceStatus::Submitted->value] ?? 0) + ($byStatus[GrievanceStatus::ReturnedFromAo->value] ?? 0),
+                'with_ao' => $byStatus[GrievanceStatus::SentToAo->value] ?? 0,
+                'decided' => $byStatus[GrievanceStatus::Resolved->value] ?? 0,
+            ];
+        })
+            // What still needs the AH first.
+            ->sortByDesc(fn (array $row): int => $row['to_decide'] * 1000 + $row['with_ao'])
+            ->values();
+
+        return view('dpc-proposals.grievance-queue', ['rows' => $rows]);
+    }
+
     public function index(Request $request, DpcProposal $dpcProposal): View
     {
         $this->authorize('view', $dpcProposal);
@@ -54,8 +96,11 @@ class GrievanceController extends Controller
             ->when($filters['status'] ?? null, fn ($q, $s) => $q->where('status', $s))
             ->when($filters['candidate'] ?? null, fn ($q, $c) => $q->whereHas('participant.row', fn ($r) => $r->where('name', 'like', '%'.$c.'%')->orWhere('employee_number', $c)))
             ->with(['participant.row', 'corrections', 'resolver'])
-            ->orderBy('dpc_verification_participant_id')->orderBy('section')
-            ->get();
+            ->orderBy('dpc_verification_participant_id')->orderBy('section')->orderBy('id')
+            ->get()
+            // Candidate-wise (2026-11-22): each candidate's grievances together, in seniority order.
+            ->sortBy(fn (Grievance $g): int => (int) $g->participant->row->sn)
+            ->groupBy('dpc_verification_participant_id');
 
         return view('dpc-proposals.grievances', [
             'proposal' => $dpcProposal,

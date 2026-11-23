@@ -285,7 +285,8 @@ class CandidateVerificationController extends Controller
             'section' => $section,
             'data' => $this->view->section($own->row, $section),
             'decisions' => $this->verification->decisions($own),
-            'grievance' => Grievance::query()->where('dpc_verification_participant_id', $own->id)->where('section', $section->value)->first(),
+            // Several a section (2026-11-22), one for each year that is wrong.
+            'grievances' => Grievance::query()->where('dpc_verification_participant_id', $own->id)->where('section', $section->value)->orderBy('id')->get(),
             'corrected' => VerificationSnapshot::query()->where('dpc_verification_participant_id', $own->id)->where('version', '>', 1)->latest('version')->first(),
         ]);
     }
@@ -325,7 +326,10 @@ class CandidateVerificationController extends Controller
             'participant' => $own,
             'section' => $section,
             'years' => $this->view->yearsFor($own->row, $section),
-            'grievance' => Grievance::query()->where('dpc_verification_participant_id', $own->id)->where('section', $section->value)->first(),
+            // A new grievance, or the draft named to change (2026-11-22).
+            'grievance' => $request->filled('grievance')
+                ? Grievance::query()->where('dpc_verification_participant_id', $own->id)->where('section', $section->value)->where('uuid', (string) $request->query('grievance'))->firstOrFail()
+                : null,
         ]);
     }
 
@@ -344,6 +348,7 @@ class CandidateVerificationController extends Controller
             'remark' => ['required', 'string', 'max:2000'],
             'document' => ['nullable', 'file', 'mimes:pdf', 'mimetypes:application/pdf', 'max:'.$maxKb],
             'undertaking' => ['accepted'],
+            'grievance' => ['nullable', 'string', 'uuid'],
         ], [
             'undertaking.accepted' => __('candidate.grievance.accept'),
         ]);
@@ -353,7 +358,7 @@ class CandidateVerificationController extends Controller
                 'category' => $data['category'],
                 'related_year' => $data['related_year'] ?? null,
                 'remark' => $data['remark'],
-            ], $request->file('document'));
+            ], $request->file('document'), $data['grievance'] ?? null);
         } catch (WorkflowException $e) {
             return back()->withInput()->withErrors(['document' => $e->getMessage()]);
         }
@@ -369,7 +374,7 @@ class CandidateVerificationController extends Controller
         }
 
         try {
-            $this->verification->removeGrievance($own, $this->sectionOf($section));
+            $this->verification->removeGrievance($own, $this->sectionOf($section), $request->filled('grievance') ? (string) $request->input('grievance') : null);
         } catch (WorkflowException $e) {
             return back()->withErrors(['verification' => $e->getMessage()]);
         }
@@ -384,7 +389,8 @@ class CandidateVerificationController extends Controller
             return $this->expired();
         }
 
-        $grievance = Grievance::query()->where('dpc_verification_participant_id', $own->id)->where('section', $this->sectionOf($section)->value)->first();
+        $grievance = Grievance::query()->where('dpc_verification_participant_id', $own->id)->where('section', $this->sectionOf($section)->value)
+            ->when($request->filled('grievance'), fn ($q) => $q->where('uuid', (string) $request->query('grievance')))->orderBy('id')->first();
         abort_if($grievance === null || ! Storage::disk($grievance->disk)->exists($grievance->path), 404);
 
         return Storage::disk($grievance->disk)->download($grievance->path, $grievance->original_name);
@@ -400,7 +406,7 @@ class CandidateVerificationController extends Controller
         return view('candidate-verification.review', [
             'participant' => $own,
             'decisions' => $this->verification->decisions($own),
-            'grievances' => Grievance::query()->where('dpc_verification_participant_id', $own->id)->get()->keyBy(fn (Grievance $g): string => $g->section->value),
+            'grievances' => Grievance::query()->where('dpc_verification_participant_id', $own->id)->orderBy('id')->get()->groupBy(fn (Grievance $g): string => $g->section->value),
             'blockers' => $own->hasSubmitted() ? [] : $this->verification->blockers($own),
         ]);
     }

@@ -17,6 +17,7 @@ use App\Domain\Shared\Workflow\WorkflowException;
 use App\Domain\Signature\Exceptions\SignatureVerificationFailed;
 use App\Domain\Signature\Services\SignatureAttemptLog;
 use App\Domain\Signature\Services\SignatureService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -29,8 +30,8 @@ use Illuminate\Support\Str;
  * a departmental record: only their own decisions and grievances.
  *
  * ONE CANDIDATE, ONE DPC, ONE SUBMISSION: enforced here under a lock on the cycle and
- * the participant, and in the database (one participant per officer per DPC, one
- * grievance per section). A repeat of the final step (a second click, a replayed
+ * the participant, and in the database (one participant per officer per DPC). A
+ * section may carry several grievances (2026-11-22), one for each wrong year. A repeat of the final step (a second click, a replayed
  * callback) returns the first submission and changes nothing.
  */
 final class CandidateVerificationService
@@ -43,6 +44,7 @@ final class CandidateVerificationService
         private readonly CandidateAccounts $accounts,
         private readonly SignatureService $signatures,
         private readonly ActivityTimelineService $timeline,
+        private readonly VerificationRoutingService $routing,
     ) {}
 
     /** The participant has looked at their record. */
@@ -64,13 +66,14 @@ final class CandidateVerificationService
     }
 
     /**
-     * Save (or replace) the section's draft grievance.
+     * Save a new draft grievance on the section, or change one of its drafts (by its
+     * uuid). Several a section (2026-11-22): one for each CR year that is wrong.
      *
      * @param  array{category: string, related_year?: int|null, remark: string}  $data
      *
      * @throws WorkflowException
      */
-    public function saveGrievance(VerificationParticipant $participant, VerificationSection $section, array $data, ?UploadedFile $document): Grievance
+    public function saveGrievance(VerificationParticipant $participant, VerificationSection $section, array $data, ?UploadedFile $document, ?string $grievance = null): Grievance
     {
         if (! in_array($data['category'], $section->categories(), true)) {
             throw new WorkflowException((string) __('candidate.grievance.errors.category'));
@@ -84,9 +87,13 @@ final class CandidateVerificationService
         $stored = $document === null ? null : $this->store($participant, $section, $document);
 
         try {
-            return DB::transaction(function () use ($participant, $section, $data, $year, $stored): Grievance {
+            return DB::transaction(function () use ($participant, $section, $data, $year, $stored, $grievance): Grievance {
                 $locked = $this->lockOpen($participant);
-                $existing = Grievance::query()->where('dpc_verification_participant_id', $locked->id)->where('section', $section->value)->first();
+                $existing = null;
+                if ($grievance !== null) {
+                    $existing = $this->drafts($locked, $section)->where('uuid', $grievance)->first()
+                        ?? throw new WorkflowException((string) __('candidate.grievance.errors.not_found'));
+                }
 
                 if ($existing === null && $stored === null) {
                     throw new WorkflowException((string) __('candidate.grievance.errors.document'));
@@ -132,16 +139,20 @@ final class CandidateVerificationService
     }
 
     /**
-     * Remove the section's draft grievance; the section is undecided again.
+     * Remove one draft grievance of the section (by its uuid), or all of them. With
+     * none left, the section is undecided again.
      *
      * @throws WorkflowException
      */
-    public function removeGrievance(VerificationParticipant $participant, VerificationSection $section): void
+    public function removeGrievance(VerificationParticipant $participant, VerificationSection $section, ?string $grievance = null): void
     {
-        DB::transaction(function () use ($participant, $section): void {
+        DB::transaction(function () use ($participant, $section, $grievance): void {
             $locked = $this->lockOpen($participant);
-            $this->dropDraft($locked, $section);
-            VerificationDecision::query()->where('dpc_verification_participant_id', $locked->id)->where('section', $section->value)->delete();
+            $this->dropDraft($locked, $section, $grievance);
+
+            if (! $this->drafts($locked, $section)->exists()) {
+                VerificationDecision::query()->where('dpc_verification_participant_id', $locked->id)->where('section', $section->value)->delete();
+            }
         });
     }
 
@@ -195,7 +206,7 @@ final class CandidateVerificationService
     public function signable(VerificationParticipant $participant): array
     {
         $row = $participant->row;
-        $grievances = Grievance::query()->where('dpc_verification_participant_id', $participant->id)->orderBy('section')->get();
+        $grievances = Grievance::query()->where('dpc_verification_participant_id', $participant->id)->orderBy('section')->orderBy('id')->get();
         $snapshot = [
             'cycle' => $participant->cycle->uuid,
             'participant' => $participant->uuid,
@@ -243,7 +254,7 @@ final class CandidateVerificationService
             ?? throw new WorkflowException((string) __('candidate.verification.errors.no_account'));
 
         try {
-            return DB::transaction(function () use ($participant, $signer): VerificationParticipant {
+            $submitted = DB::transaction(function () use ($participant, $signer): VerificationParticipant {
                 // The cycle first, as the deadline's closing locks it: a submission and
                 // the close never cross — whichever locks first decides.
                 VerificationCycle::query()->whereKey($participant->dpc_verification_cycle_id)->lockForUpdate()->firstOrFail();
@@ -291,6 +302,11 @@ final class CandidateVerificationService
 
             throw new WorkflowException($e->getMessage());
         }
+
+        // The last candidate's submission closes the verification there and then (2026-11-22).
+        $this->routing->closeWhenAllResponded($submitted->cycle);
+
+        return $submitted;
     }
 
     /** @throws WorkflowException */
@@ -321,11 +337,18 @@ final class CandidateVerificationService
         );
     }
 
-    private function dropDraft(VerificationParticipant $participant, VerificationSection $section): void
+    /** @return Builder<Grievance> */
+    private function drafts(VerificationParticipant $participant, VerificationSection $section): Builder
     {
-        $draft = Grievance::query()->where('dpc_verification_participant_id', $participant->id)->where('section', $section->value)->where('status', GrievanceStatus::Draft->value)->first();
+        return Grievance::query()->where('dpc_verification_participant_id', $participant->id)->where('section', $section->value)->where('status', GrievanceStatus::Draft->value);
+    }
 
-        if ($draft !== null) {
+    /** One draft of the section (by its uuid), or every one; each with its file. */
+    private function dropDraft(VerificationParticipant $participant, VerificationSection $section, ?string $grievance = null): void
+    {
+        $drafts = $this->drafts($participant, $section)->when($grievance !== null, fn ($q) => $q->where('uuid', $grievance))->get();
+
+        foreach ($drafts as $draft) {
             Storage::disk($draft->disk)->delete($draft->path);
             $draft->delete();
         }

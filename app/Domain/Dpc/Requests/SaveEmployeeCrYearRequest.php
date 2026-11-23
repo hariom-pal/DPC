@@ -53,6 +53,8 @@ class SaveEmployeeCrYearRequest extends FormRequest
             'authorities' => ['nullable', 'array'],
             'authorities.*' => ['string', Rule::in(EmployeeDetailsService::CR_AUTHORITIES)],
             'grade' => ['nullable', 'string', Rule::in((array) config('dpc.evaluation.cr_grades'))],
+            // The DPC Chairman's reason for changing a grading at the sitting (2026-11-22).
+            'chairman_reason' => ['nullable', 'string', 'max:1000'],
             'cr_count' => ['nullable', 'integer', 'min:1', 'max:'.(int) config('dpc.employee_details.max_crs_per_year', 4)],
             'reports' => ['nullable', 'array', 'max:'.(int) config('dpc.employee_details.max_crs_per_year', 4)],
             'reports.*.authorities' => ['nullable', 'array'],
@@ -101,6 +103,8 @@ class SaveEmployeeCrYearRequest extends FormRequest
 
             $this->assertDepartmentalView($validator);
 
+            $this->assertChairmanReason($validator);
+
             if (($this->hasFile('cr_document') || array_filter((array) $this->file('cr_documents', [])) !== []) && $this->boolean('put_up')) {
                 if (! $this->boolean('cr_verified')) {
                     $validator->errors()->add('cr_verified', (string) __('dpc.employee_details.verification.ao_required'));
@@ -111,6 +115,81 @@ class SaveEmployeeCrYearRequest extends FormRequest
                 }
             }
         });
+    }
+
+    /**
+     * The DPC Chairman may change any candidate's grading at the sitting, and is asked
+     * why (2026-11-22): a CR year whose put-up, grading or grades would differ from
+     * what is recorded needs the reason. The calculated total follows the new grading.
+     */
+    private function assertChairmanReason(Validator $validator): void
+    {
+        $proposal = $this->route('dpcProposal');
+        $row = $this->route('evaluationRow');
+        if (! $proposal instanceof DpcProposal || ! $row instanceof DpcEvaluationRow || ! ($this->user()?->can('editAtSitting', $proposal) ?? false)) {
+            return;
+        }
+
+        if (trim((string) $this->input('chairman_reason', '')) !== '' || ! $this->changesGrading($row)) {
+            return;
+        }
+
+        $validator->errors()->add('chairman_reason', (string) __('dpc.employee_details.cr.chairman_reason_required'));
+    }
+
+    /** Whether what is posted would change the year's put-up, grading or grades. */
+    private function changesGrading(DpcEvaluationRow $row): bool
+    {
+        $current = $row->crGrades()->where('year', $this->integer('year'))->first();
+        if ($current === null) {
+            return true;
+        }
+
+        $putUp = $this->boolean('put_up');
+        if ($current->put_up !== $putUp) {
+            return true;
+        }
+        if (! $putUp) {
+            return false;
+        }
+        if ((bool) $current->has_grading !== $this->boolean('has_grading')) {
+            return true;
+        }
+
+        return $this->postedGrades() !== self::gradesOf((array) ($current->reports ?? []), $current->grade);
+    }
+
+    /** @return list<string> */
+    private function postedGrades(): array
+    {
+        $reports = $this->input('reports');
+        if (is_array($reports)) {
+            $count = max(1, $this->integer('cr_count', count($reports)));
+
+            return self::gradesOf(array_slice(array_values($reports), 0, $count), null);
+        }
+
+        return self::gradesOf([], $this->input('grade'));
+    }
+
+    /**
+     * @param  array<int|string, mixed>  $reports
+     * @return list<string>
+     */
+    private static function gradesOf(array $reports, mixed $single): array
+    {
+        $grades = [];
+        foreach ($reports as $report) {
+            $grade = is_array($report) ? trim((string) ($report['grade'] ?? '')) : '';
+            if ($grade !== '') {
+                $grades[] = $grade;
+            }
+        }
+        if ($grades === [] && trim((string) $single) !== '') {
+            $grades[] = trim((string) $single);
+        }
+
+        return $grades;
     }
 
     /**

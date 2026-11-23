@@ -323,6 +323,47 @@ class EmployeeDetailsService
         return CrWindow::of($last, $slots ?? $this->crSlots($proposal), $notCounted, $from);
     }
 
+    /**
+     * The officer's CR years the Tabulation Chart does not show (2026-11-22): every year
+     * of their CR window without a graded CR — not put up (missing), never entered, or
+     * put up without a grading and so passed over — each with the reason recorded for
+     * it. The chart shows only the years and grades counted; these are behind its
+     * "View missing CR" link, and on the candidate's own CR page.
+     *
+     * @return list<array{year: int, state: 'missing'|'not_recorded'|'not_graded', reason: string|null, remarks: string|null}>
+     */
+    public function missingCrYears(DpcEvaluationRow $row, ?int $slots = null): array
+    {
+        $window = $this->crWindow($row, $row->crGrades, $slots);
+        $gaps = $row->recordGaps->where('kind', DpcEvaluationRecordGap::KIND_CR)->keyBy('year');
+        $missing = [];
+
+        foreach ($window->years as $year) {
+            $cr = $row->crGrades->firstWhere('year', $year);
+            $state = match (true) {
+                $cr === null => 'not_recorded',
+                $cr->put_up === false => 'missing',
+                $cr->has_grading === false => 'not_graded',
+                default => null,
+            };
+
+            if ($state === null) {
+                continue;
+            }
+
+            /** @var DpcEvaluationRecordGap|null $gap */
+            $gap = $gaps->get($year);
+            $missing[] = [
+                'year' => $year,
+                'state' => $state,
+                'reason' => $gap?->reason?->label(),
+                'remarks' => $gap?->remarks,
+            ];
+        }
+
+        return $missing;
+    }
+
     /** The promotion rule's CR count (2026-11-18: the rule decides, no fixed five); five only for a DPC without a rule. */
     public function crSlots(DpcProposal $proposal): int
     {
@@ -1139,7 +1180,8 @@ class EmployeeDetailsService
             static fn (int $year): string => (string) __('dpc.employee_details.missing.property_rule_year', ['year' => $year]),
             array_diff($ruleYears, $recordedYears),
         ));
-        $windowMissing = $row->proposal === null ? [] : array_diff(array_reverse($this->propertyYearWindow($row)), $recordedYears, $ruleYears);
+        $windowYears = $row->proposal === null ? [] : $this->propertyYearWindow($row);
+        $windowMissing = array_diff(array_reverse($windowYears), $recordedYears, $ruleYears);
         foreach ($windowMissing as $year) {
             $ruleMissing[] = (string) __('dpc.employee_details.missing.property_window_year', ['year' => $year]);
         }
@@ -1162,9 +1204,10 @@ class EmployeeDetailsService
             }
 
             if ($property->submitted_on === null) {
-                // Missing in a mandatory year: its reason and document (rule 3.2,
-                // 2026-11-05). An optional year needs nothing.
-                if (in_array($year, $ruleYears, true) && ! $this->hasJustifiedGap($row, $year, DpcEvaluationRecordGap::KIND_PROPERTY)) {
+                // Missing in any year of the Property window: its reason and document
+                // (rule 3.2; 2026-11-22: "missing for any year, the reason must be given").
+                // A year outside the window needs nothing.
+                if ((in_array($year, $ruleYears, true) || in_array($year, $windowYears, true)) && ! $this->hasJustifiedGap($row, $year, DpcEvaluationRecordGap::KIND_PROPERTY)) {
                     $missing[] = (string) __('dpc.employee_details.missing.property_reason', ['year' => $year]);
                 }
 

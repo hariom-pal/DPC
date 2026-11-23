@@ -15,19 +15,16 @@
             <thead><tr><th>{{ __('candidate.verification.review.section') }}</th><th>{{ __('candidate.verification.review.decision') }}</th></tr></thead>
             <tbody>
                 @foreach (\App\Domain\CandidateVerification\Enums\VerificationSection::cases() as $step)
-                    @php
-                        $g = $grievances->get($step->value);
-                    @endphp
                     <tr data-review="{{ $step->value }}">
                         <td>{{ $step->label() }}</td>
                         <td>
                             {{ $participant->decisionLabel($decisions[$step->value] ?? null) }}
-                            @if ($g)
-                                <div class="text-body-secondary">{{ __('candidate.grievance.categories.'.$g->category) }}@if ($g->related_year) · {{ $g->related_year }}@endif — {{ $g->remark }}</div>
-                                <div><a href="{{ route('candidate-verification.grievance.document', [$participant->uuid, $step->value]) }}">{{ $g->original_name }}</a>
+                            @foreach ($grievances->get($step->value, collect()) as $g)
+                                <div class="text-body-secondary" data-review-grievance="{{ $g->uuid }}">{{ __('candidate.grievance.categories.'.$g->category) }}@if ($g->related_year) · {{ $g->related_year }}@endif — {{ $g->remark }}</div>
+                                <div><a href="{{ route('candidate-verification.grievance.document', [$participant->uuid, $step->value, 'grievance' => $g->uuid]) }}">{{ $g->original_name }}</a>
                                     · <span class="badge text-bg-light border">{{ $g->status->label() }}</span>
                                     @if ($g->decision)<span class="badge text-bg-secondary">{{ $g->decision->label() }}</span> {{ $g->resolution_remark }}@endif</div>
-                            @endif
+                            @endforeach
                         </td>
                     </tr>
                 @endforeach

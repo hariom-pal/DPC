@@ -26,6 +26,13 @@
 </dl>
 
 <h3 class="h6">{{ __('candidate.verification.fields.list') }}</h3>
+@if ($dpc['cgpsc_seniority_list_url'] ?? null)
+    {{-- 2026-11-22: the Seniority List on the CGPSC website, to match this one against. --}}
+    <p class="small mb-2" id="cgpsc-seniority-link">
+        {{ __('candidate.verification.fields.cgpsc_list_note') }}
+        <a href="{{ $dpc['cgpsc_seniority_list_url'] }}" target="_blank" rel="noopener noreferrer" class="fw-semibold">{{ __('candidate.verification.fields.cgpsc_list_link') }}</a>
+    </p>
+@endif
 <p class="small text-body-secondary">{{ __('candidate.verification.fields.list_note') }}</p>
 <div class="table-responsive">
     <table class="table table-sm small" id="seniority-list">

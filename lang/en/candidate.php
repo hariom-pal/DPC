@@ -94,6 +94,7 @@ return [
             'raise' => 'Raise Grievance',
             'edit_grievance' => 'Edit grievance',
             'remove_grievance' => 'Remove grievance',
+            'add_grievance' => 'Raise another grievance',
             'review' => 'Final review',
             'back' => 'Back',
             'submit' => 'Final Submit & eSign',
@@ -123,12 +124,18 @@ return [
             'promotion_post' => 'Promotion to',
             'list' => 'Seniority List',
             'list_note' => 'The Seniority List as approved, with every officer\'s basic details. Other officers\' date of birth, mobile number and confidential records (CR, Integrity, IPR) are not shown.',
+            'cgpsc_list_note' => 'Match this list with the Seniority List published by CGPSC:',
+            'cgpsc_list_link' => 'View the Seniority List on the CGPSC website',
             'sn' => 'S.N.',
             'officer' => 'Officer',
             'current_post' => 'Current post',
             'you' => 'You',
         ],
         'cr' => [
+            // 2026-11-22: the missing CR years and their reasons.
+            'missing_heading' => 'CR years missing, and the reason recorded by the department',
+            'missing_states' => ['missing' => 'CR missing', 'not_recorded' => 'CR not entered', 'not_graded' => 'CR without grading'],
+            'missing_no_reason' => 'no reason recorded yet',
             'year' => 'Year',
             'state' => 'CR',
             'grade' => 'Grade',
@@ -202,6 +209,9 @@ return [
         'auto' => [
             'verification_closed' => 'The candidate verification closed on :date with no grievance (:no_response with no response): sent to the Secretary, CGPSC.',
             'verification_grievances' => 'The candidate verification closed on :date with :count grievance(s) (:no_response with no response): with the Administrative Head for review.',
+            // Every candidate submitted before the deadline (2026-11-22).
+            'verification_closed_early' => 'Every candidate submitted the verification by :date, before the deadline, with no grievance: sent to the Secretary, CGPSC.',
+            'verification_grievances_early' => 'Every candidate submitted the verification by :date, before the deadline, with :count grievance(s): with the Administrative Head for review.',
         ],
         'done' => [
             'agreed' => 'Agreed.',
@@ -260,6 +270,7 @@ return [
             'not_decidable' => 'This grievance cannot be decided now.',
             'not_yours' => 'This grievance is not with you.',
             'correction_closed' => 'This correction has already been submitted.',
+            'not_found' => 'This draft grievance is no longer there.',
             'remark_required' => 'A remark is required.',
             'open' => ':count grievance(s) are still undecided.',
             'corrections_open' => ':count correction(s) are still with the AO.',
@@ -294,6 +305,18 @@ return [
             'sent' => 'Sent to the AO.',
             'correction_submitted' => 'Correction submitted to the AH.',
             'notifications' => 'Messages: :sent sent, :queued queued, :failed failed, :skipped without a number or address.',
+            // The AH's own entry point (2026-11-22), and the list by candidate.
+            'nav' => 'Grievances',
+            'queue_heading' => 'Candidate grievances on my DPCs',
+            'queue_lead' => 'Every DPC allotted to you whose candidates raised grievances. Open one to decide them candidate by candidate.',
+            'queue_none' => 'No DPC of yours has candidate grievances.',
+            'dpc' => 'DPC',
+            'candidates' => 'Candidates',
+            'to_decide' => 'To decide',
+            'with_ao' => 'With the AO',
+            'decided_count' => 'Decided',
+            'open' => 'Open',
+            'candidate_count' => ':count grievance(s): :open to decide',
         ],
     ],
     'stage' => [

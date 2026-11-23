@@ -571,7 +571,26 @@ return [
         'download_chart' => 'Download Tabulation Chart (Excel)',
         'tribal_short' => 'T',
         'ng_short' => 'NG',
-        'legend_substituted' => 'Yellow: a CR year not counted (NG / Missing), and the older year counted in its place',
+        'legend_substituted' => 'Yellow: an older year counted in place of a CR year not counted (see View missing CR)',
+        // 2026-11-22: missing CR years are not shown on the chart.
+        'missing_cr_note' => 'Only the CR years counted are shown, each with its grade. A year whose CR is not shown is missing — use "View missing CR" beside the officer\'s name for the year and its reason.',
+        'view_missing_cr' => 'View missing CR',
+        'missing_cr' => [
+            'title' => 'Missing CR — :name',
+            'intro' => 'The CR years of this officer not shown on the Tabulation Chart, and the reason recorded for each.',
+            'year' => 'Year',
+            'state' => 'Status',
+            'reason' => 'Reason',
+            'remarks' => 'Remarks',
+            'states' => [
+                'missing' => 'CR missing',
+                'not_recorded' => 'CR not entered',
+                'not_graded' => 'CR without grading (not counted)',
+            ],
+            'no_reason' => 'No reason recorded',
+            'none' => 'No CR year of this officer is missing.',
+            'close' => 'Close',
+        ],
         'legend_tribal' => 'T = Tribal area posting',
         'legend_pf' => 'PF = Property File',
         'property_year' => 'Property File :year',
@@ -625,6 +644,10 @@ return [
         'save_and_next' => 'Save & Next',
         'next_section' => 'Next section',
         'missing_record' => [
+            // 2026-11-22: "Appointed in this year" against the Seniority List's Date of Joining in Service.
+            'appointed_no_joining_date' => '"Appointed in this year" cannot be chosen: the Seniority List has no Date of Joining in Service for this officer.',
+            'appointed_other_year' => '"Appointed in this year" cannot be chosen for :year: the Seniority List gives the Date of Joining in Service as :date.',
+            'appointed_on_first_january' => '"Appointed in this year" cannot be chosen for :year: the officer joined on :date (1 January), so the record of :year is asked for.',
             'unfit_note' => 'No CR exists for such a year: upload the appointment letter.',
             'heading' => 'Missing — reason and supporting document',
             'help' => 'The supporting document explains why the record is missing; it does not replace it. The promotion is held (CIR), not refused.',
@@ -762,6 +785,12 @@ return [
             'refusal_dpc_order' => 'Upload the order of the DPC whose promotion was refused.',
         ],
         'cr' => [
+            // 2026-11-22: the DPC Chairman changes a grading at the sitting, with the reason.
+            'chairman_reason' => 'Reason for changing the grading (DPC Chairman)',
+            'chairman_reason_help' => 'Needed when you change this year\'s put-up, grading or grades. The total is worked out again on the new grading.',
+            'chairman_reason_required' => 'Give the reason for changing the grading.',
+            'chairman_changes' => 'Grading changed by the DPC Chairman',
+            'chairman_change_line' => ':year: :from → :to (by :by, :at)',
             'integrity' => 'Integrity',
             'missing_reason' => 'Reason',
             'integrity_view' => 'Final Departmental View Regarding Integrity',

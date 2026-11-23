@@ -81,6 +81,11 @@ class RecordGapService
             );
         }
 
+        // "Appointed in this year" only as the Seniority List's Date of Joining in Service allows (2026-11-22).
+        if ($reason->code === DpcEvaluationRow::APPOINTED_REASON && ($refusal = $row->appointedYearRefusal($year)) !== null) {
+            throw new RuntimeException($refusal);
+        }
+
         // Rule 3.2: a reason that needs two documents (a suspension) needs both.
         if ($reason->requiresSecondDocument() && $secondFile === null) {
             throw new RuntimeException("The reason [{$reason->code}] requires a second document.");

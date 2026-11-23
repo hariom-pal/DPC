@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Dpc\Requests;
 
 use App\Domain\Dpc\Models\DpcEvaluationRecordGap;
+use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\Master\Models\RecordReason;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
@@ -96,6 +97,14 @@ class RecordGapRequest extends FormRequest
 
             // 2026-11-16: a reason offered for the other kind of record only is refused.
             $reason = RecordReason::query()->find($this->input('record_reason_id'));
+            // "Appointed in this year" only as the Seniority List's Date of Joining in Service allows (2026-11-22).
+            $row = $this->route('evaluationRow');
+            if ($reason?->code === DpcEvaluationRow::APPOINTED_REASON && $row instanceof DpcEvaluationRow) {
+                $refusal = $row->appointedYearRefusal($this->integer('year'));
+                if ($refusal !== null) {
+                    $validator->errors()->add('record_reason_id', $refusal);
+                }
+            }
             if ($reason !== null && is_string($this->input('kind')) && ! $reason->appliesTo((string) $this->input('kind'))) {
                 $validator->errors()->add('record_reason_id', (string) __('dpc.employee_details.missing_record.reason_not_for_kind'));
             }

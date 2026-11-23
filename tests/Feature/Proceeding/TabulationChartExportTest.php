@@ -6,8 +6,10 @@ namespace Tests\Feature\Proceeding;
 
 use App\Domain\Authentication\Models\User;
 use App\Domain\Dpc\Models\DpcEvaluationCrGrade;
+use App\Domain\Dpc\Models\DpcEvaluationRecordGap;
 use App\Domain\Master\Models\IntegrityOption;
 use App\Domain\Master\Models\PromotionCrRule;
+use App\Domain\Master\Models\RecordReason;
 use App\Domain\Master\Services\PromotionCrRules;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -108,11 +110,12 @@ class TabulationChartExportTest extends TestCase
     }
 
     /**
-     * 2026-11-19: a middle CR year not counted stands in its own column, yellow, and the
-     * older year counted in its place follows, yellow — the row one column longer, in
-     * the order the CR window takes them. The year before the DPC year is never replaced.
+     * 2026-11-22: the chart shows only the CR years counted, each with its grade — a year
+     * not counted (NG or missing) is not shown, and the columns stay at the rule's count.
+     * The older year counted in its place is yellow. The officer's name carries "View
+     * missing CR", which opens the years not shown and the reason recorded for each.
      */
-    public function test_a_year_not_counted_keeps_its_column_and_the_older_year_follows(): void
+    public function test_only_counted_years_are_shown_and_the_missing_ones_are_behind_a_link(): void
     {
         $year = $this->dpcYear();
         $row = $this->officer(3, 'With a gap', $this->urCategoryId(), [
@@ -125,28 +128,40 @@ class TabulationChartExportTest extends TestCase
         DpcEvaluationCrGrade::query()->where('dpc_evaluation_row_id', $row->id)->where('year', $year - 6)->update(['integrity_option_id' => $unfit->id]);
 
         $html = (string) $this->actingAs($this->memberOne)->get(route('dpc-proposals.tabulation-chart', $this->proposal))->assertOk()
-            ->assertSee('data-cr-column="6"', false)->assertDontSee('data-cr-column="7"', false)
+            ->assertSee('id="missing-cr-note"', false)
+            ->assertSee('data-cr-column="5"', false)->assertDontSee('data-cr-column="6"', false)
             ->assertSeeInOrder([
                 'data-cr-cell="'.($year - 1).'" data-cr-state="counted"',
                 'data-cr-cell="'.($year - 2).'" data-cr-state="counted"',
-                'data-cr-cell="'.($year - 3).'" data-cr-state="skipped"',
                 'data-cr-cell="'.($year - 4).'" data-cr-state="counted"',
                 'data-cr-cell="'.($year - 5).'" data-cr-state="counted"',
                 'data-cr-cell="'.($year - 6).'" data-cr-state="replacement"',
             ], false)
-            // PF years are their own: the CR substitution moves none of them.
+            // The Date of Joining stands just before CR 1.
+            ->assertSeeInOrder([__('dpc.tabulation.qualification'), __('dpc.tabulation.joining'), __('dpc.tabulation.cr_n', ['n' => 1])])
             ->assertSeeInOrder(array_map(fn (int $n): string => __('dpc.tabulation.property_n', ['n' => $n]), range(1, 5)))
             ->getContent();
-        // Yellow, with NG; the replacement yellow with its grade and its own Integrity's dot.
-        $this->assertMatchesRegularExpression('/class="cell-substituted"\s+data-cr-cell="'.($year - 3).'"[^>]*>\s*<span class="tab-cell-year">'.($year - 3).'<\/span>\s*\(NG\)/u', $html);
         $this->assertMatchesRegularExpression('/class="cell-substituted"\s+data-cr-cell="'.($year - 6).'"[^>]*title="Doubtful integrity"[^>]*>\s*<span class="tab-cell-year">'.($year - 6).'<\/span>\s*<strong>ख<\/strong>\s*<span class="fit-mark fit-mark-unfit"/u', $html);
+        $this->assertStringNotContainsString('data-cr-cell="'.($year - 3).'"', $this->rowHtml($html, $row->sn));
+        $link = route('dpc-proposals.tabulation-chart.missing-cr', [$this->proposal, $row->sn]);
+        $this->assertStringContainsString('href="'.$link.'" target="_blank"', $html);
 
-        // The last year missing: counted where it stands, nothing added for it.
+        // The last year missing, with its reason: not shown, and nothing added for it.
         DpcEvaluationCrGrade::query()->where('dpc_evaluation_row_id', $row->id)->where('year', $year - 1)->update(['put_up' => false, 'grade' => null]);
-        $this->get(route('dpc-proposals.tabulation-chart', $this->proposal))->assertOk()
-            ->assertSee('data-cr-cell="'.($year - 1).'" data-cr-state="counted"', false)
-            ->assertDontSee('data-cr-cell="'.($year - 7).'"', false)
-            ->assertDontSee('data-cr-column="7"', false);
+        $reason = RecordReason::query()->create(['code' => 'leave_t', 'name_en' => 'Long leave', 'name_hi' => 'दीर्घ अवकाश', 'for_cr' => true]);
+        DpcEvaluationRecordGap::query()->create(['dpc_evaluation_row_id' => $row->id, 'kind' => DpcEvaluationRecordGap::KIND_CR, 'year' => $year - 1, 'record_reason_id' => $reason->id, 'remarks' => 'On study leave']);
+        $own = $this->rowHtml((string) $this->get(route('dpc-proposals.tabulation-chart', $this->proposal))->assertOk()->getContent(), $row->sn);
+        $this->assertStringNotContainsString('data-cr-cell="'.($year - 1).'"', $own);
+        $this->assertStringNotContainsString('data-cr-cell="'.($year - 7).'"', $own);
+
+        $this->get($link)->assertOk()
+            ->assertSee('data-missing-year="'.($year - 1).'" data-state="missing"', false)
+            ->assertSee('Long leave')->assertSee('On study leave')
+            ->assertSee('data-missing-year="'.($year - 3).'" data-state="not_graded"', false)
+            ->assertDontSee('data-missing-year="'.($year - 2).'"', false);
+
+        // Another DPC's officer is not reachable through this DPC's URL.
+        $this->get(route('dpc-proposals.tabulation-chart.missing-cr', [$this->proposal, 999]))->assertNotFound();
 
         // The workbook says the same.
         $file = $this->get(route('dpc-proposals.tabulation-chart.download', $this->proposal))->assertOk()->baseResponse;
@@ -157,10 +172,11 @@ class TabulationChartExportTest extends TestCase
                 $values[] = trim((string) preg_replace('/\s+/u', ' ', (string) $cell->getValue()));
             }
         }
-        $this->assertContains(__('dpc.tabulation.cr_n', ['n' => 6]), $values);
-        $this->assertContains(($year - 3).': (NG)', $values);
+        $this->assertNotContains(__('dpc.tabulation.cr_n', ['n' => 6]), $values);
+        $this->assertNotContains(($year - 3).': (NG)', $values);
         $this->assertContains(($year - 6).': ख [Doubtful integrity]', $values);
-        $this->assertContains(($year - 1).': ('.__('dpc.tabulation.missing').')', $values);
+        $this->assertNotContains(($year - 1).': ('.__('dpc.tabulation.missing').')', $values);
+        $this->assertContains(__('dpc.tabulation.missing_cr_note'), $values);
     }
 
     /** CR and PF columns follow the promotion rule's Years of CR; five without a rule (2026-11-18). */
@@ -209,5 +225,13 @@ class TabulationChartExportTest extends TestCase
         $this->get(route('dpc-proposals.tabulation-chart.download', $this->proposal))->assertForbidden();
         auth()->logout();
         $this->get(route('dpc-proposals.tabulation-chart.download', $this->proposal))->assertRedirect();
+    }
+
+    /** One officer's row of the chart. */
+    private function rowHtml(string $html, int $sn): string
+    {
+        $this->assertSame(1, preg_match('#<tr data-tabulation-sn="'.$sn.'">(.*?)</tr>#s', $html, $match));
+
+        return $match[1];
     }
 }

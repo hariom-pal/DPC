@@ -56,6 +56,17 @@ trait DeclaresAMissingRecord
             return;
         }
 
+        // "Appointed in this year" only as the Seniority List's Date of Joining in Service allows (2026-11-22).
+        $row = $this->route('evaluationRow');
+        if ($given?->code === DpcEvaluationRow::APPOINTED_REASON && $row instanceof DpcEvaluationRow) {
+            $refusal = $row->appointedYearRefusal($this->integer('year'));
+            if ($refusal !== null) {
+                $validator->errors()->add('missing_reason_id', $refusal);
+
+                return;
+            }
+        }
+
         // A new reason and document on a year already justified replace its justification
         // (2026-11-19): checked as the first one is, never left to fail on saving.
         $replacing = $declaredMissing && $this->filled('missing_reason_id') && $this->hasFile('missing_document');

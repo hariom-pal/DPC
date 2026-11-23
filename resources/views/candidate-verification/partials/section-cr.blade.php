@@ -1,3 +1,17 @@
+{{-- 2026-11-22: the CR years missing, each with the reason the department recorded. --}}
+@if ($data['missing'] !== [])
+    <div class="alert alert-warning small" id="cr-missing">
+        <div class="fw-semibold mb-1">{{ __('candidate.verification.cr.missing_heading') }}</div>
+        <ul class="mb-0 ps-3">
+            @foreach ($data['missing'] as $gap)
+                <li data-missing-year="{{ $gap['year'] }}">
+                    {{ $gap['year'] }} — {{ __('candidate.verification.cr.missing_states.'.$gap['state']) }}:
+                    {{ $gap['reason'] ?? __('candidate.verification.cr.missing_no_reason') }}@if ($gap['remarks']) ({{ $gap['remarks'] }})@endif
+                </li>
+            @endforeach
+        </ul>
+    </div>
+@endif
 @if ($data['appointed_year'])
     <p class="small text-body-secondary">{{ __('candidate.verification.cr.appointed', ['year' => $data['appointed_year']]) }}</p>
 @endif

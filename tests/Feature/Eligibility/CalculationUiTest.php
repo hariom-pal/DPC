@@ -100,6 +100,7 @@ class CalculationUiTest extends TestCase
             'count' => 1,
         ]]);
 
+        $dpcYear = (int) ($this->proposal->dpc_year ?: $this->proposal->proposal_date->year);
         $officer = fn (int $sn, string $name, array $grades): array => [
             'sn' => $sn,
             'name' => $name,
@@ -119,9 +120,10 @@ class CalculationUiTest extends TestCase
                 static fn (int $y): array => ['year' => $y, 'flag' => true],
                 array_keys($grades),
             ),
+            // …and every year of the Property window, all mandatory since 2026-11-22.
             'property_flags' => array_map(
                 static fn (int $y): array => ['year' => $y, 'flag' => true],
-                array_keys($grades),
+                array_values(array_unique([...array_keys($grades), ...range($dpcYear - 1, $dpcYear - 5)])),
             ),
         ];
 

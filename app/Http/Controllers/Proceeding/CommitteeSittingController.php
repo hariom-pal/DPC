@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Proceeding;
 
 use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\Dpc\Models\DpcProposal;
+use App\Domain\Proceeding\Services\ChairmanSittingEdit;
 use App\Domain\Proceeding\Services\CommitteeSittingService;
 use App\Domain\Proceeding\Services\SittingMeetingService;
 use App\Domain\Shared\Workflow\WorkflowException;
@@ -99,6 +100,8 @@ class CommitteeSittingController extends Controller
             'schedule' => $this->sittings->schedule($dpcProposal),
             // Each member's OK on this record (2026-11-18).
             'reviews' => app(SittingMeetingService::class)->reviews($dpcProposal)->get($row->id, collect()),
+            // The DPC Chairman's grading changes, with their reasons (2026-11-22).
+            'gradeChanges' => app(ChairmanSittingEdit::class)->gradeChanges($row->setRelation('proposal', $dpcProposal)),
         ]);
     }
 

@@ -147,6 +147,8 @@
                         </div>
                     @endif
 
+                    @include('dpc-proposals.employees.partials.chairman-grade-changes', ['changes' => $gradeChanges])
+
                     {{-- Why a year is blank, where the department said so. --}}
                     @if ($row->recordGaps->isNotEmpty())
                         <h3 class="h6 mt-3">{{ __('proceeding.sitting.gaps') }}</h3>

@@ -85,6 +85,12 @@ class CrWindowMatrixTest extends TestCase
         return UploadedFile::fake()->create('document.pdf', 20, 'application/pdf');
     }
 
+    /** The Seniority List's Date of Joining in Service, in the year recorded "appointed in this year" (2026-11-22). */
+    private function joinedIn(int $year): void
+    {
+        $this->row->forceFill(['date_of_joining_service' => $year.'-07-01'])->save();
+    }
+
     private function reason(string $code): int
     {
         return (int) RecordReason::query()->where('code', $code)->value('id');
@@ -101,6 +107,9 @@ class CrWindowMatrixTest extends TestCase
             'M' => ['year' => $year, 'put_up' => '0', 'missing_reason_id' => $this->reason('long_leave'), 'missing_document' => $this->pdf()],
             'A' => ['year' => $year, 'put_up' => '0', 'missing_reason_id' => $this->reason('newly_appointed'), 'missing_document' => $this->pdf()],
         };
+        if ($kind === 'A') {
+            $this->joinedIn($year);
+        }
 
         return $this->actingAs($this->ao)->post($this->route('cr.save'), [...$payload, ...$extra]);
     }
@@ -359,6 +368,10 @@ class CrWindowMatrixTest extends TestCase
 
     private function property(int $offset, array $payload): TestResponse
     {
+        if ((int) ($payload['missing_reason_id'] ?? 0) === $this->reason('newly_appointed')) {
+            $this->joinedIn($this->last - $offset);
+        }
+
         return $this->actingAs($this->ao)->post($this->route('property.save'), ['year' => $this->last - $offset, ...$payload]);
     }
 

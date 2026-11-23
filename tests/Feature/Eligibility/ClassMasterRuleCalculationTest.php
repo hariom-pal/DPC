@@ -9,6 +9,8 @@ use App\Domain\Department\Models\Department;
 use App\Domain\Dpc\Models\DpcEvaluationRecordGap;
 use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\Dpc\Models\DpcProposal;
+use App\Domain\Dpc\Services\EmployeeDetailsService;
+use App\Domain\Dpc\Services\PromotionRuleCheck;
 use App\Domain\Eligibility\Enums\RemarkCode;
 use App\Domain\Eligibility\Models\DpcCalculationResult;
 use App\Domain\Eligibility\Models\DpcCalculationRun;
@@ -330,6 +332,51 @@ class ClassMasterRuleCalculationTest extends TestCase
         $this->assertStringContainsString('The CR for 2025 is mandatory under the promotion rule', json_encode($refused->verdict, JSON_UNESCAPED_UNICODE));
 
         $this->assertSame(RemarkCode::Circulation->value, $this->resultFor($run, 2)->remark);
+    }
+
+    /**
+     * 2026-11-22: a Property File missing for ANY year of the rule's property years goes
+     * to Circulation (CIR) with its reason and document — the per-year tick no longer
+     * narrows it — and without a reason the proposal says so and the officer is refused.
+     */
+    public function test_a_property_file_missing_in_any_year_is_held_on_its_reason_and_refused_without(): void
+    {
+        $rule = $this->rule(total: 31);
+        // Five property years, none of them ticked.
+        $rule->forceFill(['property_years' => 5])->save();
+        $this->assertSame(0, $rule->years()->where('property_mandatory', true)->count());
+
+        $withoutPf2022 = function (int $sn): array {
+            $officer = $this->officer($sn, $this->five('क'));
+            $officer['property_flags'] = array_map(static fn (int $year): array => ['year' => $year, 'flag' => $year !== 2022], range(2020, 2025));
+
+            return $officer;
+        };
+        $rows = $this->chart([$withoutPf2022(1), $withoutPf2022(2)]);
+
+        // Officer 2: its reason and document.
+        $rows[2]->recordGaps()->create([
+            'kind' => DpcEvaluationRecordGap::KIND_PROPERTY, 'year' => 2022,
+            'record_reason_id' => RecordReason::query()->where('code', 'record_not_available')->firstOrFail()->id,
+            'disk' => 'local', 'path' => 'gaps/pf-2022.pdf', 'original_name' => 'pf-2022.pdf',
+            'size_bytes' => 1024, 'sha256' => str_repeat('b', 64),
+        ]);
+
+        // The employee details: the rule check, and what is still to be given.
+        $check = fn (int $sn): array => app(PromotionRuleCheck::class)->check($rows[$sn]->fresh(), $this->proposal->fresh());
+        $this->assertSame('cir', $check(2)['status']);
+        $this->assertContains(__('dpc.employee_details.rule.property_cir', ['year' => 2022]), $check(2)['holds']);
+        $this->assertSame('does_not_meet', $check(1)['status']);
+        $this->assertContains(__('dpc.employee_details.rule.property_missing', ['year' => 2022]), $check(1)['findings']);
+        $this->assertContains(__('dpc.employee_details.missing.property_reason', ['year' => 2022]), app(EmployeeDetailsService::class)->status($rows[1]->fresh())['sections']['property']);
+        $this->assertNotContains(__('dpc.employee_details.missing.property_reason', ['year' => 2022]), app(EmployeeDetailsService::class)->status($rows[2]->fresh())['sections']['property']);
+
+        // The calculation: held on the reason, refused without one.
+        $run = $this->calculate();
+        $this->assertSame(RemarkCode::Circulation->value, $this->resultFor($run, 2)->remark);
+        $refused = $this->resultFor($run, 1);
+        $this->assertSame(RemarkCode::NotEligible->value, $refused->remark);
+        $this->assertStringContainsString('The Property File for 2022 is mandatory under the promotion rule', json_encode($refused->verdict, JSON_UNESCAPED_UNICODE));
     }
 
     public function test_one_justified_year_does_not_excuse_another_without_a_reason(): void

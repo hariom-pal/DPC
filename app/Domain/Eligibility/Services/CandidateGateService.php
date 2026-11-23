@@ -124,6 +124,10 @@ class CandidateGateService
         // only the years it makes mandatory count, and a missing one is a justified
         // gap (CIR) or an unexplained one below — never a rejection.
         $propertyGap = $mandatoryPropertyYears === null ? $this->missingPropertyYears($officer, $propertyYearsRequired) : [];
+        // A year missing with its reason and document goes to Circulation (2026-11-22),
+        // with or without a rule: only an unexplained year is refused here.
+        $justifiedPropertyGap = array_values(array_filter($propertyGap, fn (int $year): bool => isset($officer->justifiedPropertyGapYears[$year])));
+        $propertyGap = array_values(array_diff($propertyGap, $justifiedPropertyGap));
 
         if ($propertyGap !== []) {
             $rejections[] = sprintf(
@@ -161,7 +165,7 @@ class CandidateGateService
         }
 
         // ---- 3. Justified gaps (items 14, 15, 17, 19) --------------------
-        $gapReasons = $this->gapFindings($officer, $requiredCrCount, $mandatoryCrYears, $mandatoryPropertyYears ?? []);
+        $gapReasons = $this->gapFindings($officer, $requiredCrCount, $mandatoryCrYears, $mandatoryPropertyYears ?? $justifiedPropertyGap);
 
         // An *unjustified* shortfall is not CIR: item 19 opens that path only for a
         // gap the officer has explained and evidenced. Reported as a rule failure —

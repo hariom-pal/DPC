@@ -188,6 +188,7 @@ return [
                 'pay_scales' => 'वेतनमान',
                 'portal_notices' => 'सूचना पटल',
                 'pre_dpc_links' => 'स्वीकृति आदेश',
+                'seniority_links' => 'CGPSC वरिष्ठता सूची लिंक',
                 'qualifications' => 'अर्हताएँ',
                 'recruitment_rules' => 'भर्ती नियम',
                 'reservation_categories' => 'आरक्षण वर्ग',

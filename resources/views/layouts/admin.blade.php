@@ -107,6 +107,8 @@
                        href="{{ route('admin.portal-notices.index') }}">{{ __('ui.layouts.admin.nav.portal_notices') }}</a>
                     <a class="list-group-item list-group-item-action fw-semibold {{ request()->routeIs('admin.pre-dpc-links.*') ? 'active' : '' }}"
                        href="{{ route('admin.pre-dpc-links.index') }}">{{ __('ui.layouts.admin.nav.pre_dpc_links') }}</a>
+                    <a class="list-group-item list-group-item-action fw-semibold {{ request()->routeIs('admin.seniority-links.*') ? 'active' : '' }}"
+                       href="{{ route('admin.seniority-links.index') }}">{{ __('ui.layouts.admin.nav.seniority_links') }}</a>
                     {{-- Only where clearing is allowed: never in production. --}}
                     @if (app(\App\Domain\Maintenance\DpcDataPurgeService::class)->allowed())
                         <a class="list-group-item list-group-item-action text-danger {{ request()->routeIs('admin.dpc-data-purge.*') ? 'active' : '' }}"

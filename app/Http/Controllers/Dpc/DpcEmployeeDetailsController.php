@@ -115,6 +115,8 @@ class DpcEmployeeDetailsController extends Controller
             'canEdit' => in_array(true, $canEditSection, true),
             // The DPC Chairman editing at the sitting (2026-11-18).
             'atSitting' => request()->user()?->can('editAtSitting', $dpcProposal) ?? false,
+            // The DPC Chairman's grading changes for this candidate, with their reasons (2026-11-22).
+            'gradeChanges' => app(ChairmanSittingEdit::class)->gradeChanges($evaluationRow->setRelation('proposal', $dpcProposal)),
             'committeeReturn' => $dpcProposal->committee_returned_at === null ? null : $dpcProposal->committee_return,
             // Rule 4.4: the Administrative Head verifies the documents of a submitted proposal.
             'canVerify' => request()->user()?->can('approve', $dpcProposal) ?? false,
@@ -150,7 +152,12 @@ class DpcEmployeeDetailsController extends Controller
 
     public function saveCrYear(SaveEmployeeCrYearRequest $request, DpcProposal $dpcProposal, DpcEvaluationRow $evaluationRow): RedirectResponse
     {
-        return $this->write($request, $dpcProposal, $evaluationRow, 'cr', function () use ($request, $evaluationRow): void {
+        // The grading before the save, so a change by the DPC Chairman is recorded with its reason (2026-11-22).
+        $atSitting = $request->user()?->can('editAtSitting', $dpcProposal) ?? false;
+        $before = $atSitting ? $evaluationRow->crGrades()->where('year', $request->integer('year'))->first() : null;
+
+        $saved = false;
+        $response = $this->write($request, $dpcProposal, $evaluationRow, 'cr', function () use ($request, $evaluationRow, &$saved): void {
             DB::transaction(function () use ($request, $evaluationRow): void {
                 $this->details->saveCrYear($evaluationRow, $request->integer('year'), $request->validated(), $request->user(), $request->file('nrc'));
                 if ($request->hasFile('cr_document')) {
@@ -172,7 +179,21 @@ class DpcEmployeeDetailsController extends Controller
                 }
                 $this->recordMissing($request, $evaluationRow, DpcEvaluationRecordGap::KIND_CR);
             });
+            $saved = true;
         });
+
+        if ($atSitting && $saved) {
+            app(ChairmanSittingEdit::class)->gradingChanged(
+                $evaluationRow,
+                $request->integer('year'),
+                $before,
+                $evaluationRow->crGrades()->where('year', $request->integer('year'))->first(),
+                trim((string) $request->input('chairman_reason', '')),
+                $request->user(),
+            );
+        }
+
+        return $response;
     }
 
     public function removeCrYear(Request $request, DpcProposal $dpcProposal, DpcEvaluationRow $evaluationRow, int $year): RedirectResponse

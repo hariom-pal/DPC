@@ -34,6 +34,7 @@ use App\Http\Controllers\Admin\ReservationRosterController;
 use App\Http\Controllers\Admin\ReservationRosterPointController;
 use App\Http\Controllers\Admin\ReviewReasonController;
 use App\Http\Controllers\Admin\SealedCoverReasonController;
+use App\Http\Controllers\Admin\SeniorityListLinkController;
 use App\Http\Controllers\Admin\StageTimelineController;
 use App\Http\Controllers\Admin\UserAssignmentController;
 use App\Http\Controllers\Admin\UserController;
@@ -335,6 +336,10 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
             // Chart, for the AH and every authority after — DpcProposalPolicy::viewRecords().
             Route::get('/{dpcProposal}/tabulation-chart', [DpcTabulationController::class, 'show'])->name('tabulation-chart');
             Route::get('/{dpcProposal}/tabulation-chart/download', [DpcTabulationController::class, 'download'])->name('tabulation-chart.download');
+            // 2026-11-22: one officer's missing CR years and their reasons, from the chart's link.
+            Route::get('/{dpcProposal}/tabulation-chart/officers/{evaluationRow:sn}/missing-cr', [DpcTabulationController::class, 'missingCr'])
+                ->scopeBindings()
+                ->name('tabulation-chart.missing-cr');
             Route::get('/{dpcProposal}/originals/{importBatch}', [DpcTabulationController::class, 'original'])->name('originals.download');
         });
 
@@ -783,6 +788,12 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
                 Route::delete('/proceedings/{proceeding}/holds/{hold}', [ProceedingHoldController::class, 'destroy'])->name('proceedings.holds.destroy');
             });
 
+        // The AH's own entry point to the candidates' grievances (2026-11-22): every DPC
+        // allotted to them with grievances; each opens on dpc-proposals.grievances.index.
+        Route::middleware('role:'.Role::AdministrativeHead->value)
+            ->get('/grievances', [GrievanceController::class, 'queue'])
+            ->name('grievances.queue');
+
         // The Secretary, CGPSC (2026-11-14): every department's DPC the AH approved,
         // approved with an eSign (EsignController) or returned to the AO here.
         Route::middleware('role:'.Role::Secretary->value)
@@ -862,6 +873,9 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
             ->name('admin.')
             ->group(function (): void {
                 Route::get('/', [AdminDashboardController::class, 'index'])->name('dashboard');
+                // 2026-11-22: the CGPSC Seniority List link of each DPC, shown to its candidates.
+                Route::get('/seniority-links', [SeniorityListLinkController::class, 'index'])->name('seniority-links.index');
+                Route::put('/seniority-links/{dpcProposal}', [SeniorityListLinkController::class, 'update'])->name('seniority-links.update');
                 Route::get('/integrations', IntegrationStatusController::class)->name('integrations');
                 // Clear every Pre-DPC and DPC record (2026-11-02); refused outside
                 // `dpc.dpc_data_purge.allowed_environments` and always in production.

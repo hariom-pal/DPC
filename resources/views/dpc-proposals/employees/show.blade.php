@@ -256,6 +256,7 @@
                     @endif
                     <p class="small mb-1" id="rule-total">{{ __('dpc.employee_details.rule.total', ['total' => $ruleCheck['total'] ?? '—', 'required' => $ruleCheck['required_total']]) }}</p>
                 @endif
+                @include('dpc-proposals.employees.partials.chairman-grade-changes', ['changes' => $gradeChanges])
                 @if (($ruleCheck['holds'] ?? []) !== [])
                     <ul class="small mb-2 text-warning-emphasis" id="rule-check-holds">
                         @foreach ($ruleCheck['holds'] as $hold)<li>{{ $hold }}</li>@endforeach
@@ -571,6 +572,15 @@
                         </label>
                         @error('cr_undertaking')<div class="text-danger small">{{ $message }}</div>@enderror
                     </div>
+                    @if ($atSitting)
+                        {{-- The DPC Chairman's reason for changing the grading (2026-11-22). --}}
+                        <div class="mt-2" id="chairman-reason-field">
+                            <label class="form-label small fw-semibold" for="chairman-reason">{{ __('dpc.employee_details.cr.chairman_reason') }}</label>
+                            <textarea class="form-control form-control-sm @error('chairman_reason') is-invalid @enderror" id="chairman-reason" name="chairman_reason" rows="2" maxlength="1000">{{ old('chairman_reason') }}</textarea>
+                            @error('chairman_reason')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            <div class="form-text">{{ __('dpc.employee_details.cr.chairman_reason_help') }}</div>
+                        </div>
+                    @endif
                     <div class="mt-2 d-flex gap-2">
                         <button class="btn btn-success btn-sm">{{ __('dpc.employee_details.cr.save_year') }}</button>
                         @if ($editCr)

@@ -577,11 +577,17 @@ class EmployeeDetailsTest extends TestCase
 
     public function test_a_return_not_submitted_is_recorded_as_such(): void
     {
+        // Missing in any year of the Property window: its reason and document are asked (2026-11-22).
         $this->actingAs($this->ao)->post($this->route('property.save'), ['year' => 2023, 'submitted' => '0'])
-            ->assertSessionHasNoErrors();
+            ->assertSessionHasErrors(['missing_reason_id', 'missing_document']);
+        $this->post($this->route('property.save'), [
+            'year' => 2023, 'submitted' => '0',
+            'missing_reason_id' => RecordReason::query()->where('code', 'record_not_available')->value('id'),
+            'missing_document' => $this->pdf('ipr-2023-missing.pdf'),
+        ])->assertSessionHasNoErrors();
 
         $this->assertFalse((bool) $this->row->propertyFlags()->where('year', 2023)->value('flag'));
-        $this->assertSame([], $this->propertyItems(2023), 'Recorded; the engine judges it.');
+        $this->assertSame([], $this->propertyItems(2023), 'Recorded with its reason; the engine holds it (CIR).');
     }
 
     public function test_a_late_return_needs_the_departments_decision(): void
@@ -1217,6 +1223,10 @@ class EmployeeDetailsTest extends TestCase
         $this->promotionRule();
         $this->saveCr(2025, 'क')->assertSessionHasNoErrors();
         $this->saveCr(2024, 'क+')->assertSessionHasNoErrors();
+        // Every Property year is mandatory (2026-11-22): filed.
+        foreach ([2025, 2024] as $year) {
+            $this->row->propertyFlags()->updateOrCreate(['year' => $year], ['flag' => true, 'submitted_on' => $year.'-01-10']);
+        }
 
         $check = $this->ruleCheck();
         $this->assertSame('meets', $check['status']);
@@ -1398,9 +1408,10 @@ class EmployeeDetailsTest extends TestCase
             ->assertSessionHasErrors(['missing_reason_id', 'missing_document']);
         $this->assertFalse($this->row->propertyFlags()->where('year', 2025)->exists());
 
-        // The IPR runs the rule's two CR years (2026-11-18); 2024's is not mandatory.
-        $this->post($this->route('property.save'), ['year' => 2024, 'submitted' => '0'])->assertSessionHasNoErrors();
-        $this->assertSame(0, $this->row->recordGaps()->count(), 'An optional year asks for no reason or document.');
+        // The IPR runs the rule's two CR years (2026-11-18), and every one of them is
+        // mandatory, ticked or not (2026-11-22): 2024 asks for its reason too.
+        $this->post($this->route('property.save'), ['year' => 2024, 'submitted' => '0'])->assertSessionHasErrors(['missing_reason_id', 'missing_document']);
+        $this->assertSame(0, $this->row->recordGaps()->count());
         $this->post($this->route('property.save'), ['year' => 2023, 'submitted' => '0'])->assertSessionHasErrors();
 
         $this->post($this->route('property.save'), [

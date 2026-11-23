@@ -13,10 +13,10 @@
             <th rowspan="2" style="font-weight: bold; background-color: #E9ECEF;">{{ __('dpc.employee_details.employee_id') }}</th>
             <th rowspan="2" style="font-weight: bold; background-color: #E9ECEF;">{{ __('ui.name') }}</th>
             <th rowspan="2" style="font-weight: bold; background-color: #E9ECEF;">{{ __('dpc.tabulation.dob') }}</th>
-            <th rowspan="2" style="font-weight: bold; background-color: #E9ECEF;">{{ __('dpc.tabulation.joining') }}</th>
             <th rowspan="2" style="font-weight: bold; background-color: #E9ECEF;">{{ __('ui.category') }}</th>
             <th rowspan="2" style="font-weight: bold; background-color: #E9ECEF;">{{ __('dpc.employee_details.current_post') }}</th>
             <th rowspan="2" style="font-weight: bold; background-color: #E9ECEF;">{{ __('dpc.tabulation.qualification') }}</th>
+            <th rowspan="2" style="font-weight: bold; background-color: #E9ECEF;">{{ __('dpc.tabulation.joining') }}</th>
             @for ($n = 1; $n <= $crColumns; $n++)
                 <th rowspan="2" style="font-weight: bold; background-color: #CFF4FC; text-align: center;">{{ __('dpc.tabulation.cr_n', ['n' => $n]) }}</th>
             @endfor
@@ -42,29 +42,24 @@
                 <td>{{ $row->employee_number ?? '—' }}</td>
                 <td>{{ $row->name }}</td>
                 <td>{{ $row->dob?->format('d-m-Y') ?? '—' }}</td>
-                <td>{{ $row->date_of_joining_service?->format('d-m-Y') ?? '—' }}</td>
                 <td>{{ $row->reservationCategory?->code ?? '—' }}</td>
                 <td>{{ $row->promotion_from_post ?? '—' }}</td>
                 <td>{{ $row->qualification ?? '—' }}</td>
+                <td>{{ $row->date_of_joining_service?->format('d-m-Y') ?? '—' }}</td>
                 {{-- Each cell its own year and grade, in the CR window's order (2026-11-19). --}}
+                {{-- Only the years counted, each with its grade (2026-11-22); a missing year is not shown. --}}
                 @for ($n = 0; $n < $crColumns; $n++)
                     @php
                         $cell = $crCells[$row->id][$n] ?? null;
                         $cr = $cell === null ? null : $row->crGrades->firstWhere('year', $cell['year']);
-                        $crFit = ($cr !== null && $cr->put_up !== false && $cr->has_grading !== false) ? $cr->integrityFit() : null;
+                        $crFit = ($cr !== null && $cr->has_grading !== false) ? $cr->integrityFit() : null;
                         $substituted = $cell !== null && $cell['state'] !== 'counted';
                         $fill = $substituted ? 'background-color: #FFEB9C;' : ($crFit === null ? '' : ($crFit ? 'background-color: #C6EFCE;' : 'background-color: #FFC7CE;'));
                     @endphp
                     <td style="text-align: center; {{ $fill }}">
-                        @if ($cell === null)
-                            —
-                        @else
+                        @if ($cell !== null)
                             {{ $cell['year'] }}:
-                            @if ($cr === null)
-                                —
-                            @elseif ($cr->put_up === false)
-                                ({{ __('dpc.tabulation.missing') }})
-                            @elseif ($cr->has_grading === false)
+                            @if ($cr->has_grading === false)
                                 ({{ __('dpc.tabulation.ng_short') }})
                             @else
                                 {{ $cr->grade ?? '—' }}@if ($cr->tribal_area === true) ({{ __('dpc.tabulation.tribal_short') }})@endif @if ($substituted && $cr->integrityOption) [{{ $cr->integrityOption->label() }}]@endif
@@ -96,6 +91,7 @@
     </tbody>
 </table>
 <table>
+    <tr><td>{{ __('dpc.tabulation.missing_cr_note') }}</td></tr>
     <tr><td>{{ __('dpc.tabulation.legend_tribal') }}</td></tr>
     <tr><td style="background-color: #FFEB9C;">{{ __('dpc.tabulation.legend_substituted') }}</td></tr>
 </table>

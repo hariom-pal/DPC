@@ -115,7 +115,7 @@ class MeritGateTest extends TestCase
         $rows = $this->chart([
             ['sn' => 1, 'name' => 'Justified', 'propertyMissing' => [2023]],
             ['sn' => 2, 'name' => 'Unexplained', 'propertyMissing' => [2023]],
-            ['sn' => 3, 'name' => 'Optional year', 'propertyMissing' => [2022]],
+            ['sn' => 3, 'name' => 'Unticked year', 'propertyMissing' => [2022]],
         ]);
         $this->recordGap($rows[1], DpcEvaluationRecordGap::KIND_PROPERTY, 2023);
 
@@ -128,7 +128,10 @@ class MeritGateTest extends TestCase
         $this->assertSame(RemarkCode::NotEligible->value, $result(2)->remark);
         $this->assertStringContainsString('Property File for 2023 is mandatory', implode(' ', $result(2)->verdict['failure_reasons']));
 
-        $this->assertTrue((bool) $result(3)->is_eligible, 'A year the rule does not make mandatory refuses nobody.');
+        // 2026-11-22: every year of the rule's Property years is mandatory, ticked or
+        // not — an unticked year missing without a reason refuses like any other.
+        $this->assertSame(RemarkCode::NotEligible->value, $result(3)->remark);
+        $this->assertStringContainsString('Property File for 2022 is mandatory', implode(' ', $result(3)->verdict['failure_reasons']));
     }
 
     /**

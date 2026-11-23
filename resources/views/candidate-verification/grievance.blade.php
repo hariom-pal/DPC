@@ -6,6 +6,7 @@
         <h2 class="h6">{{ __('candidate.grievance.heading', ['section' => $section->label()]) }}</h2>
         <form method="POST" action="{{ route('candidate-verification.grievance.save', [$participant->uuid, $section->value]) }}" enctype="multipart/form-data" id="grievance-form">
             @csrf
+            @if ($grievance)<input type="hidden" name="grievance" value="{{ $grievance->uuid }}">@endif
             <div class="mb-2">
                 <label class="form-label small" for="category">{{ __('candidate.grievance.category') }}</label>
                 <select class="form-select form-select-sm" id="category" name="category" required>

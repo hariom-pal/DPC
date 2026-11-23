@@ -172,6 +172,12 @@ class ProceedingResultTest extends TestCase
             $row->loyaltyFlags()->create(['year' => $year, 'flag' => true]);
             $row->propertyFlags()->create(['year' => $year, 'flag' => true]);
         }
+
+        // Every Property File year before the DPC year is mandatory (2026-11-22): filed.
+        $dpcYear = (int) ($this->proposal->dpc_year ?: $this->proposal->proposal_date->year);
+        foreach (array_diff(range($dpcYear - 1, $dpcYear - 5), array_keys($grades)) as $year) {
+            $row->propertyFlags()->create(['year' => $year, 'flag' => true]);
+        }
     }
 
     private function seedVacancy(): void

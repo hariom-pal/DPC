@@ -193,6 +193,7 @@ return [
                 'pay_scales' => 'Pay Scales',
                 'portal_notices' => 'Notice Board',
                 'pre_dpc_links' => 'Sanctioning orders',
+                'seniority_links' => 'CGPSC Seniority List links',
                 'qualifications' => 'Qualifications',
                 'recruitment_rules' => 'Recruitment Rules',
                 'reservation_categories' => 'Reservation Categories',

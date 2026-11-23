@@ -118,11 +118,24 @@ class DpcCalculationTest extends TestCase
                 static fn (int $year): array => ['year' => $year, 'flag' => true],
                 array_keys($crGrades),
             ),
+            // …and every year of the rule's Property window, all mandatory since 2026-11-22.
             'property_flags' => array_map(
                 static fn (int $year): array => ['year' => $year, 'flag' => true],
-                array_keys($crGrades),
+                array_values(array_unique([...array_keys($crGrades), ...$this->propertyWindow()])),
             ),
         ];
+    }
+
+    /**
+     * The five years before the DPC year: the Property window.
+     *
+     * @return list<int>
+     */
+    private function propertyWindow(): array
+    {
+        $year = (int) ($this->proposal->dpc_year ?: $this->proposal->proposal_date->year);
+
+        return range($year - 1, $year - 5);
     }
 
     /**

@@ -85,6 +85,8 @@ final class CandidateRecordView
                 'from_post' => $proposal->promotionFromPost?->name,
                 'promotion_post' => $proposal->promotionToPost?->name,
                 'seniority_list_size' => $list->count(),
+                // 2026-11-22: the list CGPSC published, entered by the Administrator.
+                'cgpsc_seniority_list_url' => $proposal->cgpsc_seniority_list_url ?: null,
             ],
             // Every officer's basic details (2026-11-20, spec item 5): the joining dates with
             // the name, category and post. A date of birth only on the candidate's own row;
@@ -136,6 +138,8 @@ final class CandidateRecordView
 
         return [
             'years' => $lines,
+            // 2026-11-22: the candidate sees which CR years are missing, and why.
+            'missing' => $this->details->missingCrYears($row),
             'appointed_year' => $appointed,
             'score' => $score === null ? null : [
                 'years_used' => $score->yearsUsed,

@@ -42,6 +42,8 @@
         <a href="{{ route('dpc-proposals.tabulation-chart.download', $proposal) }}" class="btn btn-success btn-sm" id="tabulation-download">{{ __('dpc.tabulation.download_chart') }}</a>
     </div>
 
+    <div class="alert alert-warning py-2 small mb-2" id="missing-cr-note">{{ __('dpc.tabulation.missing_cr_note') }}</div>
+
     {{-- 2026-11-19: CR 1, CR 2, … across the header; each cell its own year above its
          grade, in the order the officer's CR window takes them — a year not counted (NG /
          Missing) in its own column, the older year counted in its place after it, both
@@ -59,10 +61,10 @@
                         <th class="table-light">{{ __('dpc.employee_details.employee_id') }}</th>
                         <th class="table-light sticky-col sticky-name text-start">{{ __('ui.name') }}</th>
                         <th class="table-light">{{ __('dpc.tabulation.dob') }}</th>
-                        <th class="table-light">{{ __('dpc.tabulation.joining') }}</th>
                         <th class="table-light">{{ __('ui.category') }}</th>
                         <th class="table-light">{{ __('dpc.employee_details.current_post') }}</th>
                         <th class="table-light">{{ __('dpc.tabulation.qualification') }}</th>
+                        <th class="table-light">{{ __('dpc.tabulation.joining') }}</th>
                         @for ($n = 1; $n <= $crColumns; $n++)
                             <th class="table-info" data-cr-column="{{ $n }}">{{ __('dpc.tabulation.cr_n', ['n' => $n]) }}</th>
                         @endfor
@@ -81,31 +83,32 @@
                         <tr data-tabulation-sn="{{ $row->sn }}">
                             <td class="table-light sticky-col sticky-sn">{{ $row->sn }}</td>
                             <td class="table-light">{{ $row->employee_number ?? '—' }}</td>
-                            <td class="table-light sticky-col sticky-name text-start">{{ $row->name }}</td>
+                            <td class="table-light sticky-col sticky-name text-start">
+                                {{ $row->name }}
+                                @if (($missingCr[$row->id] ?? 0) > 0)
+                                    <div><a href="{{ route('dpc-proposals.tabulation-chart.missing-cr', [$proposal, $row->sn]) }}" target="_blank" rel="noopener" class="small text-danger" data-missing-cr="{{ $missingCr[$row->id] }}">{{ __('dpc.tabulation.view_missing_cr') }}</a></div>
+                                @endif
+                            </td>
                             <td class="table-light">{{ $row->dob?->format('d-m-Y') ?? '—' }}</td>
-                            <td class="table-light">{{ $row->date_of_joining_service?->format('d-m-Y') ?? '—' }}</td>
                             <td class="table-light">{{ $row->reservationCategory?->code ?? '—' }}</td>
                             <td class="table-light">{{ $row->promotion_from_post ?? '—' }}</td>
                             <td class="table-light">{{ $row->qualification ?? '—' }}</td>
+                            <td class="table-light">{{ $row->date_of_joining_service?->format('d-m-Y') ?? '—' }}</td>
+                            {{-- 2026-11-22: only the years counted, each with its grade; a missing year is
+                                 not shown (see the note above and "View missing CR"). --}}
                             @for ($n = 0; $n < $crColumns; $n++)
                                 @php
                                     $cell = $crCells[$row->id][$n] ?? null;
                                     $cr = $cell === null ? null : $row->crGrades->firstWhere('year', $cell['year']);
-                                    $graded = $cr !== null && $cr->put_up !== false && $cr->has_grading !== false;
+                                    $graded = $cr !== null && $cr->has_grading !== false;
                                     $crFit = $graded ? $cr->integrityFit() : null;
                                     $substituted = $cell !== null && $cell['state'] !== 'counted';
                                     $cellClass = $substituted ? 'cell-substituted' : ($crFit === null ? '' : ($crFit ? 'cell-fit' : 'cell-unfit'));
                                 @endphp
                                 <td class="{{ $cellClass }}" @if ($cell) data-cr-cell="{{ $cell['year'] }}" data-cr-state="{{ $cell['state'] }}" @endif @if ($cr?->integrityOption) title="{{ $cr->integrityOption->label() }}" @endif @if ($crFit !== null) data-fit="{{ $crFit ? 'fit' : 'unfit' }}" @endif>
-                                    @if ($cell === null)
-                                        —
-                                    @else
+                                    @if ($cell !== null)
                                         <span class="tab-cell-year">{{ $cell['year'] }}</span>
-                                        @if ($cr === null)
-                                            —
-                                        @elseif ($cr->put_up === false)
-                                            <span class="text-danger">({{ __('dpc.tabulation.missing') }})</span>
-                                        @elseif ($cr->has_grading === false)
+                                        @if ($cr->has_grading === false)
                                             ({{ __('dpc.tabulation.ng_short') }})
                                         @else
                                             <strong>{{ $cr->grade ?? '—' }}</strong>@if ($cr->tribal_area === true) <span class="badge text-bg-info" title="{{ __('dpc.employee_details.cr.tribal_yes') }}">{{ __('dpc.tabulation.tribal_short') }}</span>@endif

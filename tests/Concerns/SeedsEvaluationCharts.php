@@ -128,6 +128,18 @@ trait SeedsEvaluationCharts
             ]);
         }
 
+        // Every Property File year before the DPC year is mandatory (2026-11-22): the
+        // officer filed each of the five, unless the test says it is missing.
+        $dpcYear = (int) ($proposal->dpc_year ?: $proposal->proposal_date?->year ?: now()->year);
+        foreach (range($dpcYear - 1, $dpcYear - 5) as $year) {
+            if (! array_key_exists($year, $grades)) {
+                $row->propertyFlags()->create([
+                    'year' => $year,
+                    'flag' => in_array($year, $propertyMissingYears, true) ? null : true,
+                ]);
+            }
+        }
+
         return $row;
     }
 

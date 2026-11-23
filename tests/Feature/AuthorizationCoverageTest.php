@@ -78,6 +78,7 @@ class AuthorizationCoverageTest extends TestCase
         // MoM of 16 November 2026, point 9.
         'dpc-proposals.tabulation-chart' => 'Guarded by DpcProposalPolicy::viewRecords(): the AH, Secretary, DPC Committee and Chairman.',
         'dpc-proposals.tabulation-chart.download' => 'Guarded by DpcProposalPolicy::viewRecords(), as the chart itself.',
+        'dpc-proposals.tabulation-chart.missing-cr' => 'Guarded by DpcProposalPolicy::viewRecords(), as the chart itself.',
         'dpc-proposals.employees.show' => 'Guarded by DpcProposalPolicy::view() — or editAtSitting() for the DPC Chairman on the day the DPC is held (2026-11-18); the row must belong to the proposal.',
         'dpc-proposals.employees.documents.download' => 'Guarded by DpcProposalPolicy::view() — or editAtSitting() for the DPC Chairman on the day the DPC is held (2026-11-18); the row must belong to the proposal.',
         'dpc-proposals.record-gaps.index' => 'Guarded by DpcProposalPolicy::view() — or editAtSitting() for the DPC Chairman on the day the DPC is held (2026-11-18); the row must belong to the proposal.',

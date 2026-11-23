@@ -55,14 +55,23 @@
             <div class="col-md-2"><button class="btn btn-sm btn-outline-secondary">{{ __('candidate.grievance.review.all') }} ⟳</button></div>
         </form>
 
-        @forelse ($grievances as $grievance)
+        {{-- Candidate-wise (2026-11-22): each candidate's grievances together, decided one by one. --}}
+        @forelse ($grievances as $group)
             @php
-                $row = $grievance->participant->row;
+                $row = $group->first()->participant->row;
+                $openCount = $group->filter(fn ($g) => in_array($g->status->value, ['submitted', 'returned_from_ao'], true))->count();
+            @endphp
+            <div class="card border-0 shadow-sm mb-3" data-candidate="{{ $row->sn }}"><div class="card-body">
+            <div class="d-flex flex-wrap justify-content-between gap-2 mb-2">
+                <h2 class="h6 mb-0">{{ $row->name }} · {{ $row->employee_number ?? '—' }} · S.N. {{ $row->sn }}</h2>
+                <span class="badge {{ $openCount > 0 ? 'text-bg-warning' : 'text-bg-success' }}">{{ __('candidate.grievance.review.candidate_count', ['count' => $group->count(), 'open' => $openCount]) }}</span>
+            </div>
+            @foreach ($group as $grievance)
+            @php
                 $decidable = in_array($grievance->status->value, ['submitted', 'returned_from_ao'], true) && $proposal->status->value === 'grievance_review';
             @endphp
-            <div class="card border-0 shadow-sm mb-2" data-grievance="{{ $grievance->uuid }}" data-status="{{ $grievance->status->value }}"><div class="card-body small">
-                <div class="d-flex flex-wrap justify-content-between gap-2">
-                    <div><strong>{{ $row->name }}</strong> · {{ $row->employee_number ?? '—' }} · S.N. {{ $row->sn }}</div>
+            <div class="border rounded mb-2" data-grievance="{{ $grievance->uuid }}" data-status="{{ $grievance->status->value }}"><div class="p-2 small">
+                <div class="d-flex flex-wrap justify-content-end gap-2">
                     <span class="badge text-bg-secondary">{{ $grievance->status->label() }}</span>
                 </div>
                 <div>{{ __('candidate.grievance.review.section') }}: {{ $grievance->section->label() }} · {{ __('candidate.grievance.review.category') }}: {{ __('candidate.grievance.categories.'.$grievance->category) }}@if ($grievance->related_year) · {{ $grievance->related_year }}@endif</div>
@@ -91,6 +100,8 @@
                         </form>
                     </div>
                 @endif
+            </div></div>
+            @endforeach
             </div></div>
         @empty
             <div class="card border-0 shadow-sm"><div class="card-body text-muted">{{ __('candidate.grievance.review.none') }}</div></div>

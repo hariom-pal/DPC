@@ -101,7 +101,7 @@ class VerificationIntegrationTest extends TestCase
         $this->assertSame(0, VerificationCycle::query()->count());
     }
 
-    public function test_the_database_keeps_one_verification_per_officer_and_one_grievance_per_section(): void
+    public function test_the_database_keeps_one_verification_per_officer_and_allows_several_grievances_a_section(): void
     {
         $this->approveByAh()->assertSessionHasNoErrors();
         $participant = $this->participant(1);
@@ -118,12 +118,10 @@ class VerificationIntegrationTest extends TestCase
         } catch (QueryException) {
         }
 
+        // Several grievances a section are allowed (2026-11-22): one for each wrong year.
         $this->signIn(1);
         $this->grievance($participant->uuid, 'cr')->assertSessionHasNoErrors();
-        try {
-            Grievance::query()->create([...Grievance::query()->sole()->only(['dpc_verification_participant_id', 'dpc_verification_cycle_id', 'section', 'category', 'remark', 'disk', 'path', 'original_name', 'size_bytes', 'sha256', 'undertaking_accepted_at', 'status'])]);
-            $this->fail('A second grievance on one section was accepted.');
-        } catch (QueryException) {
-        }
+        $this->grievance($participant->uuid, 'cr')->assertSessionHasNoErrors();
+        $this->assertSame(2, Grievance::query()->where('dpc_verification_participant_id', $participant->id)->where('section', 'cr')->count());
     }
 }

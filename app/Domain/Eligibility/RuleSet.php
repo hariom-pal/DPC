@@ -81,11 +81,14 @@ final class RuleSet
         $minimumByPosition = [];
         $mandatoryPositions = [];
 
+        // Every year of the rule's property years is mandatory (2026-11-22): a Property
+        // File missing for any of them is CIR with its reason, Unfit without one — the
+        // per-year tick no longer narrows it.
+        for ($before = 1; $before <= (int) $rule->property_years; $before++) {
+            $propertyMandatory[] = $dpcYear - $before;
+        }
+
         foreach ($rule->years as $year) {
-            // The years the rule makes the property return mandatory (2026-11-05).
-            if ($year->property_mandatory && $year->years_before <= $rule->property_years) {
-                $propertyMandatory[] = $dpcYear - $year->years_before;
-            }
 
             if ($year->years_before > $rule->cr_years) {
                 continue;
