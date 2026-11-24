@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Console\Commands\CandidateVerificationDeadlinesCommand;
 use App\Console\Commands\DpcStageDeadlinesCommand;
+use App\Console\Commands\MemberViewAutoActivateCommand;
 use App\Console\Commands\ProcessAssignmentRequestsCommand;
 use App\Console\Commands\ReturnExpiredAllotmentsCommand;
 use Illuminate\Foundation\Inspiring;
@@ -66,6 +67,14 @@ Schedule::command(CandidateVerificationDeadlinesCommand::class)
     ->withoutOverlapping()
     ->onOneServer()
     ->description('Close candidate verifications past their deadline and route each DPC on');
+
+// The committee members' view of an allotted DPC (2026-11-24): opened on its own once
+// the DPC Chairman's days pass, recorded on the timeline once. Idempotent.
+Schedule::command(MemberViewAutoActivateCommand::class)
+    ->everyTenMinutes()
+    ->withoutOverlapping()
+    ->onOneServer()
+    ->description('Record DPCs opened to the committee members on their own');
 
 // Transfers and additional charges take effect on their date, and additional
 // charges end on theirs (Phases 7–8, 2026-10-27). Idempotent.

@@ -60,9 +60,15 @@ class CommitteeSittingService
 
         return DpcProposal::query()
             ->whereIn('id', $proposalIds)
+            // Not before the CGPSC Chairman has allotted it (2026-11-24): a seat named by the
+            // department shows nothing while the DPC is still on its way to the committee.
+            ->whereIn('id', DpcAllotment::query()->current()->select('dpc_proposal_id'))
             ->with(['department', 'promotionFromPost', 'promotionToPost'])
             ->orderByDesc('id')
-            ->get();
+            ->get()
+            // A member's seat only once the DPC Chairman opened it to them, or it opened on its own (2026-11-24).
+            ->filter(fn (DpcProposal $proposal): bool => $this->isSeatedOn($proposal, $member))
+            ->values();
     }
 
     /**
@@ -75,12 +81,33 @@ class CommitteeSittingService
     {
         // The DPC Chairman sits on it, and is the person it is allotted to
         // (business instruction, 2026-11-17) — no longer necessarily a seat.
+        // A seat counts only once the CGPSC Chairman has allotted the DPC (2026-11-24).
+        if (! $this->allotted($proposal)) {
+            return false;
+        }
+
+        // The DPC Chairman sees it as soon as it is allotted to them.
+        if (DpcAllotment::query()->where('dpc_proposal_id', $proposal->id)->current()->where('allotted_to', $member->id)->exists()) {
+            return true;
+        }
+
+        // A member only once the DPC Chairman opened it to the members, or their days
+        // passed and it opened on its own (2026-11-24).
         return DpcCommitteeMember::query()
             ->where('dpc_proposal_id', $proposal->id)
             ->serving()
             ->where('user_id', $member->id)
             ->exists()
-            || DpcAllotment::query()->where('dpc_proposal_id', $proposal->id)->current()->where('allotted_to', $member->id)->exists();
+            && app(MemberViewService::class)->isActive($proposal);
+    }
+
+    /**
+     * Whether the CGPSC Chairman has allotted this DPC (2026-11-24): until then it is not
+     * the committee's, and no member sees it, whatever seats the department named.
+     */
+    public function allotted(DpcProposal $proposal): bool
+    {
+        return DpcAllotment::query()->where('dpc_proposal_id', $proposal->id)->current()->exists();
     }
 
     /**

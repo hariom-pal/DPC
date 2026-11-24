@@ -69,6 +69,9 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property DpcProposalStatus $status
  * @property int $revision_number
  * @property string|null $cgpsc_seniority_list_url
+ * @property int|null $member_view_allotment_id
+ * @property Carbon|null $member_view_enabled_at
+ * @property int|null $member_view_enabled_by
  * @property string|null $dpc_code
  * @property Carbon|null $forwarded_at
  * @property int|null $prepared_by
@@ -208,6 +211,9 @@ class DpcProposal extends Model implements Auditable
         'revision_number',
         'dpc_code',
         'cgpsc_seniority_list_url',
+        'member_view_allotment_id',
+        'member_view_enabled_at',
+        'member_view_enabled_by',
         'forwarded_at',
         'prepared_by',
         'submitted_at',
@@ -237,6 +243,9 @@ class DpcProposal extends Model implements Auditable
             'proposal_date' => 'date',
             'sanctioned_post_count' => 'integer',
             'dpc_year' => 'integer',
+            'member_view_allotment_id' => 'integer',
+            'member_view_enabled_at' => 'datetime',
+            'member_view_enabled_by' => 'integer',
             'class_level' => ServiceClass::class,
             'promotion_duration_years' => 'integer',
             'revision_number' => 'integer',

@@ -501,6 +501,7 @@ return [
         'chairman' => ['label' => 'Chairman, CGPSC', 'action' => 'Allot the DPC to its committee'],
         'committee' => ['label' => 'DPC Committee', 'action' => 'Evaluate the result and decide'],
         'candidate_verification' => ['label' => 'Candidate Verification & Grievance Submission', 'action' => 'The candidates verify their own records and may raise grievances until the deadline'],
+        'committee_view' => ['label' => 'Committee View (DPC Chairman opens the DPC to the members)', 'action' => 'The DPC Chairman opens the allotted DPC to the committee members; once these days pass it opens to them on its own'],
         'returned_by' => [
             'ah' => 'the Administrative Head',
             'secretary' => 'the Secretary, CGPSC',
@@ -508,6 +509,7 @@ return [
             'committee' => 'the DPC Committee',
         ],
         'items' => [
+            'member_view' => 'The DPC Chairman to open the DPC to the committee members (opens on its own on :date)',
             'open_sections' => 'Open the sections the Secretary marked for the AO',
             'mark_rejection' => 'Mark the candidates and sections of the rejected DPC',
             'chairman_accept' => 'The DPC Chairman to accept or reject the DPC',
@@ -1530,6 +1532,8 @@ return [
         'not_with_ah' => 'The DPC is not with the AH to open its sections.',
     ],
     'calculation_gate' => [
+        'awaiting_sitting' => 'Calculate will be available at the sitting: :when.',
+        'no_sitting' => 'Calculate will be available at the sitting, once it is scheduled.',
         'awaiting_accept' => 'Calculate will be available after the DPC Chairman has accepted the DPC and every member has recorded OK on every candidate.',
         'awaiting_ok' => 'Calculate will be available after every committee member has recorded OK on every candidate and then Agree.',
         'state_ok_pending' => 'OK on candidates pending',

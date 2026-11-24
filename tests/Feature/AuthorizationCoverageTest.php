@@ -101,6 +101,7 @@ class AuthorizationCoverageTest extends TestCase
         'sitting.candidate.ok' => 'As above, and the row must belong to the proposal or it is a 404.',
         'sitting.meeting' => 'As above (a seat on the committee); sent on to the room only once started.',
         'sitting.meeting.initiate' => 'As above, and SittingMeetingService refuses anybody but the DPC Chairman.',
+        'sitting.member-view.activate' => 'As above, and MemberViewService refuses anybody but the DPC Chairman, while the DPC is still closed to the members.',
         // The DPC's Chairman is a committee seat, not an office (2026-11-06).
         'cgpsc.proceedings.sealed-covers' => 'Guarded by SealedCoverService::isDpcChairman() on this proceeding\'s proposal.',
         'cgpsc.proceedings.sealed-covers.open' => 'As above, in the Form Request and again in the service.',

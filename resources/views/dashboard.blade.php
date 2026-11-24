@@ -44,6 +44,34 @@
         </div>
     @endif
 
+    {{-- The candidates' grievances waiting on this AH or AO, on their own (2026-11-24). --}}
+    @if ($grievancesWaiting !== [])
+        <div class="card border-0 shadow-sm mb-3 border-start border-warning border-4" id="grievances-waiting">
+            <div class="card-body">
+                <h2 class="h6 mb-1">{{ __('candidate.grievance.dashboard.title') }}</h2>
+                <p class="small text-muted mb-2">{{ __('candidate.grievance.dashboard.lead') }}</p>
+                <ul class="list-group list-group-flush">
+                    @foreach ($grievancesWaiting as $entry)
+                        <li class="list-group-item px-0 d-flex flex-wrap justify-content-between align-items-center gap-2" data-grievances-waiting="{{ $entry['proposal']->uuid }}">
+                            <div>
+                                <span class="fw-semibold">{{ $entry['proposal']->citation() }}</span>
+                                <div class="small">
+                                    @if ($entry['ah'])
+                                        @if ($entry['to_decide'] > 0)<span class="badge text-bg-warning" data-to-decide>{{ __('candidate.grievance.dashboard.to_decide', ['count' => $entry['to_decide']]) }}</span>@endif
+                                        @if ($entry['to_approve'] > 0)<span class="badge text-bg-primary" data-to-approve>{{ __('candidate.grievance.dashboard.to_approve', ['count' => $entry['to_approve']]) }}</span>@endif
+                                        @if ($entry['with_ao'] > 0)<span class="badge text-bg-light border">{{ __('candidate.grievance.dashboard.with_ao', ['count' => $entry['with_ao']]) }}</span>@endif
+                                    @endif
+                                    @if ($entry['ao'] && $entry['to_correct'] > 0)<span class="badge text-bg-warning" data-to-correct>{{ __('candidate.grievance.dashboard.to_correct', ['count' => $entry['to_correct']]) }}</span>@endif
+                                </div>
+                            </div>
+                            <a class="btn btn-sm btn-primary" href="{{ route('dpc-proposals.grievances.index', $entry['proposal']) }}">{{ __('candidate.grievance.dashboard.open') }}</a>
+                        </li>
+                    @endforeach
+                </ul>
+            </div>
+        </div>
+    @endif
+
     @include('partials.pending-dpcs', ['entries' => $pendingWith, 'id' => 'pending-with-you', 'title' => __('dpc.stage.pending_with_you'), 'lead' => __('dpc.stage.pending_with_you_lead'), 'mine' => true])
     @include('partials.pending-dpcs', ['entries' => $pendingAt, 'id' => 'pending-at-me', 'title' => __('dpc.stage.pending_at_me'), 'lead' => __('dpc.stage.pending_at_me_lead'), 'mine' => false])
 

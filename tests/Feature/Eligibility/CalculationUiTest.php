@@ -82,6 +82,8 @@ class CalculationUiTest extends TestCase
         // The calculation is the DPC Committee's alone (2026-11-16): the account these
         // tests calculate as is seated on the committee.
         $this->seatAccountOnCommittee($this->proposal, $this->ao);
+        // …to whom the CGPSC Chairman allotted it (2026-11-24: no member sees a DPC before).
+        $this->allotForTest($this->proposal, $this->ao);
     }
 
     private function seedChart(bool $withCommittee = true): void
@@ -427,6 +429,7 @@ class CalculationUiTest extends TestCase
         );
         $otherProposal = DpcProposal::query()->latest('id')->firstOrFail();
         $this->seatAccountOnCommittee($otherProposal, $this->ao);
+        $this->allotForTest($otherProposal, $this->ao);
 
         $this->actingAs($this->ao)
             ->get(route('dpc-proposals.calculations.show', [$otherProposal, $run->uuid]))
@@ -566,6 +569,7 @@ class CalculationUiTest extends TestCase
         );
         $other = DpcProposal::query()->latest('id')->firstOrFail();
         $this->seatAccountOnCommittee($other, $this->ao);
+        $this->allotForTest($other, $this->ao);
         $this->everyMemberAgrees($other, $this->ao);
 
         // The second proposal has no chart, so the business error proves the

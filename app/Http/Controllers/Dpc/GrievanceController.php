@@ -13,10 +13,15 @@ use App\Domain\CandidateVerification\Models\Grievance;
 use App\Domain\CandidateVerification\Models\GrievanceCorrection;
 use App\Domain\CandidateVerification\Models\VerificationCycle;
 use App\Domain\CandidateVerification\Models\VerificationNotification;
+use App\Domain\CandidateVerification\Models\VerificationParticipant;
 use App\Domain\CandidateVerification\Services\GrievanceReviewService;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Shared\Workflow\WorkflowException;
+use App\Domain\Signature\Services\EsignGate;
+use App\Enums\Role;
 use App\Http\Controllers\Controller;
+use App\Http\SignedActions\ApproveGrievanceCorrections;
+use App\Http\SignedActions\NotUpholdGrievance;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -111,6 +116,9 @@ class GrievanceController extends Controller
             'cycle' => $cycle,
             // The AH acts in the review, and while the verification is open (2026-11-23).
             'actionable' => $this->reviews->actionable($dpcProposal),
+            // Who is looking (2026-11-24): the AH decides and approves, the AO corrects.
+            'isAh' => app(ProposalAllotmentService::class)->isAllotted($request->user(), $dpcProposal, Role::AdministrativeHead),
+            'isAo' => app(ProposalAllotmentService::class)->isAllotted($request->user(), $dpcProposal, Role::AuthorizedOfficer),
             'grievances' => $grievances,
             'filters' => $filters,
             'counts' => [
@@ -125,35 +133,122 @@ class GrievanceController extends Controller
         ]);
     }
 
-    public function resolve(Request $request, DpcProposal $dpcProposal, Grievance $grievance): RedirectResponse
+    /**
+     * The AH's decision on one grievance (2026-11-24). Upheld: the candidate is right —
+     * their section opens for the AO with these instructions. Not upheld: the record
+     * stands — closed with this reason, after the AH's eSign.
+     */
+    public function decide(Request $request, DpcProposal $dpcProposal, Grievance $grievance): RedirectResponse
     {
         $this->assertBelongs($dpcProposal, $grievance);
         $data = $request->validate([
             'decision' => ['required', Rule::enum(GrievanceDecision::class)],
-            'resolution_remark' => ['required', 'string', 'max:2000'],
+            'text' => ['required', 'string', 'max:2000'],
         ]);
+        $back = redirect()->to(route('dpc-proposals.grievances.index', $dpcProposal).'#grievance-'.$grievance->uuid);
 
-        try {
-            $this->reviews->resolve($grievance, GrievanceDecision::from($data['decision']), $data['resolution_remark'], $request->user(), $request);
-        } catch (WorkflowException $e) {
-            return back()->withErrors(['grievance' => $e->getMessage()]);
+        if (GrievanceDecision::from($data['decision']) === GrievanceDecision::NotUpheld) {
+            // Checked before the eSign, so nobody signs a step that cannot run.
+            if (! $this->isDpcAh($request, $dpcProposal)) {
+                return $back->withErrors(['grievance' => __('candidate.grievance.errors.not_yours')]);
+            }
+            if (! $this->reviews->actionable($dpcProposal) || $grievance->status !== GrievanceStatus::Submitted) {
+                return $back->withErrors(['grievance' => __('candidate.grievance.errors.not_decidable')]);
+            }
+
+            return app(EsignGate::class)->begin($request, $request->user(), NotUpholdGrievance::class, [
+                'proposal' => $dpcProposal->uuid, 'grievance' => $grievance->uuid, 'reason' => trim($data['text']),
+            ]);
         }
 
-        return back()->with('status', __('candidate.grievance.review.decided'));
+        try {
+            $this->reviews->uphold($grievance, $data['text'], $request->user());
+        } catch (WorkflowException $e) {
+            return $back->withErrors(['grievance' => $e->getMessage()]);
+        }
+
+        return $back->with('status', __('candidate.grievance.review.upheld_done'));
     }
 
-    public function sendToAo(Request $request, DpcProposal $dpcProposal, Grievance $grievance): RedirectResponse
+    /** Only this DPC's allotted AH begins an eSign on its grievances (2026-11-24). */
+    private function isDpcAh(Request $request, DpcProposal $proposal): bool
+    {
+        return app(ProposalAllotmentService::class)->isAllotted($request->user(), $proposal, Role::AdministrativeHead);
+    }
+
+    /** The AO's correction is not yet right: back to the AO (2026-11-24). */
+    public function sendBack(Request $request, DpcProposal $dpcProposal, Grievance $grievance): RedirectResponse
     {
         $this->assertBelongs($dpcProposal, $grievance);
         $data = $request->validate(['instructions' => ['required', 'string', 'max:2000']]);
 
         try {
-            $this->reviews->sendToAo($grievance, $data['instructions'], $request->user());
+            $this->reviews->sendBack($grievance, $data['instructions'], $request->user());
         } catch (WorkflowException $e) {
             return back()->withErrors(['grievance' => $e->getMessage()]);
         }
 
         return back()->with('status', __('candidate.grievance.review.sent'));
+    }
+
+    /** The AH approves a candidate's corrections, after the eSign (2026-11-24). */
+    public function approveCandidate(Request $request, DpcProposal $dpcProposal, VerificationParticipant $participant): RedirectResponse
+    {
+        abort_unless($participant->cycle->dpc_proposal_id === $dpcProposal->id, 404);
+        $data = $request->validate(['remark' => ['required', 'string', 'max:2000']]);
+        $waiting = Grievance::query()->where('dpc_verification_participant_id', $participant->id)->where('status', GrievanceStatus::ReturnedFromAo->value)->exists();
+        if (! $this->isDpcAh($request, $dpcProposal)) {
+            return back()->withErrors(['grievance' => __('candidate.grievance.errors.not_yours')]);
+        }
+        if (! $this->reviews->actionable($dpcProposal) || ! $waiting) {
+            return back()->withErrors(['grievance' => __('candidate.grievance.errors.nothing_to_approve')]);
+        }
+
+        return app(EsignGate::class)->begin($request, $request->user(), ApproveGrievanceCorrections::class, [
+            'proposal' => $dpcProposal->uuid, 'participant' => $participant->uuid, 'remark' => trim($data['remark']),
+        ]);
+    }
+
+    /** The AO sends a candidate's corrections back to the AH together (2026-11-24). */
+    public function submitCandidate(Request $request, DpcProposal $dpcProposal, VerificationParticipant $participant): RedirectResponse
+    {
+        abort_unless($participant->cycle->dpc_proposal_id === $dpcProposal->id, 404);
+        $data = $request->validate(['ao_remarks' => ['required', 'string', 'max:2000']]);
+
+        try {
+            $count = $this->reviews->submitCandidate($participant, $data['ao_remarks'], $request->user());
+        } catch (WorkflowException $e) {
+            return back()->withErrors(['grievance' => $e->getMessage()]);
+        }
+
+        return back()->with('status', __('candidate.grievance.review.candidate_submitted', ['count' => $count, 'name' => $participant->row->name]));
+    }
+
+    /**
+     * The AO's own entry point (2026-11-24): every DPC allotted to them with a grievance
+     * section opened for correction, candidate by candidate.
+     */
+    public function corrections(Request $request, ProposalAllotmentService $allotments): View
+    {
+        $user = $request->user();
+        $proposals = $allotments->scopeTo(DpcProposal::query(), $user)
+            ->whereIn('id', VerificationCycle::query()->whereIn('id', Grievance::query()->whereIn('status', [GrievanceStatus::SentToAo->value, GrievanceStatus::ReturnedFromAo->value, GrievanceStatus::Resolved->value])->whereHas('corrections')->select('dpc_verification_cycle_id'))->select('dpc_proposal_id'))
+            ->with('department', 'promotionFromPost', 'promotionToPost')
+            ->get();
+
+        $rows = $proposals->map(function (DpcProposal $proposal): array {
+            $open = GrievanceCorrection::query()->where('status', GrievanceCorrection::OPEN)
+                ->whereHas('grievance.cycle', fn ($q) => $q->where('dpc_proposal_id', $proposal->id));
+
+            return [
+                'proposal' => $proposal,
+                'to_correct' => (clone $open)->count(),
+                'candidates' => (clone $open)->with('grievance')->get()->pluck('grievance.dpc_verification_participant_id')->unique()->count(),
+                'with_ah' => Grievance::query()->whereHas('cycle', fn ($q) => $q->where('dpc_proposal_id', $proposal->id))->where('status', GrievanceStatus::ReturnedFromAo->value)->count(),
+            ];
+        })->sortByDesc('to_correct')->values();
+
+        return view('dpc-proposals.grievance-corrections', ['rows' => $rows]);
     }
 
     public function submitCorrection(Request $request, DpcProposal $dpcProposal, GrievanceCorrection $correction): RedirectResponse

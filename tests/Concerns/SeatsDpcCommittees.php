@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace Tests\Concerns;
 
 use App\Domain\Authentication\Models\User;
+use App\Domain\Cgpsc\Models\DpcAllotment;
 use App\Domain\Dpc\Enums\CommitteeCapacity;
 use App\Domain\Dpc\Models\DpcCommitteeMember;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Enums\Role;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
  * A committee for tests that are about something else.
@@ -157,6 +160,44 @@ trait SeatsDpcCommittees
      * the committee every time it was asked for an allottee would eventually breach
      * them for reasons no test could see.
      */
+    /**
+     * The CGPSC Chairman's allotment of the DPC to this account, its DPC Chairman
+     * (2026-11-24: until a DPC is allotted, no member sees it). Any earlier current
+     * allotment is superseded, as a re-allotment does.
+     */
+    protected function allotForTest(DpcProposal $proposal, User $to, bool $openToMembers = true): DpcAllotment
+    {
+        $current = DpcAllotment::query()->where('dpc_proposal_id', $proposal->id)->current()->pluck('id');
+        $allotment = DpcAllotment::query()->forceCreate([
+            'uuid' => (string) Str::uuid(),
+            'dpc_proposal_id' => $proposal->id,
+            'allotted_to' => $to->id,
+            'allotted_at' => now(),
+        ]);
+        DB::table('dpc_allotments')->whereIn('id', $current)->update(['superseded_by_id' => $allotment->id]);
+
+        if ($openToMembers) {
+            $this->openToMembers($proposal);
+        }
+
+        return $allotment;
+    }
+
+    /**
+     * The DPC Chairman has opened the allotted DPC to the committee members (2026-11-24:
+     * until then, or until their days pass, the members see nothing of it).
+     */
+    protected function openToMembers(DpcProposal $proposal): void
+    {
+        $allotment = DpcAllotment::query()->where('dpc_proposal_id', $proposal->id)->current()->latest('id')->firstOrFail();
+        DpcProposal::query()->whereKey($proposal->id)->update([
+            'member_view_allotment_id' => $allotment->id,
+            'member_view_enabled_at' => now(),
+            'member_view_enabled_by' => $allotment->allotted_to,
+        ]);
+        $proposal->refresh();
+    }
+
     protected function seatAccountOnCommittee(DpcProposal $proposal, User $user): DpcCommitteeMember
     {
         $existing = DpcCommitteeMember::query()

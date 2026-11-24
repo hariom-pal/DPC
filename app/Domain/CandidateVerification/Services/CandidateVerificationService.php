@@ -17,6 +17,7 @@ use App\Domain\Shared\Workflow\WorkflowException;
 use App\Domain\Signature\Exceptions\SignatureVerificationFailed;
 use App\Domain\Signature\Services\SignatureAttemptLog;
 use App\Domain\Signature\Services\SignatureService;
+use App\Enums\Role;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -301,6 +302,16 @@ final class CandidateVerificationService
             app(SignatureAttemptLog::class)->record($signer, $participant, self::SIGN_ACTION, $e->reason, $e->assertedName);
 
             throw new WorkflowException($e->getMessage());
+        }
+
+        // A grievance raised: the DPC's AH hears of it at once, by SMS and e-mail (2026-11-24).
+        $raised = Grievance::query()->where('dpc_verification_participant_id', $submitted->id)->where('status', '!=', GrievanceStatus::Draft->value)->count();
+        if ($raised > 0) {
+            $proposal = $submitted->row->proposal;
+            app(VerificationNotifier::class)->toUsers($submitted->cycle, $this->routing->allotted($proposal, Role::AdministrativeHead), 'grievance_submitted', [
+                'dpc' => CandidateRecordView::reference($proposal), 'candidate' => $submitted->row->name, 'count' => (string) $raised,
+                'url' => route('dpc-proposals.grievances.index', $proposal),
+            ], 'grievances:'.$submitted->uuid);
         }
 
         // The last candidate's submission closes the verification there and then (2026-11-22).

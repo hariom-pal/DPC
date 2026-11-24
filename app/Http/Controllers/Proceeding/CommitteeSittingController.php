@@ -8,6 +8,7 @@ use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Proceeding\Services\ChairmanSittingEdit;
 use App\Domain\Proceeding\Services\CommitteeSittingService;
+use App\Domain\Proceeding\Services\MemberViewService;
 use App\Domain\Proceeding\Services\SittingMeetingService;
 use App\Domain\Shared\Workflow\WorkflowException;
 use App\Http\Controllers\Controller;
@@ -120,6 +121,23 @@ class CommitteeSittingController extends Controller
         }
 
         return back()->with('status', __('proceeding.sitting.meeting_started'));
+    }
+
+    /**
+     * Open the DPC to the committee members (2026-11-24): its DPC Chairman alone, while
+     * it is still closed to them.
+     */
+    public function activateMemberView(Request $request, DpcProposal $dpcProposal): RedirectResponse
+    {
+        $this->assertSeated($request, $dpcProposal);
+
+        try {
+            app(MemberViewService::class)->activate($dpcProposal, $request->user());
+        } catch (WorkflowException $e) {
+            return back()->withErrors(['member_view' => $e->getMessage()]);
+        }
+
+        return back()->with('status', __('proceeding.member_view.activated'));
     }
 
     /**

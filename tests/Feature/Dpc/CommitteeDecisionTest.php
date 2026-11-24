@@ -25,6 +25,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Tests\Concerns\CompletesDpcProposals;
 use Tests\Concerns\RaisesDpcProposals;
+use Tests\Concerns\SeatsDpcCommittees;
 use Tests\TestCase;
 
 /**
@@ -37,6 +38,7 @@ class CommitteeDecisionTest extends TestCase
     use CompletesDpcProposals;
     use RaisesDpcProposals;
     use RefreshDatabase;
+    use SeatsDpcCommittees;
 
     private User $ao;
 
@@ -74,6 +76,8 @@ class CommitteeDecisionTest extends TestCase
         $this->member = User::factory()->create();
         DpcCommitteeMember::query()->where('dpc_proposal_id', $this->proposal->id)->serving()->whereNull('user_id')->orderByDesc('sort_order')->firstOrFail()
             ->forceFill(['user_id' => $this->member->id])->save();
+        // Allotted by the CGPSC Chairman (2026-11-24) — to somebody else until makeChairman().
+        $this->allotForTest($this->proposal, User::factory()->create());
     }
 
     /** The DPC Chairman of this DPC, by the seat designation (a DPC never allotted). */
@@ -81,6 +85,8 @@ class CommitteeDecisionTest extends TestCase
     {
         DpcCommitteeMember::query()->where('dpc_proposal_id', $this->proposal->id)->update(['is_dpc_chairman' => null]);
         DpcCommitteeMember::query()->where('dpc_proposal_id', $this->proposal->id)->where('user_id', $user->id)->update(['is_dpc_chairman' => 1]);
+        // The DPC Chairman is the allottee once a DPC is allotted.
+        $this->allotForTest($this->proposal, $user);
     }
 
     /** 2026-11-18: only the DPC Chairman accepts or rejects the DPC, once a visit. */

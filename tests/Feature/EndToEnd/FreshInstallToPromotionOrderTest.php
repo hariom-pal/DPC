@@ -473,6 +473,8 @@ class FreshInstallToPromotionOrderTest extends TestCase
             // member joins and records OK on every candidate (2026-11-18).
             $member->forceFill(['must_change_password' => false, 'email_verified_at' => now()])->save();
             $this->ok($this->actingAs($member)->post(route('sitting.decision', $proposal), ['decision' => 'agreed']));
+            // The DPC Chairman opens the DPC to the committee members (2026-11-24).
+            $this->ok($this->actingAs($member)->post(route('sitting.member-view.activate', $proposal)));
             $this->travelTo(app(CommitteeSittingService::class)->schedule($proposal)->scheduledFor());
             foreach (DpcCommitteeMember::query()->where('dpc_proposal_id', $proposal->id)->serving()->where('capacity', 'member')->whereNotNull('user_id')->with('user')->get() as $seat) {
                 $seat->user->forceFill(['must_change_password' => false, 'email_verified_at' => now()])->save();

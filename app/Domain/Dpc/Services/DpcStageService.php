@@ -19,6 +19,8 @@ use App\Domain\Dpc\Models\WorkflowStageTimeline;
 use App\Domain\Proceeding\Enums\DpcProceedingStatus;
 use App\Domain\Proceeding\Models\DpcProceeding;
 use App\Domain\Proceeding\Services\CalculationGate;
+use App\Domain\Proceeding\Services\CommitteeSittingService;
+use App\Domain\Proceeding\Services\MemberViewService;
 use App\Domain\Shared\Workflow\WorkflowTransition;
 use App\Enums\Role;
 use Illuminate\Database\Eloquent\Builder;
@@ -117,10 +119,15 @@ final class DpcStageService
             DpcStage::Chairman => $this->roleUserIds(Role::Chairman),
             DpcStage::Committee => array_merge(
                 DpcAllotment::query()->where('dpc_proposal_id', $proposal->id)->current()->pluck('allotted_to')->all(),
-                DpcCommitteeMember::query()->where('dpc_proposal_id', $proposal->id)->serving()->whereNotNull('user_id')->pluck('user_id')->all(),
+                // The members once the DPC is open to them (2026-11-24).
+                app(MemberViewService::class)->isActive($proposal)
+                    ? DpcCommitteeMember::query()->where('dpc_proposal_id', $proposal->id)->serving()->whereNotNull('user_id')->pluck('user_id')->all()
+                    : [],
                 // A returned allotment waits on the Chairman to reassign it.
                 $this->awaitingReassignment($proposal) ? $this->roleUserIds(Role::Chairman) : [],
             ),
+            // The DPC Chairman's, who opens it to the members (2026-11-24).
+            DpcStage::CommitteeView => DpcAllotment::query()->where('dpc_proposal_id', $proposal->id)->current()->pluck('allotted_to')->all(),
         };
 
         return array_values(array_unique(array_map('intval', $ids)));
@@ -161,7 +168,8 @@ final class DpcStageService
 
         foreach ($this->open() as $proposal) {
             $related = $this->allotments->isAllottedInAnyRole($user, $proposal)
-                || DpcCommitteeMember::query()->where('dpc_proposal_id', $proposal->id)->serving()->where('user_id', $user->id)->exists();
+                // A committee seat once allotted and opened to the members (2026-11-24).
+                || app(CommitteeSittingService::class)->isSeatedOn($proposal, $user);
             $deadline = $related ? $this->deadline($proposal) : null;
 
             if ($deadline !== null && ! in_array((int) $user->id, $this->actorIds($proposal, $deadline['stage']), true)) {
@@ -211,9 +219,13 @@ final class DpcStageService
             // The DPC Chairman's Accept, then every member's OK on every candidate (2026-11-18).
             DpcStage::Committee => array_values(array_filter([
                 $this->awaitingReassignment($proposal) ? (string) __('dpc.stage.items.reassign') : null,
+                // Opened to the members by the DPC Chairman, or on its own (2026-11-24).
+                ! $this->awaitingReassignment($proposal) && ! app(MemberViewService::class)->isActive($proposal) && ($deadline = app(MemberViewService::class)->deadline($proposal)) !== null
+                    ? (string) __('dpc.stage.items.member_view', ['date' => $deadline->format('d-m-Y H:i')]) : null,
                 app(CalculationGate::class)->chairmanAccepted($proposal) ? null : (string) __('dpc.stage.items.chairman_accept'),
                 ($okPending = count(app(CalculationGate::class)->pendingMembers($proposal))) > 0 ? (string) __('dpc.stage.items.member_ok', ['count' => $okPending]) : null,
             ])),
+            DpcStage::CommitteeView => [],
         };
     }
 

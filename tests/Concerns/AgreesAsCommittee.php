@@ -5,12 +5,17 @@ declare(strict_types=1);
 namespace Tests\Concerns;
 
 use App\Domain\Authentication\Models\User;
+use App\Domain\Cgpsc\Models\DpcAllotment;
+use App\Domain\Cgpsc\Models\DpcSchedule;
 use App\Domain\Dpc\Enums\DpcProposalStatus;
 use App\Domain\Dpc\Models\DpcCommitteeDecision;
 use App\Domain\Dpc\Models\DpcCommitteeMember;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Proceeding\Models\DpcCandidateReview;
+use App\Domain\Proceeding\Services\CommitteeSittingService;
 use App\Domain\Proceeding\Services\SittingMeetingService;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
  * Calculate is the DPC Chairman's, once every member has agreed (2026-11-18). A test
@@ -51,6 +56,9 @@ trait AgreesAsCommittee
             }
         }
 
+        // Calculate is offered only at the sitting itself (2026-11-24): the committee sits now.
+        $this->sittingNow($proposal);
+
         foreach ($seats->pluck('user_id')->unique() as $userId) {
             DpcCommitteeDecision::query()->create([
                 'dpc_proposal_id' => $proposal->id,
@@ -73,5 +81,29 @@ trait AgreesAsCommittee
                 ]);
             }
         }
+    }
+
+    /**
+     * The DPC's sitting is now (2026-11-24: Calculate only on its day, from its hour): its
+     * current allotment's schedule, moved to the present minute when it is not open.
+     */
+    protected function sittingNow(DpcProposal $proposal): void
+    {
+        $allotment = DpcAllotment::query()->where('dpc_proposal_id', $proposal->id)->current()->latest('id')->first();
+        if ($allotment === null || app(CommitteeSittingService::class)->callWindowIsOpen($proposal)) {
+            return;
+        }
+
+        $current = DpcSchedule::query()->where('dpc_allotment_id', $allotment->id)->current()->pluck('id');
+        $at = now()->copy()->startOfMinute();
+        $schedule = DpcSchedule::query()->forceCreate([
+            'uuid' => (string) Str::uuid(),
+            'dpc_allotment_id' => $allotment->id,
+            'dpc_date' => $at->toDateString(),
+            'dpc_time' => $at->format('H:i'),
+            'scheduled_by' => $allotment->allotted_to,
+            'scheduled_at' => now(),
+        ]);
+        DB::table('dpc_schedules')->whereIn('id', $current)->update(['superseded_by_id' => $schedule->id]);
     }
 }

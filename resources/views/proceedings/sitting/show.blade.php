@@ -9,6 +9,7 @@
 
             @error('meeting')<div class="alert alert-danger py-2">{{ $message }}</div>@enderror
             @error('ok')<div class="alert alert-danger py-2">{{ $message }}</div>@enderror
+            @error('member_view')<div class="alert alert-danger py-2">{{ $message }}</div>@enderror
 
             <h1 class="h4 mb-1">{{ __('proceeding.sitting.candidates') }}</h1>
             <p class="text-muted small mb-2">{{ $proposal->citation() }}</p>
@@ -43,6 +44,9 @@
                     </div>
                 </div>
             </div>
+
+            {{-- 2026-11-24: the DPC Chairman opens the DPC to the committee members. --}}
+            @include('proceedings.sitting._member-view')
 
             @include('dpc-proposals._next-process')
 

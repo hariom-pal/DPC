@@ -217,6 +217,8 @@ trait BuildsProceedings
         app(AllotmentService::class)->allot(
             $this->proposal->fresh(), $this->memberOne, $this->chairman, request(), Carbon::parse('2026-07-10'),
         );
+        // Opened to the committee members by the DPC Chairman (2026-11-24).
+        $this->openToMembers($this->proposal);
         $scheduling = app(SchedulingService::class);
         $scheduling->accept($this->proposal->fresh(), $this->memberOne, request());
         $scheduling->schedule($this->proposal->fresh(), $this->memberOne, request(), Carbon::parse('2026-07-12'), '14:00');

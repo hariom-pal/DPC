@@ -8,6 +8,7 @@ use App\Domain\Authentication\Models\User;
 use App\Domain\Dpc\Models\DpcCommitteeDecision;
 use App\Domain\Dpc\Models\DpcCommitteeMember;
 use App\Domain\Dpc\Models\DpcEvaluationRow;
+use App\Domain\Dpc\Services\DpcStageService;
 use App\Domain\Proceeding\Enums\CorrectableField;
 use App\Domain\Proceeding\Models\DpcCandidateReview;
 use App\Domain\Proceeding\Models\DpcSittingMeeting;
@@ -18,6 +19,7 @@ use App\Domain\Proceeding\Services\SittingMeetingService;
 use App\Domain\Shared\Models\ActivityTimeline;
 use App\Domain\Shared\Workflow\WorkflowException;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Tests\Feature\Proceeding\Concerns\BuildsProceedings;
 use Tests\TestCase;
 
@@ -98,6 +100,23 @@ final class CommitteeSittingTest extends TestCase
         $this->actingAs($member)->get(route('sitting.index'))
             ->assertOk()
             ->assertSee($this->proposal->dpc_code);
+    }
+
+    /**
+     * 2026-11-24: a seat the department named shows nothing until the CGPSC Chairman
+     * has allotted the DPC — not on the sitting list, the DPC, its records or Pending At Me.
+     */
+    public function test_a_member_sees_nothing_of_a_dpc_the_cgpsc_chairman_has_not_allotted(): void
+    {
+        $member = $this->seatedMember();
+        // The allotment withdrawn (returned): the DPC is no longer the committee's.
+        DB::table('dpc_allotments')->where('dpc_proposal_id', $this->proposal->id)->update(['returned_at' => now()]);
+
+        $this->assertFalse(app(CommitteeSittingService::class)->allotted($this->proposal));
+        $this->actingAs($member)->get(route('sitting.index'))->assertOk()->assertDontSee($this->proposal->dpc_code);
+        $this->get(route('sitting.show', $this->proposal))->assertForbidden();
+        $this->get(route('dpc-proposals.tabulation-chart', $this->proposal))->assertForbidden();
+        $this->assertSame([], array_filter(app(DpcStageService::class)->pendingAt($member), fn (array $entry): bool => $entry['proposal']->id === $this->proposal->id));
     }
 
     public function test_a_committee_member_sees_every_candidate(): void

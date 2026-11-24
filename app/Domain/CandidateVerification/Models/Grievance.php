@@ -97,4 +97,17 @@ class Grievance extends Model
     {
         return $this->hasMany(GrievanceCorrection::class, 'dpc_grievance_id')->orderBy('id');
     }
+
+    /**
+     * What the candidate reads (2026-11-24): "under review" until the AH has resolved
+     * it — an AO's correction still with the AH is not yet done — then the decision.
+     */
+    public function candidateStatusLabel(): string
+    {
+        if ($this->status === GrievanceStatus::Resolved) {
+            return (string) __('candidate.grievance.candidate_status.'.($this->decision === GrievanceDecision::NotUpheld ? 'resolved_not_upheld' : 'resolved_upheld'));
+        }
+
+        return (string) __('candidate.grievance.candidate_status.'.$this->status->value);
+    }
 }

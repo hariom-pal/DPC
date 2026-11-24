@@ -14,6 +14,18 @@ declare(strict_types=1);
 */
 
 return [
+    // 2026-11-24: the DPC Chairman opens the DPC to the committee members.
+    'member_view' => [
+        'heading' => 'Committee members\' view',
+        'closed' => 'The committee members do not see this DPC yet. Open it to them; it opens to them on its own on :date.',
+        'open' => 'Open to the committee members since :date.',
+        'open_auto' => 'Open to the committee members since :date (opened on its own).',
+        'activate' => 'Activate view for committee members',
+        'activated' => 'The DPC is now open to the committee members.',
+        'not_yours' => 'Only the DPC Chairman opens the DPC to the members, while it is still closed to them.',
+        'timeline_activated' => ':name opened the DPC to the committee members.',
+        'timeline_auto' => 'The DPC opened to the committee members on its own on :date: the DPC Chairman\'s days passed.',
+    ],
     'sitting' => [
         'title' => 'My DPC Sittings',
         'lead' => 'The DPCs you sit on. Open one to see its candidates.',

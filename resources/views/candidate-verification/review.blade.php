@@ -22,8 +22,8 @@
                             @foreach ($grievances->get($step->value, collect()) as $g)
                                 <div class="text-body-secondary" data-review-grievance="{{ $g->uuid }}">{{ __('candidate.grievance.categories.'.$g->category) }}@if ($g->related_year) · {{ $g->related_year }}@endif — {{ $g->remark }}</div>
                                 <div><a href="{{ route('candidate-verification.grievance.document', [$participant->uuid, $step->value, 'grievance' => $g->uuid]) }}">{{ $g->original_name }}</a>
-                                    · <span class="badge text-bg-light border">{{ $g->status->label() }}</span>
-                                    @if ($g->decision)<span class="badge text-bg-secondary">{{ $g->decision->label() }}</span> {{ $g->resolution_remark }}@endif</div>
+                                    · <span class="badge text-bg-light border">{{ $g->candidateStatusLabel() }}</span>
+                                    @if ($g->status->value === 'resolved' && $g->resolution_remark) {{ $g->resolution_remark }}@endif</div>
                             @endforeach
                         </td>
                     </tr>

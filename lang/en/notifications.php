@@ -64,6 +64,10 @@ return [
             'subject' => 'ODPC: verify your record for :dpc by :deadline',
             'message' => 'ODPC: your record for :dpc is ready for your verification. Sign in at :url with your registered mobile number and OTP, check each section, and agree or raise a grievance by :deadline. One final submission only.',
         ],
+        'grievance_submitted' => [
+            'subject' => 'ODPC: grievance raised by :candidate on :dpc',
+            'message' => 'ODPC: :candidate has raised :count grievance(s) on :dpc. Decide each at :url.',
+        ],
         'grievance_review' => [
             'subject' => 'ODPC: :count candidate grievance(s) on :dpc to review',
             'message' => 'ODPC: the candidate verification of :dpc has closed with :count grievance(s). Review and decide each at :url.',

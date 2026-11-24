@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Candidate;
 use App\Domain\Authentication\Exceptions\OtpDeliveryFailed;
 use App\Domain\Authentication\Exceptions\OtpThrottled;
 use App\Domain\Authentication\Services\SecurityLog;
+use App\Domain\CandidateVerification\Enums\GrievanceStatus;
 use App\Domain\CandidateVerification\Enums\VerificationSection;
 use App\Domain\CandidateVerification\Models\Grievance;
 use App\Domain\CandidateVerification\Models\VerificationParticipant;
@@ -287,7 +288,11 @@ class CandidateVerificationController extends Controller
             'decisions' => $this->verification->decisions($own),
             // Several a section (2026-11-22), one for each year that is wrong.
             'grievances' => Grievance::query()->where('dpc_verification_participant_id', $own->id)->where('section', $section->value)->orderBy('id')->get(),
-            'corrected' => VerificationSnapshot::query()->where('dpc_verification_participant_id', $own->id)->where('version', '>', 1)->latest('version')->first(),
+            // Shown only once the AH has decided the grievance it answers (2026-11-24): an AO's
+            // correction still with the AH is not yet the candidate's to read as done.
+            'corrected' => VerificationSnapshot::query()->where('dpc_verification_participant_id', $own->id)->where('version', '>', 1)
+                ->whereIn('dpc_grievance_id', Grievance::query()->where('dpc_verification_participant_id', $own->id)->where('status', GrievanceStatus::Resolved->value)->select('id'))
+                ->latest('version')->first(),
         ]);
     }
 

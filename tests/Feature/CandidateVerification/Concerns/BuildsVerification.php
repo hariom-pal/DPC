@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\CandidateVerification\Concerns;
 
 use App\Domain\Authentication\Models\User;
+use App\Domain\CandidateVerification\Models\Grievance;
 use App\Domain\CandidateVerification\Models\VerificationCycle;
 use App\Domain\CandidateVerification\Models\VerificationParticipant;
 use App\Domain\Department\Models\Department;
@@ -90,6 +91,41 @@ trait BuildsVerification
     protected function participant(int $sn = 1): VerificationParticipant
     {
         return VerificationParticipant::query()->where('dpc_evaluation_row_id', $this->row($sn)->id)->sole();
+    }
+
+    /** The AH upholds a grievance (2026-11-24): it goes to the AO with these instructions. */
+    protected function uphold(Grievance $grievance, string $instructions = 'Correct the record.'): TestResponse
+    {
+        return $this->actingAs($this->ah)->post(route('dpc-proposals.grievances.decide', [$this->proposal, $grievance]), ['decision' => 'upheld', 'text' => $instructions]);
+    }
+
+    /** The AH does not uphold a grievance, through the eSign simulator (2026-11-24). */
+    protected function notUphold(Grievance $grievance, string $reason = 'The record is right.', ?User $as = null): TestResponse
+    {
+        $as ??= $this->ah;
+        $start = $this->actingAs($as)->post(route('dpc-proposals.grievances.decide', [$this->proposal, $grievance]), ['decision' => 'not_upheld', 'text' => $reason]);
+        if (session('esign.pending') === null) {
+            return $start;
+        }
+
+        return $this->post(route('esign.simulator.submit'), ['reference' => (string) session('esign.pending')['reference'], 'decision' => 'sign', 'name' => $as->name]);
+    }
+
+    /** The AH approves a candidate's corrections, through the eSign simulator (2026-11-24). */
+    protected function approveCorrections(int $sn, string $remark = 'Corrected as asked.'): TestResponse
+    {
+        $start = $this->actingAs($this->ah)->post(route('dpc-proposals.grievances.approve-candidate', [$this->proposal, $this->participant($sn)]), ['remark' => $remark]);
+        if (session('esign.pending') === null) {
+            return $start;
+        }
+
+        return $this->post(route('esign.simulator.submit'), ['reference' => (string) session('esign.pending')['reference'], 'decision' => 'sign', 'name' => $this->ah->name]);
+    }
+
+    /** The AO sends a candidate's corrections back to the AH (2026-11-24). */
+    protected function submitCorrections(int $sn, string $remarks = 'Corrected from the file.'): TestResponse
+    {
+        return $this->actingAs($this->ao)->post(route('dpc-proposals.grievances.submit-candidate', [$this->proposal, $this->participant($sn)]), ['ao_remarks' => $remarks]);
     }
 
     /** Sign in through the portal as the officer of this seniority number. */

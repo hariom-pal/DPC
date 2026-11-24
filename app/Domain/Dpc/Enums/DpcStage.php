@@ -27,6 +27,13 @@ enum DpcStage: string
      */
     case CandidateVerification = 'candidate_verification';
 
+    /**
+     * The DPC Chairman opens the allotted DPC to the committee members (2026-11-24):
+     * these days after the allotment; past them it opens to them on its own. Not a
+     * stage a DPC stands at — it runs beside the Committee's.
+     */
+    case CommitteeView = 'committee_view';
+
     public function label(): string
     {
         return (string) __('dpc.stage.'.$this->value.'.label');
@@ -52,7 +59,7 @@ enum DpcStage: string
         return match ($this) {
             self::Ah, self::Secretary => ['notify', 'cancel', 'forward'],
             self::Ao, self::Chairman => ['notify', 'cancel'],
-            self::Committee, self::CandidateVerification => ['notify'],
+            self::Committee, self::CandidateVerification, self::CommitteeView => ['notify'],
         };
     }
 
@@ -65,6 +72,7 @@ enum DpcStage: string
             self::CandidateVerification => self::Secretary,
             self::Secretary => self::Chairman,
             self::Chairman => self::Committee,
+            self::CommitteeView => self::Committee,
             self::Committee => null,
         };
     }

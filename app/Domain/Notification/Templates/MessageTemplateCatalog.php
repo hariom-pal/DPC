@@ -47,6 +47,16 @@ final class MessageTemplateCatalog
                 'mandatory' => false,
                 'default' => fn (array $p): array => self::lang('notifications.candidate_verification.opened', $p),
             ],
+            // 2026-11-24: the AH hears of each grievance as it is raised.
+            'candidate_verification.grievance_submitted' => [
+                'label' => 'Candidate grievance raised',
+                'when' => 'When a candidate submits their verification with a grievance. Sent to the Administrative Head of the DPC.',
+                'channels' => $both,
+                'placeholders' => ['dpc', 'candidate', 'count', 'url'],
+                'required' => [],
+                'mandatory' => false,
+                'default' => fn (array $p): array => self::lang('notifications.candidate_verification.grievance_submitted', $p),
+            ],
             'candidate_verification.grievance_review' => [
                 'label' => 'Candidate grievances for the AH',
                 'when' => 'When the verification deadline passes with grievances submitted. Sent to the Administrative Head of the DPC.',

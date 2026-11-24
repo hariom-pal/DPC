@@ -65,6 +65,16 @@ final class CalculationGate
             return (string) __('dpc.calculation_gate.awaiting_accept');
         }
 
+        // Only at the sitting itself: its day, from its hour (2026-11-24).
+        $sittings = app(CommitteeSittingService::class);
+        if (! $sittings->callWindowIsOpen($proposal)) {
+            $schedule = $sittings->schedule($proposal);
+
+            return $schedule === null
+                ? (string) __('dpc.calculation_gate.no_sitting')
+                : (string) __('dpc.calculation_gate.awaiting_sitting', ['when' => $schedule->scheduledFor()->format('d-m-Y H:i')]);
+        }
+
         $pending = $this->pendingMembers($proposal);
         if (collect($pending)->contains(fn (array $member): bool => $member['state'] === 'no_account')) {
             return (string) __('dpc.calculation_gate.missing_account');

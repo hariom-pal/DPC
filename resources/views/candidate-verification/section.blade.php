@@ -26,8 +26,9 @@
             <div class="small"><strong>{{ __('candidate.grievance.remark') }}:</strong> {{ $grievance->remark }}</div>
             <div class="small"><strong>{{ __('candidate.grievance.document') }}:</strong>
                 <a href="{{ route('candidate-verification.grievance.document', [$participant->uuid, $section->value, 'grievance' => $grievance->uuid]) }}">{{ $grievance->original_name }}</a></div>
-            <div class="small"><span class="badge text-bg-warning">{{ $grievance->status->label() }}</span>
-                @if ($grievance->decision) <span class="badge text-bg-secondary">{{ $grievance->decision->label() }}</span> {{ $grievance->resolution_remark }}@endif</div>
+            {{-- Under review until the AH resolves it (2026-11-24); then the decision and its reason. --}}
+            <div class="small"><span class="badge {{ $grievance->status->value === 'resolved' ? 'text-bg-success' : 'text-bg-warning' }}" data-candidate-grievance-status="{{ $grievance->status->value }}">{{ $grievance->candidateStatusLabel() }}</span>
+                @if ($grievance->status->value === 'resolved' && $grievance->resolution_remark) {{ $grievance->resolution_remark }}@endif</div>
             @if ($actionable && $grievance->status->value === 'draft')
                 <div class="d-flex flex-wrap gap-2 mt-2">
                     <a class="btn btn-sm btn-outline-warning" href="{{ route('candidate-verification.grievance', [$participant->uuid, $section->value, 'grievance' => $grievance->uuid]) }}" data-edit-grievance="{{ $grievance->uuid }}">{{ __('candidate.verification.actions.edit_grievance') }}</a>

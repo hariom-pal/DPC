@@ -87,6 +87,10 @@
                         @if (auth()->user()->hasRole(\App\Enums\Role::AdministrativeHead->value))
                             <a class="btn btn-sm {{ request()->routeIs('grievances.queue') ? 'btn-light' : 'btn-outline-light' }}" href="{{ route('grievances.queue') }}" data-menu="grievances">{{ __('candidate.grievance.review.nav') }}</a>
                         @endif
+                        {{-- The AO's grievance corrections (2026-11-24). --}}
+                        @if (auth()->user()->hasRole(\App\Enums\Role::AuthorizedOfficer->value))
+                            <a class="btn btn-sm {{ request()->routeIs('grievances.corrections') ? 'btn-light' : 'btn-outline-light' }}" href="{{ route('grievances.corrections') }}" data-menu="grievance-corrections">{{ __('candidate.grievance.ao.nav') }}</a>
+                        @endif
                         {{-- The Secretary, CGPSC's queue (2026-11-14). --}}
                         @if (auth()->user()->hasRole(\App\Enums\Role::Secretary->value))
                             <a class="btn btn-sm {{ request()->routeIs('secretary.*') ? 'btn-light' : 'btn-outline-light' }}" href="{{ route('secretary.index') }}" data-menu="secretary">{{ __('dpc.secretary.nav') }}</a>

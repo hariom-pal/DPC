@@ -42,6 +42,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Testing\TestResponse;
 use Tests\Concerns\CompletesDpcProposals;
 use Tests\Concerns\RaisesDpcProposals;
+use Tests\Concerns\SeatsDpcCommittees;
 use Tests\TestCase;
 
 /**
@@ -54,6 +55,7 @@ class EmployeeDetailsTest extends TestCase
     use CompletesDpcProposals;
     use RaisesDpcProposals;
     use RefreshDatabase;
+    use SeatsDpcCommittees;
 
     private Department $department;
 
@@ -1118,6 +1120,9 @@ class EmployeeDetailsTest extends TestCase
         $member = User::factory()->create();
         DpcCommitteeMember::query()->where('dpc_proposal_id', $this->proposal->id)->serving()->whereNull('user_id')->orderByDesc('sort_order')->firstOrFail()
             ->forceFill(['user_id' => $member->id])->save();
+        // Not before the CGPSC Chairman allots the DPC (2026-11-24).
+        $this->actingAs($member)->get(route('dpc-proposals.tabulation-chart', $this->proposal))->assertForbidden();
+        $this->allotForTest($this->proposal, User::factory()->create());
         $this->actingAs($member)->get(route('dpc-proposals.tabulation-chart', $this->proposal))->assertOk();
         $this->actingAs($this->ao)->get(route('dpc-proposals.tabulation-chart', $this->proposal))->assertForbidden();
         $this->get(route('dpc-proposals.tabulation-chart.download', $this->proposal))->assertForbidden();

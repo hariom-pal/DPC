@@ -79,6 +79,8 @@ class DpcCalculationTest extends TestCase
         // The calculation is the DPC Committee's alone (2026-11-16): the account these
         // tests calculate as is seated on the committee.
         $this->seatAccountOnCommittee($this->proposal, $this->ao);
+        // Allotted by the CGPSC Chairman (2026-11-24: no member sees a DPC before).
+        $this->allotForTest($this->proposal, $this->ao);
     }
 
     /**

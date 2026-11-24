@@ -351,6 +351,8 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
             // OK on each record, and the DPC Chairman starts the sitting's meeting.
             Route::post('/{dpcProposal}/candidate/{row}/ok', [CommitteeSittingController::class, 'review'])->name('candidate.ok');
             Route::post('/{dpcProposal}/meeting', [CommitteeSittingController::class, 'initiateMeeting'])->middleware('throttle:10,1')->name('meeting.initiate');
+            // The DPC Chairman opens the allotted DPC to the committee members (2026-11-24).
+            Route::post('/{dpcProposal}/member-view', [CommitteeSittingController::class, 'activateMemberView'])->middleware('throttle:10,1')->name('member-view.activate');
             Route::get('/{dpcProposal}/meeting', [CommitteeSittingController::class, 'joinMeeting'])->name('meeting');
             // MoM of 16 November 2026, points 2 and 3: a member's decision — agreed, or returned by section.
             Route::post('/{dpcProposal}/decision', [CommitteeDecisionController::class, 'store'])->name('decision');
@@ -652,8 +654,12 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
                 Route::post('/{dpcProposal}/cancel', [DpcProposalController::class, 'cancel'])->name('cancel');
                 // The candidates' grievances (2026-11-19): the AH decides, the AO corrects, the Secretary reads.
                 Route::get('/{dpcProposal}/grievances', [GrievanceController::class, 'index'])->name('grievances.index');
-                Route::post('/{dpcProposal}/grievances/{grievance}/resolve', [GrievanceController::class, 'resolve'])->name('grievances.resolve');
-                Route::post('/{dpcProposal}/grievances/{grievance}/send-to-ao', [GrievanceController::class, 'sendToAo'])->name('grievances.send-to-ao');
+                // 2026-11-24: Upheld (to the AO) or Not upheld (eSigned); sent back to the AO; a
+                // candidate's corrections approved (eSigned) or submitted by the AO together.
+                Route::post('/{dpcProposal}/grievances/{grievance}/decide', [GrievanceController::class, 'decide'])->name('grievances.decide');
+                Route::post('/{dpcProposal}/grievances/{grievance}/send-back', [GrievanceController::class, 'sendBack'])->name('grievances.send-back');
+                Route::post('/{dpcProposal}/grievance-candidates/{participant:uuid}/approve', [GrievanceController::class, 'approveCandidate'])->withoutScopedBindings()->name('grievances.approve-candidate');
+                Route::post('/{dpcProposal}/grievance-candidates/{participant:uuid}/submit', [GrievanceController::class, 'submitCandidate'])->withoutScopedBindings()->name('grievances.submit-candidate');
                 Route::get('/{dpcProposal}/grievances/{grievance}/document', [GrievanceController::class, 'document'])->name('grievances.document');
                 Route::post('/{dpcProposal}/grievance-corrections/{correction}/submit', [GrievanceController::class, 'submitCorrection'])->name('grievances.correction');
             });
@@ -793,6 +799,10 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
         Route::middleware('role:'.Role::AdministrativeHead->value)
             ->get('/grievances', [GrievanceController::class, 'queue'])
             ->name('grievances.queue');
+        // The AO's own entry point (2026-11-24): the grievance sections opened for them to correct.
+        Route::middleware('role:'.Role::AuthorizedOfficer->value)
+            ->get('/grievance-corrections', [GrievanceController::class, 'corrections'])
+            ->name('grievances.corrections');
 
         // The Secretary, CGPSC (2026-11-14): every department's DPC the AH approved,
         // approved with an eSign (EsignController) or returned to the AO here.

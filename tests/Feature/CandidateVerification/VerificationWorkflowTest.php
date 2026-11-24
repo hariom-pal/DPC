@@ -9,7 +9,6 @@ use App\Domain\CandidateVerification\Enums\CycleStatus;
 use App\Domain\CandidateVerification\Enums\GrievanceStatus;
 use App\Domain\CandidateVerification\Enums\ParticipantStatus;
 use App\Domain\CandidateVerification\Models\Grievance;
-use App\Domain\CandidateVerification\Models\GrievanceCorrection;
 use App\Domain\CandidateVerification\Models\VerificationCycle;
 use App\Domain\CandidateVerification\Models\VerificationNotification;
 use App\Domain\CandidateVerification\Models\VerificationSnapshot;
@@ -19,6 +18,7 @@ use App\Domain\Dpc\Enums\DpcStage;
 use App\Domain\Dpc\Models\WorkflowStageTimeline;
 use App\Domain\Master\Models\IntegrityOption;
 use App\Domain\Shared\Workflow\WorkflowTransition;
+use App\Domain\Signature\Models\Signature;
 use App\Enums\Role;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -132,26 +132,34 @@ class VerificationWorkflowTest extends TestCase
             ->assertSee('data-grievance="'.$ipr->uuid.'"', false)->assertDontSee('data-grievance="'.$cr->uuid.'"', false);
         $this->get(route('dpc-proposals.grievances.document', [$this->proposal, $cr]))->assertOk();
 
-        // The AO cannot decide; a remark is required.
-        $this->actingAs($this->ao)->post(route('dpc-proposals.grievances.resolve', [$this->proposal, $cr]), ['decision' => 'not_upheld', 'resolution_remark' => 'x'])->assertSessionHasErrors('grievance');
-        $this->actingAs($this->ah)->post(route('dpc-proposals.grievances.resolve', [$this->proposal, $cr]), ['decision' => 'not_upheld', 'resolution_remark' => ''])->assertSessionHasErrors('resolution_remark');
+        // The AO cannot decide; a reason is required.
+        $this->actingAs($this->ao)->post(route('dpc-proposals.grievances.decide', [$this->proposal, $cr]), ['decision' => 'not_upheld', 'text' => 'x'])->assertSessionHasErrors('grievance');
+        $this->assertNull(session('esign.pending'), 'No eSign is begun for a step that cannot run.');
+        $this->actingAs($this->ah)->post(route('dpc-proposals.grievances.decide', [$this->proposal, $cr]), ['decision' => 'not_upheld', 'text' => ''])->assertSessionHasErrors('text');
 
-        // IPR: resolved without a correction.
-        $this->post(route('dpc-proposals.grievances.resolve', [$this->proposal, $ipr]), ['decision' => 'not_upheld', 'resolution_remark' => 'The filing date is right.'])->assertSessionHasNoErrors();
+        // IPR: not upheld — the AH eSigns, it closes with its reason (2026-11-24).
+        $this->travel(2)->minutes();
+        $this->notUphold($ipr, 'The filing date is right.')->assertSessionHasNoErrors();
         $this->assertSame(GrievanceStatus::Resolved, $ipr->fresh()->status);
+        $this->assertSame('not_upheld', $ipr->fresh()->decision?->value);
+        $this->assertSame(1, Signature::query()->where('signable_type', $ipr->getMorphClass())->where('signable_id', $ipr->id)->count());
         $this->assertSame(DpcProposalStatus::GrievanceReview, $this->proposal->fresh()->status, 'One still open.');
 
-        // CR: sent to the AO — only this candidate's CR section opens.
+        // CR: upheld — only this candidate's CR section opens for the AO.
         $row = $this->row(1);
         $other = $this->row(2);
         $this->assertFalse($this->ao->can('updateEmployeeSection', [$this->proposal->fresh(), 'cr', $row]));
-        $this->post(route('dpc-proposals.grievances.send-to-ao', [$this->proposal, $cr]), ['instructions' => 'Correct the 2024 grade.'])->assertSessionHasNoErrors();
+        $this->uphold($cr, 'Correct the 2024 grade.')->assertSessionHasNoErrors();
+        $this->assertSame(GrievanceStatus::SentToAo, $cr->fresh()->status);
         $proposal = $this->proposal->fresh();
         $this->assertTrue($this->ao->can('updateEmployeeSection', [$proposal, 'cr', $row]));
         $this->assertFalse($this->ao->can('updateEmployeeSection', [$proposal, 'basic', $row]), 'Not another section.');
         $this->assertFalse($this->ao->can('updateEmployeeSection', [$proposal, 'cr', $other]), 'Not another candidate.');
         $this->assertFalse($this->ah->can('updateEmployeeSection', [$proposal, 'cr', $row]), 'The AO corrects, not the AH.');
         $this->assertSame(1, VerificationNotification::query()->where('kind', 'correction_assigned')->where('recipient', 'user:'.$this->ao->id)->where('channel', 'email')->count());
+        // The AO's own menu shows the DPC; the AO's page the task.
+        $this->actingAs($this->ao)->get(route('grievances.corrections'))->assertOk()->assertSee('data-grievance-corrections="'.$this->proposal->uuid.'"', false);
+        $this->get(route('dpc-proposals.grievances.index', $this->proposal))->assertOk()->assertSee('data-ao-task', false)->assertSee('data-submit-candidate', false);
 
         // The AO corrects through Employee Details, then sends it back: the section closes again.
         $year = (int) $row->crGrades()->max('year');
@@ -160,8 +168,7 @@ class VerificationWorkflowTest extends TestCase
             'integrity_option_id' => (int) IntegrityOption::query()->where('code', 'certified_good')->value('id'),
         ])->assertSessionHasNoErrors();
         $this->actingAs($this->ao)->post(route('dpc-proposals.employees.cr.save', [$proposal, $other]), ['year' => $year, 'put_up' => '1', 'has_grading' => '0'])->assertForbidden();
-        $correction = GrievanceCorrection::query()->sole();
-        $this->post(route('dpc-proposals.grievances.correction', [$proposal, $correction]), ['ao_remarks' => 'Grade corrected from the CR file.'])->assertSessionHasNoErrors();
+        $this->submitCorrections(1, 'Grade corrected from the CR file.')->assertSessionHasNoErrors();
         $this->assertFalse($this->ao->can('updateEmployeeSection', [$this->proposal->fresh(), 'cr', $row]));
         $this->assertSame(GrievanceStatus::ReturnedFromAo, $cr->fresh()->status, 'A correction never decides the grievance.');
 
@@ -172,14 +179,27 @@ class VerificationWorkflowTest extends TestCase
             $this->assertSame($version->sha256, VerificationSnapshot::hashOf($version->version === 1 ? $version->snapshot : (array) $version->snapshot['record']));
         }
         $this->assertNotNull($this->participant(1)->snapshot_sha256);
-        $this->assertSame(1, VerificationNotification::query()->where('kind', 'record_corrected')->where('channel', 'sms')->count());
+        // Not yet the candidate's to read as done (2026-11-24): no message, no notice, until the AH decides.
+        $this->assertSame(0, VerificationNotification::query()->where('kind', 'record_corrected')->count());
+        $this->signIn(1);
+        $this->get(route('candidate-verification.section', [$this->participant(1)->uuid, 'cr']))->assertOk()->assertDontSee('id="corrected-notice"', false);
+        auth()->logout();
 
-        // The AH decides it: the last one — the DPC goes to the Secretary.
-        $this->actingAs($this->ah)->post(route('dpc-proposals.grievances.resolve', [$this->proposal, $cr]), ['decision' => 'upheld', 'resolution_remark' => 'Corrected.'])->assertSessionHasNoErrors();
+        // The AH approves the candidate's correction with the eSign: the last one — the DPC goes to the Secretary.
+        $this->actingAs($this->ah)->get(route('dpc-proposals.grievances.index', $this->proposal))->assertSee('data-approve-candidate', false);
+        $this->travel(2)->minutes();
+        $this->approveCorrections(1, 'Corrected.')->assertSessionHasNoErrors();
+        $this->assertSame(GrievanceStatus::Resolved, $cr->fresh()->status);
+        $this->assertSame('upheld', $cr->fresh()->decision?->value);
         $this->assertSame(DpcProposalStatus::PendingSecretary, $this->proposal->fresh()->status);
         $this->assertSame(CycleStatus::Completed, $this->cycle()->status);
         $this->assertSame(1, WorkflowTransition::query()->where('event', 'grievances_resolved')->where('actor_id', $this->ah->id)->count());
         $this->assertSame(2, VerificationNotification::query()->where('kind', 'grievance_resolved')->where('channel', 'sms')->count());
+        // Decided: now the candidate hears of the correction, and sees it.
+        $this->assertSame(1, VerificationNotification::query()->where('kind', 'record_corrected')->where('channel', 'sms')->count());
+        auth()->logout();
+        // Still signed in to the portal from above.
+        $this->get(route('candidate-verification.section', [$this->participant(1)->uuid, 'cr']))->assertOk()->assertSee('id="corrected-notice"', false);
     }
 
     public function test_a_dpc_approved_again_after_a_return_goes_straight_to_the_secretary(): void
@@ -208,7 +228,9 @@ class VerificationWorkflowTest extends TestCase
         $outsiderAh = User::factory()->assignedTo($otherDepartment->id, Role::AdministrativeHead)->create();
         $this->actingAs($outsiderAh)->get(route('dpc-proposals.grievances.index', $this->proposal))->assertForbidden();
         $this->actingAs($outsiderAh)->get(route('dpc-proposals.grievances.document', [$this->proposal, $grievance]))->assertForbidden();
-        $this->actingAs($outsiderAh)->post(route('dpc-proposals.grievances.resolve', [$this->proposal, $grievance]), ['decision' => 'upheld', 'resolution_remark' => 'x'])->assertSessionHasErrors('grievance');
+        $this->actingAs($outsiderAh)->post(route('dpc-proposals.grievances.decide', [$this->proposal, $grievance]), ['decision' => 'upheld', 'text' => 'x'])->assertSessionHasErrors('grievance');
+        $this->notUphold($grievance, 'x', $outsiderAh)->assertSessionHasErrors('grievance');
+        $this->actingAs($outsiderAh)->post(route('dpc-proposals.grievances.approve-candidate', [$this->proposal, $this->participant(1)]), ['remark' => 'x'])->assertSessionHasErrors('grievance');
         $this->assertSame(GrievanceStatus::Submitted, $grievance->fresh()->status);
 
         auth()->logout();

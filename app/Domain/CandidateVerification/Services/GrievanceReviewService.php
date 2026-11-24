@@ -20,12 +20,23 @@ use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Shared\Services\ActivityTimelineService;
 use App\Domain\Shared\Workflow\WorkflowEngine;
 use App\Domain\Shared\Workflow\WorkflowException;
+use App\Domain\Signature\Services\SignatureService;
 use App\Enums\Role;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 /**
- * The AH's review of the candidates' grievances and the AO's corrections (2026-11-19).
+ * The AH's review of the candidates' grievances and the AO's corrections (2026-11-19;
+ * the flow made one step at a time, 2026-11-24):
+ *
+ *  1. The AH decides each grievance. **Upheld** — the candidate is right — opens that
+ *     candidate's section for the AO with the AH's instructions. **Not upheld** — the
+ *     record stands — closes it with its reason, eSigned.
+ *  2. The AO corrects each opened section and sends the candidate's corrections back.
+ *  3. The AH approves the candidate's corrections with the eSign (or sends one back to
+ *     the AO). Only then is the grievance resolved, and the candidate told.
+ *
+ * Earlier (2026-11-19):
  *
  * Each grievance is decided on its own: without a correction, or after the AH opens
  * that candidate's section — and only that — for the AO, who corrects it through the
@@ -61,6 +72,49 @@ final class GrievanceReviewService
             && VerificationCycle::query()->where('dpc_proposal_id', $proposal->id)->where('status', CycleStatus::Open->value)->exists();
     }
 
+    /**
+     * The grievances waiting on this user, DPC by DPC, for the dashboard (2026-11-24):
+     * for the AH those to decide and corrections to approve, for the AO the sections
+     * to correct. Only the DPCs allotted to them, and only those with something open.
+     *
+     * @return list<array{proposal: DpcProposal, to_decide: int, to_approve: int, with_ao: int, to_correct: int, ah: bool, ao: bool}>
+     */
+    public function waitingOn(User $user): array
+    {
+        $isAh = $user->hasRole(Role::AdministrativeHead->value);
+        $isAo = $user->hasRole(Role::AuthorizedOfficer->value);
+        if (! $isAh && ! $isAo) {
+            return [];
+        }
+
+        $open = [GrievanceStatus::Submitted->value, GrievanceStatus::SentToAo->value, GrievanceStatus::ReturnedFromAo->value];
+        $proposals = $this->allotments->scopeTo(DpcProposal::query(), $user)
+            ->whereIn('id', VerificationCycle::query()->whereIn('id', Grievance::query()->whereIn('status', $open)->select('dpc_verification_cycle_id'))->select('dpc_proposal_id'))
+            ->orderByDesc('id')->get();
+
+        $entries = [];
+        foreach ($proposals as $proposal) {
+            $counts = Grievance::query()->whereHas('cycle', fn ($q) => $q->where('dpc_proposal_id', $proposal->id))
+                ->selectRaw('status, count(*) as n')->groupBy('status')->pluck('n', 'status')->all();
+            $ah = $isAh && $this->allotments->isAllotted($user, $proposal, Role::AdministrativeHead);
+            $ao = $isAo && $this->allotments->isAllotted($user, $proposal, Role::AuthorizedOfficer);
+            $entry = [
+                'proposal' => $proposal,
+                'to_decide' => (int) ($counts[GrievanceStatus::Submitted->value] ?? 0),
+                'to_approve' => (int) ($counts[GrievanceStatus::ReturnedFromAo->value] ?? 0),
+                'with_ao' => (int) ($counts[GrievanceStatus::SentToAo->value] ?? 0),
+                'to_correct' => (int) ($counts[GrievanceStatus::SentToAo->value] ?? 0),
+                'ah' => $ah,
+                'ao' => $ao,
+            ];
+            if (($ah && $entry['to_decide'] + $entry['to_approve'] > 0) || ($ao && $entry['to_correct'] > 0)) {
+                $entries[] = $entry;
+            }
+        }
+
+        return $entries;
+    }
+
     /** Whether an AO correction of this officer's Employee Details section is open now. */
     public function correctionOpen(DpcEvaluationRow $row, ?string $employeeSection = null): bool
     {
@@ -68,41 +122,159 @@ final class GrievanceReviewService
             ->contains(fn (GrievanceCorrection $c): bool => $employeeSection === null || $c->section->employeeSection() === $employeeSection);
     }
 
-    /** @throws WorkflowException */
-    public function resolve(Grievance $grievance, GrievanceDecision $decision, string $remark, User $ah, Request $request): Grievance
+    /**
+     * Upheld (2026-11-24): the candidate is right, so their section opens for the AO
+     * with the AH's instructions. Nothing is resolved yet; the AH approves the
+     * correction when the AO sends it back.
+     *
+     * @throws WorkflowException
+     */
+    public function uphold(Grievance $grievance, string $instructions, User $ah): GrievanceCorrection
     {
-        $resolved = DB::transaction(function () use ($grievance, $decision, $remark, $ah): Grievance {
+        if ($grievance->status !== GrievanceStatus::Submitted) {
+            throw new WorkflowException((string) __('candidate.grievance.errors.not_decidable'));
+        }
+
+        return $this->openForAo($grievance, $instructions, $ah, upheld: true);
+    }
+
+    /**
+     * Not upheld (2026-11-24): the record stands. Closed with its reason, eSigned by the
+     * AH; the candidate sees the reason.
+     *
+     * @throws WorkflowException
+     */
+    public function notUphold(Grievance $grievance, string $reason, User $ah, Request $request): Grievance
+    {
+        $resolved = DB::transaction(function () use ($grievance, $reason, $ah): Grievance {
             [$locked, $proposal] = $this->lockForAh($grievance, $ah);
 
-            if (! in_array($locked->status, [GrievanceStatus::Submitted, GrievanceStatus::ReturnedFromAo], true)) {
+            if ($locked->status !== GrievanceStatus::Submitted) {
                 throw new WorkflowException((string) __('candidate.grievance.errors.not_decidable'));
             }
-            $this->assertRemark($remark);
+            $this->assertRemark($reason);
 
-            $locked->forceFill([
-                'status' => GrievanceStatus::Resolved->value,
-                'decision' => $decision->value,
-                'resolution_remark' => trim($remark),
-                'resolved_by' => $ah->id,
-                'resolved_at' => now(),
-            ])->save();
+            $row = $locked->participant->row;
+            app(SignatureService::class)->signVerified($ah, $locked, implode("\n", [
+                'GRIEVANCE NOT UPHELD',
+                'DPC: '.CandidateRecordView::reference($proposal),
+                "Candidate: {$row->name} (S.N. {$row->sn})",
+                'Section: '.$locked->section->label().($locked->related_year ? ' '.$locked->related_year : ''),
+                'Reason: '.trim($reason),
+                "Decided by: {$ah->name}",
+                'Date: '.now()->toDateTimeString(),
+            ]), "grievance-{$locked->uuid}-not-upheld.txt", ['action' => 'grievance_not_upheld']);
 
-            $this->timeline->record('dpc_proposal.grievance_resolved', $proposal, sprintf(
-                'Grievance on %s of %s decided: %s', $locked->section->label(), $locked->participant->row->name, $decision->label(),
-            ), ['grievance' => $locked->uuid, 'decision' => $decision->value, 'remark' => trim($remark)], $ah);
+            $this->close($locked, GrievanceDecision::NotUpheld, $reason, $ah, $proposal);
 
             return $locked;
         });
 
-        $this->notifier->toParticipant($resolved->participant, 'grievance_resolved', [
-            'dpc' => CandidateRecordView::reference($resolved->participant->row->proposal),
-            'section' => $resolved->section->label(),
-            'url' => route('candidate-verification.login'),
-        ], $resolved->uuid);
-
+        $this->toldResolved($resolved);
         $this->routeWhenAllResolved($resolved->cycle, $ah, $request);
 
         return $resolved;
+    }
+
+    /**
+     * The AH approves a candidate's corrections with the eSign (2026-11-24): every
+     * grievance of theirs the AO has sent back is resolved — upheld, the record
+     * corrected — and the candidate is told.
+     *
+     * @return int how many were resolved
+     *
+     * @throws WorkflowException
+     */
+    public function approveCandidate(VerificationParticipant $participant, string $remark, User $ah, Request $request): int
+    {
+        $resolved = DB::transaction(function () use ($participant, $remark, $ah): array {
+            $this->assertRemark($remark);
+            $grievances = Grievance::query()->where('dpc_verification_participant_id', $participant->id)
+                ->where('status', GrievanceStatus::ReturnedFromAo->value)->orderBy('id')->lockForUpdate()->get();
+            if ($grievances->isEmpty()) {
+                throw new WorkflowException((string) __('candidate.grievance.errors.nothing_to_approve'));
+            }
+
+            $proposal = null;
+            foreach ($grievances as $grievance) {
+                [, $proposal] = $this->lockForAh($grievance, $ah);
+            }
+
+            $row = $participant->row;
+            app(SignatureService::class)->signVerified($ah, $participant, implode("\n", [
+                'GRIEVANCE CORRECTIONS APPROVED',
+                'DPC: '.CandidateRecordView::reference($proposal),
+                "Candidate: {$row->name} (S.N. {$row->sn})",
+                ...$grievances->map(fn (Grievance $g): string => '- '.$g->section->label().($g->related_year ? ' '.$g->related_year : '').': '.$g->remark)->all(),
+                'Remark: '.trim($remark),
+                "Approved by: {$ah->name}",
+                'Date: '.now()->toDateTimeString(),
+            ]), "grievances-{$participant->uuid}-approved.txt", ['action' => 'grievance_corrections_approved']);
+
+            foreach ($grievances as $grievance) {
+                $this->close($grievance, GrievanceDecision::Upheld, $remark, $ah, $proposal);
+            }
+
+            return $grievances->all();
+        });
+
+        foreach ($resolved as $grievance) {
+            $this->toldResolved($grievance);
+        }
+        $this->routeWhenAllResolved($participant->cycle, $ah, $request);
+
+        return count($resolved);
+    }
+
+    private function close(Grievance $grievance, GrievanceDecision $decision, string $remark, User $ah, DpcProposal $proposal): void
+    {
+        $grievance->forceFill([
+            'status' => GrievanceStatus::Resolved->value,
+            'decision' => $decision->value,
+            'resolution_remark' => trim($remark),
+            'resolved_by' => $ah->id,
+            'resolved_at' => now(),
+        ])->save();
+
+        $this->timeline->record('dpc_proposal.grievance_resolved', $proposal, sprintf(
+            'Grievance on %s of %s decided: %s', $grievance->section->label(), $grievance->participant->row->name, $decision->label(),
+        ), ['grievance' => $grievance->uuid, 'decision' => $decision->value, 'remark' => trim($remark), 'signed' => true], $ah);
+    }
+
+    /** The candidate hears the decision — and of the correction made for it — once resolved. */
+    private function toldResolved(Grievance $resolved): void
+    {
+        $proposal = $resolved->participant->row->proposal;
+        $correction = GrievanceCorrection::query()->where('dpc_grievance_id', $resolved->id)->where('status', GrievanceCorrection::SUBMITTED)->latest('id')->first();
+        if ($correction !== null) {
+            $this->notifier->toParticipant($resolved->participant, 'record_corrected', [
+                'dpc' => CandidateRecordView::reference($proposal),
+                'candidate' => $resolved->participant->row->name,
+                'section' => $resolved->section->label(),
+                'url' => route('candidate-verification.login'),
+            ], 'correction:'.$correction->id);
+        }
+
+        $this->notifier->toParticipant($resolved->participant, 'grievance_resolved', [
+            'dpc' => CandidateRecordView::reference($proposal),
+            'section' => $resolved->section->label(),
+            'url' => route('candidate-verification.login'),
+        ], $resolved->uuid);
+    }
+
+    /**
+     * The AO's correction is not yet right (2026-11-24): back to the AO, with what
+     * still needs doing.
+     *
+     * @throws WorkflowException
+     */
+    public function sendBack(Grievance $grievance, string $instructions, User $ah): GrievanceCorrection
+    {
+        if ($grievance->status !== GrievanceStatus::ReturnedFromAo) {
+            throw new WorkflowException((string) __('candidate.grievance.errors.not_decidable'));
+        }
+
+        return $this->openForAo($grievance, $instructions, $ah, upheld: false);
     }
 
     /**
@@ -110,12 +282,13 @@ final class GrievanceReviewService
      *
      * @throws WorkflowException
      */
-    public function sendToAo(Grievance $grievance, string $instructions, User $ah): GrievanceCorrection
+    private function openForAo(Grievance $grievance, string $instructions, User $ah, bool $upheld): GrievanceCorrection
     {
-        $correction = DB::transaction(function () use ($grievance, $instructions, $ah): GrievanceCorrection {
+        $correction = DB::transaction(function () use ($grievance, $instructions, $ah, $upheld): GrievanceCorrection {
             [$locked, $proposal] = $this->lockForAh($grievance, $ah);
 
-            if (! in_array($locked->status, [GrievanceStatus::Submitted, GrievanceStatus::ReturnedFromAo], true)) {
+            $expected = $upheld ? GrievanceStatus::Submitted : GrievanceStatus::ReturnedFromAo;
+            if ($locked->status !== $expected) {
                 throw new WorkflowException((string) __('candidate.grievance.errors.not_decidable'));
             }
             $this->assertRemark($instructions);
@@ -129,10 +302,12 @@ final class GrievanceReviewService
                 'assigned_at' => now(),
                 'status' => GrievanceCorrection::OPEN,
             ]);
-            $locked->forceFill(['status' => GrievanceStatus::SentToAo->value])->save();
+            // Upheld is the AH's decision now; the grievance resolves when the correction is approved.
+            $locked->forceFill(['status' => GrievanceStatus::SentToAo->value, 'decision' => GrievanceDecision::Upheld->value])->save();
 
-            $this->timeline->record('dpc_proposal.grievance_sent_to_ao', $proposal, sprintf(
-                '%s of %s opened for the AO to correct', $locked->section->label(), $locked->participant->row->name,
+            $this->timeline->record($upheld ? 'dpc_proposal.grievance_upheld' : 'dpc_proposal.grievance_sent_back', $proposal, sprintf(
+                $upheld ? 'Grievance on %s of %s upheld: opened for the AO to correct' : 'Correction of %s of %s sent back to the AO',
+                $locked->section->label(), $locked->participant->row->name,
             ), ['grievance' => $locked->uuid, 'section' => $locked->section->value, 'instructions' => trim($instructions)], $ah);
 
             return $correction;
@@ -142,7 +317,7 @@ final class GrievanceReviewService
         $proposal = $grievance->participant->row->proposal;
         $this->notifier->toUsers($grievance->cycle, $this->routing->allotted($proposal, Role::AuthorizedOfficer), 'correction_assigned', [
             'dpc' => CandidateRecordView::reference($proposal), 'candidate' => $grievance->participant->row->name,
-            'section' => $grievance->section->label(), 'url' => route('dpc-proposals.grievances.index', $proposal),
+            'section' => $grievance->section->label(), 'url' => route('grievances.corrections'),
         ], 'correction:'.$correction->id);
 
         return $correction;
@@ -197,9 +372,35 @@ final class GrievanceReviewService
         $proposal = $participant->row->proposal;
         $values = ['dpc' => CandidateRecordView::reference($proposal), 'candidate' => $participant->row->name, 'section' => $grievance->section->label(), 'url' => route('dpc-proposals.grievances.index', $proposal)];
         $this->notifier->toUsers($grievance->cycle, $this->routing->allotted($proposal, Role::AdministrativeHead), 'correction_submitted', $values, 'correction:'.$done->id);
-        $this->notifier->toParticipant($participant, 'record_corrected', [...$values, 'url' => route('candidate-verification.login')], 'correction:'.$done->id);
+        // The candidate hears of the correction when the AH decides the grievance (2026-11-24), not before.
 
         return $done;
+    }
+
+    /**
+     * The AO sends a candidate's corrections back to the AH together (2026-11-24): every
+     * section opened for that candidate, with one remark.
+     *
+     * @return int how many were sent back
+     *
+     * @throws WorkflowException
+     */
+    public function submitCandidate(VerificationParticipant $participant, string $remarks, User $ao): int
+    {
+        $corrections = GrievanceCorrection::query()->where('status', GrievanceCorrection::OPEN)
+            ->whereHas('grievance', fn ($q) => $q->where('dpc_verification_participant_id', $participant->id))
+            ->orderBy('id')->get();
+        if ($corrections->isEmpty()) {
+            throw new WorkflowException((string) __('candidate.grievance.errors.nothing_to_submit'));
+        }
+
+        return DB::transaction(function () use ($corrections, $remarks, $ao): int {
+            foreach ($corrections as $correction) {
+                $this->submitCorrection($correction, $remarks, $ao);
+            }
+
+            return $corrections->count();
+        });
     }
 
     /**
