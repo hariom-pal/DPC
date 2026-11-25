@@ -68,6 +68,10 @@ return [
             'subject' => 'ODPC: grievance raised by :candidate on :dpc',
             'message' => 'ODPC: :candidate has raised :count grievance(s) on :dpc. Decide each at :url.',
         ],
+        'grievance_revised' => [
+            'subject' => 'ODPC: your grievance on :dpc decided',
+            'message' => 'ODPC: Your grievance on :section of :dpc has been decided. On checking the original record, the record was found different and has been corrected. See :url',
+        ],
         'grievance_review' => [
             'subject' => 'ODPC: :count candidate grievance(s) on :dpc to review',
             'message' => 'ODPC: the candidate verification of :dpc has closed with :count grievance(s). Review and decide each at :url.',

@@ -93,6 +93,16 @@ final class MessageTemplateCatalog
                 'mandatory' => false,
                 'default' => fn (array $p): array => self::lang('notifications.candidate_verification.grievance_resolved', $p),
             ],
+            // 2026-11-24: a grievance Revised — not as requested, the record corrected to the original.
+            'candidate_verification.grievance_revised' => [
+                'label' => 'Candidate grievance revised',
+                'when' => 'When the AH approves a correction to the original record on a grievance decided Revised. Sent to the candidate.',
+                'channels' => $both,
+                'placeholders' => ['dpc', 'section', 'url'],
+                'required' => [],
+                'mandatory' => false,
+                'default' => fn (array $p): array => self::lang('notifications.candidate_verification.grievance_revised', $p),
+            ],
             'candidate_verification.record_corrected' => [
                 'label' => 'Candidate record corrected',
                 'when' => 'When a section of the candidate is corrected after their grievance. Sent to the candidate.',

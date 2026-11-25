@@ -135,7 +135,24 @@ final class GrievanceReviewService
             throw new WorkflowException((string) __('candidate.grievance.errors.not_decidable'));
         }
 
-        return $this->openForAo($grievance, $instructions, $ah, upheld: true);
+        return $this->openForAo($grievance, $instructions, $ah, GrievanceDecision::Upheld);
+    }
+
+    /**
+     * Revised (2026-11-24): the candidate's request is not right, but the original record
+     * shows something else. To the AO with the AH's suggestion, to correct the record to
+     * the original; resolved when the AH approves it. The decision is final — a
+     * grievance is raised once.
+     *
+     * @throws WorkflowException
+     */
+    public function revise(Grievance $grievance, string $suggestion, User $ah): GrievanceCorrection
+    {
+        if ($grievance->status !== GrievanceStatus::Submitted) {
+            throw new WorkflowException((string) __('candidate.grievance.errors.not_decidable'));
+        }
+
+        return $this->openForAo($grievance, $suggestion, $ah, GrievanceDecision::Revised);
     }
 
     /**
@@ -212,7 +229,8 @@ final class GrievanceReviewService
             ]), "grievances-{$participant->uuid}-approved.txt", ['action' => 'grievance_corrections_approved']);
 
             foreach ($grievances as $grievance) {
-                $this->close($grievance, GrievanceDecision::Upheld, $remark, $ah, $proposal);
+                // As decided: Upheld, or Revised to the original record.
+                $this->close($grievance, $grievance->decision ?? GrievanceDecision::Upheld, $remark, $ah, $proposal);
             }
 
             return $grievances->all();
@@ -245,6 +263,18 @@ final class GrievanceReviewService
     private function toldResolved(Grievance $resolved): void
     {
         $proposal = $resolved->participant->row->proposal;
+
+        // Revised: one message that says the request was not accepted and the record was corrected to the original.
+        if ($resolved->decision === GrievanceDecision::Revised) {
+            $this->notifier->toParticipant($resolved->participant, 'grievance_revised', [
+                'dpc' => CandidateRecordView::reference($proposal),
+                'section' => $resolved->section->label(),
+                'url' => route('candidate-verification.login'),
+            ], $resolved->uuid);
+
+            return;
+        }
+
         $correction = GrievanceCorrection::query()->where('dpc_grievance_id', $resolved->id)->where('status', GrievanceCorrection::SUBMITTED)->latest('id')->first();
         if ($correction !== null) {
             $this->notifier->toParticipant($resolved->participant, 'record_corrected', [
@@ -274,7 +304,7 @@ final class GrievanceReviewService
             throw new WorkflowException((string) __('candidate.grievance.errors.not_decidable'));
         }
 
-        return $this->openForAo($grievance, $instructions, $ah, upheld: false);
+        return $this->openForAo($grievance, $instructions, $ah, null);
     }
 
     /**
@@ -282,12 +312,13 @@ final class GrievanceReviewService
      *
      * @throws WorkflowException
      */
-    private function openForAo(Grievance $grievance, string $instructions, User $ah, bool $upheld): GrievanceCorrection
+    /** @param  GrievanceDecision|null  $decision  Upheld or Revised when deciding; null when sent back */
+    private function openForAo(Grievance $grievance, string $instructions, User $ah, ?GrievanceDecision $decision): GrievanceCorrection
     {
-        $correction = DB::transaction(function () use ($grievance, $instructions, $ah, $upheld): GrievanceCorrection {
+        $correction = DB::transaction(function () use ($grievance, $instructions, $ah, $decision): GrievanceCorrection {
             [$locked, $proposal] = $this->lockForAh($grievance, $ah);
 
-            $expected = $upheld ? GrievanceStatus::Submitted : GrievanceStatus::ReturnedFromAo;
+            $expected = $decision !== null ? GrievanceStatus::Submitted : GrievanceStatus::ReturnedFromAo;
             if ($locked->status !== $expected) {
                 throw new WorkflowException((string) __('candidate.grievance.errors.not_decidable'));
             }
@@ -302,11 +333,15 @@ final class GrievanceReviewService
                 'assigned_at' => now(),
                 'status' => GrievanceCorrection::OPEN,
             ]);
-            // Upheld is the AH's decision now; the grievance resolves when the correction is approved.
-            $locked->forceFill(['status' => GrievanceStatus::SentToAo->value, 'decision' => GrievanceDecision::Upheld->value])->save();
+            // Upheld or Revised is the AH's decision now; the grievance resolves when the correction is approved.
+            $locked->forceFill(['status' => GrievanceStatus::SentToAo->value, 'decision' => ($decision ?? $locked->decision ?? GrievanceDecision::Upheld)->value])->save();
 
-            $this->timeline->record($upheld ? 'dpc_proposal.grievance_upheld' : 'dpc_proposal.grievance_sent_back', $proposal, sprintf(
-                $upheld ? 'Grievance on %s of %s upheld: opened for the AO to correct' : 'Correction of %s of %s sent back to the AO',
+            $this->timeline->record($decision === null ? 'dpc_proposal.grievance_sent_back' : 'dpc_proposal.grievance_'.$decision->value, $proposal, sprintf(
+                match ($decision) {
+                    GrievanceDecision::Upheld => 'Grievance on %s of %s upheld: opened for the AO to correct',
+                    GrievanceDecision::Revised => 'Grievance on %s of %s revised: opened for the AO to correct to the original record',
+                    default => 'Correction of %s of %s sent back to the AO',
+                },
                 $locked->section->label(), $locked->participant->row->name,
             ), ['grievance' => $locked->uuid, 'section' => $locked->section->value, 'instructions' => trim($instructions)], $ah);
 
@@ -350,19 +385,25 @@ final class GrievanceReviewService
             // The record as corrected, kept beside the signed one — never over it.
             $participant = $grievance->participant;
             $record = $this->view->all($participant->row->fresh() ?? $participant->row);
+            // The section as it stood before this correction — the last version kept, the
+            // signed one at first — and what changed in it, value by value (2026-11-25).
+            $previous = VerificationSnapshot::query()->where('dpc_verification_participant_id', $participant->id)->latest('version')->first();
+            $before = (array) (($previous?->snapshot['record'] ?? [])[$grievance->section->value] ?? []);
+            $changes = CandidateRecordView::changes($before, (array) ($record[$grievance->section->value] ?? []));
             VerificationSnapshot::query()->create([
                 'dpc_verification_participant_id' => $participant->id,
-                'version' => (int) VerificationSnapshot::query()->where('dpc_verification_participant_id', $participant->id)->max('version') + 1,
+                'version' => (int) ($previous->version ?? 0) + 1,
                 'reason' => 'corrected_after_grievance',
                 'dpc_grievance_id' => $grievance->id,
-                'snapshot' => ['record' => $record, 'grievance' => $grievance->uuid],
+                'snapshot' => ['record' => $record, 'grievance' => $grievance->uuid, 'changes' => $changes],
                 'sha256' => VerificationSnapshot::hashOf($record),
                 'created_by' => $ao->id,
             ]);
 
             $this->timeline->record('dpc_proposal.grievance_correction_submitted', $proposal, sprintf(
-                'Correction of %s of %s submitted to the AH', $grievance->section->label(), $participant->row->name,
-            ), ['grievance' => $grievance->uuid, 'remarks' => trim($remarks)], $ao);
+                'Correction of %s of %s submitted to the AH%s', $grievance->section->label(), $participant->row->name,
+                $changes === [] ? ' (no value changed)' : ': '.implode('; ', $changes),
+            ), ['grievance' => $grievance->uuid, 'remarks' => trim($remarks), 'changes' => $changes], $ao);
 
             return $locked;
         });

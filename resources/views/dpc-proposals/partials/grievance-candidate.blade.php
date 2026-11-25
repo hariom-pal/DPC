@@ -39,22 +39,37 @@
         <div class="border rounded mb-2" data-grievance="{{ $grievance->uuid }}" data-status="{{ $status }}" id="grievance-{{ $grievance->uuid }}"><div class="p-2 small">
             <div class="d-flex flex-wrap justify-content-between gap-2 mb-1">
                 <div class="fw-semibold">{{ $grievance->section->label() }}@if ($grievance->related_year) · {{ $grievance->related_year }}@endif · {{ __('candidate.grievance.categories.'.$grievance->category) }}</div>
-                <span class="badge {{ ['submitted' => 'text-bg-warning', 'sent_to_ao' => 'text-bg-info', 'returned_from_ao' => 'text-bg-primary', 'resolved' => 'text-bg-success'][$status] ?? 'text-bg-secondary' }}">{{ __('candidate.grievance.flow_status.'.$status) }}</span>
+                <span class="badge {{ ['submitted' => 'text-bg-warning', 'sent_to_ao' => 'text-bg-info', 'returned_from_ao' => 'text-bg-primary', 'resolved' => 'text-bg-success'][$status] ?? 'text-bg-secondary' }}">{{ __('candidate.grievance.flow_status.'.($status === 'sent_to_ao' && $grievance->decision?->value === 'revised' ? 'sent_to_ao_revised' : $status)) }}</span>
             </div>
             <div>{{ __('candidate.grievance.review.remark') }}: {{ $grievance->remark }}</div>
             <div>{{ __('candidate.grievance.review.document') }}: <a href="{{ route('dpc-proposals.grievances.document', [$proposal, $grievance]) }}">{{ $grievance->original_name }}</a> · {{ __('candidate.grievance.review.submitted') }}: {{ $grievance->submitted_at?->format('d-m-Y H:i') }}</div>
 
-            {{-- The history: each time it went to the AO and what came back. --}}
-            @foreach ($grievance->corrections->sortBy('id') as $c)
+            {{-- The history: each time it went to the AO and what came back, with the values
+                 the AO changed — before → after (2026-11-25). --}}
+            @php
+                $changeSets = \App\Domain\CandidateVerification\Models\VerificationSnapshot::query()->where('dpc_grievance_id', $grievance->id)->orderBy('version')->get()
+                    ->map(fn ($v) => (array) ($v->snapshot['changes'] ?? []))->values();
+            @endphp
+            @foreach ($grievance->corrections->sortBy('id')->values() as $i => $c)
                 <div class="text-muted">
                     {{ __('candidate.grievance.review.to_ao_on', ['date' => $c->assigned_at?->format('d-m-Y')]) }}: {{ $c->instructions }}
                     @if ($c->submitted_at) → {{ __('candidate.grievance.review.ao_said', ['date' => $c->submitted_at->format('d-m-Y')]) }}: {{ $c->ao_remarks }}@endif
                 </div>
+                @if ($c->submitted_at && isset($changeSets[$i]))
+                    <div class="small ms-3" data-changes>
+                        <span class="fw-semibold">{{ __('candidate.grievance.review.changes') }}:</span>
+                        @forelse ($changeSets[$i] as $change)
+                            <div>{{ $change }}</div>
+                        @empty
+                            <span class="text-warning">{{ __('candidate.grievance.review.no_change') }}</span>
+                        @endforelse
+                    </div>
+                @endif
             @endforeach
 
             @if ($status === 'resolved')
                 <div class="mt-1" data-resolution>
-                    <strong>{{ $grievance->decision?->value === 'not_upheld' ? __('candidate.grievance.flow_result.not_upheld') : __('candidate.grievance.flow_result.upheld') }}</strong>
+                    <strong>{{ __('candidate.grievance.flow_result.'.($grievance->decision?->value ?? 'upheld')) }}</strong>
                     — {{ $grievance->resolution_remark }} ({{ $grievance->resolved_at?->format('d-m-Y') }}, {{ $grievance->resolver?->name }})
                 </div>
             @else
@@ -64,7 +79,7 @@
             {{-- The AH's decision: two choices, each saying what it means and where it goes. --}}
             @if ($isAh && $actionable && $status === 'submitted')
                 <div class="row g-2 mt-1">
-                    <form method="POST" action="{{ route('dpc-proposals.grievances.decide', [$proposal, $grievance]) }}" class="col-md-6" data-decide="upheld">
+                    <form method="POST" action="{{ route('dpc-proposals.grievances.decide', [$proposal, $grievance]) }}" class="col-md-4" data-decide="upheld">
                         @csrf
                         <input type="hidden" name="decision" value="upheld">
                         <div class="border border-success rounded p-2 h-100">
@@ -76,7 +91,19 @@
                             <button class="btn btn-sm btn-success">{{ __('candidate.grievance.decide.upheld_button') }}</button>
                         </div>
                     </form>
-                    <form method="POST" action="{{ route('dpc-proposals.grievances.decide', [$proposal, $grievance]) }}" class="col-md-6" data-decide="not_upheld">
+                    <form method="POST" action="{{ route('dpc-proposals.grievances.decide', [$proposal, $grievance]) }}" class="col-md-4" data-decide="revised">
+                        @csrf
+                        <input type="hidden" name="decision" value="revised">
+                        <div class="border border-primary rounded p-2 h-100">
+                            <div class="fw-semibold text-primary">{{ __('candidate.grievance.decide.revised_title') }}</div>
+                            <div class="mb-1">{{ __('candidate.grievance.decide.revised_means') }}</div>
+                            <div class="mb-1 text-body-secondary">→ {{ __('candidate.grievance.decide.revised_next') }}</div>
+                            <label class="form-label small mb-0" for="revised-{{ $grievance->uuid }}">{{ __('candidate.grievance.decide.revised_field') }}</label>
+                            <textarea id="revised-{{ $grievance->uuid }}" name="text" class="form-control form-control-sm mb-1" rows="2" maxlength="2000" required></textarea>
+                            <button class="btn btn-sm btn-primary">{{ __('candidate.grievance.decide.revised_button') }}</button>
+                        </div>
+                    </form>
+                    <form method="POST" action="{{ route('dpc-proposals.grievances.decide', [$proposal, $grievance]) }}" class="col-md-4" data-decide="not_upheld">
                         @csrf
                         <input type="hidden" name="decision" value="not_upheld">
                         <div class="border border-danger rounded p-2 h-100">
@@ -94,7 +121,7 @@
             {{-- The AO's work on it. --}}
             @if ($isAo && $status === 'sent_to_ao' && $lastCorrection)
                 <div class="border border-info rounded p-2 mt-1" data-ao-task>
-                    <div class="fw-semibold">{{ __('candidate.grievance.ao.task') }}</div>
+                    <div class="fw-semibold">{{ __($grievance->decision?->value === 'revised' ? 'candidate.grievance.ao.task_revised' : 'candidate.grievance.ao.task') }}</div>
                     <div>{{ __('candidate.grievance.review.instructions') }}: {{ $lastCorrection->instructions }}</div>
                     <a class="btn btn-sm btn-outline-primary mt-1" href="{{ route('dpc-proposals.employees.show', [$proposal, $row]) }}#section-{{ $grievance->section->employeeSection() }}">{{ __('candidate.grievance.review.open_employee') }}</a>
                 </div>

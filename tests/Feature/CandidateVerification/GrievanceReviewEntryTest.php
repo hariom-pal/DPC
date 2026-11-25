@@ -12,9 +12,12 @@ use App\Domain\CandidateVerification\Models\Grievance;
 use App\Domain\CandidateVerification\Models\GrievanceCorrection;
 use App\Domain\CandidateVerification\Models\VerificationDecision;
 use App\Domain\CandidateVerification\Models\VerificationNotification;
+use App\Domain\CandidateVerification\Models\VerificationSnapshot;
 use App\Domain\CandidateVerification\Services\CandidateRecordView;
 use App\Domain\Department\Models\Department;
 use App\Domain\Dpc\Enums\DpcProposalStatus;
+use App\Domain\Master\Models\IntegrityOption;
+use App\Domain\Shared\Models\ActivityTimeline;
 use App\Domain\Shared\Workflow\WorkflowTransition;
 use App\Enums\Role;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -287,6 +290,63 @@ class GrievanceReviewEntryTest extends TestCase
 
         // Nothing waiting any more: the card goes.
         $this->actingAs($this->ah)->get(route('dashboard'))->assertOk()->assertDontSee('id="grievances-waiting"', false);
+    }
+
+    /**
+     * 2026-11-24: Revised — the candidate asked for more, the original record shows
+     * otherwise. To the AO with the AH's suggestion, approved with the eSign; the
+     * candidate is told their request was not accepted and the record corrected to the
+     * original. Final: no second grievance.
+     */
+    public function test_a_revised_grievance_corrects_the_record_to_the_original_and_tells_the_candidate_so(): void
+    {
+        $this->submitAs(1, ['cr']);
+        $grievance = Grievance::query()->sole();
+        $uuid = $this->participant(1)->uuid;
+
+        $this->actingAs($this->ah)->get(route('dpc-proposals.grievances.index', $this->proposal))->assertOk()
+            ->assertSee('data-decide="revised"', false)->assertSee(__('candidate.grievance.decide.revised_next'));
+
+        $this->revise($grievance, 'The original CR of 2024 shows B: make it B.')->assertSessionHasNoErrors();
+        $this->assertSame(GrievanceStatus::SentToAo, $grievance->fresh()->status);
+        $this->assertSame('revised', $grievance->fresh()->decision?->value);
+        $this->assertSame(1, GrievanceCorrection::query()->where('instructions', 'The original CR of 2024 shows B: make it B.')->count());
+
+        // The AO sees it as Revised, with the AH's suggestion.
+        $this->actingAs($this->ao)->get(route('dpc-proposals.grievances.index', $this->proposal))->assertOk()
+            ->assertSee(__('candidate.grievance.ao.task_revised'))->assertSee('The original CR of 2024 shows B: make it B.');
+        // The AO corrects the grade to the original.
+        $row = $this->row(1);
+        $year = (int) $row->crGrades()->max('year');
+        $before = (string) $row->crGrades()->where('year', $year)->value('grade');
+        $this->actingAs($this->ao)->post(route('dpc-proposals.employees.cr.save', [$this->proposal, $row]), [
+            'year' => $year, 'put_up' => '1', 'has_grading' => '1', 'authorities' => ['reporter', 'reviewer', 'accepting'], 'grade' => 'ख',
+            'integrity_option_id' => (int) IntegrityOption::query()->where('code', 'certified_good')->value('id'),
+        ])->assertSessionHasNoErrors();
+        $this->submitCorrections(1, 'Corrected to B from the original CR.')->assertSessionHasNoErrors();
+
+        // The old and the corrected value are on record, and shown to the AH.
+        $changes = (array) (VerificationSnapshot::query()->where('dpc_grievance_id', $grievance->id)->sole()->snapshot['changes'] ?? []);
+        $this->assertContains('years '.$year.' grade: '.$before.' → ख', $changes);
+        $this->assertStringContainsString('grade: '.$before.' → ख', (string) ActivityTimeline::query()->where('event', 'dpc_proposal.grievance_correction_submitted')->sole()->description);
+        $this->actingAs($this->ah)->get(route('dpc-proposals.grievances.index', $this->proposal))->assertOk()
+            ->assertSee('data-changes', false)->assertSee('years '.$year.' grade: '.$before.' → ख');
+
+        // Under review for the candidate until the AH approves it.
+        $this->get(route('candidate-verification.section', [$uuid, 'cr']))->assertOk()
+            ->assertDontSee(__('candidate.grievance.candidate_status.resolved_revised'));
+
+        $this->travel(2)->minutes();
+        $this->approveCorrections(1, 'The original CR of 2024 records B.')->assertSessionHasNoErrors();
+        $this->assertSame(GrievanceStatus::Resolved, $grievance->fresh()->status);
+        $this->assertSame('revised', $grievance->fresh()->decision?->value, 'Approved as decided: Revised, not Upheld.');
+
+        $this->get(route('candidate-verification.section', [$uuid, 'cr']))->assertOk()
+            ->assertSee(__('candidate.grievance.candidate_status.resolved_revised'))->assertSee('The original CR of 2024 records B.');
+        $kinds = VerificationNotification::query()->where('recipient', 'like', 'participant:%')->whereIn('kind', ['grievance_revised', 'grievance_resolved', 'record_corrected'])->pluck('kind')->unique()->values()->all();
+        $this->assertSame(['grievance_revised'], $kinds, 'One message that says what happened, not "upheld".');
+        $this->actingAs($this->ah)->get(route('dpc-proposals.grievances.index', $this->proposal))->assertOk()
+            ->assertSee(__('candidate.grievance.flow_result.revised'));
     }
 
     private function submitAs(int $sn, array $grievances = []): void

@@ -105,7 +105,7 @@ class Grievance extends Model
     public function candidateStatusLabel(): string
     {
         if ($this->status === GrievanceStatus::Resolved) {
-            return (string) __('candidate.grievance.candidate_status.'.($this->decision === GrievanceDecision::NotUpheld ? 'resolved_not_upheld' : 'resolved_upheld'));
+            return (string) __('candidate.grievance.candidate_status.resolved_'.($this->decision ?? GrievanceDecision::Upheld)->value);
         }
 
         return (string) __('candidate.grievance.candidate_status.'.$this->status->value);

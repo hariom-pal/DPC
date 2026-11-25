@@ -236,17 +236,19 @@ return [
         // 2026-11-24: the grievance flow, one step at a time.
         'flow' => [
             'heading' => 'How a grievance is decided',
-            'step1' => '1. The AH decides each grievance: Upheld (the candidate is right — it goes to the AO for correction) or Not upheld (the record is right — closed with the reason, after the AH\'s eSign).',
+            'step1' => '1. The AH decides each grievance: Upheld (the candidate is right — it goes to the AO for correction) Not upheld (the record is right — closed with the reason, after the AH\'s eSign) or Revised (the request is not right but the record is — to the AO to correct it to the original record).',
             'step2' => '2. The AO corrects each upheld section and sends the candidate\'s corrections back to the AH.',
             'step3' => '3. The AH checks and approves the candidate\'s corrections with the eSign (or sends one back to the AO). Only then is the grievance resolved and the candidate told.',
         ],
         'flow_status' => [
+            'sent_to_ao_revised' => 'Revised — with the AO for correction to the original record',
             'submitted' => 'Awaiting the AH\'s decision',
             'sent_to_ao' => 'Upheld — with the AO for correction',
             'returned_from_ao' => 'Corrected by the AO — awaiting the AH\'s approval',
             'resolved' => 'Resolved',
         ],
         'flow_result' => [
+            'revised' => 'Resolved — Revised: not as requested; corrected to the original record',
             'upheld' => 'Resolved — Upheld, the record corrected',
             'not_upheld' => 'Resolved — Not upheld',
         ],
@@ -260,6 +262,11 @@ return [
             'candidate_done' => 'Every grievance of this candidate is resolved.',
         ],
         'decide' => [
+            'revised_title' => 'Revised',
+            'revised_means' => 'The candidate\'s request is not right, but the original record shows something else: the record has to be corrected to the original.',
+            'revised_next' => 'It goes to the AO, who corrects it to the original record and sends it back to you for approval. Final: a grievance is raised once.',
+            'revised_field' => 'What the original record shows (suggestion for the AO)',
+            'revised_button' => 'Revise & send to the AO',
             'upheld_title' => 'Upheld',
             'upheld_means' => 'The candidate is right: the record has to be corrected.',
             'upheld_next' => 'It goes to the AO, who corrects this section and sends it back to you for approval.',
@@ -278,6 +285,7 @@ return [
             'approve_button' => 'Approve with eSign',
         ],
         'ao' => [
+            'task_revised' => 'Revised by the AH — correct this record to the original record',
             'task' => 'Upheld by the AH — correct this record',
             'submit_title' => 'Send this candidate\'s :count correction(s) to the AH',
             'submit_next' => 'The AH checks them and approves with the eSign, or sends one back to you.',
@@ -291,6 +299,7 @@ return [
         ],
         // What the candidate sees (2026-11-24): nothing reads as done until the AH approves.
         'candidate_status' => [
+            'resolved_revised' => 'Resolved — your request was not accepted; on checking the original record, the record was found different and corrected to it',
             'draft' => 'Draft',
             'submitted' => 'Under review by the department',
             'sent_to_ao' => 'Under review by the department',
@@ -335,6 +344,7 @@ return [
             'resolved' => 'Resolved',
         ],
         'decision' => [
+            'revised' => 'Revised',
             'upheld' => 'Upheld',
             'not_upheld' => 'Not upheld',
         ],
@@ -355,6 +365,9 @@ return [
             'corrections_open' => ':count correction(s) are still with the AO.',
         ],
         'review' => [
+            'changes' => 'Changed by the AO (before → after)',
+            'no_change' => 'No value was changed.',
+            'revised_done' => 'Revised: sent to the AO to correct to the original record.',
             'to_ao_on' => 'To the AO on :date',
             'ao_said' => 'AO on :date',
             'upheld_done' => 'Upheld: sent to the AO for correction.',

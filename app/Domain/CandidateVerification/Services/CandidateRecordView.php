@@ -212,6 +212,64 @@ final class CandidateRecordView
         return array_values(array_map(fn (array $line): int => (int) $line['year'], $data['years'] ?? []));
     }
 
+    /** Worked out from the record, never a value the department entered. */
+    private const DERIVED = ['counted', 'skipped', 'before_appointment', 'is_self', 'seniority_position', 'years_used', 'marks_by_year', 'average_filled_years', 'average_fill_mark', 'average_contribution', 'tribal_bonus'];
+
+    /**
+     * What changed in one section, value by value, as "label: before → after"
+     * (2026-11-25): the old and the corrected value of a grievance correction. A
+     * year's lines are matched by their year.
+     *
+     * @param  array<string, mixed>  $before
+     * @param  array<string, mixed>  $after
+     * @return list<string>
+     */
+    public static function changes(array $before, array $after): array
+    {
+        $old = self::flatten($before);
+        $new = self::flatten($after);
+        $changes = [];
+
+        foreach (array_unique([...array_keys($old), ...array_keys($new)]) as $key) {
+            $from = $old[$key] ?? null;
+            $to = $new[$key] ?? null;
+            if ($from !== $to) {
+                $changes[] = sprintf('%s: %s → %s', $key, self::shown($from), self::shown($to));
+            }
+        }
+
+        return $changes;
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $data
+     * @return array<string, scalar|null>
+     */
+    private static function flatten(array $data, string $prefix = ''): array
+    {
+        $flat = [];
+        foreach ($data as $key => $value) {
+            if (in_array((string) $key, self::DERIVED, true) || $key === 'list') {
+                continue;
+            }
+            // A year's line is named by its year, not by where it sits in the list.
+            $name = is_array($value) && isset($value['year']) && is_int($key) ? (string) $value['year'] : (string) $key;
+            $path = $prefix === '' ? $name : $prefix.' '.$name;
+            if (is_array($value)) {
+                $flat += self::flatten($value, $path);
+            } elseif ($key !== 'year') {
+                $flat[$path] = is_bool($value) ? ($value ? 'yes' : 'no') : $value;
+            }
+        }
+
+        return $flat;
+    }
+
+    private static function shown(mixed $value): string
+    {
+        return $value === null || $value === '' ? '—' : (string) $value;
+    }
+
     /** The DPC reference shown to the candidate. */
     public static function reference(DpcProposal $proposal): string
     {

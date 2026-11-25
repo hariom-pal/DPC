@@ -99,6 +99,12 @@ trait BuildsVerification
         return $this->actingAs($this->ah)->post(route('dpc-proposals.grievances.decide', [$this->proposal, $grievance]), ['decision' => 'upheld', 'text' => $instructions]);
     }
 
+    /** The AH revises a grievance (2026-11-24): to the AO, to correct the record to the original. */
+    protected function revise(Grievance $grievance, string $suggestion = 'The original record shows otherwise.'): TestResponse
+    {
+        return $this->actingAs($this->ah)->post(route('dpc-proposals.grievances.decide', [$this->proposal, $grievance]), ['decision' => 'revised', 'text' => $suggestion]);
+    }
+
     /** The AH does not uphold a grievance, through the eSign simulator (2026-11-24). */
     protected function notUphold(Grievance $grievance, string $reason = 'The record is right.', ?User $as = null): TestResponse
     {

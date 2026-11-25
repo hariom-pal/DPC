@@ -161,13 +161,16 @@ class GrievanceController extends Controller
             ]);
         }
 
+        $revised = GrievanceDecision::from($data['decision']) === GrievanceDecision::Revised;
         try {
-            $this->reviews->uphold($grievance, $data['text'], $request->user());
+            $revised
+                ? $this->reviews->revise($grievance, $data['text'], $request->user())
+                : $this->reviews->uphold($grievance, $data['text'], $request->user());
         } catch (WorkflowException $e) {
             return $back->withErrors(['grievance' => $e->getMessage()]);
         }
 
-        return $back->with('status', __('candidate.grievance.review.upheld_done'));
+        return $back->with('status', __($revised ? 'candidate.grievance.review.revised_done' : 'candidate.grievance.review.upheld_done'));
     }
 
     /** Only this DPC's allotted AH begins an eSign on its grievances (2026-11-24). */

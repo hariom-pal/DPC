@@ -65,6 +65,10 @@ return [
             'subject' => 'ODPC: :dpc पर :candidate द्वारा शिकायत',
             'message' => 'ODPC: :candidate ने :dpc पर :count शिकायत(ें) प्रस्तुत की हैं। :url पर प्रत्येक पर निर्णय करें।',
         ],
+        'grievance_revised' => [
+            'subject' => 'ODPC: :dpc पर आपकी शिकायत का निर्णय',
+            'message' => 'ODPC: :dpc पर :section संबंधी आपकी शिकायत का निर्णय हो गया है। मूल अभिलेख की जाँच में अभिलेख भिन्न पाया गया और सुधारा गया है। देखें :url',
+        ],
         'grievance_review' => [
             'subject' => 'ODPC: :dpc पर :count अभ्यर्थी शिकायत(ें) समीक्षा हेतु',
             'message' => 'ODPC: :dpc का अभ्यर्थी सत्यापन :count शिकायत(ों) के साथ बंद हुआ। :url पर प्रत्येक की समीक्षा कर निर्णय करें।',
