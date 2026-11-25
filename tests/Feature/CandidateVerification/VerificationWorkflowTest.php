@@ -19,6 +19,7 @@ use App\Domain\Dpc\Models\WorkflowStageTimeline;
 use App\Domain\Master\Models\IntegrityOption;
 use App\Domain\Shared\Workflow\WorkflowTransition;
 use App\Domain\Signature\Models\Signature;
+use App\Domain\Signature\Models\SignatureAttempt;
 use App\Enums\Role;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -194,6 +195,10 @@ class VerificationWorkflowTest extends TestCase
         $this->assertSame(DpcProposalStatus::PendingSecretary, $this->proposal->fresh()->status);
         $this->assertSame(CycleStatus::Completed, $this->cycle()->status);
         $this->assertSame(1, WorkflowTransition::query()->where('event', 'grievances_resolved')->where('actor_id', $this->ah->id)->count());
+        // MySQL's signature_attempts.action holds 20 characters; SQLite does not enforce it (UAT 2026-11-25).
+        foreach (SignatureAttempt::query()->pluck('action') as $action) {
+            $this->assertLessThanOrEqual(20, strlen((string) $action), "eSign action '{$action}' is too long for signature_attempts.action");
+        }
         $this->assertSame(2, VerificationNotification::query()->where('kind', 'grievance_resolved')->where('channel', 'sms')->count());
         // Decided: now the candidate hears of the correction, and sees it.
         $this->assertSame(1, VerificationNotification::query()->where('kind', 'record_corrected')->where('channel', 'sms')->count());

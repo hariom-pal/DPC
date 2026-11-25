@@ -226,7 +226,7 @@ final class GrievanceReviewService
                 'Remark: '.trim($remark),
                 "Approved by: {$ah->name}",
                 'Date: '.now()->toDateTimeString(),
-            ]), "grievances-{$participant->uuid}-approved.txt", ['action' => 'grievance_corrections_approved']);
+            ]), "grievances-{$participant->uuid}-approved.txt", ['action' => 'grievance_approved']);
 
             foreach ($grievances as $grievance) {
                 // As decided: Upheld, or Revised to the original record.
