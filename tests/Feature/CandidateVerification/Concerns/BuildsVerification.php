@@ -20,6 +20,7 @@ use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Testing\TestResponse;
+use Symfony\Component\HttpFoundation\Response;
 use Tests\Concerns\CompletesDpcProposals;
 use Tests\Concerns\RaisesDpcProposals;
 
@@ -114,7 +115,7 @@ trait BuildsVerification
             return $start;
         }
 
-        return $this->post(route('esign.simulator.submit'), ['reference' => (string) session('esign.pending')['reference'], 'decision' => 'sign', 'name' => $as->name]);
+        return $this->assertCleanRedirect($this->post(route('esign.simulator.submit'), ['reference' => (string) session('esign.pending')['reference'], 'decision' => 'sign', 'name' => $as->name]), '#grievance-'.$grievance->uuid);
     }
 
     /** The AH approves a candidate's corrections, through the eSign simulator (2026-11-24). */
@@ -125,7 +126,25 @@ trait BuildsVerification
             return $start;
         }
 
-        return $this->post(route('esign.simulator.submit'), ['reference' => (string) session('esign.pending')['reference'], 'decision' => 'sign', 'name' => $this->ah->name]);
+        return $this->assertCleanRedirect($this->post(route('esign.simulator.submit'), ['reference' => (string) session('esign.pending')['reference'], 'decision' => 'sign', 'name' => $this->ah->name]), '#candidate-'.$this->participant($sn)->row->sn);
+    }
+
+    /**
+     * The eSign's redirect goes back to the grievance page with a single-line Location.
+     * A RedirectResponse cast to a string carries its headers' newlines, which the test
+     * client accepts but PHP's header() refuses on a real server (UAT 2026-11-25).
+     *
+     * @param  TestResponse<Response>  $response
+     * @return TestResponse<Response>
+     */
+    private function assertCleanRedirect(TestResponse $response, string $anchor): TestResponse
+    {
+        $location = (string) $response->headers->get('Location');
+        $this->assertDoesNotMatchRegularExpression('/[\x00-\x1F\x7F]/', $location, 'The eSign redirect carries a control character: '.$location);
+        $this->assertStringNotContainsString('HTTP/', $location, 'The eSign redirect carries a response: '.$location);
+        $this->assertSame(route('dpc-proposals.grievances.index', $this->proposal).$anchor, $location);
+
+        return $response;
     }
 
     /** The AO sends a candidate's corrections back to the AH (2026-11-24). */

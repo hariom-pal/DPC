@@ -28,7 +28,7 @@ class ApproveGrievanceCorrections implements SignedAction
         $proposal = DpcProposal::query()->where('uuid', (string) $payload['proposal'])->firstOrFail();
         $participant = VerificationParticipant::query()->where('uuid', (string) $payload['participant'])->firstOrFail();
         abort_unless($participant->cycle->dpc_proposal_id === $proposal->id, 404);
-        $back = redirect()->route('dpc-proposals.grievances.index', $proposal).'#candidate-'.$participant->row->sn;
+        $back = route('dpc-proposals.grievances.index', $proposal).'#candidate-'.$participant->row->sn;
 
         try {
             $count = $this->reviews->approveCandidate($participant, (string) $payload['remark'], $signer, $request);

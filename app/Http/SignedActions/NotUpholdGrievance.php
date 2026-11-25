@@ -27,7 +27,7 @@ class NotUpholdGrievance implements SignedAction
         $proposal = DpcProposal::query()->where('uuid', (string) $payload['proposal'])->firstOrFail();
         $grievance = Grievance::query()->where('uuid', (string) $payload['grievance'])->firstOrFail();
         abort_unless($grievance->cycle->dpc_proposal_id === $proposal->id, 404);
-        $back = redirect()->route('dpc-proposals.grievances.index', $proposal).'#grievance-'.$grievance->uuid;
+        $back = route('dpc-proposals.grievances.index', $proposal).'#grievance-'.$grievance->uuid;
 
         try {
             $this->reviews->notUphold($grievance, (string) $payload['reason'], $signer, $request);
