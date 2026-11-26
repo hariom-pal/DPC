@@ -57,6 +57,9 @@
 
             @include('proceedings.sitting._decision')
 
+            {{-- 2026-11-25: the result documents, eSigned by every member. --}}
+            @include('proceedings.sitting._result-documents')
+
             {{-- 2026-11-25: each member agrees once with the whole DPC, then disagrees on any candidate. --}}
             @if ($memberCount > 0 && in_array(auth()->id(), $meetings->requiredMemberIds($proposal), true))
                 <div class="card border-0 shadow-sm mb-3" id="member-agree">

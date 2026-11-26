@@ -11,11 +11,13 @@ use App\Domain\Proceeding\Services\CalculationGate;
 use App\Domain\Proceeding\Services\HoldService;
 use App\Domain\Proceeding\Services\ProceedingCalculationService;
 use App\Domain\Proceeding\Services\ResultApprovalService;
+use App\Domain\Proceeding\Services\ResultDocumentService;
 use App\Domain\Shared\Workflow\WorkflowException;
 use App\Http\Controllers\Controller;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Throwable;
 
 /**
  * CALCULATE, the result, APPROVE BY CGPSC and CANCEL DPC (PPT S33–S34) —
@@ -104,9 +106,21 @@ class ProceedingResultController extends Controller
             return back()->withErrors(['result' => $e->getMessage()]);
         }
 
-        return redirect()
+        // The result documents are made as the result is declared (2026-11-25), after
+        // the approval has committed: a failure here never undoes the approval, and the
+        // DPC Chairman can make them again from the sitting.
+        $redirect = redirect()
             ->route('cgpsc.proceedings.result', $proceeding)
             ->with('status', 'The result has been approved by CGPSC. It is now a permanent record.');
+
+        try {
+            app(ResultDocumentService::class)->generate($proceeding->fresh(), $request->user());
+        } catch (Throwable $e) {
+            report($e);
+            $redirect->withErrors(['result_documents' => __('proceeding.result_documents.generation_failed')]);
+        }
+
+        return $redirect;
     }
 
     /**

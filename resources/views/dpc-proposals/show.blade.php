@@ -111,6 +111,8 @@
 
             @include('dpc-proposals._next-process')
             @include('dpc-proposals._committee-return')
+            {{-- 2026-11-25: the signed result documents, for the department once final. --}}
+            @include('proceedings.sitting._result-documents')
             @include('dpc-proposals.sections._candidate-verification')
 
             {{-- MoM of 16 November 2026, point 9: the AH and every authority after. --}}

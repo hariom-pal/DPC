@@ -87,6 +87,7 @@ use App\Http\Controllers\HealthController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PreDpc\PreDpcProposalController;
 use App\Http\Controllers\Proceeding\CommitteeSittingController;
+use App\Http\Controllers\Proceeding\ResultDocumentController;
 use App\Http\Controllers\ReportController;
 use App\Http\Middleware\EnsureAccountReady;
 use App\Http\Middleware\EnsureCanWorkAnAllotment;
@@ -313,6 +314,15 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
         Route::get('/cgpsc/proceedings/{proceeding}/sealed-covers', [SealedCoverController::class, 'index'])->name('cgpsc.proceedings.sealed-covers');
         Route::post('/cgpsc/proceedings/{proceeding}/sealed-covers', [SealedCoverController::class, 'open'])->name('cgpsc.proceedings.sealed-covers.open');
         Route::get('/cgpsc/proceedings/{proceeding}/sealed-covers/{opening}/document', [SealedCoverController::class, 'document'])->name('cgpsc.proceedings.sealed-covers.document');
+
+        /*
+         | The result documents (2026-11-25): the Hindi proceedings and each sealed-cover
+         | recommendation, eSigned by every committee member. Outside the `/cgpsc` group
+         | for the same reason: ResultDocumentService decides who reads and who signs.
+         */
+        Route::get('/result/{proceeding}/documents/{document}', [ResultDocumentController::class, 'show'])->name('result-documents.show');
+        Route::post('/result/{proceeding}/documents/sign', [ResultDocumentController::class, 'sign'])->middleware('throttle:10,1')->name('result-documents.sign');
+        Route::post('/result/{proceeding}/documents/generate', [ResultDocumentController::class, 'generate'])->middleware('throttle:5,1')->name('result-documents.generate');
 
         /*
          | CALCULATE and calculation history (M5 Phase 4), the DPC Committee's alone

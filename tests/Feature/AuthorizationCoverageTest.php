@@ -70,6 +70,10 @@ class AuthorizationCoverageTest extends TestCase
             .'an account on none sees an empty list rather than a 403.',
         'sitting.show' => 'Guarded by CommitteeSittingService::isSeatedOn() on this proposal.',
         'sitting.decision' => 'Guarded by DpcProposalPolicy::committeeDecide(): a serving seat on this DPC\'s committee, the DPC with the committee.',
+        // 2026-11-25: the result documents — ResultDocumentService decides who reads and signs.
+        'result-documents.show' => 'ResultDocumentService::mayView(): the committee that sat and the Commission, the department once final; the document must belong to the proceeding or it is a 404.',
+        'result-documents.sign' => 'ResultDocumentService::mayView() and signRefusal(): only a member of the committee that sat, once, before final.',
+        'result-documents.generate' => 'The member who conducted the sitting or the DPC Chairman, after the result is approved.',
         'sitting.return' => 'Guarded by DpcProposalPolicy::committeeReturn(): the DPC Chairman of an accepted DPC, until its result is approved (2026-11-25).',
         // The eligibility calculation, the DPC Committee's alone (2026-11-16).
         'dpc-proposals.calculate' => 'Guarded by DpcProposalPolicy::viewCalculation(): a serving seat on this DPC\'s committee.',
