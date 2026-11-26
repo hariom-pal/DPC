@@ -468,7 +468,6 @@ return [
         'remarks_required' => 'Give the remark: it says why the DPC is rejected.',
         'chairman_help' => 'As DPC Chairman, accept the DPC to hold it on its scheduled day, or reject it with your remark; a rejected DPC goes to the Secretary.',
         'chairman_choices' => ['agreed' => 'Accept the DPC', 'returned' => 'Reject the DPC'],
-        'ok_first' => 'Record OK on every candidate before you agree: :count candidate(s) still await your OK.',
         'heading' => 'Committee decision',
         'choices' => ['agreed' => 'Accept', 'returned' => 'Reject'],
         'sections' => [
@@ -493,6 +492,10 @@ return [
         'resubmit_confirm' => 'Resubmit the corrected DPC to the AH? It then goes to the Secretary and back to the DPC Committee.',
         'resubmitted' => 'The DPC has been resubmitted to the AH.',
         'resubmitted_on' => 'Corrected and resubmitted :date',
+        'return_help' => 'Send this DPC back to the Secretary with your remark — for example on a member\'s Disagree. It then goes as a rejected DPC: the Secretary marks the candidates and sections, the AH opens them, the AO corrects, and it comes back to the committee.',
+        'return_submit' => 'Send back to the Secretary',
+        'return_confirm' => 'Send this DPC back to the Secretary? Every member\'s Agree is to be given again when it comes back.',
+        'returned_to_secretary' => 'The DPC has been sent back to the Secretary.',
     ],
     'stage' => [
         'ao' => ['label' => 'Authorized Officer', 'action' => 'Prepare the DPC, complete every employee\'s details and submit it'],
@@ -1534,9 +1537,9 @@ return [
     'calculation_gate' => [
         'awaiting_sitting' => 'Calculate will be available at the sitting: :when.',
         'no_sitting' => 'Calculate will be available at the sitting, once it is scheduled.',
-        'awaiting_accept' => 'Calculate will be available after the DPC Chairman has accepted the DPC and every member has recorded OK on every candidate.',
-        'awaiting_ok' => 'Calculate will be available after every committee member has recorded OK on every candidate and then Agree.',
-        'state_ok_pending' => 'OK on candidates pending',
+        'awaiting_accept' => 'Calculate will be available after the DPC Chairman has accepted the DPC and every member has recorded Agree.',
+        'awaiting_ok' => 'Calculate will be available after every committee member has recorded Agree on the DPC.',
+        'state_ok_pending' => 'Agree pending',
         'wrong_stage' => 'Calculate is available only while the DPC is with the committee (approved, with no return open).',
         'proceeding_closed' => 'The proceeding has concluded; its approved result stands and is not calculated again.',
         'missing_account' => 'Calculate will be available after every committee member has a login account and has recorded Agree. A member has no login account yet: ask the Administrator to create it.',

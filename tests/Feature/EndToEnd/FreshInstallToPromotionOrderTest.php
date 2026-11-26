@@ -470,7 +470,7 @@ class FreshInstallToPromotionOrderTest extends TestCase
             $this->ok($this->actingAs($member)->post(route('cgpsc.proceedings.open', $proposal)));
             $proceeding = DpcProceeding::query()->sole();
             // The DPC Chairman accepts the DPC; on the sitting's day and hour every
-            // member joins and records OK on every candidate (2026-11-18).
+            // member joins and agrees with the DPC (2026-11-18; one Agree, 2026-11-25).
             $member->forceFill(['must_change_password' => false, 'email_verified_at' => now()])->save();
             $this->ok($this->actingAs($member)->post(route('sitting.decision', $proposal), ['decision' => 'agreed']));
             // The DPC Chairman opens the DPC to the committee members (2026-11-24).
@@ -478,9 +478,8 @@ class FreshInstallToPromotionOrderTest extends TestCase
             $this->travelTo(app(CommitteeSittingService::class)->schedule($proposal)->scheduledFor());
             foreach (DpcCommitteeMember::query()->where('dpc_proposal_id', $proposal->id)->serving()->where('capacity', 'member')->whereNotNull('user_id')->with('user')->get() as $seat) {
                 $seat->user->forceFill(['must_change_password' => false, 'email_verified_at' => now()])->save();
-                foreach (DpcEvaluationRow::query()->where('dpc_proposal_id', $proposal->id)->get() as $okRow) {
-                    $this->ok($this->actingAs($seat->user)->post(route('sitting.candidate.ok', [$proposal, $okRow])));
-                }
+                // One Agree on the whole DPC (2026-11-25).
+                $this->ok($this->actingAs($seat->user)->post(route('sitting.agree', $proposal)));
             }
             $this->ok($this->actingAs($member)->post(route('cgpsc.proceedings.calculate', $proceeding)));
             $this->ok($this->actingAs($member)->post(route('cgpsc.proceedings.approve', $proceeding), ['promotion_as_on_year' => 2026]));

@@ -3,7 +3,7 @@
 @section('title', $row->name)
 
 @section('content')
-    {{-- One candidate's whole record, and each member's OK on it (2026-11-18: a
+    {{-- One candidate's whole record, and each member's Agree on it (2026-11-18: a
          candidate is never called before a DPC). **No marks**: the marking scheme is
          not settled, and a score box invented now would be inventing it. --}}
     @php($mine = $reviews->firstWhere('user_id', auth()->id()))
@@ -22,28 +22,25 @@
                 </div>
             </div>
 
-            {{-- This member's OK, and every member's so far. --}}
+            {{-- This member's Agree or Disagree on this candidate (2026-11-25), and — for the
+                 DPC Chairman alone — every member's Disagree with its remark. --}}
             <div class="card border-0 shadow-sm mb-3" id="candidate-ok">
-                <div class="card-body d-flex flex-wrap gap-2 align-items-center">
-                    @if ($mine)
-                        <span class="badge text-bg-success fs-6">{{ __('proceeding.sitting.ok_yours') }}</span>
-                        <span class="small text-body-secondary">{{ $mine->reviewed_at->format('d-m-Y H:i') }}</span>
-                    @elseif ($okRefusal = app(\App\Domain\Proceeding\Services\SittingMeetingService::class)->okRefusal($proposal))
-                        {{-- After the DPC Chairman's Accept, at the sitting itself (2026-11-18). --}}
-                        <span class="small text-body-secondary" id="ok-unavailable">{{ $okRefusal }}</span>
+                <div class="card-body">
+                    @error('ok')<div class="text-danger small mb-1">{{ $message }}</div>@enderror
+                    @error('remarks')<div class="text-danger small mb-1">{{ $message }}</div>@enderror
+                    @if ($mine === null && $agreeRefusal)
+                        <span class="small text-body-secondary" id="ok-unavailable">{{ $agreeRefusal }}</span>
+                    @elseif ($mine === null)
+                        <span class="small text-body-secondary">{{ __('proceeding.sitting.agree_on_list') }}</span>
+                        <a href="{{ route('sitting.show', $proposal) }}#member-agree" class="small">{{ __('proceeding.sitting.candidates') }}</a>
                     @else
-                        <form method="POST" action="{{ route('sitting.candidate.ok', [$proposal, $row]) }}" class="m-0">
-                            @csrf
-                            <button class="btn btn-success" id="record-ok">{{ __('proceeding.sitting.ok') }}</button>
-                        </form>
-                        <span class="small text-body-secondary">{{ __('proceeding.sitting.ok_hint') }}</span>
+                        @include('proceedings.sitting._agree-state', ['review' => $mine, 'compact' => false])
                     @endif
-                    @error('ok')<div class="w-100 text-danger small">{{ $message }}</div>@enderror
-                    @if ($reviews->isNotEmpty())
-                        <div class="w-100 small text-body-secondary">
-                            {{ __('proceeding.sitting.ok_by') }}:
-                            @foreach ($reviews as $review)
-                                <span class="badge text-bg-light border">{{ $review->user?->name ?? '—' }}</span>
+                    @if ($disagreements->isNotEmpty())
+                        <div class="mt-2" id="candidate-disagreements">
+                            <div class="small fw-semibold">{{ __('proceeding.sitting.disagreements_heading') }}</div>
+                            @foreach ($disagreements as $disagreement)
+                                <div class="small text-danger" data-disagreement="{{ $row->id }}"><strong>{{ $disagreement->user?->name ?? '—' }}</strong> ({{ $disagreement->disagreed_at->format('d-m-Y H:i') }}): <span class="text-break" style="white-space: pre-line">{{ $disagreement->disagree_remarks }}</span></div>
                             @endforeach
                         </div>
                     @endif

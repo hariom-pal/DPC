@@ -27,6 +27,20 @@
             </form>
         @endcan
 
+        {{-- The DPC Chairman sends the accepted DPC back to the Secretary, say on a member's
+             Disagree, until its result is approved (2026-11-25). --}}
+        @can('committeeReturn', $proposal)
+            <form method="POST" action="{{ route('sitting.return', $proposal) }}" class="border border-danger rounded p-2 mb-3" id="chairman-return"
+                  onsubmit="return confirm(@js(__('dpc.committee_decision.return_confirm')))">
+                @csrf
+                <p class="small text-muted mb-1">{{ __('dpc.committee_decision.return_help') }}</p>
+                <label class="form-label small" for="return-remarks">{{ __('dpc.committee_decision.remarks') }}</label>
+                <textarea class="form-control form-control-sm @error('return_remarks') is-invalid @enderror" id="return-remarks" name="return_remarks" rows="3" maxlength="20000" required>{{ old('return_remarks') }}</textarea>
+                @error('return_remarks')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                <button class="btn btn-danger btn-sm mt-2">{{ __('dpc.committee_decision.return_submit') }}</button>
+            </form>
+        @endcan
+
         @if ($decisions->isEmpty())
             <p class="small text-muted mb-0">{{ __('dpc.committee_decision.none') }}</p>
         @else

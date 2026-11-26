@@ -9,6 +9,7 @@ use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Proceeding\Services\ChairmanSittingEdit;
 use App\Domain\Proceeding\Services\CommitteeSittingService;
 use App\Domain\Proceeding\Services\MemberViewService;
+use App\Domain\Proceeding\Services\SealedCoverService;
 use App\Domain\Proceeding\Services\SittingMeetingService;
 use App\Domain\Shared\Workflow\WorkflowException;
 use App\Http\Controllers\Controller;
@@ -66,6 +67,12 @@ class CommitteeSittingController extends Controller
             'meeting' => app(SittingMeetingService::class)->current($dpcProposal),
             'reviews' => app(SittingMeetingService::class)->reviews($dpcProposal),
             'memberCount' => app(SittingMeetingService::class)->memberCount($dpcProposal),
+            // What this member's one Agree would still cover, and whether they may give it now (2026-11-25).
+            'awaitingAgree' => app(SittingMeetingService::class)->candidatesAwaitingOk($dpcProposal, (int) $request->user()->id),
+            'agreeRefusal' => app(SittingMeetingService::class)->okRefusal($dpcProposal),
+            // The Disagrees and their remarks: the DPC Chairman's alone to read.
+            'disagreements' => app(SealedCoverService::class)->isDpcChairman($dpcProposal, $request->user())
+                ? app(SittingMeetingService::class)->disagreements($dpcProposal) : collect(),
         ]);
     }
 
@@ -99,8 +106,12 @@ class CommitteeSittingController extends Controller
             'result' => $this->sittings->resultFor($dpcProposal, $row),
 
             'schedule' => $this->sittings->schedule($dpcProposal),
-            // Each member's OK on this record (2026-11-18).
+            // Each member's Agree on this record (2026-11-18), and the Disagrees with their
+            // remarks — the DPC Chairman's alone to read (2026-11-25).
             'reviews' => app(SittingMeetingService::class)->reviews($dpcProposal)->get($row->id, collect()),
+            'agreeRefusal' => app(SittingMeetingService::class)->okRefusal($dpcProposal),
+            'disagreements' => app(SealedCoverService::class)->isDpcChairman($dpcProposal, $request->user())
+                ? app(SittingMeetingService::class)->disagreements($dpcProposal)->get($row->id, collect()) : collect(),
             // The DPC Chairman's grading changes, with their reasons (2026-11-22).
             'gradeChanges' => app(ChairmanSittingEdit::class)->gradeChanges($row->setRelation('proposal', $dpcProposal)),
         ]);
@@ -164,20 +175,42 @@ class CommitteeSittingController extends Controller
     }
 
     /**
-     * This member's OK on a candidate's record (2026-11-18).
+     * This member agrees with the whole DPC, once (2026-11-25).
      */
-    public function review(Request $request, DpcProposal $dpcProposal, DpcEvaluationRow $row): RedirectResponse
+    public function agree(Request $request, DpcProposal $dpcProposal): RedirectResponse
     {
         $this->assertSeated($request, $dpcProposal);
-        $this->assertBelongs($dpcProposal, $row);
 
         try {
-            app(SittingMeetingService::class)->review($dpcProposal, $row, $request->user());
+            $count = app(SittingMeetingService::class)->agree($dpcProposal, $request->user());
         } catch (WorkflowException $e) {
             return back()->withErrors(['ok' => $e->getMessage()]);
         }
 
-        return back()->with('status', __('proceeding.sitting.ok_recorded', ['name' => $row->name]));
+        return back()->with('status', __('proceeding.sitting.agree_recorded', ['count' => $count]));
+    }
+
+    /**
+     * This member disagrees on one candidate, with a remark for the DPC Chairman
+     * (2026-11-25). The remark has no length limit, by instruction.
+     */
+    public function disagree(Request $request, DpcProposal $dpcProposal, DpcEvaluationRow $row): RedirectResponse
+    {
+        $this->assertSeated($request, $dpcProposal);
+        $this->assertBelongs($dpcProposal, $row);
+
+        $data = $request->validate(
+            ['remarks' => ['required', 'string']],
+            ['remarks.required' => __('proceeding.sitting.disagree_remark_required')],
+        );
+
+        try {
+            app(SittingMeetingService::class)->disagree($dpcProposal, $row, $request->user(), (string) $data['remarks']);
+        } catch (WorkflowException $e) {
+            return back()->withErrors(['ok' => $e->getMessage()]);
+        }
+
+        return back()->with('status', __('proceeding.sitting.disagree_recorded', ['name' => $row->name]));
     }
 
     private function assertSeated(Request $request, DpcProposal $proposal): void

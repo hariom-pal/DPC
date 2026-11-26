@@ -70,6 +70,7 @@ class AuthorizationCoverageTest extends TestCase
             .'an account on none sees an empty list rather than a 403.',
         'sitting.show' => 'Guarded by CommitteeSittingService::isSeatedOn() on this proposal.',
         'sitting.decision' => 'Guarded by DpcProposalPolicy::committeeDecide(): a serving seat on this DPC\'s committee, the DPC with the committee.',
+        'sitting.return' => 'Guarded by DpcProposalPolicy::committeeReturn(): the DPC Chairman of an accepted DPC, until its result is approved (2026-11-25).',
         // The eligibility calculation, the DPC Committee's alone (2026-11-16).
         'dpc-proposals.calculate' => 'Guarded by DpcProposalPolicy::viewCalculation(): a serving seat on this DPC\'s committee.',
         'dpc-proposals.calculations.index' => 'As above.',
@@ -96,9 +97,10 @@ class AuthorizationCoverageTest extends TestCase
         'dpc-proposals.record-gaps.destroy' => 'Guarded by DpcProposalPolicy::updateEmployeeSection() (which admits the DPC Chairman at the sitting via editAtSitting(), 2026-11-18); the row must belong to the proposal.',
         'dpc-proposals.originals.download' => 'As above, and the batch must be a committed list of this proposal or it is a 404.',
         'sitting.candidate' => 'As above, and the row must belong to the proposal or it is a 404.',
-        // 2026-11-18: no candidate is called; each member records an OK, and the DPC
-        // Chairman starts the meeting.
-        'sitting.candidate.ok' => 'As above, and the row must belong to the proposal or it is a 404.',
+        // 2026-11-18: no candidate is called; the DPC Chairman starts the meeting. Each
+        // member agrees once with the DPC, then disagrees on a candidate (2026-11-25).
+        'sitting.agree' => 'As above (a seat on the committee); SittingMeetingService takes it only after the DPC Chairman\'s Accept, at the sitting.',
+        'sitting.candidate.disagree' => 'As above, and the row must belong to the proposal or it is a 404; only on the member\'s own Agree.',
         'sitting.meeting' => 'As above (a seat on the committee); sent on to the room only once started.',
         'sitting.meeting.initiate' => 'As above, and SittingMeetingService refuses anybody but the DPC Chairman.',
         'sitting.member-view.activate' => 'As above, and MemberViewService refuses anybody but the DPC Chairman, while the DPC is still closed to the members.',

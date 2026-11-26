@@ -23,15 +23,16 @@ use Illuminate\Support\Str;
 use Throwable;
 
 /**
- * The DPC sitting as a meeting, and each member's OK on each candidate (business
- * decisions of 2026-11-18).
+ * The DPC sitting as a meeting, and each member's Agree (business decisions of
+ * 2026-11-18 and 2026-11-25).
  *
  * Candidates are never called before a DPC. The DPC Chairman starts the sitting's
  * meeting — the portal makes the room on the Commission's meeting server — and every
- * other member is sent a link to join it through the portal. Each member opens each
- * candidate's record and records an OK on it; a member agrees only once every
- * candidate carries their OK, and an OK stops counting when the record it was given
- * on changes (a correction at the sitting, or a return resubmitted).
+ * other member is sent a link to join it through the portal. Each member agrees once
+ * with the whole DPC, which is recorded against every candidate, and may then disagree
+ * on any candidate with a remark for the DPC Chairman. An Agree stops counting when the
+ * record it was given on changes (a correction at the sitting, or a return
+ * resubmitted), and is given again on what changed.
  *
  * The CGPSC Chairman's own seat is not among the members whose OK and Agree are
  * awaited: that office allots the DPC, and the allottee presides.
@@ -75,7 +76,7 @@ final class SittingMeetingService
         return $this->sittings->callWindowIsOpen($proposal);
     }
 
-    /** Why a member cannot record an OK now, or null when they can. */
+    /** Why a member cannot agree or disagree now, or null when they can. */
     public function okRefusal(DpcProposal $proposal): ?string
     {
         if (! app(CalculationGate::class)->chairmanAccepted($proposal)) {
@@ -137,7 +138,7 @@ final class SittingMeetingService
         return $meeting;
     }
 
-    // --------------------------------------------------------------------- OK
+    // ------------------------------------------------------ Agree and Disagree
 
     /**
      * The members whose OK and Agree are awaited: every serving seat with a login,
@@ -160,43 +161,109 @@ final class SittingMeetingService
     }
 
     /**
-     * Record this member's OK on a candidate's record — once: a second press while
-     * one counts adds nothing.
+     * This member agrees with the whole DPC (2026-11-25): one Agree covers every
+     * candidate still awaiting theirs — all of them the first time; after a record
+     * changed (the DPC Chairman's edit, or a resubmission), only those.
+     *
+     * @return int how many candidates the Agree covered
+     *
+     * @throws WorkflowException
      */
-    public function review(DpcProposal $proposal, DpcEvaluationRow $row, User $member): DpcCandidateReview
+    public function agree(DpcProposal $proposal, User $member): int
     {
         // After the DPC Chairman accepted it, at the sitting itself (2026-11-18).
         if (($refusal = $this->okRefusal($proposal)) !== null) {
             throw new WorkflowException($refusal);
         }
 
-        return DB::transaction(function () use ($proposal, $row, $member): DpcCandidateReview {
-            // Serialised on the candidate, so two presses at once make one OK.
+        return DB::transaction(function () use ($proposal, $member): int {
+            // Serialised on the DPC, so two presses at once make one Agree.
+            DpcProposal::query()->whereKey($proposal->id)->lockForUpdate()->first();
+
+            $awaiting = $this->candidatesAwaitingOk($proposal, $member->id);
+            if ($awaiting === []) {
+                throw new WorkflowException((string) __('proceeding.sitting.already_agreed'));
+            }
+
+            $now = now();
+            foreach ($awaiting as $rowId) {
+                DpcCandidateReview::query()->create([
+                    'dpc_proposal_id' => $proposal->id,
+                    'dpc_evaluation_row_id' => $rowId,
+                    'user_id' => $member->id,
+                    'reviewed_at' => $now,
+                ]);
+            }
+
+            $this->timeline->record('dpc_sitting.agreed', $proposal, sprintf('%s agreed with the DPC (%d candidate(s))', $member->name, count($awaiting)), [
+                'dpc_evaluation_row_ids' => $awaiting,
+            ], $member);
+
+            return count($awaiting);
+        });
+    }
+
+    /**
+     * This member disagrees on one candidate, with a remark for the DPC Chairman
+     * (2026-11-25): only on a candidate their Agree covers, once, and never withdrawn.
+     * The remark has no length limit, by instruction; it is kept off the timeline,
+     * which others read — the DPC Chairman reads it on the sitting.
+     *
+     * @throws WorkflowException
+     */
+    public function disagree(DpcProposal $proposal, DpcEvaluationRow $row, User $member, string $remark): DpcCandidateReview
+    {
+        if (($refusal = $this->okRefusal($proposal)) !== null) {
+            throw new WorkflowException($refusal);
+        }
+
+        $remark = trim($remark);
+        if ($remark === '') {
+            throw new WorkflowException((string) __('proceeding.sitting.disagree_remark_required'));
+        }
+
+        return DB::transaction(function () use ($proposal, $row, $member, $remark): DpcCandidateReview {
             DpcEvaluationRow::query()->whereKey($row->id)->lockForUpdate()->first();
 
-            $existing = DpcCandidateReview::query()
+            $review = DpcCandidateReview::query()
                 ->where('dpc_evaluation_row_id', $row->id)
                 ->where('user_id', $member->id)
                 ->whereNull('invalidated_at')
                 ->first();
 
-            if ($existing !== null) {
-                return $existing;
+            if ($review === null) {
+                throw new WorkflowException((string) __('proceeding.sitting.agree_first'));
+            }
+            if ($review->disagreed_at !== null) {
+                throw new WorkflowException((string) __('proceeding.sitting.already_disagreed'));
             }
 
-            $review = DpcCandidateReview::query()->create([
-                'dpc_proposal_id' => $proposal->id,
-                'dpc_evaluation_row_id' => $row->id,
-                'user_id' => $member->id,
-                'reviewed_at' => now(),
-            ]);
+            $review->forceFill(['disagreed_at' => now(), 'disagree_remarks' => $remark])->save();
 
-            $this->timeline->record('dpc_sitting.candidate_ok', $proposal, sprintf('%s recorded OK on %s', $member->name, $row->name), [
+            $this->timeline->record('dpc_sitting.candidate_disagreed', $proposal, sprintf('%s disagreed on %s', $member->name, $row->name), [
                 'dpc_evaluation_row_id' => $row->id,
             ], $member);
 
             return $review;
         });
+    }
+
+    /**
+     * Every Disagree that counts, by candidate, for the DPC Chairman (2026-11-25).
+     *
+     * @return Collection<int, Collection<int, DpcCandidateReview>>
+     */
+    public function disagreements(DpcProposal $proposal): Collection
+    {
+        return DpcCandidateReview::query()
+            ->where('dpc_proposal_id', $proposal->id)
+            ->whereNull('invalidated_at')
+            ->whereNotNull('disagreed_at')
+            ->with('user')
+            ->orderBy('disagreed_at')
+            ->get()
+            ->toBase()
+            ->groupBy('dpc_evaluation_row_id');
     }
 
     /**
@@ -254,7 +321,7 @@ final class SittingMeetingService
             ->update(['invalidated_at' => now(), 'invalidation_reason' => $reason]);
 
         if ($count > 0 && $row->proposal !== null) {
-            $this->timeline->record('dpc_sitting.candidate_ok_invalidated', $row->proposal, sprintf('OK on %s to be given again: the record changed (%s)', $row->name, $reason), [
+            $this->timeline->record('dpc_sitting.candidate_ok_invalidated', $row->proposal, sprintf('Agree on %s to be given again: the record changed (%s)', $row->name, $reason), [
                 'dpc_evaluation_row_id' => $row->id, 'reason' => $reason, 'count' => $count,
             ], $actor);
         }
@@ -272,7 +339,7 @@ final class SittingMeetingService
             ->update(['invalidated_at' => now(), 'invalidation_reason' => $reason]);
 
         if ($count > 0) {
-            $this->timeline->record('dpc_sitting.candidate_ok_invalidated', $proposal, sprintf('Every OK to be given again: %s', $reason), [
+            $this->timeline->record('dpc_sitting.candidate_ok_invalidated', $proposal, sprintf('Every Agree to be given again: %s', $reason), [
                 'reason' => $reason, 'count' => $count,
             ], $actor);
         }

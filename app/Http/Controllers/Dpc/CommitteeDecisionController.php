@@ -42,6 +42,28 @@ class CommitteeDecisionController extends Controller
         return redirect()->route('sitting.show', $dpcProposal)->with('status', __('dpc.committee_decision.recorded.'.$data['decision']));
     }
 
+    /**
+     * The DPC Chairman sends the accepted DPC back to the Secretary, with a remark
+     * (2026-11-25): then as any rejected DPC — Secretary, AH, AO, and back.
+     */
+    public function returnToSecretary(Request $request, DpcProposal $dpcProposal): RedirectResponse
+    {
+        $this->authorize('committeeReturn', $dpcProposal);
+
+        $data = $request->validate(
+            ['return_remarks' => ['required', 'string', 'max:20000']],
+            ['return_remarks.required' => __('dpc.committee_decision.remarks_required')],
+        );
+
+        try {
+            $this->decisions->decide($dpcProposal, $request->user(), DpcCommitteeDecision::RETURNED, (string) $data['return_remarks'], [], $request);
+        } catch (WorkflowException $e) {
+            return back()->withInput()->withErrors(['return_remarks' => $e->getMessage()]);
+        }
+
+        return redirect()->route('sitting.show', $dpcProposal)->with('status', __('dpc.committee_decision.returned_to_secretary'));
+    }
+
     public function resubmit(Request $request, DpcProposal $dpcProposal): RedirectResponse
     {
         $this->authorize('committeeResubmit', $dpcProposal);

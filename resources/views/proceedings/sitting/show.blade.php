@@ -9,6 +9,7 @@
 
             @error('meeting')<div class="alert alert-danger py-2">{{ $message }}</div>@enderror
             @error('ok')<div class="alert alert-danger py-2">{{ $message }}</div>@enderror
+            @error('remarks')<div class="alert alert-danger py-2">{{ $message }}</div>@enderror
             @error('member_view')<div class="alert alert-danger py-2">{{ $message }}</div>@enderror
 
             <h1 class="h4 mb-1">{{ __('proceeding.sitting.candidates') }}</h1>
@@ -56,6 +57,29 @@
 
             @include('proceedings.sitting._decision')
 
+            {{-- 2026-11-25: each member agrees once with the whole DPC, then disagrees on any candidate. --}}
+            @if ($memberCount > 0 && in_array(auth()->id(), $meetings->requiredMemberIds($proposal), true))
+                <div class="card border-0 shadow-sm mb-3" id="member-agree">
+                    <div class="card-body d-flex flex-wrap gap-2 align-items-center">
+                        <h2 class="h6 w-100 mb-1">{{ __('proceeding.sitting.agree_heading') }}</h2>
+                        @if ($awaitingAgree === [])
+                            <span class="badge text-bg-success fs-6" id="agreed-badge">{{ __('proceeding.sitting.agreed_yours') }}</span>
+                            <span class="small text-body-secondary">{{ __('proceeding.sitting.disagree_hint') }}</span>
+                        @elseif ($agreeRefusal)
+                            <span class="small text-body-secondary" id="agree-unavailable">{{ $agreeRefusal }}</span>
+                        @else
+                            <form method="POST" action="{{ route('sitting.agree', $proposal) }}" class="m-0">
+                                @csrf
+                                <button class="btn btn-success" id="record-agree">{{ __('proceeding.sitting.agree') }}</button>
+                            </form>
+                            <span class="small text-body-secondary">
+                                {{ count($awaitingAgree) < $candidates->count() ? __('proceeding.sitting.agree_changed', ['count' => count($awaitingAgree)]) : __('proceeding.sitting.agree_hint') }}
+                            </span>
+                        @endif
+                    </div>
+                </div>
+            @endif
+
             {{-- The eligibility calculation, the committee's alone (2026-11-16). --}}
             @can('viewCalculation', $proposal)
                 <div class="card border-0 shadow-sm mb-3" id="committee-calculation">
@@ -102,7 +126,7 @@
                                 <th>{{ __('ui.sn') }}</th>
                                 <th>{{ __('ui.name') }}</th>
                                 <th>{{ __('ui.category') }}</th>
-                                <th>{{ __('proceeding.sitting.ok_heading') }}</th>
+                                <th>{{ __('proceeding.sitting.agree_column') }}</th>
                                 <th class="text-end">{{ __('ui.actions') }}</th>
                             </tr>
                         </thead>
@@ -122,12 +146,13 @@
                                         @endif
                                     </td>
                                     <td data-candidate-ok="{{ $row->id }}">
-                                        @if ($rowReviews->contains('user_id', auth()->id()))
-                                            <span class="badge text-bg-success">{{ __('proceeding.sitting.ok_yours') }}</span>
-                                        @else
-                                            <span class="badge text-bg-light border">{{ __('proceeding.sitting.ok_pending') }}</span>
-                                        @endif
-                                        <span class="small text-body-secondary">{{ __('proceeding.sitting.ok_count', ['n' => $rowReviews->count(), 'of' => $memberCount]) }}</span>
+                                        @php($myReview = $rowReviews->firstWhere('user_id', auth()->id()))
+                                        @include('proceedings.sitting._agree-state', ['review' => $myReview, 'compact' => true])
+                                        <div class="small text-body-secondary">{{ __('proceeding.sitting.agreed_count', ['n' => $rowReviews->whereNull('disagreed_at')->count(), 'of' => $memberCount]) }}</div>
+                                        {{-- The Disagrees and their remarks: the DPC Chairman's alone (2026-11-25). --}}
+                                        @foreach ($disagreements->get($row->id, collect()) as $disagreement)
+                                            <div class="small text-danger" data-disagreement="{{ $row->id }}"><strong>{{ $disagreement->user?->name ?? '—' }}:</strong> <span class="text-break" style="white-space: pre-line">{{ $disagreement->disagree_remarks }}</span></div>
+                                        @endforeach
                                     </td>
                                     <td class="text-end">
                                         <a href="{{ route('sitting.candidate', [$proposal, $row]) }}" class="btn btn-outline-primary btn-sm">

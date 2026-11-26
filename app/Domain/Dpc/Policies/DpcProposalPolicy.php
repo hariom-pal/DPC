@@ -11,6 +11,7 @@ use App\Domain\Dpc\Enums\DpcProposalStatus;
 use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\PreDpc\Models\PreDpcProposal;
+use App\Domain\Proceeding\Models\DpcProceeding;
 use App\Domain\Proceeding\Services\CalculationGate;
 use App\Domain\Proceeding\Services\ChairmanSittingEdit;
 use App\Domain\Proceeding\Services\CommitteeSittingService;
@@ -206,6 +207,24 @@ class DpcProposalPolicy
         return $proposal->status === DpcProposalStatus::Approved
             && app(SealedCoverService::class)->isDpcChairman($proposal, $user)
             && ! app(CalculationGate::class)->chairmanAccepted($proposal);
+    }
+
+    /**
+     * Send an accepted DPC back to the Secretary (2026-11-25): its DPC Chairman, at any
+     * time until the result is approved — say on a member's Disagree. It then goes the
+     * way a rejected DPC goes: the Secretary marks, the AH opens, the AO corrects.
+     */
+    public function committeeReturn(User $user, DpcProposal $proposal): bool
+    {
+        if ($proposal->status !== DpcProposalStatus::Approved
+            || ! app(SealedCoverService::class)->isDpcChairman($proposal, $user)
+            || ! app(CalculationGate::class)->chairmanAccepted($proposal)) {
+            return false;
+        }
+
+        $latest = DpcProceeding::query()->where('dpc_proposal_id', $proposal->id)->latest('id')->first();
+
+        return $latest === null || $latest->isOpen();
     }
 
     /**

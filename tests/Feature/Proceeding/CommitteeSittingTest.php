@@ -8,6 +8,7 @@ use App\Domain\Authentication\Models\User;
 use App\Domain\Dpc\Models\DpcCommitteeDecision;
 use App\Domain\Dpc\Models\DpcCommitteeMember;
 use App\Domain\Dpc\Models\DpcEvaluationRow;
+use App\Domain\Dpc\Services\DpcRevisionService;
 use App\Domain\Dpc\Services\DpcStageService;
 use App\Domain\Proceeding\Enums\CorrectableField;
 use App\Domain\Proceeding\Models\DpcCandidateReview;
@@ -271,32 +272,128 @@ final class CommitteeSittingTest extends TestCase
             ->assertSee((string) $orphanYear);
     }
 
-    // ------------------------------------------- the meeting and each member's OK
+    // --------------------------------- the meeting, and each member's Agree / Disagree
 
     /**
-     * 2026-11-18: no candidate is called before a DPC. Each member opens each record
-     * and records an OK on it — once — and the list shows whose OK is in.
+     * 2026-11-25: a member agrees once with the whole DPC — no OK, and no Agree, candidate
+     * by candidate. The one Agree is recorded against every candidate.
      */
-    public function test_each_member_records_an_ok_on_each_candidate(): void
+    public function test_a_member_agrees_once_with_the_whole_dpc(): void
     {
         Carbon::setTestNow($this->atTheSitting());
         $member = $this->seatedMember();
         $row = $this->firstCandidate();
+        $candidates = $this->proposal->evaluationRows()->count();
 
+        // No Agree on a candidate's page: it is on the DPC's list, once.
         $this->actingAs($member)->get(route('sitting.candidate', [$this->proposal, $row]))->assertOk()
-            ->assertSee('id="record-ok"', false)
+            ->assertDontSee('id="record-agree"', false)->assertSee(__('proceeding.sitting.agree_on_list'))
             ->assertDontSee(__('proceeding.sitting.call'))->assertDontSee(__('proceeding.sitting.waiting_badge'));
+        $this->get(route('sitting.show', $this->proposal))->assertOk()->assertSee('id="record-agree"', false)
+            ->assertDontSee('data-disagree-form', false);
 
-        $this->post(route('sitting.candidate.ok', [$this->proposal, $row]))->assertSessionHas('status');
-        $this->post(route('sitting.candidate.ok', [$this->proposal, $row]));
-        $this->assertSame(1, DpcCandidateReview::query()->where('user_id', $member->id)->count(), 'Once per member per candidate.');
+        $this->post(route('sitting.agree', $this->proposal))->assertSessionHas('status', __('proceeding.sitting.agree_recorded', ['count' => $candidates]));
+        $this->assertSame($candidates, DpcCandidateReview::query()->where('user_id', $member->id)->count(), 'One Agree, every candidate.');
+        $this->assertSame([], app(SittingMeetingService::class)->candidatesAwaitingOk($this->proposal, $member->id));
 
-        $this->get(route('sitting.candidate', [$this->proposal, $row]))->assertDontSee('id="record-ok"', false)->assertSee(__('proceeding.sitting.ok_yours'));
-        $this->get(route('sitting.show', $this->proposal))->assertSee('data-candidate-ok="'.$row->id.'"', false)->assertSee(__('proceeding.sitting.ok_yours'));
+        // Again: nothing more.
+        $this->post(route('sitting.agree', $this->proposal))->assertSessionHasErrors(['ok' => __('proceeding.sitting.already_agreed')]);
+        $this->assertSame($candidates, DpcCandidateReview::query()->where('user_id', $member->id)->count());
+
+        // Agreed: the Agree button is gone, and each candidate now offers only Disagree.
+        $this->get(route('sitting.show', $this->proposal))->assertSee('id="agreed-badge"', false)->assertDontSee('id="record-agree"', false)
+            ->assertSee('data-disagree-form="'.$row->id.'"', false)->assertSee('data-my-state="agreed"', false);
+        $this->get(route('sitting.candidate', [$this->proposal, $row]))->assertSee('data-disagree-form="'.$row->id.'"', false);
 
         // Nobody off the committee records one.
-        $this->actingAs(User::factory()->create())->post(route('sitting.candidate.ok', [$this->proposal, $row]))->assertForbidden();
-        $this->assertSame(1, DpcCandidateReview::query()->count());
+        $this->actingAs(User::factory()->create())->post(route('sitting.agree', $this->proposal))->assertForbidden();
+        $this->assertSame($candidates, DpcCandidateReview::query()->count());
+    }
+
+    /**
+     * 2026-11-25: after the Agree, a member disagrees on any candidate with a remark of
+     * any length; once, never withdrawn; read by the DPC Chairman alone. A Disagree does
+     * not hold up Calculate — the DPC Chairman decides what to do with it.
+     */
+    public function test_a_member_disagrees_on_a_candidate_with_a_remark_for_the_dpc_chairman(): void
+    {
+        Carbon::setTestNow($this->atTheSitting());
+        $member = $this->seatedMember();
+        $other = User::factory()->create(['name' => 'Shri Other Member']);
+        $this->seatAccountOnCommittee($this->proposal, $other);
+        $row = $this->firstCandidate();
+        $remark = 'The 2024 CR is not on the file. '.str_repeat('विस्तृत टिप्पणी। ', 800);
+
+        // Not before the Agree.
+        $this->actingAs($member)->post(route('sitting.candidate.disagree', [$this->proposal, $row]), ['remarks' => 'x'])
+            ->assertSessionHasErrors(['ok' => __('proceeding.sitting.agree_first')]);
+
+        $this->post(route('sitting.agree', $this->proposal));
+
+        // The remark is required — and has no length limit.
+        $this->post(route('sitting.candidate.disagree', [$this->proposal, $row]), ['remarks' => '  '])->assertSessionHasErrors('remarks');
+        $this->post(route('sitting.candidate.disagree', [$this->proposal, $row]), ['remarks' => $remark])
+            ->assertSessionHas('status', __('proceeding.sitting.disagree_recorded', ['name' => $row->name]));
+
+        $review = DpcCandidateReview::query()->where('user_id', $member->id)->where('dpc_evaluation_row_id', $row->id)->sole();
+        $this->assertNotNull($review->disagreed_at);
+        $this->assertSame(trim($remark), $review->disagree_remarks, 'Kept whole, however long.');
+
+        // Once, and never withdrawn or changed.
+        $this->post(route('sitting.candidate.disagree', [$this->proposal, $row]), ['remarks' => 'Changed my mind.'])
+            ->assertSessionHasErrors(['ok' => __('proceeding.sitting.already_disagreed')]);
+        $this->assertSame(trim($remark), $review->fresh()->disagree_remarks);
+
+        // The member sees their own; the remark stays off the timeline.
+        $this->get(route('sitting.show', $this->proposal))->assertSee('data-my-state="disagreed"', false)->assertDontSee('data-disagree-form="'.$row->id.'"', false);
+        $this->assertSame(1, ActivityTimeline::query()->where('event', 'dpc_sitting.candidate_disagreed')->count());
+        $this->assertFalse(ActivityTimeline::query()->where('description', 'like', '%2024 CR is not on the file%')->exists());
+
+        // Another member does not read it; the DPC Chairman does, on the list and the record.
+        $this->actingAs($other)->get(route('sitting.show', $this->proposal))->assertDontSee('2024 CR is not on the file')->assertDontSee('data-disagreement=', false);
+        $this->get(route('sitting.candidate', [$this->proposal, $row]))->assertDontSee('2024 CR is not on the file');
+        $this->memberOne->forceFill(['must_change_password' => false, 'email_verified_at' => now()])->save();
+        $this->actingAs($this->memberOne)->get(route('sitting.show', $this->proposal))->assertSee('data-disagreement="'.$row->id.'"', false)->assertSee('2024 CR is not on the file');
+        $this->get(route('sitting.candidate', [$this->proposal, $row]))->assertSee('id="candidate-disagreements"', false)->assertSee('2024 CR is not on the file');
+
+        // A Disagree is not an Agree still awaited: it does not hold up Calculate.
+        $this->assertNotContains($member->id, array_column(app(CalculationGate::class)->pendingMembers($this->proposal->fresh()), 'user_id'));
+    }
+
+    /**
+     * 2026-11-25: the DPC Chairman sends an accepted DPC back to the Secretary, with a
+     * remark, until its result is approved; then it goes as a rejected DPC goes.
+     */
+    public function test_the_dpc_chairman_sends_the_accepted_dpc_back_to_the_secretary(): void
+    {
+        Carbon::setTestNow($this->atTheSitting());
+        $member = $this->seatedMember();
+        $this->memberOne->forceFill(['must_change_password' => false, 'email_verified_at' => now()])->save();
+
+        // A member does not.
+        $this->actingAs($member)->get(route('sitting.show', $this->proposal))->assertDontSee('id="chairman-return"', false);
+        $this->post(route('sitting.return', $this->proposal), ['return_remarks' => 'Back.'])->assertForbidden();
+
+        // Not once the result is approved.
+        $status = $this->proceeding->status->value;
+        DB::table('dpc_proceedings')->where('id', $this->proceeding->id)->update(['status' => 'result_approved']);
+        $this->actingAs($this->memberOne)->get(route('sitting.show', $this->proposal))->assertDontSee('id="chairman-return"', false);
+        $this->post(route('sitting.return', $this->proposal), ['return_remarks' => 'Back.'])->assertForbidden();
+        // A concluded proceeding is never edited through the model; the test restores it directly.
+        DB::table('dpc_proceedings')->where('id', $this->proceeding->id)->update(['status' => $status]);
+
+        // The DPC Chairman, with the remark. (A real DPC opens revision 1 on creation; this fixture does not.)
+        app(DpcRevisionService::class)->open($this->proposal, $this->memberOne);
+        $this->get(route('sitting.show', $this->proposal))->assertSee('id="chairman-return"', false);
+        $this->post(route('sitting.return', $this->proposal), ['return_remarks' => ''])->assertSessionHasErrors('return_remarks');
+        $this->post(route('sitting.return', $this->proposal), ['return_remarks' => 'A member disagrees on US1: the 2024 CR is missing.'])
+            ->assertSessionHas('status', __('dpc.committee_decision.returned_to_secretary'));
+
+        $proposal = $this->proposal->fresh();
+        $this->assertSame('pending_secretary', $proposal->status->value);
+        $this->assertSame('secretary', $proposal->committeeReturnStage());
+        $this->assertSame(1, DpcCommitteeDecision::query()->where('decision', DpcCommitteeDecision::RETURNED)->where('user_id', $this->memberOne->id)->count());
+        $this->assertFalse(app(CalculationGate::class)->chairmanAccepted($proposal), 'Back at the committee, it is accepted afresh.');
     }
 
     /**
@@ -333,11 +430,11 @@ final class CommitteeSittingTest extends TestCase
     }
 
     /**
-     * 2026-11-18: OK is recorded at the sitting itself — the day and hour scheduled —
+     * 2026-11-18: Agree is recorded at the sitting itself — the day and hour scheduled —
      * and only once the DPC Chairman accepted the DPC. The CGPSC Chairman's own seat
      * is not among the members awaited.
      */
-    public function test_ok_waits_for_the_chairmans_accept_and_the_sitting(): void
+    public function test_agree_waits_for_the_chairmans_accept_and_the_sitting(): void
     {
         $member = $this->seatedMember();
         $row = $this->firstCandidate();
@@ -348,31 +445,30 @@ final class CommitteeSittingTest extends TestCase
             $meetings->requiredMemberIds($this->proposal),
         );
 
-        // The day before the sitting: no OK.
+        // The day before the sitting: no Agree.
         Carbon::setTestNow($this->atTheSitting()->copy()->subDay());
-        $this->actingAs($member)->post(route('sitting.candidate.ok', [$this->proposal, $row]))->assertSessionHasErrors('ok');
+        $this->actingAs($member)->post(route('sitting.agree', $this->proposal))->assertSessionHasErrors('ok');
 
         // At the sitting, but not accepted by the DPC Chairman: no OK either.
         Carbon::setTestNow($this->atTheSitting());
         DpcCommitteeDecision::query()->delete();
-        $this->post(route('sitting.candidate.ok', [$this->proposal, $row]))->assertSessionHasErrors(['ok' => __('proceeding.sitting.ok_after_accept')]);
+        $this->post(route('sitting.agree', $this->proposal))->assertSessionHasErrors(['ok' => __('proceeding.sitting.ok_after_accept')]);
+        $this->post(route('sitting.candidate.disagree', [$this->proposal, $row]), ['remarks' => 'x'])->assertSessionHasErrors(['ok' => __('proceeding.sitting.ok_after_accept')]);
         $this->assertSame(0, DpcCandidateReview::query()->count());
 
-        // Accepted: the OK is taken.
+        // Accepted: the Agree is taken.
         DpcCommitteeDecision::query()->create(['dpc_proposal_id' => $this->proposal->id, 'user_id' => $this->memberOne->id, 'member_name' => 'Member One', 'decision' => 'agreed', 'decided_at' => now()]);
-        $this->post(route('sitting.candidate.ok', [$this->proposal, $row]))->assertSessionHasNoErrors();
-        $this->assertSame(1, DpcCandidateReview::query()->count());
+        $this->post(route('sitting.agree', $this->proposal))->assertSessionHasNoErrors();
+        $this->assertSame($this->proposal->evaluationRows()->count(), DpcCandidateReview::query()->count());
     }
 
-    /** A correction at the sitting changes the record: its OKs count no more, and a fresh OK is needed. */
-    public function test_a_correction_asks_for_a_fresh_ok_on_that_candidate_only(): void
+    /** A correction at the sitting changes the record: its Agrees count no more, and a fresh Agree is needed. */
+    public function test_a_correction_asks_for_a_fresh_agree_on_that_candidate_only(): void
     {
         Carbon::setTestNow($this->atTheSitting());
         $member = $this->seatedMember();
         $meetings = app(SittingMeetingService::class);
-        foreach ($this->proposal->evaluationRows as $row) {
-            $meetings->review($this->proposal, $row, $member);
-        }
+        $meetings->agree($this->proposal, $member);
         $this->assertSame([], $meetings->candidatesAwaitingOk($this->proposal, $member->id));
 
         $corrected = $this->firstCandidate();
@@ -384,16 +480,16 @@ final class CommitteeSittingTest extends TestCase
         $this->assertSame([$corrected->id], $meetings->candidatesAwaitingOk($this->proposal, $member->id), 'Only the corrected candidate.');
         $this->assertSame(1, DpcCandidateReview::query()->whereNotNull('invalidated_at')->where('invalidation_reason', 'correction')->count(), 'Kept, not deleted.');
 
-        // Calculate waits for the fresh OK.
+        // Calculate waits for the fresh Agree, which covers that candidate alone.
         $this->assertContains('ok_pending', array_column(app(CalculationGate::class)->pendingMembers($this->proposal->fresh()), 'state'));
-        $meetings->review($this->proposal, $corrected, $member);
+        $this->assertSame(1, $meetings->agree($this->proposal, $member));
         $this->assertSame([], $meetings->candidatesAwaitingOk($this->proposal, $member->id));
     }
 
     /**
      * 2026-11-18: on the day the DPC is held, the DPC Chairman edits any candidate's
      * record themselves — nothing is sent back. Each edit is on the timeline and asks
-     * every member for a fresh OK on that candidate. Nobody else, and not before.
+     * every member for a fresh Agree on that candidate. Nobody else, and not before.
      */
     public function test_the_dpc_chairman_edits_a_record_themselves_at_the_sitting(): void
     {
@@ -412,10 +508,10 @@ final class CommitteeSittingTest extends TestCase
         $this->get(route('dpc-proposals.employees.show', [$this->proposal, $row]))->assertForbidden();
         $this->put(route('dpc-proposals.employees.basic', [$this->proposal, $row]), $basic)->assertForbidden();
 
-        // At the sitting: a member OKs, then the DPC Chairman edits.
+        // At the sitting: a member agrees, then the DPC Chairman edits.
         Carbon::setTestNow($this->atTheSitting());
         $meetings = app(SittingMeetingService::class);
-        $meetings->review($this->proposal, $row, $member);
+        $meetings->agree($this->proposal, $member);
 
         $this->actingAs($this->memberOne)->get(route('sitting.candidate', [$this->proposal, $row]))->assertSee('id="chairman-edit-link"', false);
         $this->get(route('dpc-proposals.employees.show', [$this->proposal, $row]))->assertOk()->assertSee('id="chairman-sitting-edit"', false);
@@ -423,7 +519,7 @@ final class CommitteeSittingTest extends TestCase
 
         $this->assertSame('SR/12/1995', $row->fresh()->dob_order_number);
         $this->assertSame(1, ActivityTimeline::query()->where('event', ChairmanSittingEdit::EVENT)->count());
-        $this->assertSame([$row->id], array_values(array_intersect([$row->id], $meetings->candidatesAwaitingOk($this->proposal, $member->id))), 'The OK on the edited record is to be given again.');
+        $this->assertSame([$row->id], array_values(array_intersect([$row->id], $meetings->candidatesAwaitingOk($this->proposal, $member->id))), 'The Agree on the edited record is to be given again.');
         $this->assertNotNull(app(ChairmanSittingEdit::class)->lastEditAt($this->proposal));
 
         // Any other member: no edit.
@@ -436,18 +532,22 @@ final class CommitteeSittingTest extends TestCase
         $this->actingAs($this->memberOne)->put(route('dpc-proposals.employees.basic', [$this->proposal, $row]), $basic)->assertForbidden();
     }
 
-    /** Two presses at once, or twice: one OK. */
-    public function test_a_repeated_ok_makes_one_record(): void
+    /** Two presses at once, or twice: one Agree on each candidate. */
+    public function test_a_repeated_agree_makes_one_record_a_candidate(): void
     {
         Carbon::setTestNow($this->atTheSitting());
         $member = $this->seatedMember();
-        $row = $this->firstCandidate();
 
-        $this->actingAs($member)->post(route('sitting.candidate.ok', [$this->proposal, $row]));
-        $this->actingAs($member)->post(route('sitting.candidate.ok', [$this->proposal, $row]));
-        app(SittingMeetingService::class)->review($this->proposal, $row, $member);
+        $this->actingAs($member)->post(route('sitting.agree', $this->proposal));
+        $this->actingAs($member)->post(route('sitting.agree', $this->proposal));
 
-        $this->assertSame(1, DpcCandidateReview::query()->where('user_id', $member->id)->count());
+        try {
+            app(SittingMeetingService::class)->agree($this->proposal, $member);
+            $this->fail('A second Agree is refused.');
+        } catch (WorkflowException) {
+        }
+
+        $this->assertSame($this->proposal->evaluationRows()->count(), DpcCandidateReview::query()->where('user_id', $member->id)->count());
     }
 
     /** Outside development a meeting needs the Commission's own server; the public one is never used there. */

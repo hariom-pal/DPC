@@ -347,15 +347,19 @@ Route::middleware(['auth', EnsureAccountReady::class])->group(function (): void 
             Route::get('/', [CommitteeSittingController::class, 'index'])->name('index');
             Route::get('/{dpcProposal}', [CommitteeSittingController::class, 'show'])->name('show');
             Route::get('/{dpcProposal}/candidate/{row}', [CommitteeSittingController::class, 'candidate'])->name('candidate');
-            // Candidates are never called before a DPC (2026-11-18): each member records an
-            // OK on each record, and the DPC Chairman starts the sitting's meeting.
-            Route::post('/{dpcProposal}/candidate/{row}/ok', [CommitteeSittingController::class, 'review'])->name('candidate.ok');
+            // Candidates are never called before a DPC (2026-11-18). Each member agrees once
+            // with the whole DPC, then disagrees on any candidate with a remark for the DPC
+            // Chairman (2026-11-25); the DPC Chairman starts the sitting's meeting.
+            Route::post('/{dpcProposal}/agree', [CommitteeSittingController::class, 'agree'])->name('agree');
+            Route::post('/{dpcProposal}/candidate/{row}/disagree', [CommitteeSittingController::class, 'disagree'])->name('candidate.disagree');
             Route::post('/{dpcProposal}/meeting', [CommitteeSittingController::class, 'initiateMeeting'])->middleware('throttle:10,1')->name('meeting.initiate');
             // The DPC Chairman opens the allotted DPC to the committee members (2026-11-24).
             Route::post('/{dpcProposal}/member-view', [CommitteeSittingController::class, 'activateMemberView'])->middleware('throttle:10,1')->name('member-view.activate');
             Route::get('/{dpcProposal}/meeting', [CommitteeSittingController::class, 'joinMeeting'])->name('meeting');
             // MoM of 16 November 2026, points 2 and 3: a member's decision — agreed, or returned by section.
             Route::post('/{dpcProposal}/decision', [CommitteeDecisionController::class, 'store'])->name('decision');
+            // The DPC Chairman sends an accepted DPC back to the Secretary, until its result is approved (2026-11-25).
+            Route::post('/{dpcProposal}/return', [CommitteeDecisionController::class, 'returnToSecretary'])->name('return');
         });
 
         /*
