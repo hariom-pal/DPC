@@ -70,9 +70,12 @@ final class CalculationGate
         if (! $sittings->callWindowIsOpen($proposal)) {
             $schedule = $sittings->schedule($proposal);
 
-            return $schedule === null
-                ? (string) __('dpc.calculation_gate.no_sitting')
-                : (string) __('dpc.calculation_gate.awaiting_sitting', ['when' => $schedule->scheduledFor()->format('d-m-Y H:i')]);
+            return match (true) {
+                $schedule === null => (string) __('dpc.calculation_gate.no_sitting'),
+                // The sitting's day has gone by: only a new schedule opens it again.
+                $schedule->scheduledFor()->startOfDay()->lt(now()->startOfDay()) => (string) __('dpc.calculation_gate.sitting_passed', ['when' => $schedule->scheduledFor()->format('d-m-Y H:i')]),
+                default => (string) __('dpc.calculation_gate.awaiting_sitting', ['when' => $schedule->scheduledFor()->format('d-m-Y H:i')]),
+            };
         }
 
         $pending = $this->pendingMembers($proposal);
@@ -122,6 +125,12 @@ final class CalculationGate
             if ($state !== null) {
                 $pending[] = ['name' => (string) $seat->name, 'user_id' => $seat->user_id, 'state' => $state];
             }
+        }
+
+        // The DPC Chairman agrees like any member (2026-11-25), seat or none.
+        $chairman = $meetings->unseatedDpcChairman($proposal);
+        if ($chairman !== null && $meetings->candidatesAwaitingOk($proposal, $chairman->id) !== []) {
+            array_unshift($pending, ['name' => $chairman->name, 'user_id' => $chairman->id, 'state' => 'ok_pending']);
         }
 
         return $pending;

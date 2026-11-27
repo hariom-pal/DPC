@@ -532,6 +532,42 @@ final class CommitteeSittingTest extends TestCase
         $this->actingAs($this->memberOne)->put(route('dpc-proposals.employees.basic', [$this->proposal, $row]), $basic)->assertForbidden();
     }
 
+    /**
+     * 2026-11-27: the DPC Chairman — the person the DPC is allotted to, who need hold no
+     * seat — agrees like any member: the Agree card is theirs, and Calculate waits on it.
+     */
+    public function test_a_dpc_chairman_without_a_seat_agrees_like_any_member(): void
+    {
+        Carbon::setTestNow($this->atTheSitting());
+        DpcCommitteeMember::query()->where('dpc_proposal_id', $this->proposal->id)->where('user_id', $this->memberOne->id)->update(['user_id' => null]);
+        $this->memberOne->forceFill(['must_change_password' => false, 'email_verified_at' => now()])->save();
+        $meetings = app(SittingMeetingService::class);
+
+        $this->assertSame($this->memberOne->id, $meetings->unseatedDpcChairman($this->proposal)?->id);
+        $this->assertContains($this->memberOne->id, $meetings->requiredMemberIds($this->proposal));
+        $this->assertContains($this->memberOne->id, array_column(app(CalculationGate::class)->pendingMembers($this->proposal->fresh()), 'user_id'), 'Calculate waits on the DPC Chairman too.');
+
+        $this->actingAs($this->memberOne)->get(route('sitting.show', $this->proposal))->assertOk()->assertSee('id="record-agree"', false);
+        $this->post(route('sitting.agree', $this->proposal))->assertSessionHasNoErrors();
+
+        $this->assertNotContains($this->memberOne->id, array_column(app(CalculationGate::class)->pendingMembers($this->proposal->fresh()), 'user_id'));
+        $this->get(route('sitting.show', $this->proposal))->assertSee('id="agreed-badge"', false);
+    }
+
+    /** 2026-11-27: once the sitting's day has gone by, the page says so — not that it will open. */
+    public function test_after_the_sitting_day_the_reason_says_it_has_passed(): void
+    {
+        $member = $this->seatedMember();
+        $when = $this->atTheSitting()->format('d-m-Y H:i');
+        Carbon::setTestNow($this->atTheSitting()->copy()->addDays(2));
+
+        $this->actingAs($member)->get(route('sitting.show', $this->proposal))->assertOk()
+            ->assertDontSee('id="record-agree"', false)
+            ->assertSee(__('proceeding.sitting.day_passed', ['when' => $when]));
+        $this->post(route('sitting.agree', $this->proposal))->assertSessionHasErrors(['ok' => __('proceeding.sitting.day_passed', ['when' => $when])]);
+        $this->assertSame(__('dpc.calculation_gate.sitting_passed', ['when' => $when]), app(CalculationGate::class)->refusal($this->proposal->fresh(), $this->memberOne));
+    }
+
     /** Two presses at once, or twice: one Agree on each candidate. */
     public function test_a_repeated_agree_makes_one_record_a_candidate(): void
     {

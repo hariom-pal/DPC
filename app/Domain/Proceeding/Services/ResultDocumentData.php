@@ -21,6 +21,7 @@ use App\Domain\Eligibility\Models\DpcCalculationRun;
 use App\Domain\Proceeding\Models\DpcProceeding;
 use App\Domain\Proceeding\Models\DpcProceedingHold;
 use App\Domain\Shared\Workflow\WorkflowException;
+use App\Enums\Role;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
@@ -127,7 +128,22 @@ final class ResultDocumentData
     {
         $covers = app(SealedCoverService::class);
 
-        return DpcCommitteeMember::query()->where('dpc_proposal_id', $proposal->id)->serving()
+        // The DPC Chairman presides, seat or none (2026-11-17): one who holds no seat
+        // heads the attendance and signs like every member.
+        $unseated = app(SittingMeetingService::class)->unseatedDpcChairman($proposal);
+        $chairman = $unseated === null ? [] : [[
+            'user_id' => $unseated->id,
+            'name' => (string) $unseated->name,
+            'designation' => match (true) {
+                $unseated->hasRole(Role::Chairman->value) => 'अध्यक्ष, छत्तीसगढ़ लोक सेवा आयोग',
+                $unseated->hasRole(Role::Member->value) => 'सदस्य, छत्तीसगढ़ लोक सेवा आयोग',
+                default => '',
+            },
+            'chairman' => true,
+            'represents' => [],
+        ]];
+
+        return [...$chairman, ...DpcCommitteeMember::query()->where('dpc_proposal_id', $proposal->id)->serving()
             ->where('capacity', '!=', CommitteeCapacity::CgpscChairman->value)
             ->orderBy('sort_order')->get()
             ->map(function (DpcCommitteeMember $seat) use ($covers, $proposal): array {
@@ -147,7 +163,7 @@ final class ResultDocumentData
                     'represents' => $represents,
                 ];
             })
-            ->sortByDesc('chairman')->values()->all();
+            ->sortByDesc('chairman')->values()->all()];
     }
 
     /** @return array{size: int|null, vacancies: int|null, formula: string|null} */

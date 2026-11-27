@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Proceeding\Services;
 
 use App\Domain\Authentication\Models\User;
+use App\Domain\Cgpsc\Models\DpcAllotment;
 use App\Domain\Dpc\Enums\CommitteeCapacity;
 use App\Domain\Dpc\Enums\DpcProposalStatus;
 use App\Domain\Dpc\Models\DpcCommitteeMember;
@@ -141,23 +142,47 @@ final class SittingMeetingService
     // ------------------------------------------------------ Agree and Disagree
 
     /**
-     * The members whose OK and Agree are awaited: every serving seat with a login,
-     * the CGPSC Chairman's own seat aside.
+     * The members whose Agree is awaited: every serving seat with a login, the CGPSC
+     * Chairman's own seat aside — and the DPC Chairman, who agrees like any member
+     * (2026-11-25) though, as the person the DPC is allotted to, they need hold no
+     * seat (2026-11-17).
      *
      * @return list<int>
      */
     public function requiredMemberIds(DpcProposal $proposal): array
     {
-        return DpcCommitteeMember::query()
+        $ids = DpcCommitteeMember::query()
             ->where('dpc_proposal_id', $proposal->id)
             ->serving()
             ->where('capacity', '!=', CommitteeCapacity::CgpscChairman->value)
             ->whereNotNull('user_id')
             ->pluck('user_id')
-            ->map(fn ($id): int => (int) $id)
+            ->map(fn ($id): int => (int) $id);
+
+        $chairman = $this->unseatedDpcChairman($proposal);
+
+        return $ids->when($chairman !== null, fn ($ids) => $ids->prepend((int) $chairman?->id))
             ->unique()
             ->values()
             ->all();
+    }
+
+    /**
+     * The DPC Chairman when they hold no serving seat on the committee: the current
+     * allottee (2026-11-17). Null when there is no allotment, or they are seated.
+     */
+    public function unseatedDpcChairman(DpcProposal $proposal): ?User
+    {
+        $allottee = DpcAllotment::query()->where('dpc_proposal_id', $proposal->id)->current()->latest('id')->value('allotted_to');
+        if ($allottee === null) {
+            return null;
+        }
+
+        $seated = DpcCommitteeMember::query()->where('dpc_proposal_id', $proposal->id)->serving()
+            ->where('capacity', '!=', CommitteeCapacity::CgpscChairman->value)
+            ->where('user_id', $allottee)->exists();
+
+        return $seated ? null : User::query()->find($allottee);
     }
 
     /**

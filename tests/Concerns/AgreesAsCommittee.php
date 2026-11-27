@@ -46,9 +46,9 @@ trait AgreesAsCommittee
             $seats->firstWhere('user_id', $chairman->id)?->forceFill(['is_dpc_chairman' => 1])->save();
         }
 
-        // Each member OKs every candidate first (2026-11-18), then agrees.
+        // Each member agrees on every candidate (2026-11-18), the DPC Chairman too, seat or none (2026-11-27).
         $meetings = app(SittingMeetingService::class);
-        foreach ($seats->pluck('user_id')->unique() as $userId) {
+        foreach ($seats->pluck('user_id')->merge($meetings->requiredMemberIds($proposal))->unique() as $userId) {
             foreach ($meetings->candidatesAwaitingOk($proposal, (int) $userId) as $rowId) {
                 DpcCandidateReview::query()->create([
                     'dpc_proposal_id' => $proposal->id, 'dpc_evaluation_row_id' => $rowId, 'user_id' => $userId, 'reviewed_at' => now(),

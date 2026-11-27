@@ -35,6 +35,7 @@ return [
         'scheduled_for' => 'Sitting: :when',
         'in_session' => 'In session now',
         'not_scheduled' => 'This DPC has no sitting date yet.',
+        'day_passed' => 'The sitting\'s day (:when) has gone by. Agree, Disagree and Calculate open only on the sitting\'s day: ask for the sitting to be scheduled again.',
         'opens_at' => 'Calling opens at :when, on the day of the sitting.',
         'window_open' => 'The sitting is open. You can call candidates now.',
         'not_open' => 'The sitting has not been opened yet. The member this DPC is allotted to opens it.',

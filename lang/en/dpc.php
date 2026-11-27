@@ -1535,6 +1535,7 @@ return [
         'not_with_ah' => 'The DPC is not with the AH to open its sections.',
     ],
     'calculation_gate' => [
+        'sitting_passed' => 'The sitting\'s day (:when) has gone by. Calculate opens only on the sitting\'s day: ask for the sitting to be scheduled again.',
         'awaiting_sitting' => 'Calculate will be available at the sitting: :when.',
         'no_sitting' => 'Calculate will be available at the sitting, once it is scheduled.',
         'awaiting_accept' => 'Calculate will be available after the DPC Chairman has accepted the DPC and every member has recorded Agree.',

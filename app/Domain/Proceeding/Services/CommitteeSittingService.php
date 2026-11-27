@@ -159,6 +159,13 @@ class CommitteeSittingService
             return null;
         }
 
+        // The sitting's day has gone by (2026-11-27): it does not open again by waiting.
+        if ($schedule->scheduledFor()->startOfDay()->lt(($now ?? Carbon::now())->copy()->startOfDay())) {
+            return (string) __('proceeding.sitting.day_passed', [
+                'when' => $schedule->scheduledFor()->format('d-m-Y H:i'),
+            ]);
+        }
+
         return (string) __('proceeding.sitting.opens_at', [
             'when' => $schedule->scheduledFor()->format('d-m-Y H:i'),
         ]);

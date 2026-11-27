@@ -6,6 +6,7 @@ namespace Tests\Feature\Proceeding;
 
 use App\Domain\Allotment\Services\ProposalAllotmentService;
 use App\Domain\Authentication\Models\User;
+use App\Domain\Dpc\Models\DpcCommitteeMember;
 use App\Domain\Dpc\Models\DpcEvaluationRow;
 use App\Domain\Dpc\Models\DpcProposal;
 use App\Domain\Master\Models\SealedCoverReason;
@@ -260,6 +261,19 @@ final class ResultDocumentTest extends TestCase
         }
         $this->assertFalse($this->service()->isFinal($proceeding->fresh()));
         $this->assertNull($document->fresh()->final_path);
+    }
+
+    /** 2026-11-27: a DPC Chairman without a seat heads the attendance and signs like every member. */
+    public function test_a_dpc_chairman_without_a_seat_heads_the_attendance_and_signs(): void
+    {
+        DpcCommitteeMember::query()->where('dpc_proposal_id', $this->proposal->id)->where('user_id', $this->memberOne->id)->update(['user_id' => null]);
+        $this->approveOverHttp();
+        $proceeding = $this->proceeding->fresh();
+        $members = $this->service()->documents($proceeding)->first()->data['members'];
+
+        $this->assertSame([$this->memberOne->id, 'Member One', true, 'सदस्य, छत्तीसगढ़ लोक सेवा आयोग'], [$members[0]['user_id'], $members[0]['name'], $members[0]['chairman'], $members[0]['designation']]);
+        $this->assertSame(1, count(array_filter($members, fn (array $m): bool => $m['chairman'])), 'One chairman.');
+        $this->assertNull($this->service()->signRefusal($proceeding, $this->memberOne));
     }
 
     /** @return TestResponse<Response> */
